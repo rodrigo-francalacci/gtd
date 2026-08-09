@@ -1,0 +1,23 @@
+{
+  "name": "gtd",
+  "private": true,
+  "version": "0.1.0",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "npm run dev --workspace=@gtd/web",
+    "build": "npm run build --workspace=@gtd/web",
+    "start": "npm run start --workspace=@gtd/web",
+    "lint": "npm run lint --workspace=@gtd/web",
+    "db:generate": "npm run generate --workspace=@gtd/db",
+    "db:migrate": "npm run migrate --workspace=@gtd/db",
+    "db:push": "npm run push --workspace=@gtd/db",
+    "db:studio": "npm run studio --workspace=@gtd/db",
+    "db:seed": "npm run seed --workspace=@gtd/db"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

@@ -1,0 +1,312 @@
+import 'server-only';
+
+import {
+  actionContexts,
+  actions,
+  areasOfFocus,
+  contexts,
+  db,
+  goals,
+  projects,
+} from '@gtd/db';
+import { and, asc, count, desc, eq, inArray, isNull, sql } from 'drizzle-orm';
+import type { ActionRow } from './queries.shared';
+
+export type { ActionRow } from './queries.shared';
+export { WAITING_STALE_DAYS, daysSince, isStale } from './queries.shared';
+
+/** Contexts grouped by dimension, for the filter bar. */
+export async function getContextsByDimension() {
+  const rows = await db
+    .select()
+    .from(contexts)
+    .orderBy(asc(contexts.dimension), asc(contexts.name));
+
+  return {
+    place: rows.filter((c) => c.dimension === 'place'),
+    time: rows.filter((c) => c.dimension === 'time'),
+    energy: rows.filter((c) => c.dimension === 'energy'),
+    person: rows.filter((c) => c.dimension === 'person'),
+  };
+}
+
+/**
+ * Attach contexts to a set of actions in one round trip rather than N.
+ */
+async function attachContexts(
+  rows: Omit<ActionRow, 'contexts'>[],
+): Promise<ActionRow[]> {
+  if (rows.length === 0) return [];
+
+  const links = await db
+    .select({
+      actionId: actionContexts.actionId,
+      id: contexts.id,
+      name: contexts.name,
+      dimension: contexts.dimension,
+    })
+    .from(actionContexts)
+    .innerJoin(contexts, eq(contexts.id, actionContexts.contextId))
+    .where(
+      inArray(
+        actionContexts.actionId,
+        rows.map((r) => r.id),
+      ),
+    );
+
+  const byAction = new Map<string, ActionRow['contexts']>();
+  for (const l of links) {
+    const list = byAction.get(l.actionId) ?? [];
+    list.push({ id: l.id, name: l.name, dimension: l.dimension });
+    byAction.set(l.actionId, list);
+  }
+
+  return rows.map((r) => ({ ...r, contexts: byAction.get(r.id) ?? [] }));
+}
+
+const actionSelect = {
+  id: actions.id,
+  title: actions.title,
+  status: actions.status,
+  waitingSince: actions.waitingSince,
+  projectId: actions.projectId,
+  projectTitle: projects.title,
+};
+
+/**
+ * The "what can I do now" query. Context filters are AND-ed across dimensions
+ * (place AND time AND energy) but OR-ed within one, which is how the filter bar
+ * reads: "at Home, with 30 min, on low energy".
+ *
+ * Actions with no contexts at all are included only when no filter is active —
+ * an unfiled action shouldn't silently vanish from every filtered view.
+ */
+export async function getNowActions(contextIds: string[]): Promise<ActionRow[]> {
+  const base = and(eq(actions.status, 'next'), isNull(actions.completedAt));
+
+  if (contextIds.length === 0) {
+    const rows = await db
+      .select(actionSelect)
+      .from(actions)
+      .leftJoin(projects, eq(projects.id, actions.projectId))
+      .where(base)
+      .orderBy(asc(actions.createdAt));
+    return attachContexts(rows);
+  }
+
+  // Group the selected contexts by dimension so we can require a match in each.
+  const selected = await db
+    .select({ id: contexts.id, dimension: contexts.dimension })
+    .from(contexts)
+    .where(inArray(contexts.id, contextIds));
+
+  const byDimension = new Map<string, string[]>();
+  for (const c of selected) {
+    byDimension.set(c.dimension, [...(byDimension.get(c.dimension) ?? []), c.id]);
+  }
+
+  const dimensionClauses = [...byDimension.values()].map(
+    (ids) => sql`exists (
+      select 1 from ${actionContexts} ac
+      where ac.action_id = ${actions.id}
+        and ac.context_id in (${sql.join(
+          ids.map((id) => sql`${id}::uuid`),
+          sql`, `,
+        )})
+    )`,
+  );
+
+  const rows = await db
+    .select(actionSelect)
+    .from(actions)
+    .leftJoin(projects, eq(projects.id, actions.projectId))
+    .where(and(base, ...dimensionClauses))
+    .orderBy(asc(actions.createdAt));
+
+  return attachContexts(rows);
+}
+
+/** Waiting-for list, oldest first so the stalest sits at the top. */
+export async function getWaitingActions(): Promise<ActionRow[]> {
+  const rows = await db
+    .select(actionSelect)
+    .from(actions)
+    .leftJoin(projects, eq(projects.id, actions.projectId))
+    .where(eq(actions.status, 'waiting'))
+    .orderBy(asc(actions.waitingSince));
+
+  return attachContexts(rows);
+}
+
+export type ProjectRow = {
+  id: string;
+  title: string;
+  status: string;
+  standbyReason: string | null;
+  areaName: string | null;
+  nextActionCount: number;
+  waitingCount: number;
+};
+
+/**
+ * Projects with their open-action counts. An active project with zero next
+ * actions is stalled — that's derived here rather than stored, so it can never
+ * drift out of sync with the actions themselves.
+ */
+export async function getProjects(): Promise<ProjectRow[]> {
+  // The alias names must differ: both are joined into the same statement, and
+  // Drizzle references them unqualified.
+  const nextCounts = db
+    .select({
+      projectId: actions.projectId,
+      n: count().as('next_n'),
+    })
+    .from(actions)
+    .where(eq(actions.status, 'next'))
+    .groupBy(actions.projectId)
+    .as('next_counts');
+
+  const waitingCounts = db
+    .select({
+      projectId: actions.projectId,
+      n: count().as('waiting_n'),
+    })
+    .from(actions)
+    .where(eq(actions.status, 'waiting'))
+    .groupBy(actions.projectId)
+    .as('waiting_counts');
+
+  const rows = await db
+    .select({
+      id: projects.id,
+      title: projects.title,
+      status: projects.status,
+      standbyReason: projects.standbyReason,
+      areaName: areasOfFocus.name,
+      nextActionCount: sql<number>`coalesce(${nextCounts.n}, 0)::int`,
+      waitingCount: sql<number>`coalesce(${waitingCounts.n}, 0)::int`,
+    })
+    .from(projects)
+    .leftJoin(areasOfFocus, eq(areasOfFocus.id, projects.areaId))
+    .leftJoin(nextCounts, eq(nextCounts.projectId, projects.id))
+    .leftJoin(waitingCounts, eq(waitingCounts.projectId, projects.id))
+    .orderBy(asc(projects.status), asc(projects.title));
+
+  return rows;
+}
+
+export function isStalled(p: Pick<ProjectRow, 'status' | 'nextActionCount'>): boolean {
+  return p.status === 'active' && p.nextActionCount === 0;
+}
+
+export async function getProject(id: string) {
+  const [row] = await db
+    .select({
+      id: projects.id,
+      title: projects.title,
+      status: projects.status,
+      standbyReason: projects.standbyReason,
+      notes: projects.notes,
+      areaId: projects.areaId,
+      goalId: projects.goalId,
+      areaName: areasOfFocus.name,
+      driveFolderId: projects.driveFolderId,
+      gmailLabelId: projects.gmailLabelId,
+      createdAt: projects.createdAt,
+    })
+    .from(projects)
+    .leftJoin(areasOfFocus, eq(areasOfFocus.id, projects.areaId))
+    .where(eq(projects.id, id))
+    .limit(1);
+
+  return row ?? null;
+}
+
+export async function getProjectActions(projectId: string): Promise<ActionRow[]> {
+  const rows = await db
+    .select(actionSelect)
+    .from(actions)
+    .leftJoin(projects, eq(projects.id, actions.projectId))
+    .where(eq(actions.projectId, projectId))
+    .orderBy(asc(actions.status), desc(actions.createdAt));
+
+  return attachContexts(rows);
+}
+
+export async function getAction(id: string) {
+  const [row] = await db
+    .select({
+      id: actions.id,
+      title: actions.title,
+      status: actions.status,
+      waitingSince: actions.waitingSince,
+      notes: actions.notes,
+      projectId: actions.projectId,
+      projectTitle: projects.title,
+      createdAt: actions.createdAt,
+    })
+    .from(actions)
+    .leftJoin(projects, eq(projects.id, actions.projectId))
+    .where(eq(actions.id, id))
+    .limit(1);
+
+  if (!row) return null;
+
+  const ctx = await db
+    .select({ id: contexts.id, name: contexts.name, dimension: contexts.dimension })
+    .from(actionContexts)
+    .innerJoin(contexts, eq(contexts.id, actionContexts.contextId))
+    .where(eq(actionContexts.actionId, id));
+
+  return { ...row, contexts: ctx };
+}
+
+/** Areas with their active-project counts — an empty area is the signal. */
+export async function getAreasWithCounts() {
+  const activeCounts = db
+    .select({ areaId: projects.areaId, n: count().as('active_n') })
+    .from(projects)
+    .where(eq(projects.status, 'active'))
+    .groupBy(projects.areaId)
+    .as('active_counts');
+
+  return db
+    .select({
+      id: areasOfFocus.id,
+      name: areasOfFocus.name,
+      activeProjects: sql<number>`coalesce(${activeCounts.n}, 0)::int`,
+    })
+    .from(areasOfFocus)
+    .leftJoin(activeCounts, eq(activeCounts.areaId, areasOfFocus.id))
+    .orderBy(asc(areasOfFocus.name));
+}
+
+export async function getAreasAndGoals() {
+  const [areaRows, goalRows] = await Promise.all([
+    db.select().from(areasOfFocus).orderBy(asc(areasOfFocus.name)),
+    db.select().from(goals).orderBy(asc(goals.title)),
+  ]);
+  return { areas: areaRows, goals: goalRows };
+}
+
+/** Counts for the sidebar badges. */
+export async function getSidebarCounts() {
+  const [nextRow] = await db
+    .select({ n: count() })
+    .from(actions)
+    .where(eq(actions.status, 'next'));
+
+  const [waitingRow] = await db
+    .select({ n: count() })
+    .from(actions)
+    .where(eq(actions.status, 'waiting'));
+
+  const projectRows = await getProjects();
+
+  return {
+    next: nextRow?.n ?? 0,
+    waiting: waitingRow?.n ?? 0,
+    projects: projectRows.filter((p) => p.status === 'active').length,
+    stalled: projectRows.filter(isStalled).length,
+  };
+}
