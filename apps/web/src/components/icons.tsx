@@ -29,6 +29,14 @@ function Glyph({ children, ...props }: IconProps & { children: React.ReactNode }
   );
 }
 
+/** Inbox — a tray. */
+export const IconInbox = (p: IconProps) => (
+  <Glyph {...p}>
+    <path d="M2.2 9.4h3.2l1 1.8h3.2l1-1.8h3.2" />
+    <path d="M2.2 9.4 3.9 3.2h8.2l1.7 6.2v3.4H2.2z" />
+  </Glyph>
+);
+
 /** Now / what can I do — a target. */
 export const IconNow = (p: IconProps) => (
   <Glyph {...p}>

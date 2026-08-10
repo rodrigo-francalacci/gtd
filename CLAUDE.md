@@ -38,7 +38,16 @@ Turbopack is the default; `middleware` is now `proxy`.
   doesn't fix it.
 - **Raw capture is immutable.** AI output is a suggestion layer
   (`inbox_items.ai_suggestion`), never a rewrite of `raw_text` /
-  `drive_file_id`.
+  `drive_file_id`. Clarifying doesn't edit or delete the row either: it marks
+  it clarified and stamps `outcome` / `outcome_id` beside the original,
+  `trashed` included.
+- **Capture never blocks on enrichment.** `captureInboxItem` writes the row,
+  then attempts a suggestion in a try/catch — a failing suggester must never
+  cost you the thought. Suggestions pre-fill the clarify form and commit
+  nothing on their own.
+- **Panels seeded from a selected row need `key={row.id}`.** `useState`
+  initialisers only run on mount, so without it the clarify panel (and the
+  note editor) keep the previous row's draft. This has bitten twice.
 - **Derived state is derived.** Stalled projects, waiting staleness, and a list
   item's `stage` are computed in queries, never stored, so they can't drift
   from the rows.

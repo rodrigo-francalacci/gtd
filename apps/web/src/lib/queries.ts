@@ -7,9 +7,11 @@ import {
   contexts,
   db,
   goals,
+  inboxItems,
   listItems,
   lists,
   projects,
+  type AiSuggestion,
 } from '@gtd/db';
 import {
   and,
@@ -477,6 +479,64 @@ export async function getAreasAndGoals() {
 }
 
 // ---------------------------------------------------------------------------
+// Inbox
+// ---------------------------------------------------------------------------
+
+export type InboxRow = {
+  id: string;
+  rawType: 'text' | 'photo' | 'audio';
+  rawText: string | null;
+  aiSuggestion: AiSuggestion | null;
+  createdAt: Date;
+};
+
+/**
+ * Pending captures, oldest first.
+ *
+ * Deliberately not newest-first: the inbox is a queue you empty from the top,
+ * and putting the freshest thing there would let old items rot at the bottom.
+ */
+export async function getInboxItems(): Promise<InboxRow[]> {
+  const rows = await db
+    .select({
+      id: inboxItems.id,
+      rawType: inboxItems.rawType,
+      rawText: inboxItems.rawText,
+      aiSuggestion: inboxItems.aiSuggestion,
+      createdAt: inboxItems.createdAt,
+    })
+    .from(inboxItems)
+    .where(eq(inboxItems.status, 'pending'))
+    .orderBy(asc(inboxItems.createdAt));
+
+  return rows as InboxRow[];
+}
+
+export async function getInboxItem(id: string): Promise<InboxRow | null> {
+  const [row] = await db
+    .select({
+      id: inboxItems.id,
+      rawType: inboxItems.rawType,
+      rawText: inboxItems.rawText,
+      aiSuggestion: inboxItems.aiSuggestion,
+      createdAt: inboxItems.createdAt,
+    })
+    .from(inboxItems)
+    .where(eq(inboxItems.id, id))
+    .limit(1);
+
+  return (row as InboxRow) ?? null;
+}
+
+/** Lists that a non-actionable item can be parked on. */
+export async function getListOptions() {
+  return db
+    .select({ id: lists.id, name: lists.name, type: lists.type })
+    .from(lists)
+    .orderBy(asc(lists.name));
+}
+
+// ---------------------------------------------------------------------------
 // Lists
 // ---------------------------------------------------------------------------
 
@@ -598,6 +658,11 @@ export async function getSidebarCounts() {
     .from(actions)
     .where(eq(actions.status, 'waiting'));
 
+  const [inboxRow] = await db
+    .select({ n: count() })
+    .from(inboxItems)
+    .where(eq(inboxItems.status, 'pending'));
+
   const [unfiledRow] = await db
     .select({ n: count() })
     .from(actions)
@@ -611,6 +676,7 @@ export async function getSidebarCounts() {
   const projectRows = await getProjects();
 
   return {
+    inbox: inboxRow?.n ?? 0,
     archived: archivedRow?.n ?? 0,
     next: nextRow?.n ?? 0,
     waiting: waitingRow?.n ?? 0,

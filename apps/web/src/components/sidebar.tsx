@@ -5,6 +5,7 @@ import { usePathname } from 'next/navigation';
 import type { ComponentType, SVGProps } from 'react';
 import {
   IconAreas,
+  IconInbox,
   IconArchive,
   IconFile,
   IconLists,
@@ -38,12 +39,26 @@ export function SidebarNav({
     stalled: number;
     unfiled: number;
     archived: number;
+    inbox: number;
   };
   lists: Pick<ListRow, 'id' | 'name' | 'type' | 'candidateCount'>[];
 }) {
   const pathname = usePathname();
 
   const groups: { heading: string; items: Item[] }[] = [
+    {
+      heading: 'Capture',
+      items: [
+        {
+          href: '/inbox',
+          label: 'Inbox',
+          icon: IconInbox,
+          count: counts.inbox,
+          // Not an error, but the one number you want to see is this one.
+          alert: false,
+        },
+      ],
+    },
     {
       heading: 'Engage',
       items: [
@@ -168,7 +183,7 @@ export function SidebarNav({
       </div>
 
       <div className="border-t border-grey-200 px-4 py-2 text-[11px] text-grey-400">
-        Inbox and the weekly review land next session.
+        The weekly review lands next session.
       </div>
     </nav>
   );

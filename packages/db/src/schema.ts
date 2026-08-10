@@ -80,6 +80,16 @@ export const inboxRawType = pgEnum('inbox_raw_type', ['text', 'photo', 'audio'])
 
 export const inboxStatus = pgEnum('inbox_status', ['pending', 'clarified']);
 
+/** What a raw capture turned into once it was clarified. */
+export const inboxOutcome = pgEnum('inbox_outcome', [
+  'next_action',
+  'waiting',
+  'project',
+  'list_item',
+  'done',
+  'trashed',
+]);
+
 // ---------------------------------------------------------------------------
 // Horizons: areas of focus and goals
 // ---------------------------------------------------------------------------
@@ -310,6 +320,15 @@ export const inboxItems = pgTable(
     /** Suggestion layer only — sits on top of the raw artefact. */
     aiSuggestion: jsonb('ai_suggestion').$type<AiSuggestion>(),
     status: inboxStatus('status').notNull().default('pending'),
+    /**
+     * What clarifying produced. The raw capture above is never edited or
+     * deleted, so these record the decision beside the original rather than
+     * replacing it — including `trashed`, which keeps the evidence that
+     * something was captured and consciously dropped.
+     */
+    outcome: inboxOutcome('outcome'),
+    outcomeId: uuid('outcome_id'),
+    clarifiedAt: timestamp('clarified_at', { withTimezone: true }),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [index('inbox_items_status_idx').on(t.status)],

@@ -1,0 +1,116 @@
+import Link from 'next/link';
+import { ClarifyPanel } from '@/components/clarify-panel';
+import { InboxCapture } from '@/components/inbox-capture';
+import { DetailPane, EmptyDetail, EmptyList, ListPane } from '@/components/panes';
+import {
+  getAreasAndGoals,
+  getContextsByDimension,
+  getInboxItem,
+  getInboxItems,
+  getListOptions,
+  getProjectOptions,
+} from '@/lib/queries';
+import { getPreferences, paneWidth } from '@/lib/view-mode';
+
+const stamp = new Intl.DateTimeFormat('en-GB', {
+  day: 'numeric',
+  month: 'short',
+  hour: '2-digit',
+  minute: '2-digit',
+});
+
+/**
+ * Capture and clarify — the front of the GTD loop. Everything else in the app
+ * assumes an item has already been decided about; this is where that happens.
+ */
+export default async function InboxPage(props: PageProps<'/inbox'>) {
+  const searchParams = await props.searchParams;
+  const selectedId = typeof searchParams.item === 'string' ? searchParams.item : null;
+
+  const [items, prefs] = await Promise.all([getInboxItems(), getPreferences()]);
+
+  // `items` is pending-only, so an id that isn't in it has just been clarified.
+  // Falling back to the head of the queue makes processing advance by itself:
+  // clarify one, and the next capture is already in front of you.
+  const targetId =
+    selectedId && items.some((i) => i.id === selectedId)
+      ? selectedId
+      : (items[0]?.id ?? null);
+
+  const [selected, projects, horizons, listOptions, contextGroups] = await Promise.all([
+    targetId ? getInboxItem(targetId) : Promise.resolve(null),
+    getProjectOptions(),
+    getAreasAndGoals(),
+    getListOptions(),
+    getContextsByDimension(),
+  ]);
+
+  return (
+    <>
+      <ListPane
+        title="Inbox"
+        paneWidth={paneWidth(prefs)}
+        subtitle={
+          items.length === 0
+            ? 'Empty — nothing waiting to be clarified'
+            : `${items.length} to clarify · oldest first`
+        }
+      >
+        <InboxCapture />
+
+        {items.length === 0 ? (
+          <EmptyList message="Nothing here. Capture anything above — you can decide what it is later." />
+        ) : (
+          items.map((item) => (
+            <Link
+              key={item.id}
+              href={`/inbox?item=${item.id}`}
+              className={[
+                'block border-b border-grey-150 px-4 py-2.5',
+                item.id === targetId ? 'bg-selected-bg' : 'hover:bg-grey-100',
+              ].join(' ')}
+            >
+              <span
+                className={[
+                  'line-clamp-2 text-[13px]',
+                  item.id === targetId
+                    ? 'font-medium text-grey-900'
+                    : 'text-grey-800',
+                ].join(' ')}
+              >
+                {item.rawText}
+              </span>
+              <span className="mt-1 flex items-center gap-2 text-[11px] text-grey-500">
+                {stamp.format(item.createdAt)}
+                {item.aiSuggestion?.projectId ? (
+                  <span className="rounded-sm bg-grey-200 px-1.5 py-px text-grey-600">
+                    suggestion
+                  </span>
+                ) : null}
+              </span>
+            </Link>
+          ))
+        )}
+      </ListPane>
+
+      {selected ? (
+        <DetailPane>
+          {/* key: the panel holds draft state (title, project, contexts)
+              seeded from the item. Without a fresh mount per item, selecting
+              a different capture would keep the previous one's draft and
+              clarify it under the wrong title. */}
+          <ClarifyPanel
+            key={selected.id}
+            item={selected}
+            projects={projects}
+            areas={horizons.areas}
+            lists={listOptions}
+            contextGroups={contextGroups}
+          />
+        </DetailPane>
+      ) : (
+        <EmptyDetail message="Inbox zero" />
+      )}
+    </>
+  );
+}

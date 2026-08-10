@@ -8,6 +8,7 @@ import {
   contexts,
   db,
   goals,
+  inboxItems,
   listItems,
   lists,
   preferences,
@@ -26,6 +27,7 @@ import {
   MIN_PANE_WIDTH,
   type ViewMode,
 } from './pane';
+import { suggester } from './ai/suggest';
 import { googleSync } from './google/sync';
 import { extractText } from './tiptap';
 
@@ -226,6 +228,158 @@ export async function moveActionToProject(actionId: string, projectId: string | 
     .update(actions)
     .set({ projectId, updatedAt: new Date() })
     .where(eq(actions.id, actionId));
+
+  revalidateShell();
+}
+
+// ---------------------------------------------------------------------------
+// Inbox
+// ---------------------------------------------------------------------------
+
+/**
+ * Capture. Zero required fields beyond the text itself, and no classification
+ * — deciding what something is happens later, at clarify time. Enrichment runs
+ * after the row exists so a slow suggester can never delay a capture.
+ */
+export async function captureInboxItem(formData: FormData) {
+  const rawText = String(formData.get('rawText') ?? '').trim();
+  if (!rawText) return;
+
+  const [item] = await db
+    .insert(inboxItems)
+    .values({ rawType: 'text', rawText })
+    .returning();
+
+  revalidateShell();
+
+  // Best-effort suggestion. A failure here must not lose the capture, which
+  // is already safely stored above.
+  try {
+    const [projectRows, contextRows] = await Promise.all([
+      db
+        .select({ id: projects.id, title: projects.title })
+        .from(projects)
+        .where(inArray(projects.status, ['active', 'standby', 'someday'])),
+      db.select({ id: contexts.id, name: contexts.name }).from(contexts),
+    ]);
+
+    const suggestion = await suggester.suggest({
+      rawText,
+      projects: projectRows,
+      contexts: contextRows,
+    });
+
+    if (suggestion) {
+      await db
+        .update(inboxItems)
+        .set({ aiSuggestion: suggestion })
+        .where(eq(inboxItems.id, item.id));
+      revalidateShell();
+    }
+  } catch (error) {
+    console.error('[inbox] suggestion failed, capture kept', error);
+  }
+}
+
+export type ClarifyDecision =
+  | {
+      kind: 'next_action' | 'waiting' | 'done';
+      title: string;
+      projectId: string | null;
+      contextIds: string[];
+    }
+  | { kind: 'project'; title: string; areaId: string | null }
+  | { kind: 'list_item'; title: string; listId: string }
+  | { kind: 'trashed' };
+
+/**
+ * Clarify a capture into something real.
+ *
+ * The raw row is never edited or deleted — it's marked clarified and stamped
+ * with what it became. That's the brief's immutability rule: the original
+ * capture stays the record of what you actually thought, and everything else
+ * is a layer on top.
+ */
+export async function clarifyInboxItem(itemId: string, decision: ClarifyDecision) {
+  const [item] = await db
+    .select({ id: inboxItems.id, status: inboxItems.status })
+    .from(inboxItems)
+    .where(eq(inboxItems.id, itemId))
+    .limit(1);
+
+  if (!item || item.status === 'clarified') return; // no double-processing
+
+  let outcomeId: string | null = null;
+
+  if (decision.kind === 'project') {
+    const title = decision.title.trim();
+    if (!title) return;
+
+    const [project] = await db
+      .insert(projects)
+      .values({ title, areaId: decision.areaId, status: 'active' })
+      .returning();
+    outcomeId = project.id;
+
+    const [driveFolderId, gmailLabelId] = await Promise.all([
+      googleSync.createProjectFolder(project.id, title),
+      googleSync.createGmailLabel(project.id, title),
+    ]);
+    if (driveFolderId || gmailLabelId) {
+      await db
+        .update(projects)
+        .set({ driveFolderId, gmailLabelId })
+        .where(eq(projects.id, project.id));
+    }
+  } else if (decision.kind === 'list_item') {
+    const title = decision.title.trim();
+    if (!title) return;
+
+    const [listItem] = await db
+      .insert(listItems)
+      .values({ listId: decision.listId, title })
+      .returning();
+    outcomeId = listItem.id;
+  } else if (decision.kind !== 'trashed') {
+    const title = decision.title.trim();
+    if (!title) return;
+
+    // The clarify vocabulary and the action-status vocabulary differ on one
+    // word: "next action" is the GTD term, `next` is the column value.
+    const status: ActionStatus =
+      decision.kind === 'next_action' ? 'next' : decision.kind;
+
+    const [action] = await db
+      .insert(actions)
+      .values({
+        title,
+        projectId: decision.projectId,
+        status,
+        waitingSince: status === 'waiting' ? today() : null,
+        completedAt: status === 'done' ? new Date() : null,
+      })
+      .returning();
+    outcomeId = action.id;
+
+    if (decision.contextIds.length > 0) {
+      await db.insert(actionContexts).values(
+        decision.contextIds.map((contextId) => ({
+          actionId: action.id,
+          contextId,
+        })),
+      );
+    }
+  }
+
+  await db
+    .update(inboxItems)
+    .set({
+      status: 'clarified',
+      outcome: decision.kind,
+      outcomeId,
+      clarifiedAt: new Date(),
+    })
+    .where(eq(inboxItems.id, itemId));
 
   revalidateShell();
 }
