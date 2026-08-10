@@ -36,6 +36,13 @@
       "when": 1786355256182,
       "tag": "0004_natural_carnage",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1786361367573,
+      "tag": "0005_rich_greymalkin",
+      "breakpoints": true
     }
   ]
 }

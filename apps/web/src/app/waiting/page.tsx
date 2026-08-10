@@ -9,18 +9,19 @@ import {
   getWaitingActions,
   isStale,
 } from '@/lib/queries';
-import { getViewMode } from '@/lib/view-mode';
+import { getPreferences, paneWidth } from '@/lib/view-mode';
 
 export default async function WaitingPage(props: PageProps<'/waiting'>) {
   const searchParams = await props.searchParams;
   const selectedId = typeof searchParams.action === 'string' ? searchParams.action : null;
 
-  const [rows, groups, selected, viewMode] = await Promise.all([
+  const [rows, groups, selected, prefs] = await Promise.all([
     getWaitingActions(),
     getContextsByDimension(),
     selectedId ? getAction(selectedId) : Promise.resolve(null),
-    getViewMode(),
+    getPreferences(),
   ]);
+  const viewMode = prefs.viewMode;
 
   const staleCount = rows.filter((r) => isStale(r.waitingSince)).length;
 
@@ -29,6 +30,7 @@ export default async function WaitingPage(props: PageProps<'/waiting'>) {
       <ListPane
         title="Waiting for"
         viewMode={viewMode}
+        paneWidth={paneWidth(prefs)}
         columns={ACTION_COLUMNS}
         subtitle={
           rows.length === 0

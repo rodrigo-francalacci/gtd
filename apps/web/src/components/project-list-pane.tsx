@@ -4,7 +4,7 @@ import { QuickAddProject } from '@/components/quick-add';
 import { SortableProjectList } from '@/components/sortable-project-list';
 import { PROJECT_COLUMNS } from '@/lib/columns';
 import { getProjects, isStalled } from '@/lib/queries';
-import { getViewMode } from '@/lib/view-mode';
+import { getPreferences, paneWidth } from '@/lib/view-mode';
 
 /**
  * The middle pane for the Projects section. Rendered by both `/projects` and
@@ -18,7 +18,8 @@ export async function ProjectListPane({
   selectedId: string | null;
   filter: string | null;
 }) {
-  const [all, viewMode] = await Promise.all([getProjects(), getViewMode()]);
+  const [all, prefs] = await Promise.all([getProjects(), getPreferences()]);
+  const viewMode = prefs.viewMode;
   const stalledOnly = filter === 'stalled';
   const rows = stalledOnly ? all.filter(isStalled) : all;
 
@@ -26,6 +27,7 @@ export async function ProjectListPane({
     <ListPane
       title={stalledOnly ? 'Stalled projects' : 'Projects'}
       viewMode={viewMode}
+      paneWidth={paneWidth(prefs)}
       columns={PROJECT_COLUMNS}
       subtitle={
         stalledOnly ? (

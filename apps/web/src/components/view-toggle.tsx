@@ -4,7 +4,7 @@ import { useTransition } from 'react';
 import { setViewMode } from '@/lib/actions';
 // Type-only import: erased at compile time, so the server-only module is
 // never pulled into the client bundle.
-import type { ViewMode } from '@/lib/view-mode';
+import type { ViewMode } from '@/lib/pane';
 import { IconViewCompact, IconViewComfortable } from './icons';
 
 /**

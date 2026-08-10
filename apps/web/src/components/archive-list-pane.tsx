@@ -2,7 +2,7 @@ import Link from 'next/link';
 import { EmptyList, ListPane } from '@/components/panes';
 import { ARCHIVE_COLUMNS } from '@/lib/columns';
 import type { ArchivedProjectRow } from '@/lib/queries';
-import type { ViewMode } from '@/lib/view-mode';
+import type { ViewMode } from '@/lib/pane';
 
 /**
  * Grouped Area → Goal, newest first inside each group.
@@ -17,11 +17,13 @@ export function ArchiveListPane({
   selectedId,
   showDropped,
   viewMode,
+  paneWidth,
 }: {
   projects: ArchivedProjectRow[];
   selectedId: string | null;
   showDropped: boolean;
   viewMode: ViewMode;
+  paneWidth: number;
 }) {
   const compact = viewMode === 'compact';
   const rows = showDropped ? projects : projects.filter((p) => p.status === 'completed');
@@ -45,6 +47,7 @@ export function ArchiveListPane({
     <ListPane
       title="Archive"
       viewMode={viewMode}
+      paneWidth={paneWidth}
       columns={ARCHIVE_COLUMNS}
       subtitle={
         <div className="flex flex-wrap items-center gap-2">

@@ -4,6 +4,7 @@ import type { ProjectStatus } from '@gtd/db';
 import { useState, useTransition } from 'react';
 import {
   deleteProject,
+  setProjectParent,
   setProjectStatus,
   updateProjectNotes,
   updateProjectTitle,
@@ -16,9 +17,16 @@ type ProjectDetailData = {
   status: ProjectStatus;
   standbyReason: string | null;
   notes: unknown;
+  areaId: string | null;
+  goalId: string | null;
   areaName: string | null;
   driveFolderId: string | null;
   gmailLabelId: string | null;
+};
+
+export type HorizonOptions = {
+  areas: { id: string; name: string }[];
+  goals: { id: string; title: string; areaId: string | null }[];
 };
 
 const STATUSES: { value: ProjectStatus; label: string }[] = [
@@ -32,9 +40,11 @@ const STATUSES: { value: ProjectStatus; label: string }[] = [
 export function ProjectDetail({
   project,
   stalled,
+  horizons,
 }: {
   project: ProjectDetailData;
   stalled: boolean;
+  horizons: HorizonOptions;
 }) {
   const [pending, startTransition] = useTransition();
   const [title, setTitle] = useState(project.title);
@@ -44,6 +54,10 @@ export function ProjectDetail({
   // rather than silently accepting an empty reason.
   const [pendingStandby, setPendingStandby] = useState(false);
   const [reason, setReason] = useState(project.standbyReason ?? '');
+
+  const availableGoals = horizons.goals.filter(
+    (g) => g.areaId === project.areaId || (g.areaId === null && !project.areaId),
+  );
 
   const changeStatus = (status: ProjectStatus) => {
     setError(null);
@@ -84,9 +98,61 @@ export function ProjectDetail({
         className="w-full border-none bg-transparent text-xl font-semibold text-grey-900 focus:outline-none"
       />
 
-      <p className="mt-1 text-[12px] text-grey-500">
-        {project.areaName ?? 'No area of focus'}
-      </p>
+      {/* Reassigning the horizon parents. Goals are filtered to the chosen
+          area, because a goal belongs to an area — offering the rest would
+          invite a pairing the server would only reject. */}
+      <section className="mt-3 grid max-w-md grid-cols-2 gap-3">
+        <div>
+          <label className="block text-[10px] font-semibold uppercase tracking-wider text-grey-500">
+            Area of focus
+          </label>
+          <select
+            value={project.areaId ?? ''}
+            onChange={(e) =>
+              startTransition(async () => {
+                await setProjectParent(project.id, e.target.value || null, null);
+              })
+            }
+            className="mt-1 w-full rounded-sm border border-grey-300 bg-paper px-2 py-1 text-[12px] focus:border-grey-500 focus:outline-none"
+          >
+            <option value="">No area</option>
+            {horizons.areas.map((a) => (
+              <option key={a.id} value={a.id}>
+                {a.name}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <div>
+          <label className="block text-[10px] font-semibold uppercase tracking-wider text-grey-500">
+            Goal
+          </label>
+          <select
+            value={project.goalId ?? ''}
+            disabled={availableGoals.length === 0}
+            onChange={(e) =>
+              startTransition(async () => {
+                await setProjectParent(
+                  project.id,
+                  project.areaId,
+                  e.target.value || null,
+                );
+              })
+            }
+            className="mt-1 w-full rounded-sm border border-grey-300 bg-paper px-2 py-1 text-[12px] focus:border-grey-500 focus:outline-none disabled:opacity-50"
+          >
+            <option value="">
+              {availableGoals.length === 0 ? 'No goals in this area' : 'No goal'}
+            </option>
+            {availableGoals.map((g) => (
+              <option key={g.id} value={g.id}>
+                {g.title}
+              </option>
+            ))}
+          </select>
+        </div>
+      </section>
 
       {stalled ? (
         <div className="mt-4 rounded-sm bg-stale-bg px-3 py-2 text-[12px] text-stale">

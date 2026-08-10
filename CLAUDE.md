@@ -15,12 +15,19 @@ Turbopack is the default; `middleware` is now `proxy`.
   `selected`, plus their `-bg` pairs. Nothing decorative. Sidebar icons are
   monochrome strokes for this reason — no emoji, no colour.
 - **Two list densities.** `comfortable` wraps metadata onto a second line;
-  `compact` is the old Evernote table view. The mode lives in a cookie
-  (`getViewMode`), not localStorage or the URL: the server has to know it to
-  render without a flash, and it's a standing preference rather than part of
-  what a link points at. Column sets live in `lib/columns.ts`; the header and
-  the rows share one grid template, and `leading` keeps the first column label
-  aligned over the titles.
+  `compact` is the old Evernote table view. Column sets live in
+  `lib/columns.ts`; the header and the rows share one grid template, and
+  `leading` keeps the first column label aligned over the titles.
+- **UI preferences live in the `preferences` table**, one row pinned to
+  `SINGLETON` — not a cookie or localStorage. The server needs them to render
+  without a flash, and in the database they follow the account rather than the
+  browser, which still holds once the phone app exists. Read with
+  `getPreferences()`; constants and pure helpers that Client Components need
+  are in `lib/pane.ts` (no `server-only`), while `lib/view-mode.ts` does the
+  query.
+- **The pane width is written once, on pointer-up.** The resize follows the
+  cursor in local state; persisting each `pointermove` would be a request per
+  pixel.
 - **Font is Source Sans**, Evernote's UI typeface until they moved to Inter in
   January 2024 — the era this three-pane layout copies. Self-hosted via
   `next/font`, no runtime request.

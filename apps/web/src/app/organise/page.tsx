@@ -4,7 +4,7 @@ import { SortableProjectList } from '@/components/sortable-project-list';
 import { UnfileTarget } from '@/components/unfile-target';
 import { ACTION_COLUMNS, PROJECT_COLUMNS } from '@/lib/columns';
 import { getNowActions, getProjects, getWaitingActions } from '@/lib/queries';
-import { getViewMode } from '@/lib/view-mode';
+import { getPreferences, paneWidth } from '@/lib/view-mode';
 
 /**
  * Filing view: projects on the left, loose actions on the right, drag across
@@ -15,12 +15,13 @@ export default async function OrganisePage(props: PageProps<'/organise'>) {
   const searchParams = await props.searchParams;
   const showAll = searchParams.show === 'all';
 
-  const [projects, next, waiting, viewMode] = await Promise.all([
+  const [projects, next, waiting, prefs] = await Promise.all([
     getProjects(),
     getNowActions([]),
     getWaitingActions(),
-    getViewMode(),
+    getPreferences(),
   ]);
+  const viewMode = prefs.viewMode;
   const compact = viewMode === 'compact';
 
   // Unfiled actions are the ones this view exists to clear, so they lead.
@@ -35,6 +36,7 @@ export default async function OrganisePage(props: PageProps<'/organise'>) {
         subtitle="Drop an action on a project to file it"
         columns={PROJECT_COLUMNS}
         viewMode={viewMode}
+        paneWidth={paneWidth(prefs)}
       >
         <SortableProjectList
           projects={projects.map((p) => ({ ...p, href: `/projects/${p.id}` }))}
@@ -44,7 +46,7 @@ export default async function OrganisePage(props: PageProps<'/organise'>) {
 
       <ListPane
         title={showAll ? 'All actions' : 'Unfiled actions'}
-        width="flex-1"
+        fill
         columns={ACTION_COLUMNS}
         viewMode={viewMode}
         showToggle={false}

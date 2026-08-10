@@ -12,7 +12,7 @@ import {
   getListItems,
   getProjectOptions,
 } from '@/lib/queries';
-import { getViewMode } from '@/lib/view-mode';
+import { getPreferences, paneWidth } from '@/lib/view-mode';
 
 export default async function ListPage(props: PageProps<'/lists/[id]'>) {
   const { id } = await props.params;
@@ -26,12 +26,13 @@ export default async function ListPage(props: PageProps<'/lists/[id]'>) {
   const impact = typeof searchParams.impact === 'string' ? searchParams.impact : undefined;
   const where = typeof searchParams.where === 'string' ? searchParams.where : undefined;
 
-  const [allItems, selected, projectOptions, viewMode] = await Promise.all([
+  const [allItems, selected, projectOptions, prefs] = await Promise.all([
     getListItems(id),
     selectedId ? getListItem(selectedId) : Promise.resolve(null),
     isPurchases ? getProjectOptions() : Promise.resolve([]),
-    getViewMode(),
+    getPreferences(),
   ]);
+  const viewMode = prefs.viewMode;
 
   // Filters narrow the list, but the budget totals stay over the whole list —
   // a filtered subtotal masquerading as the budget would be misleading.
@@ -59,6 +60,7 @@ export default async function ListPage(props: PageProps<'/lists/[id]'>) {
       <ListPane
         title={list.name}
         viewMode={viewMode}
+        paneWidth={paneWidth(prefs)}
         columns={isPurchases ? PURCHASE_COLUMNS : LIST_ITEM_COLUMNS}
         subtitle={
           isPurchases

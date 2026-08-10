@@ -2,8 +2,13 @@ import { ArchiveListPane } from '@/components/archive-list-pane';
 import { DetailPane, EmptyDetail } from '@/components/panes';
 import { ProjectActionsSection } from '@/components/project-actions-section';
 import { ProjectDetail } from '@/components/project-detail';
-import { getArchivedProjects, getProject, getProjectActions } from '@/lib/queries';
-import { getViewMode } from '@/lib/view-mode';
+import {
+  getAreasAndGoals,
+  getArchivedProjects,
+  getProject,
+  getProjectActions,
+} from '@/lib/queries';
+import { getPreferences, paneWidth } from '@/lib/view-mode';
 
 const dateFormat = new Intl.DateTimeFormat('en-GB', {
   day: 'numeric',
@@ -22,13 +27,15 @@ export default async function ArchivePage(props: PageProps<'/archive'>) {
     typeof searchParams.project === 'string' ? searchParams.project : null;
   const showDropped = searchParams.dropped === '1';
 
-  const [archived, selected, viewMode] = await Promise.all([
+  const [archived, selected, prefs] = await Promise.all([
     getArchivedProjects(),
     selectedId ? getProject(selectedId) : Promise.resolve(null),
-    getViewMode(),
+    getPreferences(),
   ]);
 
-  const selectedActions = selected ? await getProjectActions(selected.id) : [];
+  const [selectedActions, horizons] = selected
+    ? await Promise.all([getProjectActions(selected.id), getAreasAndGoals()])
+    : [[], { areas: [], goals: [] }];
 
   return (
     <>
@@ -36,7 +43,8 @@ export default async function ArchivePage(props: PageProps<'/archive'>) {
         projects={archived}
         selectedId={selectedId}
         showDropped={showDropped}
-        viewMode={viewMode}
+        viewMode={prefs.viewMode}
+        paneWidth={paneWidth(prefs)}
       />
 
       {selected ? (
@@ -49,7 +57,7 @@ export default async function ArchivePage(props: PageProps<'/archive'>) {
           {/* Same editable detail as a live project: reopening it is just a
               status change, and notes stay editable so you can add what you
               learned after the fact. */}
-          <ProjectDetail project={selected} stalled={false} />
+          <ProjectDetail project={selected} stalled={false} horizons={horizons} />
           <ProjectActionsSection
             projectId={selected.id}
             actions={selectedActions}

@@ -5,7 +5,7 @@ import { DetailPane, EmptyDetail, EmptyList, ListPane } from '@/components/panes
 import { QuickAddAction } from '@/components/quick-add';
 import { ACTION_COLUMNS } from '@/lib/columns';
 import { getAction, getContextsByDimension, getNowActions } from '@/lib/queries';
-import { getViewMode } from '@/lib/view-mode';
+import { getPreferences, paneWidth } from '@/lib/view-mode';
 
 export default async function NowPage(props: PageProps<'/now'>) {
   const searchParams = await props.searchParams;
@@ -14,12 +14,13 @@ export default async function NowPage(props: PageProps<'/now'>) {
   const contextIds = raw === undefined ? [] : Array.isArray(raw) ? raw : [raw];
   const selectedId = typeof searchParams.action === 'string' ? searchParams.action : null;
 
-  const [groups, rows, selected, viewMode] = await Promise.all([
+  const [groups, rows, selected, prefs] = await Promise.all([
     getContextsByDimension(),
     getNowActions(contextIds),
     selectedId ? getAction(selectedId) : Promise.resolve(null),
-    getViewMode(),
+    getPreferences(),
   ]);
+  const viewMode = prefs.viewMode;
 
   const qs = (id: string) => {
     const p = new URLSearchParams();
@@ -33,6 +34,7 @@ export default async function NowPage(props: PageProps<'/now'>) {
       <ListPane
         title="What can I do now"
         viewMode={viewMode}
+        paneWidth={paneWidth(prefs)}
         columns={ACTION_COLUMNS}
         subtitle={<ContextFilter groups={groups} />}
       >

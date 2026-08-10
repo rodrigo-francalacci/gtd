@@ -4,6 +4,7 @@ import {
   date,
   doublePrecision,
   index,
+  integer,
   jsonb,
   pgEnum,
   pgTable,
@@ -12,6 +13,9 @@ import {
   timestamp,
   uuid,
 } from 'drizzle-orm/pg-core';
+
+/** The one and only preferences row. */
+export const SINGLETON = 'singleton';
 
 /**
  * Postgres tsvector. Drizzle has no first-class type for it, so we declare a
@@ -310,6 +314,27 @@ export const inboxItems = pgTable(
   },
   (t) => [index('inbox_items_status_idx').on(t.status)],
 );
+
+// ---------------------------------------------------------------------------
+// Preferences
+// ---------------------------------------------------------------------------
+
+/**
+ * UI preferences. Single-user app, so this is one row pinned to a fixed id
+ * rather than a per-user table.
+ *
+ * In the database rather than a cookie so settings follow the account instead
+ * of the browser — the same reason they'll still be right when the phone app
+ * arrives.
+ */
+export const preferences = pgTable('preferences', {
+  id: text('id').primaryKey().default(SINGLETON),
+  /** Width of the middle pane in pixels. Null means "use the default". */
+  listPaneWidth: integer('list_pane_width'),
+  /** 'comfortable' | 'compact' */
+  viewMode: text('view_mode'),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+});
 
 // ---------------------------------------------------------------------------
 // Inferred types

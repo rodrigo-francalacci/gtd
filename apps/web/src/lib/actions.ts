@@ -1,12 +1,16 @@
 'use server';
 
 import {
+  SINGLETON,
   actionContexts,
   actions,
+  areasOfFocus,
   contexts,
   db,
+  goals,
   listItems,
   lists,
+  preferences,
   projects,
   type ActionStatus,
   type ContextDimension,
@@ -16,9 +20,12 @@ import {
 import type { PurchaseFields } from './queries.shared';
 import { and, eq, inArray } from 'drizzle-orm';
 import { revalidatePath } from 'next/cache';
-import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
-import { VIEW_MODE_COOKIE, type ViewMode } from './view-mode';
+import {
+  MAX_PANE_WIDTH,
+  MIN_PANE_WIDTH,
+  type ViewMode,
+} from './pane';
 import { googleSync } from './google/sync';
 import { extractText } from './tiptap';
 
@@ -224,16 +231,142 @@ export async function moveActionToProject(actionId: string, projectId: string | 
 }
 
 // ---------------------------------------------------------------------------
+// Areas of focus and goals
+// ---------------------------------------------------------------------------
+
+export async function createArea(name: string) {
+  const trimmed = name.trim();
+  if (!trimmed) return;
+
+  const [area] = await db.insert(areasOfFocus).values({ name: trimmed }).returning();
+  revalidateShell();
+  redirect(`/areas?area=${area.id}`);
+}
+
+export async function updateArea(areaId: string, name: string) {
+  const trimmed = name.trim();
+  if (!trimmed) return;
+
+  await db
+    .update(areasOfFocus)
+    .set({ name: trimmed, updatedAt: new Date() })
+    .where(eq(areasOfFocus.id, areaId));
+
+  revalidateShell();
+}
+
+/**
+ * Projects and goals reference an area with `on delete set null`, so deleting
+ * an area orphans them rather than destroying them. That's deliberate: an area
+ * is a lens on work, not its owner.
+ */
+export async function deleteArea(areaId: string) {
+  await db.delete(areasOfFocus).where(eq(areasOfFocus.id, areaId));
+  revalidateShell();
+  redirect('/areas');
+}
+
+export async function createGoal(areaId: string | null, title: string) {
+  const trimmed = title.trim();
+  if (!trimmed) return;
+
+  const [goal] = await db
+    .insert(goals)
+    .values({ title: trimmed, areaId })
+    .returning();
+
+  revalidateShell();
+  redirect(`/areas?goal=${goal.id}`);
+}
+
+export async function updateGoal(
+  goalId: string,
+  patch: { title?: string; targetDate?: string | null; areaId?: string | null },
+) {
+  const set: Record<string, unknown> = { updatedAt: new Date() };
+
+  if (patch.title !== undefined) {
+    const trimmed = patch.title.trim();
+    if (!trimmed) return;
+    set.title = trimmed;
+  }
+  if (patch.targetDate !== undefined) set.targetDate = patch.targetDate || null;
+  if (patch.areaId !== undefined) set.areaId = patch.areaId;
+
+  await db.update(goals).set(set).where(eq(goals.id, goalId));
+  revalidateShell();
+}
+
+export async function deleteGoal(goalId: string) {
+  await db.delete(goals).where(eq(goals.id, goalId));
+  revalidateShell();
+  redirect('/areas');
+}
+
+/**
+ * Reassign a project's horizon parents.
+ *
+ * A goal belongs to an area, so moving a project to a different area drops a
+ * goal that no longer sits under it — otherwise the project would claim a goal
+ * from an area it isn't in.
+ */
+export async function setProjectParent(
+  projectId: string,
+  areaId: string | null,
+  goalId: string | null,
+) {
+  let resolvedGoalId = goalId;
+
+  if (goalId) {
+    const [goal] = await db
+      .select({ areaId: goals.areaId })
+      .from(goals)
+      .where(eq(goals.id, goalId))
+      .limit(1);
+
+    if (!goal || (goal.areaId && goal.areaId !== areaId)) resolvedGoalId = null;
+  }
+
+  await db
+    .update(projects)
+    .set({ areaId, goalId: resolvedGoalId, updatedAt: new Date() })
+    .where(eq(projects.id, projectId));
+
+  revalidateShell();
+}
+
+// ---------------------------------------------------------------------------
 // Preferences
 // ---------------------------------------------------------------------------
 
+/** Upsert onto the single preferences row. */
+async function savePreference(patch: {
+  viewMode?: ViewMode;
+  listPaneWidth?: number;
+}) {
+  await db
+    .insert(preferences)
+    .values({ id: SINGLETON, ...patch, updatedAt: new Date() })
+    .onConflictDoUpdate({
+      target: preferences.id,
+      set: { ...patch, updatedAt: new Date() },
+    });
+}
+
 export async function setViewMode(mode: ViewMode) {
-  const store = await cookies();
-  store.set(VIEW_MODE_COOKIE, mode, {
-    path: '/',
-    maxAge: 60 * 60 * 24 * 365,
-    sameSite: 'lax',
-  });
+  await savePreference({ viewMode: mode });
+  revalidateShell();
+}
+
+/**
+ * Called once on pointer-up, not during the drag — the pane follows the cursor
+ * locally, and only the final width is written.
+ */
+export async function setListPaneWidth(width: number) {
+  const clamped = Math.round(
+    Math.min(MAX_PANE_WIDTH, Math.max(MIN_PANE_WIDTH, width)),
+  );
+  await savePreference({ listPaneWidth: clamped });
   revalidateShell();
 }
 

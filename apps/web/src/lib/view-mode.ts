@@ -1,19 +1,34 @@
 import 'server-only';
-import { cookies } from 'next/headers';
 
-export type ViewMode = 'comfortable' | 'compact';
+import { SINGLETON, db, preferences } from '@gtd/db';
+import { eq } from 'drizzle-orm';
+import type { Preferences } from './pane';
 
-export const VIEW_MODE_COOKIE = 'gtd_view';
+export type {
+  Preferences,
+  ViewMode,
+} from './pane';
+export {
+  DEFAULT_PANE_WIDTH,
+  MAX_PANE_WIDTH,
+  MIN_PANE_WIDTH,
+  paneWidth,
+} from './pane';
 
 /**
- * Read the list-pane density.
- *
- * Kept in a cookie rather than localStorage so the server renders the right
- * variant on the first pass — a client-side preference would flash the wrong
- * layout on every navigation. Not in the URL either: this is a standing
- * preference, not part of what a link points at.
+ * UI preferences, read from the database rather than a cookie so they follow
+ * the account rather than the browser — which is also what keeps them right
+ * once the phone app exists.
  */
-export async function getViewMode(): Promise<ViewMode> {
-  const store = await cookies();
-  return store.get(VIEW_MODE_COOKIE)?.value === 'compact' ? 'compact' : 'comfortable';
+export async function getPreferences(): Promise<Preferences> {
+  const [row] = await db
+    .select()
+    .from(preferences)
+    .where(eq(preferences.id, SINGLETON))
+    .limit(1);
+
+  return {
+    viewMode: row?.viewMode === 'compact' ? 'compact' : 'comfortable',
+    listPaneWidth: row?.listPaneWidth ?? null,
+  };
 }

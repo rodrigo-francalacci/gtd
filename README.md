@@ -59,6 +59,10 @@ preview branches included.
   and a Purchases budget separating proposed from committed spend
 - Archive of finished projects, grouped by area and goal, newest first, keeping
   the notes and the record of what was done
+- Areas and goals: create, rename, retarget, delete, and reassign a project's
+  parents
+- Comfortable and compact list views, and a drag-to-resize list pane — both
+  remembered in the database
 
 ## Not built yet
 

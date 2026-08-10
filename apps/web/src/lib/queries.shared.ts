@@ -35,6 +35,8 @@ export type ProjectRow = {
   title: string;
   status: ProjectStatus;
   standbyReason: string | null;
+  areaId: string | null;
+  goalId: string | null;
   areaName: string | null;
   nextActionCount: number;
   waitingCount: number;

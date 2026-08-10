@@ -231,6 +231,8 @@ export async function getProjects(): Promise<ProjectRow[]> {
       title: projects.title,
       status: projects.status,
       standbyReason: projects.standbyReason,
+      areaId: projects.areaId,
+      goalId: projects.goalId,
       areaName: areasOfFocus.name,
       nextActionCount: sql<number>`coalesce(${nextCounts.n}, 0)::int`,
       waitingCount: sql<number>`coalesce(${waitingCounts.n}, 0)::int`,
@@ -377,6 +379,93 @@ export async function getAreasWithCounts() {
     .from(areasOfFocus)
     .leftJoin(activeCounts, eq(activeCounts.areaId, areasOfFocus.id))
     .orderBy(asc(areasOfFocus.name));
+}
+
+export type AreaTree = {
+  id: string;
+  name: string;
+  activeProjects: number;
+  goals: {
+    id: string;
+    title: string;
+    targetDate: string | null;
+    activeProjects: number;
+  }[];
+};
+
+/**
+ * Areas with their goals nested, each carrying an active-project count.
+ *
+ * The counts are the point of this view: an area or goal with nothing active
+ * under it is the gap the horizon exists to surface, so it must be visible
+ * without opening anything.
+ */
+export async function getAreaTree(): Promise<{
+  areas: AreaTree[];
+  looseGoals: AreaTree['goals'];
+}> {
+  const [areaRows, goalRows, projectRows] = await Promise.all([
+    db.select().from(areasOfFocus).orderBy(asc(areasOfFocus.name)),
+    db.select().from(goals).orderBy(asc(goals.title)),
+    db
+      .select({
+        areaId: projects.areaId,
+        goalId: projects.goalId,
+        status: projects.status,
+      })
+      .from(projects),
+  ]);
+
+  const active = projectRows.filter((p) => p.status === 'active');
+  const countByArea = (id: string) => active.filter((p) => p.areaId === id).length;
+  const countByGoal = (id: string) => active.filter((p) => p.goalId === id).length;
+
+  const toGoal = (g: (typeof goalRows)[number]) => ({
+    id: g.id,
+    title: g.title,
+    targetDate: g.targetDate,
+    activeProjects: countByGoal(g.id),
+  });
+
+  return {
+    areas: areaRows.map((a) => ({
+      id: a.id,
+      name: a.name,
+      activeProjects: countByArea(a.id),
+      goals: goalRows.filter((g) => g.areaId === a.id).map(toGoal),
+    })),
+    // A goal with no area still has to appear somewhere.
+    looseGoals: goalRows.filter((g) => g.areaId === null).map(toGoal),
+  };
+}
+
+export async function getArea(id: string) {
+  const [row] = await db
+    .select()
+    .from(areasOfFocus)
+    .where(eq(areasOfFocus.id, id))
+    .limit(1);
+  return row ?? null;
+}
+
+export async function getGoal(id: string) {
+  const [row] = await db.select().from(goals).where(eq(goals.id, id)).limit(1);
+  return row ?? null;
+}
+
+/** Live projects under an area or a goal, for the horizon detail pane. */
+export async function getProjectsFor(filter: {
+  areaId?: string;
+  goalId?: string;
+}): Promise<ProjectRow[]> {
+  const all = await getProjects();
+  return all.filter((p) =>
+    filter.goalId
+      ? p.goalId === filter.goalId
+      : filter.areaId
+        ? p.areaId === filter.areaId
+        : false,
+  );
 }
 
 export async function getAreasAndGoals() {

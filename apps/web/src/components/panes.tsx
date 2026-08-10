@@ -1,7 +1,8 @@
 import type { ReactNode } from 'react';
 import type { ColumnSet } from '@/lib/columns';
+import type { ViewMode } from '@/lib/pane';
+import { ResizablePane } from './resizable-pane';
 import { ViewToggle } from './view-toggle';
-import type { ViewMode } from '@/lib/view-mode';
 
 /**
  * The middle pane: a scrolling list with a sticky header.
@@ -14,8 +15,9 @@ export function ListPane({
   title,
   subtitle,
   actions,
-  width = 'w-[30rem]',
+  fill = false,
   viewMode,
+  paneWidth,
   showToggle = true,
   columns,
   children,
@@ -23,10 +25,12 @@ export function ListPane({
   title: string;
   subtitle?: ReactNode;
   actions?: ReactNode;
-  /** Override for views where this pane should take the remaining space. */
-  width?: string;
+  /** Take the remaining space instead of a fixed, resizable width. */
+  fill?: boolean;
   /** Drives the column header, and the density toggle unless suppressed. */
   viewMode?: ViewMode;
+  /** Resolved width in px. Omit (or use `fill`) for a non-resizable pane. */
+  paneWidth?: number;
   /** Set false on a second pane in the same view so the toggle isn't doubled. */
   showToggle?: boolean;
   /** Column header, shown only in compact mode. */
@@ -35,15 +39,8 @@ export function ListPane({
 }) {
   const compact = viewMode === 'compact';
 
-  // A table needs room for its fixed columns, so compact mode widens the pane
-  // and the detail pane gives up the space — which is how the Evernote list
-  // view this copies was proportioned. An explicit width still wins.
-  const resolvedWidth = compact && width === 'w-[30rem]' ? 'w-[46rem]' : width;
-
-  return (
-    <div
-      className={`flex ${resolvedWidth} ${resolvedWidth === 'flex-1' ? 'min-w-0' : 'shrink-0'} flex-col border-r border-grey-200 bg-grey-50`}
-    >
+  const body = (
+    <>
       <header className="border-b border-grey-200 px-4 py-3">
         <div className="flex items-baseline justify-between gap-2">
           <h1 className="text-[13px] font-semibold uppercase tracking-wide text-grey-700">
@@ -62,8 +59,23 @@ export function ListPane({
       {compact && columns ? <ColumnHeader columns={columns} /> : null}
 
       <div className="min-h-0 flex-1 overflow-y-auto">{children}</div>
-    </div>
+    </>
   );
+
+  if (fill || paneWidth === undefined) {
+    return (
+      <div
+        className={[
+          'flex flex-col border-r border-grey-200 bg-grey-50',
+          fill ? 'min-w-0 flex-1' : 'w-[30rem] shrink-0',
+        ].join(' ')}
+      >
+        {body}
+      </div>
+    );
+  }
+
+  return <ResizablePane initialWidth={paneWidth}>{body}</ResizablePane>;
 }
 
 /** The column strip above a compact list, as in old Evernote's table view. */
