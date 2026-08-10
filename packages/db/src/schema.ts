@@ -28,11 +28,16 @@ const tsvector = customType<{ data: string }>({
   },
 });
 
-/** Full-text vector over a title-ish column plus a plaintext blob. */
-const searchVector = (a: string, b: string) =>
-  tsvector('search_vector').generatedAlwaysAs(
-    (): any =>
-      sql`to_tsvector('english', coalesce(${sql.raw(a)}, '') || ' ' || coalesce(${sql.raw(b)}, ''))`,
+/**
+ * Full-text vector over one column, or a title-ish column plus a plaintext
+ * blob. Passing the same column twice would double its term frequency and
+ * skew `ts_rank`, so the second argument is optional rather than repeated.
+ */
+const searchVector = (a: string, b?: string) =>
+  tsvector('search_vector').generatedAlwaysAs((): any =>
+    b === undefined
+      ? sql`to_tsvector('english', coalesce(${sql.raw(a)}, ''))`
+      : sql`to_tsvector('english', coalesce(${sql.raw(a)}, '') || ' ' || coalesce(${sql.raw(b)}, ''))`,
   );
 
 // ---------------------------------------------------------------------------
@@ -270,12 +275,15 @@ export const listItems = pgTable(
     }),
     /** Manual sort order. See the note on `actions.position`. */
     position: doublePrecision('position'),
+    /** Title only — `fields` holds costs and enums, nothing worth searching. */
+    searchVector: searchVector('title'),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [
     index('list_items_list_idx').on(t.listId),
     index('list_items_project_idx').on(t.projectId),
     index('list_items_position_idx').on(t.position),
+    index('list_items_search_idx').using('gin', t.searchVector),
   ],
 );
 
@@ -333,9 +341,14 @@ export const inboxItems = pgTable(
     outcome: inboxOutcome('outcome'),
     outcomeId: uuid('outcome_id'),
     clarifiedAt: timestamp('clarified_at', { withTimezone: true }),
+    /** The raw capture stays searchable after it's been clarified. */
+    searchVector: searchVector('raw_text'),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
-  (t) => [index('inbox_items_status_idx').on(t.status)],
+  (t) => [
+    index('inbox_items_status_idx').on(t.status),
+    index('inbox_items_search_idx').using('gin', t.searchVector),
+  ],
 );
 
 // ---------------------------------------------------------------------------

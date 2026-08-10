@@ -84,6 +84,22 @@ Turbopack is the default; `middleware` is now `proxy`.
 - `apps/web/src/lib/google/sync.ts` — the `GoogleSync` interface. Currently a
   no-op returning null IDs. Swap the implementation, not the callers.
 
+## Search
+
+One ranked query in `lib/search.ts` unions projects, actions, list items and
+inbox captures. `websearch_to_tsquery`, not `plainto_tsquery`: quoted phrases,
+`-exclusions` and `OR` work, and malformed input yields an empty query instead
+of throwing. Title matches get a +0.5 rank nudge over body-only matches.
+
+`ts_headline` escapes nothing, so its output is passed through
+`sanitiseHeadline`, which strips every tag except the `<mark>` pair Postgres
+was asked for. Never render a headline without it.
+
+Attachments already carry a `search_vector` over transcription and OCR text
+but are deliberately **not** in the union — there is no way to create an
+attachment yet, and untested code for absent data is worse than a gap. Wire it
+when attachments land with Drive.
+
 ## Weekly review
 
 Steps are gated on data, never on an assertion: the inbox is empty or it

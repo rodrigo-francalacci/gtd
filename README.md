@@ -48,6 +48,8 @@ preview branches included.
 
 - Inbox capture and a clarify screen running the GTD decision tree
 - Guided weekly review, gated so no section can be skipped
+- Full-text search across projects, actions, list items and inbox captures,
+  with ranked results and highlighted snippets
 - Full schema for every table in the brief, live on Neon
 - Three-pane shell: nav → list → detail
 - "What can I do now" filtered by context dimensions
@@ -68,8 +70,11 @@ preview branches included.
 
 ## Not built yet
 
-Search UI, attachments, photo/audio capture, real Google Drive/Gmail sync,
-the Expo capture app.
+Attachments, photo/audio capture, real Google Drive/Gmail sync, the Expo
+capture app.
+
+Search does not yet cover attachment transcriptions or OCR text — the column
+and index exist, but nothing can create an attachment until Drive is wired up.
 
 Clarify suggestions come from local entity matching against project and context
 names — no model, no API key. Swap `suggester` in

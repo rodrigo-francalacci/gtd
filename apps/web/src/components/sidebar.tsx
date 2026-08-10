@@ -17,6 +17,7 @@ import {
   LIST_TYPE_ICONS,
 } from './icons';
 import type { ListRow } from '@/lib/queries.shared';
+import { SearchBox } from './search-box';
 
 type Icon = ComponentType<SVGProps<SVGSVGElement>>;
 
@@ -130,6 +131,8 @@ export function SidebarNav({
       <div className="border-b border-grey-200 px-4 py-3">
         <span className="text-[13px] font-semibold tracking-tight text-grey-800">GTD</span>
       </div>
+
+      <SearchBox />
 
       <div className="min-h-0 flex-1 overflow-y-auto py-2">
         {groups.map((group) => (
