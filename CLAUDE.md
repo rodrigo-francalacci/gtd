@@ -35,7 +35,19 @@ Turbopack is the default; `middleware` is now `proxy`.
   hold IDs so a rename in Drive can't break the link.
 - **Sync is one-way.** The app is the source of truth and pushes to
   Drive/Gmail. There is no reconciliation — `verifyLinks` reports drift, it
-  doesn't fix it.
+  doesn't fix it. Recreating something the user deleted in Drive would be the
+  app overruling a deliberate act.
+- **Never call Google inside a request.** Mutations `enqueueSync(...)` and
+  return; the cron worker at `/api/cron/sync` drains `sync_jobs`. A serverless
+  request must not wait on Drive. Jobs are claimed with `FOR UPDATE SKIP
+  LOCKED`, and retries back off only for transient failures — a revoked token
+  or a 4xx will never succeed on retry.
+- **Scopes stay narrow:** `drive.file` (only files this app created) and
+  `gmail.labels` (no message access). Widening either would drag the app into
+  Google's restricted-scope verification, and neither is needed.
+- **Google calls must be idempotent.** The worker retries, and Drive will
+  happily create a second folder with the same name — `ensureFolder` and
+  `ensureLabel` look before creating.
 - **Raw capture is immutable.** AI output is a suggestion layer
   (`inbox_items.ai_suggestion`), never a rewrite of `raw_text` /
   `drive_file_id`. Clarifying doesn't edit or delete the row either: it marks
