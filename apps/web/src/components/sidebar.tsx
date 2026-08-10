@@ -2,10 +2,26 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import type { ComponentType, SVGProps } from 'react';
+import {
+  IconAreas,
+  IconArchive,
+  IconFile,
+  IconLists,
+  IconNow,
+  IconProject,
+  IconStalled,
+  IconWaiting,
+  LIST_TYPE_ICONS,
+} from './icons';
+import type { ListRow } from '@/lib/queries.shared';
+
+type Icon = ComponentType<SVGProps<SVGSVGElement>>;
 
 type Item = {
   href: string;
   label: string;
+  icon: Icon;
   count?: number;
   /** Renders the count in the stale colour rather than plain grey. */
   alert?: boolean;
@@ -23,7 +39,7 @@ export function SidebarNav({
     unfiled: number;
     archived: number;
   };
-  lists: { id: string; name: string; candidateCount: number }[];
+  lists: Pick<ListRow, 'id' | 'name' | 'type' | 'candidateCount'>[];
 }) {
   const pathname = usePathname();
 
@@ -31,23 +47,49 @@ export function SidebarNav({
     {
       heading: 'Engage',
       items: [
-        { href: '/now', label: 'What can I do now', count: counts.next },
-        { href: '/waiting', label: 'Waiting for', count: counts.waiting },
+        {
+          href: '/now',
+          label: 'What can I do now',
+          icon: IconNow,
+          count: counts.next,
+        },
+        {
+          href: '/waiting',
+          label: 'Waiting for',
+          icon: IconWaiting,
+          count: counts.waiting,
+        },
       ],
     },
     {
       heading: 'Organise',
       items: [
-        { href: '/organise', label: 'File actions', count: counts.unfiled },
-        { href: '/projects', label: 'Projects', count: counts.projects },
+        {
+          href: '/organise',
+          label: 'File actions',
+          icon: IconFile,
+          count: counts.unfiled,
+        },
+        {
+          href: '/projects',
+          label: 'Projects',
+          icon: IconProject,
+          count: counts.projects,
+        },
         {
           href: '/projects?filter=stalled',
           label: 'Stalled',
+          icon: IconStalled,
           count: counts.stalled,
           alert: counts.stalled > 0,
         },
-        { href: '/areas', label: 'Areas & goals' },
-        { href: '/archive', label: 'Archive', count: counts.archived },
+        { href: '/areas', label: 'Areas & goals', icon: IconAreas },
+        {
+          href: '/archive',
+          label: 'Archive',
+          icon: IconArchive,
+          count: counts.archived,
+        },
       ],
     },
     {
@@ -58,9 +100,10 @@ export function SidebarNav({
         ...lists.map((l) => ({
           href: `/lists/${l.id}`,
           label: l.name,
+          icon: LIST_TYPE_ICONS[l.type] as Icon,
           count: l.candidateCount,
         })),
-        { href: '/lists', label: 'Manage lists' },
+        { href: '/lists', label: 'Manage lists', icon: IconLists },
       ],
     },
   ];
@@ -85,19 +128,26 @@ export function SidebarNav({
                 const active = query
                   ? false
                   : pathname === path || pathname.startsWith(`${path}/`);
+                const Icon = item.icon;
 
                 return (
                   <li key={item.href}>
                     <Link
                       href={item.href}
                       className={[
-                        'flex items-center justify-between gap-2 px-4 py-1.5 text-[13px]',
+                        'flex items-center gap-2 px-4 py-1.5 text-[13px]',
                         active
                           ? 'bg-selected-bg font-medium text-selected'
                           : 'text-grey-700 hover:bg-grey-150',
                       ].join(' ')}
                     >
-                      <span className="truncate">{item.label}</span>
+                      <Icon
+                        className={[
+                          'shrink-0',
+                          active ? 'text-selected' : 'text-grey-400',
+                        ].join(' ')}
+                      />
+                      <span className="min-w-0 flex-1 truncate">{item.label}</span>
                       {item.count !== undefined && item.count > 0 ? (
                         <span
                           className={[
@@ -118,7 +168,7 @@ export function SidebarNav({
       </div>
 
       <div className="border-t border-grey-200 px-4 py-2 text-[11px] text-grey-400">
-        Inbox, lists and the weekly review land next session.
+        Inbox and the weekly review land next session.
       </div>
     </nav>
   );

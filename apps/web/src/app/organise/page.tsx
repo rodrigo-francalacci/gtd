@@ -2,7 +2,9 @@ import { EmptyList, ListPane } from '@/components/panes';
 import { SortableActionList } from '@/components/sortable-action-list';
 import { SortableProjectList } from '@/components/sortable-project-list';
 import { UnfileTarget } from '@/components/unfile-target';
+import { ACTION_COLUMNS, PROJECT_COLUMNS } from '@/lib/columns';
 import { getNowActions, getProjects, getWaitingActions } from '@/lib/queries';
+import { getViewMode } from '@/lib/view-mode';
 
 /**
  * Filing view: projects on the left, loose actions on the right, drag across
@@ -13,11 +15,13 @@ export default async function OrganisePage(props: PageProps<'/organise'>) {
   const searchParams = await props.searchParams;
   const showAll = searchParams.show === 'all';
 
-  const [projects, next, waiting] = await Promise.all([
+  const [projects, next, waiting, viewMode] = await Promise.all([
     getProjects(),
     getNowActions([]),
     getWaitingActions(),
+    getViewMode(),
   ]);
+  const compact = viewMode === 'compact';
 
   // Unfiled actions are the ones this view exists to clear, so they lead.
   const all = [...next, ...waiting];
@@ -29,15 +33,21 @@ export default async function OrganisePage(props: PageProps<'/organise'>) {
       <ListPane
         title="Projects"
         subtitle="Drop an action on a project to file it"
+        columns={PROJECT_COLUMNS}
+        viewMode={viewMode}
       >
         <SortableProjectList
           projects={projects.map((p) => ({ ...p, href: `/projects/${p.id}` }))}
+          compact={compact}
         />
       </ListPane>
 
       <ListPane
         title={showAll ? 'All actions' : 'Unfiled actions'}
         width="flex-1"
+        columns={ACTION_COLUMNS}
+        viewMode={viewMode}
+        showToggle={false}
         subtitle={
           <div className="flex items-center gap-2">
             <span>
@@ -57,6 +67,7 @@ export default async function OrganisePage(props: PageProps<'/organise'>) {
         <UnfileTarget />
         <SortableActionList
           actions={rows.map((a) => ({ ...a, href: `/now?action=${a.id}` }))}
+          compact={compact}
           emptyState={
             <EmptyList
               message={

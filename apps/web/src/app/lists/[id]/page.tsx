@@ -4,6 +4,7 @@ import { ListItemDetail } from '@/components/list-item-detail';
 import { DetailPane, EmptyDetail, EmptyList, ListPane } from '@/components/panes';
 import { QuickAddListItem } from '@/components/quick-add-list-item';
 import { SortableListItems } from '@/components/sortable-list-items';
+import { LIST_ITEM_COLUMNS, PURCHASE_COLUMNS } from '@/lib/columns';
 import {
   formatMoney,
   getList,
@@ -11,6 +12,7 @@ import {
   getListItems,
   getProjectOptions,
 } from '@/lib/queries';
+import { getViewMode } from '@/lib/view-mode';
 
 export default async function ListPage(props: PageProps<'/lists/[id]'>) {
   const { id } = await props.params;
@@ -24,10 +26,11 @@ export default async function ListPage(props: PageProps<'/lists/[id]'>) {
   const impact = typeof searchParams.impact === 'string' ? searchParams.impact : undefined;
   const where = typeof searchParams.where === 'string' ? searchParams.where : undefined;
 
-  const [allItems, selected, projectOptions] = await Promise.all([
+  const [allItems, selected, projectOptions, viewMode] = await Promise.all([
     getListItems(id),
     selectedId ? getListItem(selectedId) : Promise.resolve(null),
     isPurchases ? getProjectOptions() : Promise.resolve([]),
+    getViewMode(),
   ]);
 
   // Filters narrow the list, but the budget totals stay over the whole list —
@@ -55,6 +58,8 @@ export default async function ListPage(props: PageProps<'/lists/[id]'>) {
     <>
       <ListPane
         title={list.name}
+        viewMode={viewMode}
+        columns={isPurchases ? PURCHASE_COLUMNS : LIST_ITEM_COLUMNS}
         subtitle={
           isPurchases
             ? `${candidates} candidate${candidates === 1 ? '' : 's'} · ${formatMoney(openTotal)} open${
@@ -68,6 +73,7 @@ export default async function ListPage(props: PageProps<'/lists/[id]'>) {
           items={items.map((i) => ({ ...i, href: qs(i.id) }))}
           selectedId={selectedId}
           isPurchases={isPurchases}
+          compact={viewMode === 'compact'}
           emptyState={
             <EmptyList
               message={

@@ -1,6 +1,7 @@
 import { ActionDetail } from '@/components/action-detail';
 import { SortableActionList } from '@/components/sortable-action-list';
 import { DetailPane, EmptyDetail, EmptyList, ListPane } from '@/components/panes';
+import { ACTION_COLUMNS } from '@/lib/columns';
 import {
   WAITING_STALE_DAYS,
   getAction,
@@ -8,15 +9,17 @@ import {
   getWaitingActions,
   isStale,
 } from '@/lib/queries';
+import { getViewMode } from '@/lib/view-mode';
 
 export default async function WaitingPage(props: PageProps<'/waiting'>) {
   const searchParams = await props.searchParams;
   const selectedId = typeof searchParams.action === 'string' ? searchParams.action : null;
 
-  const [rows, groups, selected] = await Promise.all([
+  const [rows, groups, selected, viewMode] = await Promise.all([
     getWaitingActions(),
     getContextsByDimension(),
     selectedId ? getAction(selectedId) : Promise.resolve(null),
+    getViewMode(),
   ]);
 
   const staleCount = rows.filter((r) => isStale(r.waitingSince)).length;
@@ -25,6 +28,8 @@ export default async function WaitingPage(props: PageProps<'/waiting'>) {
     <>
       <ListPane
         title="Waiting for"
+        viewMode={viewMode}
+        columns={ACTION_COLUMNS}
         subtitle={
           rows.length === 0
             ? 'Nothing outstanding'
@@ -36,6 +41,7 @@ export default async function WaitingPage(props: PageProps<'/waiting'>) {
         <SortableActionList
           actions={rows.map((a) => ({ ...a, href: `/waiting?action=${a.id}` }))}
           selectedId={selectedId}
+          compact={viewMode === 'compact'}
           emptyState={
             <EmptyList message="Nothing is waiting on anyone else right now." />
           }

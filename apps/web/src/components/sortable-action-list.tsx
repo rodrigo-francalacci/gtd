@@ -20,11 +20,13 @@ export function SortableActionList({
   actions,
   selectedId,
   showProject = true,
+  compact = false,
   emptyState,
 }: {
   actions: ActionListItem[];
   selectedId?: string | null;
   showProject?: boolean;
+  compact?: boolean;
   emptyState?: React.ReactNode;
 }) {
   return (
@@ -40,6 +42,7 @@ export function SortableActionList({
           selected={action.id === selectedId}
           showProject={showProject}
           isDragging={isDragging}
+          compact={compact}
         />
       )}
     />

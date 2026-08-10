@@ -2,7 +2,9 @@ import Link from 'next/link';
 import { EmptyList, ListPane } from '@/components/panes';
 import { QuickAddProject } from '@/components/quick-add';
 import { SortableProjectList } from '@/components/sortable-project-list';
+import { PROJECT_COLUMNS } from '@/lib/columns';
 import { getProjects, isStalled } from '@/lib/queries';
+import { getViewMode } from '@/lib/view-mode';
 
 /**
  * The middle pane for the Projects section. Rendered by both `/projects` and
@@ -16,13 +18,15 @@ export async function ProjectListPane({
   selectedId: string | null;
   filter: string | null;
 }) {
-  const all = await getProjects();
+  const [all, viewMode] = await Promise.all([getProjects(), getViewMode()]);
   const stalledOnly = filter === 'stalled';
   const rows = stalledOnly ? all.filter(isStalled) : all;
 
   return (
     <ListPane
       title={stalledOnly ? 'Stalled projects' : 'Projects'}
+      viewMode={viewMode}
+      columns={PROJECT_COLUMNS}
       subtitle={
         stalledOnly ? (
           <Link href="/projects" className="underline underline-offset-2">
@@ -50,6 +54,7 @@ export async function ProjectListPane({
             href: `/projects/${p.id}${stalledOnly ? '?filter=stalled' : ''}`,
           }))}
           selectedId={selectedId}
+          compact={viewMode === 'compact'}
         />
       )}
     </ListPane>

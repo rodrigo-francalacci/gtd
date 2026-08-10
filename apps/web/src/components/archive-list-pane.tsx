@@ -1,6 +1,8 @@
 import Link from 'next/link';
 import { EmptyList, ListPane } from '@/components/panes';
+import { ARCHIVE_COLUMNS } from '@/lib/columns';
 import type { ArchivedProjectRow } from '@/lib/queries';
+import type { ViewMode } from '@/lib/view-mode';
 
 /**
  * Grouped Area → Goal, newest first inside each group.
@@ -14,11 +16,14 @@ export function ArchiveListPane({
   projects,
   selectedId,
   showDropped,
+  viewMode,
 }: {
   projects: ArchivedProjectRow[];
   selectedId: string | null;
   showDropped: boolean;
+  viewMode: ViewMode;
 }) {
+  const compact = viewMode === 'compact';
   const rows = showDropped ? projects : projects.filter((p) => p.status === 'completed');
   const droppedCount = projects.filter((p) => p.status === 'dropped').length;
 
@@ -39,6 +44,8 @@ export function ArchiveListPane({
   return (
     <ListPane
       title="Archive"
+      viewMode={viewMode}
+      columns={ARCHIVE_COLUMNS}
       subtitle={
         <div className="flex flex-wrap items-center gap-2">
           <span>
@@ -87,6 +94,7 @@ export function ArchiveListPane({
                       project={p}
                       selected={p.id === selectedId}
                       showDropped={showDropped}
+                      compact={compact}
                     />
                   ))}
                 </div>
@@ -108,12 +116,46 @@ function ArchiveRow({
   project,
   selected,
   showDropped,
+  compact,
 }: {
   project: ArchivedProjectRow;
   selected: boolean;
   showDropped: boolean;
+  compact: boolean;
 }) {
   const href = `/archive?${showDropped ? 'dropped=1&' : ''}project=${project.id}`;
+  const finished = project.completedAt ? dateFormat.format(project.completedAt) : '—';
+
+  if (compact) {
+    return (
+      <Link
+        href={href}
+        style={{ gridTemplateColumns: ARCHIVE_COLUMNS.template }}
+        className={[
+          'grid items-center gap-2 border-b border-grey-150 px-4 py-1 text-[12px]',
+          selected ? 'bg-selected-bg' : 'hover:bg-grey-100',
+        ].join(' ')}
+      >
+        <span
+          className={[
+            'truncate',
+            project.status === 'dropped'
+              ? 'text-grey-500'
+              : selected
+                ? 'font-medium text-grey-900'
+                : 'text-grey-800',
+          ].join(' ')}
+        >
+          {project.title}
+          {project.status === 'dropped' ? (
+            <span className="ml-1.5 text-[11px] text-grey-400">dropped</span>
+          ) : null}
+        </span>
+        <span className="truncate text-grey-500">{project.goalTitle ?? '—'}</span>
+        <span className="truncate tabular-nums text-grey-500">{finished}</span>
+      </Link>
+    );
+  }
 
   return (
     <Link

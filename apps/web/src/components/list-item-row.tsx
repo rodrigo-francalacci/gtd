@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { LIST_ITEM_COLUMNS, PURCHASE_COLUMNS } from '@/lib/columns';
 import {
   IMPACT_SHORT,
   WHERE_LABELS,
@@ -19,16 +20,91 @@ export function ListItemRow({
   selected,
   isPurchases,
   isDragging = false,
+  compact = false,
 }: {
   item: Row;
   href: string;
   selected: boolean;
   isPurchases: boolean;
   isDragging?: boolean;
+  compact?: boolean;
 }) {
   const cost = item.fields?.cost;
   const impact = item.fields?.impact;
   const where = item.fields?.where;
+
+  const stageLabel = (
+    <span
+      className={
+        item.stage === 'committed'
+          ? 'text-waiting'
+          : item.stage === 'settled'
+            ? 'text-grey-400'
+            : 'text-grey-500'
+      }
+    >
+      {item.stage === 'candidate'
+        ? 'candidate'
+        : item.stage === 'committed'
+          ? 'committed'
+          : 'done'}
+    </span>
+  );
+
+  if (compact) {
+    const columns = isPurchases ? PURCHASE_COLUMNS : LIST_ITEM_COLUMNS;
+
+    return (
+      <div
+        style={{ gridTemplateColumns: columns.template }}
+        className={[
+          'group grid items-center gap-2 border-b border-grey-150 px-4 py-1 text-[12px]',
+          selected ? 'bg-selected-bg' : 'hover:bg-grey-100',
+          isDragging ? 'opacity-40' : '',
+        ].join(' ')}
+      >
+        <div className="flex min-w-0 items-center gap-1.5">
+          <DragGrip />
+          <Link
+            href={href}
+            draggable={false}
+            className={[
+              'min-w-0 flex-1 truncate',
+              item.stage === 'settled'
+                ? 'text-grey-400 line-through'
+                : selected
+                  ? 'font-medium text-grey-900'
+                  : 'text-grey-800',
+            ].join(' ')}
+          >
+            {item.title}
+          </Link>
+        </div>
+
+        {isPurchases ? (
+          <>
+            <span className="tabular-nums text-grey-600">
+              {typeof cost === 'number' ? formatMoney(cost) : '—'}
+            </span>
+            <span
+              className={[
+                'truncate',
+                impact === 'blocks' ? 'text-stale' : 'text-grey-500',
+              ].join(' ')}
+            >
+              {impact ? IMPACT_SHORT[impact] : '—'}
+            </span>
+            <span className="truncate">{stageLabel}</span>
+          </>
+        ) : (
+          <>
+            <span className="truncate">{stageLabel}</span>
+            <span className="truncate text-grey-500">{item.projectTitle ?? '—'}</span>
+          </>
+        )}
+      </div>
+    );
+  }
 
   return (
     <div

@@ -14,11 +14,13 @@ export function SortableListItems({
   items,
   selectedId,
   isPurchases,
+  compact = false,
   emptyState,
 }: {
   items: ListItemWithHref[];
   selectedId?: string | null;
   isPurchases: boolean;
+  compact?: boolean;
   emptyState?: React.ReactNode;
 }) {
   return (
@@ -34,6 +36,7 @@ export function SortableListItems({
           selected={item.id === selectedId}
           isPurchases={isPurchases}
           isDragging={isDragging}
+          compact={compact}
         />
       )}
     />

@@ -20,9 +20,11 @@ export type ProjectListItem = Row & { href: string };
 export function SortableProjectList({
   projects,
   selectedId,
+  compact = false,
 }: {
   projects: ProjectListItem[];
   selectedId?: string | null;
+  compact?: boolean;
 }) {
   const grouped = new Map<string, ProjectListItem[]>();
   for (const p of projects) {
@@ -46,6 +48,7 @@ export function SortableProjectList({
                 href={project.href}
                 selected={project.id === selectedId}
                 isDragging={isDragging}
+                compact={compact}
               />
             )}
           />

@@ -3,7 +3,9 @@ import { SortableActionList } from '@/components/sortable-action-list';
 import { ContextFilter } from '@/components/context-filter';
 import { DetailPane, EmptyDetail, EmptyList, ListPane } from '@/components/panes';
 import { QuickAddAction } from '@/components/quick-add';
+import { ACTION_COLUMNS } from '@/lib/columns';
 import { getAction, getContextsByDimension, getNowActions } from '@/lib/queries';
+import { getViewMode } from '@/lib/view-mode';
 
 export default async function NowPage(props: PageProps<'/now'>) {
   const searchParams = await props.searchParams;
@@ -12,10 +14,11 @@ export default async function NowPage(props: PageProps<'/now'>) {
   const contextIds = raw === undefined ? [] : Array.isArray(raw) ? raw : [raw];
   const selectedId = typeof searchParams.action === 'string' ? searchParams.action : null;
 
-  const [groups, rows, selected] = await Promise.all([
+  const [groups, rows, selected, viewMode] = await Promise.all([
     getContextsByDimension(),
     getNowActions(contextIds),
     selectedId ? getAction(selectedId) : Promise.resolve(null),
+    getViewMode(),
   ]);
 
   const qs = (id: string) => {
@@ -29,12 +32,15 @@ export default async function NowPage(props: PageProps<'/now'>) {
     <>
       <ListPane
         title="What can I do now"
+        viewMode={viewMode}
+        columns={ACTION_COLUMNS}
         subtitle={<ContextFilter groups={groups} />}
       >
         <QuickAddAction />
         <SortableActionList
           actions={rows.map((a) => ({ ...a, href: qs(a.id) }))}
           selectedId={selectedId}
+          compact={viewMode === 'compact'}
           emptyState={
             <EmptyList
               message={

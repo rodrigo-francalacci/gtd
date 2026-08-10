@@ -16,7 +16,9 @@ import {
 import type { PurchaseFields } from './queries.shared';
 import { and, eq, inArray } from 'drizzle-orm';
 import { revalidatePath } from 'next/cache';
+import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
+import { VIEW_MODE_COOKIE, type ViewMode } from './view-mode';
 import { googleSync } from './google/sync';
 import { extractText } from './tiptap';
 
@@ -218,6 +220,20 @@ export async function moveActionToProject(actionId: string, projectId: string | 
     .set({ projectId, updatedAt: new Date() })
     .where(eq(actions.id, actionId));
 
+  revalidateShell();
+}
+
+// ---------------------------------------------------------------------------
+// Preferences
+// ---------------------------------------------------------------------------
+
+export async function setViewMode(mode: ViewMode) {
+  const store = await cookies();
+  store.set(VIEW_MODE_COOKIE, mode, {
+    path: '/',
+    maxAge: 60 * 60 * 24 * 365,
+    sameSite: 'lax',
+  });
   revalidateShell();
 }
 

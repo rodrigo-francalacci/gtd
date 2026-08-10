@@ -30,8 +30,9 @@
   --color-selected: #1d4ed8;
   --color-selected-bg: #eaf0fe;
 
-  --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto,
-    Helvetica, Arial, sans-serif;
+  /* Source Sans — Evernote's UI typeface of the era this layout copies. */
+  --font-sans: var(--font-source-sans), ui-sans-serif, system-ui, -apple-system,
+    "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
 }
 
 html,

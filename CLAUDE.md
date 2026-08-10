@@ -12,7 +12,18 @@ Turbopack is the default; `middleware` is now `proxy`.
 
 - **Colour is semantic only.** Base is greyscale (`grey-50`…`grey-900`,
   `paper`, `ink`). The only colour tokens are `waiting`, `stale`, and
-  `selected`, plus their `-bg` pairs. Nothing decorative.
+  `selected`, plus their `-bg` pairs. Nothing decorative. Sidebar icons are
+  monochrome strokes for this reason — no emoji, no colour.
+- **Two list densities.** `comfortable` wraps metadata onto a second line;
+  `compact` is the old Evernote table view. The mode lives in a cookie
+  (`getViewMode`), not localStorage or the URL: the server has to know it to
+  render without a flash, and it's a standing preference rather than part of
+  what a link points at. Column sets live in `lib/columns.ts`; the header and
+  the rows share one grid template, and `leading` keeps the first column label
+  aligned over the titles.
+- **Font is Source Sans**, Evernote's UI typeface until they moved to Inter in
+  January 2024 — the era this three-pane layout copies. Self-hosted via
+  `next/font`, no runtime request.
 - **Google IDs, never names or paths.** `drive_folder_id` / `gmail_label_id`
   hold IDs so a rename in Drive can't break the link.
 - **Sync is one-way.** The app is the source of truth and pushes to

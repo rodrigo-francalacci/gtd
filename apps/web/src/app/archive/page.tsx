@@ -3,6 +3,7 @@ import { DetailPane, EmptyDetail } from '@/components/panes';
 import { ProjectActionsSection } from '@/components/project-actions-section';
 import { ProjectDetail } from '@/components/project-detail';
 import { getArchivedProjects, getProject, getProjectActions } from '@/lib/queries';
+import { getViewMode } from '@/lib/view-mode';
 
 const dateFormat = new Intl.DateTimeFormat('en-GB', {
   day: 'numeric',
@@ -21,9 +22,10 @@ export default async function ArchivePage(props: PageProps<'/archive'>) {
     typeof searchParams.project === 'string' ? searchParams.project : null;
   const showDropped = searchParams.dropped === '1';
 
-  const [archived, selected] = await Promise.all([
+  const [archived, selected, viewMode] = await Promise.all([
     getArchivedProjects(),
     selectedId ? getProject(selectedId) : Promise.resolve(null),
+    getViewMode(),
   ]);
 
   const selectedActions = selected ? await getProjectActions(selected.id) : [];
@@ -34,6 +36,7 @@ export default async function ArchivePage(props: PageProps<'/archive'>) {
         projects={archived}
         selectedId={selectedId}
         showDropped={showDropped}
+        viewMode={viewMode}
       />
 
       {selected ? (
