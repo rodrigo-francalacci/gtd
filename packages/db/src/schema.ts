@@ -384,6 +384,46 @@ export const reviews = pgTable(
 );
 
 // ---------------------------------------------------------------------------
+// Auth
+// ---------------------------------------------------------------------------
+
+/**
+ * Server-side sessions. The cookie carries only a random id, so a stolen
+ * cookie can be revoked by deleting the row — which a self-contained signed
+ * token could not offer.
+ */
+export const sessions = pgTable(
+  'sessions',
+  {
+    /** High-entropy random string, not a uuid — this is a bearer token. */
+    id: text('id').primaryKey(),
+    email: text('email').notNull(),
+    expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index('sessions_expires_idx').on(t.expiresAt)],
+);
+
+/**
+ * The stored Google grant. Single-user app, so one row pinned to a fixed id.
+ *
+ * The refresh token is the durable part — Google only returns it on the first
+ * consent (or with prompt=consent), so it must never be overwritten with null
+ * when a later token response omits it.
+ */
+export const googleAccounts = pgTable('google_accounts', {
+  id: text('id').primaryKey().default(SINGLETON),
+  email: text('email').notNull(),
+  accessToken: text('access_token'),
+  refreshToken: text('refresh_token'),
+  /** When the access token expires; the refresh token outlives it. */
+  expiresAt: timestamp('expires_at', { withTimezone: true }),
+  /** Space-separated scopes actually granted, which may be fewer than asked. */
+  scope: text('scope'),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+});
+
+// ---------------------------------------------------------------------------
 // Preferences
 // ---------------------------------------------------------------------------
 

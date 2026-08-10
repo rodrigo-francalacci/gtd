@@ -64,6 +64,13 @@
       "when": 1786371512366,
       "tag": "0008_fast_wallflower",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1786387527979,
+      "tag": "0009_special_franklin_storm",
+      "breakpoints": true
     }
   ]
 }

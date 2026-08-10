@@ -187,6 +187,19 @@ export function SidebarNav({
         ))}
       </div>
 
+      {/* POST, so that merely loading a crafted page can't sign you out. */}
+      <form
+        action="/api/auth/signout"
+        method="post"
+        className="border-t border-grey-200 px-4 py-2"
+      >
+        <button
+          type="submit"
+          className="text-[11px] text-grey-400 underline underline-offset-2 hover:text-grey-700"
+        >
+          Sign out
+        </button>
+      </form>
     </nav>
   );
 }

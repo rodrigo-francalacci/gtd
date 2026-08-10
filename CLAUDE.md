@@ -145,6 +145,28 @@ depend on commit timing.
 Caveat: HTML5 DnD has no touch support. This is a desktop view; the phone
 capture app is separate.
 
+## Auth
+
+Single user, Google OAuth, allowlisted to one address — `AUTH_ALLOWED_EMAIL`
+is the entire authorisation model. Any other Google account is simply not this
+user, so the callback refuses it.
+
+**Every Server Action must start with `await requireSession()`.** Actions are
+ordinary POST endpoints reachable without ever loading the UI, so gating the
+layout only covers reads. There are 42 of them; a missing guard is an open
+write endpoint. `(app)/layout.tsx` gates reads and runs before any query.
+
+`/signin` sits outside the `(app)` route group. Putting the gate in the root
+layout would redirect the sign-in page to itself.
+
+Sessions are server-side rows with a random 256-bit id in an httpOnly cookie,
+so a session can be revoked by deleting the row. `SameSite=Lax`, not Strict:
+the OAuth callback is a cross-site redirect back from Google and Strict would
+withhold the cookie there.
+
+The stored Google grant keeps the refresh token, which Google returns only on
+first consent — a later token response without one must never overwrite it.
+
 ## Deployment
 
 Vercel project root is `apps/web`. `@gtd/db` is a workspace dependency, so the

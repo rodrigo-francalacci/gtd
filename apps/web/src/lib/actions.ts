@@ -29,6 +29,7 @@ import {
   type ViewMode,
 } from './pane';
 import { suggester } from './ai/suggest';
+import { requireSession } from './auth/session';
 import type { ReviewStep } from './review';
 import { googleSync } from './google/sync';
 import { extractText } from './tiptap';
@@ -49,6 +50,7 @@ const today = () => new Date().toISOString().slice(0, 10);
 // ---------------------------------------------------------------------------
 
 export async function createProject(formData: FormData) {
+  await requireSession();
   const title = String(formData.get('title') ?? '').trim();
   if (!title) return;
 
@@ -78,6 +80,7 @@ export async function createProject(formData: FormData) {
 }
 
 export async function updateProjectTitle(projectId: string, title: string) {
+  await requireSession();
   const trimmed = title.trim();
   if (!trimmed) return;
 
@@ -98,6 +101,7 @@ export async function setProjectStatus(
   status: ProjectStatus,
   standbyReason?: string,
 ) {
+  await requireSession();
   const reason = standbyReason?.trim() ?? '';
 
   if (status === 'standby' && !reason) {
@@ -134,6 +138,7 @@ export async function setProjectStatus(
 }
 
 export async function updateProjectNotes(projectId: string, notes: unknown) {
+  await requireSession();
   await db
     .update(projects)
     .set({
@@ -149,6 +154,7 @@ export async function updateProjectNotes(projectId: string, notes: unknown) {
 }
 
 export async function deleteProject(projectId: string) {
+  await requireSession();
   await db.delete(projects).where(eq(projects.id, projectId));
   revalidateShell();
   redirect('/projects');
@@ -159,6 +165,7 @@ export async function deleteProject(projectId: string) {
 // ---------------------------------------------------------------------------
 
 export async function createAction(formData: FormData) {
+  await requireSession();
   const title = String(formData.get('title') ?? '').trim();
   if (!title) return;
 
@@ -170,6 +177,7 @@ export async function createAction(formData: FormData) {
 }
 
 export async function updateActionTitle(actionId: string, title: string) {
+  await requireSession();
   const trimmed = title.trim();
   if (!trimmed) return;
 
@@ -186,6 +194,7 @@ export async function updateActionTitle(actionId: string, title: string) {
  * so the staleness surface can never show a date from a previous stint.
  */
 export async function setActionStatus(actionId: string, status: ActionStatus) {
+  await requireSession();
   await db
     .update(actions)
     .set({
@@ -201,6 +210,7 @@ export async function setActionStatus(actionId: string, status: ActionStatus) {
 
 /** Re-stamps a waiting item as chased today, clearing the stale flag. */
 export async function nudgeWaiting(actionId: string) {
+  await requireSession();
   await db
     .update(actions)
     .set({ waitingSince: today(), updatedAt: new Date() })
@@ -210,6 +220,7 @@ export async function nudgeWaiting(actionId: string) {
 }
 
 export async function updateActionNotes(actionId: string, notes: unknown) {
+  await requireSession();
   await db
     .update(actions)
     .set({
@@ -221,11 +232,13 @@ export async function updateActionNotes(actionId: string, notes: unknown) {
 }
 
 export async function deleteAction(actionId: string) {
+  await requireSession();
   await db.delete(actions).where(eq(actions.id, actionId));
   revalidateShell();
 }
 
 export async function moveActionToProject(actionId: string, projectId: string | null) {
+  await requireSession();
   await db
     .update(actions)
     .set({ projectId, updatedAt: new Date() })
@@ -239,6 +252,7 @@ export async function moveActionToProject(actionId: string, projectId: string | 
 // ---------------------------------------------------------------------------
 
 export async function startReview() {
+  await requireSession();
   const [existing] = await db
     .select({ id: reviews.id })
     .from(reviews)
@@ -256,11 +270,13 @@ export async function startReview() {
 }
 
 export async function setReviewStep(reviewId: string, step: ReviewStep) {
+  await requireSession();
   await db.update(reviews).set({ step }).where(eq(reviews.id, reviewId));
   revalidateShell();
 }
 
 export async function completeReview(reviewId: string) {
+  await requireSession();
   await db
     .update(reviews)
     .set({ completedAt: new Date(), step: 'done' })
@@ -271,12 +287,14 @@ export async function completeReview(reviewId: string) {
 
 /** Abandon without recording it as done — nothing else is undone. */
 export async function abandonReview(reviewId: string) {
+  await requireSession();
   await db.delete(reviews).where(eq(reviews.id, reviewId));
   revalidateShell();
   redirect('/review');
 }
 
 export async function markProjectReviewed(projectId: string, reviewed: boolean) {
+  await requireSession();
   await db
     .update(projects)
     .set({ lastReviewedAt: reviewed ? new Date() : null })
@@ -286,6 +304,7 @@ export async function markProjectReviewed(projectId: string, reviewed: boolean) 
 }
 
 export async function markActionReviewed(actionId: string, reviewed: boolean) {
+  await requireSession();
   await db
     .update(actions)
     .set({ lastReviewedAt: reviewed ? new Date() : null })
@@ -304,6 +323,7 @@ export async function markActionReviewed(actionId: string, reviewed: boolean) {
  * after the row exists so a slow suggester can never delay a capture.
  */
 export async function captureInboxItem(formData: FormData) {
+  await requireSession();
   const rawText = String(formData.get('rawText') ?? '').trim();
   if (!rawText) return;
 
@@ -363,6 +383,7 @@ export type ClarifyDecision =
  * is a layer on top.
  */
 export async function clarifyInboxItem(itemId: string, decision: ClarifyDecision) {
+  await requireSession();
   const [item] = await db
     .select({ id: inboxItems.id, status: inboxItems.status })
     .from(inboxItems)
@@ -451,6 +472,7 @@ export async function clarifyInboxItem(itemId: string, decision: ClarifyDecision
 // ---------------------------------------------------------------------------
 
 export async function createArea(name: string) {
+  await requireSession();
   const trimmed = name.trim();
   if (!trimmed) return;
 
@@ -460,6 +482,7 @@ export async function createArea(name: string) {
 }
 
 export async function updateArea(areaId: string, name: string) {
+  await requireSession();
   const trimmed = name.trim();
   if (!trimmed) return;
 
@@ -477,12 +500,14 @@ export async function updateArea(areaId: string, name: string) {
  * is a lens on work, not its owner.
  */
 export async function deleteArea(areaId: string) {
+  await requireSession();
   await db.delete(areasOfFocus).where(eq(areasOfFocus.id, areaId));
   revalidateShell();
   redirect('/areas');
 }
 
 export async function createGoal(areaId: string | null, title: string) {
+  await requireSession();
   const trimmed = title.trim();
   if (!trimmed) return;
 
@@ -499,6 +524,7 @@ export async function updateGoal(
   goalId: string,
   patch: { title?: string; targetDate?: string | null; areaId?: string | null },
 ) {
+  await requireSession();
   const set: Record<string, unknown> = { updatedAt: new Date() };
 
   if (patch.title !== undefined) {
@@ -514,6 +540,7 @@ export async function updateGoal(
 }
 
 export async function deleteGoal(goalId: string) {
+  await requireSession();
   await db.delete(goals).where(eq(goals.id, goalId));
   revalidateShell();
   redirect('/areas');
@@ -531,6 +558,7 @@ export async function setProjectParent(
   areaId: string | null,
   goalId: string | null,
 ) {
+  await requireSession();
   let resolvedGoalId = goalId;
 
   if (goalId) {
@@ -570,6 +598,7 @@ async function savePreference(patch: {
 }
 
 export async function setViewMode(mode: ViewMode) {
+  await requireSession();
   await savePreference({ viewMode: mode });
   revalidateShell();
 }
@@ -579,6 +608,7 @@ export async function setViewMode(mode: ViewMode) {
  * locally, and only the final width is written.
  */
 export async function setListPaneWidth(width: number) {
+  await requireSession();
   const clamped = Math.round(
     Math.min(MAX_PANE_WIDTH, Math.max(MIN_PANE_WIDTH, width)),
   );
@@ -591,6 +621,7 @@ export async function setListPaneWidth(width: number) {
 // ---------------------------------------------------------------------------
 
 export async function createList(name: string, type: ListType) {
+  await requireSession();
   const trimmed = name.trim();
   if (!trimmed) return;
 
@@ -600,6 +631,7 @@ export async function createList(name: string, type: ListType) {
 }
 
 export async function createListItem(formData: FormData) {
+  await requireSession();
   const title = String(formData.get('title') ?? '').trim();
   const listId = String(formData.get('listId') ?? '');
   if (!title || !listId) return;
@@ -609,6 +641,7 @@ export async function createListItem(formData: FormData) {
 }
 
 export async function updateListItemTitle(itemId: string, title: string) {
+  await requireSession();
   const trimmed = title.trim();
   if (!trimmed) return;
 
@@ -618,6 +651,7 @@ export async function updateListItemTitle(itemId: string, title: string) {
 
 /** Merges into `fields` rather than replacing, so one control can't wipe another. */
 export async function updateListItemFields(itemId: string, patch: PurchaseFields) {
+  await requireSession();
   const [existing] = await db
     .select({ fields: listItems.fields })
     .from(listItems)
@@ -636,6 +670,7 @@ export async function updateListItemFields(itemId: string, patch: PurchaseFields
 }
 
 export async function setListItemProject(itemId: string, projectId: string | null) {
+  await requireSession();
   await db.update(listItems).set({ projectId }).where(eq(listItems.id, itemId));
   revalidateShell();
 }
@@ -648,6 +683,7 @@ export async function setListItemProject(itemId: string, projectId: string | nul
  * or, for purchases, as committed spend — until this happens.
  */
 export async function promoteListItem(itemId: string) {
+  await requireSession();
   const [item] = await db
     .select({
       id: listItems.id,
@@ -685,6 +721,7 @@ export async function promoteListItem(itemId: string) {
 
 /** Detach from the spawned action without deleting the action itself. */
 export async function unpromoteListItem(itemId: string) {
+  await requireSession();
   await db
     .update(listItems)
     .set({ promotedActionId: null })
@@ -694,6 +731,7 @@ export async function unpromoteListItem(itemId: string) {
 }
 
 export async function deleteListItem(itemId: string) {
+  await requireSession();
   await db.delete(listItems).where(eq(listItems.id, itemId));
   revalidateShell();
 }
@@ -703,6 +741,7 @@ export async function moveListItemBetween(
   prevId: string | null,
   nextId: string | null,
 ) {
+  await requireSession();
   const { prev, next } = await neighbourPositions(listItems, prevId, nextId);
 
   await db
@@ -762,6 +801,7 @@ export async function moveActionBetween(
   prevId: string | null,
   nextId: string | null,
 ) {
+  await requireSession();
   const { prev, next } = await neighbourPositions(actions, prevId, nextId);
 
   await db
@@ -777,6 +817,7 @@ export async function moveProjectBetween(
   prevId: string | null,
   nextId: string | null,
 ) {
+  await requireSession();
   const { prev, next } = await neighbourPositions(projects, prevId, nextId);
 
   await db
@@ -792,6 +833,7 @@ export async function moveProjectBetween(
 // ---------------------------------------------------------------------------
 
 export async function toggleActionContext(actionId: string, contextId: string) {
+  await requireSession();
   const existing = await db
     .select()
     .from(actionContexts)
@@ -817,6 +859,7 @@ export async function toggleActionContext(actionId: string, contextId: string) {
 }
 
 export async function createContext(name: string, dimension: ContextDimension) {
+  await requireSession();
   const trimmed = name.trim();
   if (!trimmed) return;
 
