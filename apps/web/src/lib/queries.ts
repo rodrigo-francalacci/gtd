@@ -7,20 +7,41 @@ import {
   contexts,
   db,
   goals,
+  listItems,
+  lists,
   projects,
 } from '@gtd/db';
 import { and, asc, count, desc, eq, inArray, isNull, sql } from 'drizzle-orm';
-import type { ActionRow, ProjectRow } from './queries.shared';
-import { isStalled } from './queries.shared';
+import type {
+  ActionRow,
+  ListItemRow,
+  ListRow,
+  ProjectRow,
+  PurchaseFields,
+} from './queries.shared';
+import { isStalled, stageOf } from './queries.shared';
 
-export type { ActionRow, ProjectRow } from './queries.shared';
+export type {
+  ActionRow,
+  ListItemRow,
+  ListRow,
+  ProjectRow,
+  PurchaseFields,
+} from './queries.shared';
 export {
+  CURRENCY,
+  IMPACT_LABELS,
+  IMPACT_SHORT,
+  LIST_TYPE_LABELS,
   PROJECT_STATUS_LABELS,
   PROJECT_STATUS_ORDER,
   WAITING_STALE_DAYS,
+  WHERE_LABELS,
   daysSince,
+  formatMoney,
   isStale,
   isStalled,
+  stageOf,
 } from './queries.shared';
 
 /** Contexts grouped by dimension, for the filter bar. */
@@ -296,6 +317,116 @@ export async function getAreasAndGoals() {
     db.select().from(goals).orderBy(asc(goals.title)),
   ]);
   return { areas: areaRows, goals: goalRows };
+}
+
+// ---------------------------------------------------------------------------
+// Lists
+// ---------------------------------------------------------------------------
+
+/** All lists with their item counts, for the sidebar. */
+export async function getLists(): Promise<ListRow[]> {
+  const rows = await db
+    .select({
+      id: lists.id,
+      name: lists.name,
+      type: lists.type,
+      itemId: listItems.id,
+      promotedActionId: listItems.promotedActionId,
+    })
+    .from(lists)
+    .leftJoin(listItems, eq(listItems.listId, lists.id))
+    .orderBy(asc(lists.name));
+
+  const byList = new Map<string, ListRow>();
+  for (const r of rows) {
+    const entry = byList.get(r.id) ?? {
+      id: r.id,
+      name: r.name,
+      type: r.type,
+      itemCount: 0,
+      candidateCount: 0,
+    };
+    if (r.itemId) {
+      entry.itemCount += 1;
+      if (!r.promotedActionId) entry.candidateCount += 1;
+    }
+    byList.set(r.id, entry);
+  }
+
+  return [...byList.values()];
+}
+
+export async function getList(id: string) {
+  const [row] = await db.select().from(lists).where(eq(lists.id, id)).limit(1);
+  return row ?? null;
+}
+
+/**
+ * Items on a list, with the status of the action they were promoted into —
+ * that status is what decides whether an item counts as proposed or committed
+ * spend, so it has to come back with the row rather than be fetched per item.
+ */
+export async function getListItems(listId: string): Promise<ListItemRow[]> {
+  const rows = await db
+    .select({
+      id: listItems.id,
+      listId: listItems.listId,
+      title: listItems.title,
+      fields: listItems.fields,
+      projectId: listItems.projectId,
+      projectTitle: projects.title,
+      promotedActionId: listItems.promotedActionId,
+      promotedActionStatus: actions.status,
+      position: listItems.position,
+    })
+    .from(listItems)
+    .leftJoin(projects, eq(projects.id, listItems.projectId))
+    .leftJoin(actions, eq(actions.id, listItems.promotedActionId))
+    .where(eq(listItems.listId, listId))
+    .orderBy(sql`${listItems.position} asc nulls last`, asc(listItems.createdAt));
+
+  return rows.map((r) => ({
+    ...r,
+    fields: (r.fields as PurchaseFields | null) ?? null,
+    stage: stageOf(r.promotedActionId, r.promotedActionStatus),
+  }));
+}
+
+export async function getListItem(id: string): Promise<ListItemRow | null> {
+  const [row] = await db
+    .select({
+      id: listItems.id,
+      listId: listItems.listId,
+      title: listItems.title,
+      fields: listItems.fields,
+      projectId: listItems.projectId,
+      projectTitle: projects.title,
+      promotedActionId: listItems.promotedActionId,
+      promotedActionStatus: actions.status,
+      position: listItems.position,
+    })
+    .from(listItems)
+    .leftJoin(projects, eq(projects.id, listItems.projectId))
+    .leftJoin(actions, eq(actions.id, listItems.promotedActionId))
+    .where(eq(listItems.id, id))
+    .limit(1);
+
+  if (!row) return null;
+
+  return {
+    ...row,
+    fields: (row.fields as PurchaseFields | null) ?? null,
+    stage: stageOf(row.promotedActionId, row.promotedActionStatus),
+  };
+}
+
+/** Project titles for the picker on a purchase item. */
+export async function getProjectOptions() {
+  return db
+    .select({ id: projects.id, title: projects.title })
+    .from(projects)
+    .where(inArray(projects.status, ['active', 'standby']))
+    .orderBy(asc(projects.title));
 }
 
 /** Counts for the sidebar badges. */

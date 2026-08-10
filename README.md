@@ -55,9 +55,13 @@ preview branches included.
 - Areas & goals gap view
 - Drag to reorder actions and projects; drag an action onto a project to file
   it (Organise view, or the projects pane)
+- Lists (Someday/Maybe, Purchases, Reference, Checklist) with promote-to-action,
+  and a Purchases budget separating proposed from committed spend
 
 ## Not built yet
 
-Inbox and clarify screen, lists (Someday/Maybe, Purchases, budget view),
-weekly review mode, search UI, attachments, real Google Drive/Gmail sync,
-the Expo capture app.
+Inbox and clarify screen, weekly review mode, search UI, attachments, real
+Google Drive/Gmail sync, the Expo capture app.
+
+Currency is set in one place — `CURRENCY` in `apps/web/src/lib/queries.shared.ts`,
+currently GBP.

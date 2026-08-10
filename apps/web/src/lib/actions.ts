@@ -5,11 +5,15 @@ import {
   actions,
   contexts,
   db,
+  listItems,
+  lists,
   projects,
   type ActionStatus,
   type ContextDimension,
+  type ListType,
   type ProjectStatus,
 } from '@gtd/db';
+import type { PurchaseFields } from './queries.shared';
 import { and, eq, inArray } from 'drizzle-orm';
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
@@ -206,6 +210,133 @@ export async function moveActionToProject(actionId: string, projectId: string | 
 }
 
 // ---------------------------------------------------------------------------
+// Lists
+// ---------------------------------------------------------------------------
+
+export async function createList(name: string, type: ListType) {
+  const trimmed = name.trim();
+  if (!trimmed) return;
+
+  const [list] = await db.insert(lists).values({ name: trimmed, type }).returning();
+  revalidateShell();
+  redirect(`/lists/${list.id}`);
+}
+
+export async function createListItem(formData: FormData) {
+  const title = String(formData.get('title') ?? '').trim();
+  const listId = String(formData.get('listId') ?? '');
+  if (!title || !listId) return;
+
+  await db.insert(listItems).values({ listId, title });
+  revalidateShell();
+}
+
+export async function updateListItemTitle(itemId: string, title: string) {
+  const trimmed = title.trim();
+  if (!trimmed) return;
+
+  await db.update(listItems).set({ title: trimmed }).where(eq(listItems.id, itemId));
+  revalidateShell();
+}
+
+/** Merges into `fields` rather than replacing, so one control can't wipe another. */
+export async function updateListItemFields(itemId: string, patch: PurchaseFields) {
+  const [existing] = await db
+    .select({ fields: listItems.fields })
+    .from(listItems)
+    .where(eq(listItems.id, itemId))
+    .limit(1);
+
+  const merged = { ...((existing?.fields as PurchaseFields) ?? {}), ...patch };
+
+  // An explicit undefined means "clear this field".
+  for (const key of Object.keys(patch) as (keyof PurchaseFields)[]) {
+    if (patch[key] === undefined) delete merged[key];
+  }
+
+  await db.update(listItems).set({ fields: merged }).where(eq(listItems.id, itemId));
+  revalidateShell();
+}
+
+export async function setListItemProject(itemId: string, projectId: string | null) {
+  await db.update(listItems).set({ projectId }).where(eq(listItems.id, itemId));
+  revalidateShell();
+}
+
+/**
+ * Promote a candidate into a real commitment.
+ *
+ * This is the one moment a list item becomes work: it spawns an action and
+ * records `promoted_action_id`. Nothing on a list counts as a commitment —
+ * or, for purchases, as committed spend — until this happens.
+ */
+export async function promoteListItem(itemId: string) {
+  const [item] = await db
+    .select({
+      id: listItems.id,
+      title: listItems.title,
+      listId: listItems.listId,
+      projectId: listItems.projectId,
+      promotedActionId: listItems.promotedActionId,
+    })
+    .from(listItems)
+    .where(eq(listItems.id, itemId))
+    .limit(1);
+
+  if (!item || item.promotedActionId) return; // already promoted — no double-spawn
+
+  const [list] = await db
+    .select({ type: lists.type })
+    .from(lists)
+    .where(eq(lists.id, item.listId))
+    .limit(1);
+
+  const title = list?.type === 'purchases' ? `Buy ${item.title}` : item.title;
+
+  const [action] = await db
+    .insert(actions)
+    .values({ title, projectId: item.projectId })
+    .returning();
+
+  await db
+    .update(listItems)
+    .set({ promotedActionId: action.id })
+    .where(eq(listItems.id, itemId));
+
+  revalidateShell();
+}
+
+/** Detach from the spawned action without deleting the action itself. */
+export async function unpromoteListItem(itemId: string) {
+  await db
+    .update(listItems)
+    .set({ promotedActionId: null })
+    .where(eq(listItems.id, itemId));
+
+  revalidateShell();
+}
+
+export async function deleteListItem(itemId: string) {
+  await db.delete(listItems).where(eq(listItems.id, itemId));
+  revalidateShell();
+}
+
+export async function moveListItemBetween(
+  itemId: string,
+  prevId: string | null,
+  nextId: string | null,
+) {
+  const { prev, next } = await neighbourPositions(listItems, prevId, nextId);
+
+  await db
+    .update(listItems)
+    .set({ position: positionBetween(prev, next) })
+    .where(eq(listItems.id, itemId));
+
+  revalidateShell();
+}
+
+// ---------------------------------------------------------------------------
 // Manual ordering
 // ---------------------------------------------------------------------------
 
@@ -227,7 +358,7 @@ function positionBetween(prev: number | null, next: number | null): number {
 }
 
 async function neighbourPositions(
-  table: typeof actions | typeof projects,
+  table: typeof actions | typeof projects | typeof listItems,
   prevId: string | null,
   nextId: string | null,
 ) {

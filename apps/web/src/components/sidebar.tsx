@@ -13,6 +13,7 @@ type Item = {
 
 export function SidebarNav({
   counts,
+  lists,
 }: {
   counts: {
     next: number;
@@ -21,6 +22,7 @@ export function SidebarNav({
     stalled: number;
     unfiled: number;
   };
+  lists: { id: string; name: string; candidateCount: number }[];
 }) {
   const pathname = usePathname();
 
@@ -44,6 +46,19 @@ export function SidebarNav({
           alert: counts.stalled > 0,
         },
         { href: '/areas', label: 'Areas & goals' },
+      ],
+    },
+    {
+      heading: 'Lists',
+      items: [
+        // Counts show candidates, not total items — what's still undecided is
+        // the number worth glancing at.
+        ...lists.map((l) => ({
+          href: `/lists/${l.id}`,
+          label: l.name,
+          count: l.candidateCount,
+        })),
+        { href: '/lists', label: 'Manage lists' },
       ],
     },
   ];

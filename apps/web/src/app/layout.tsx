@@ -1,6 +1,6 @@
 import type { Metadata } from 'next';
 import { SidebarNav } from '@/components/sidebar';
-import { getSidebarCounts } from '@/lib/queries';
+import { getLists, getSidebarCounts } from '@/lib/queries';
 import './globals.css';
 
 export const metadata: Metadata = {
@@ -20,7 +20,7 @@ export default async function RootLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const counts = await getSidebarCounts();
+  const [counts, lists] = await Promise.all([getSidebarCounts(), getLists()]);
 
   // suppressHydrationWarning: browser extensions inject attributes onto <html>
   // before React hydrates. Scoped to this element only.
@@ -29,7 +29,7 @@ export default async function RootLayout({
       <body className="antialiased">
         {/* Pane 1 of 3. Panes 2 and 3 come from each section's own layout. */}
         <div className="flex h-screen w-screen">
-          <SidebarNav counts={counts} />
+          <SidebarNav counts={counts} lists={lists} />
           <main className="flex min-w-0 flex-1">{children}</main>
         </div>
       </body>

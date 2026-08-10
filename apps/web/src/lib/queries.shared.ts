@@ -56,6 +56,99 @@ export const PROJECT_STATUS_ORDER: ProjectStatus[] = [
   'dropped',
 ];
 
+// ---------------------------------------------------------------------------
+// Lists
+// ---------------------------------------------------------------------------
+
+export type PurchaseImpact = 'blocks' | 'improves' | 'nice_to_have';
+export type PurchaseWhere = 'online' | 'in_town';
+
+export type PurchaseFields = {
+  cost?: number;
+  impact?: PurchaseImpact;
+  where?: PurchaseWhere;
+};
+
+export const IMPACT_LABELS: Record<PurchaseImpact, string> = {
+  blocks: 'Blocks a project',
+  improves: 'Improves things',
+  nice_to_have: 'Nice to have',
+};
+
+export const IMPACT_SHORT: Record<PurchaseImpact, string> = {
+  blocks: 'blocks',
+  improves: 'improves',
+  nice_to_have: 'nice to have',
+};
+
+export const WHERE_LABELS: Record<PurchaseWhere, string> = {
+  online: 'Online',
+  in_town: 'In town',
+};
+
+/**
+ * Where a list item sits on the candidate → commitment path.
+ *
+ * The three are disjoint by construction, which is what stops the budget
+ * double-counting: an item is in exactly one bucket at any moment.
+ *
+ *  - `candidate` — never promoted. Proposed spend.
+ *  - `committed` — promoted and the resulting action is still open. The brief's
+ *    case is an item that has been ordered and now lives in Waiting For.
+ *  - `settled`   — the promoted action is done. Money already spent.
+ */
+export type ItemStage = 'candidate' | 'committed' | 'settled';
+
+export type ListItemRow = {
+  id: string;
+  listId: string;
+  title: string;
+  fields: PurchaseFields | null;
+  projectId: string | null;
+  projectTitle: string | null;
+  promotedActionId: string | null;
+  promotedActionStatus: ActionStatus | null;
+  position: number | null;
+  stage: ItemStage;
+};
+
+export function stageOf(
+  promotedActionId: string | null,
+  promotedActionStatus: ActionStatus | null,
+): ItemStage {
+  if (!promotedActionId) return 'candidate';
+  return promotedActionStatus === 'done' ? 'settled' : 'committed';
+}
+
+export type ListRow = {
+  id: string;
+  name: string;
+  type: 'someday_maybe' | 'purchases' | 'reference' | 'checklist';
+  itemCount: number;
+  candidateCount: number;
+};
+
+export const LIST_TYPE_LABELS: Record<ListRow['type'], string> = {
+  someday_maybe: 'Someday / Maybe',
+  purchases: 'Purchases',
+  reference: 'Reference',
+  checklist: 'Checklist',
+};
+
+/**
+ * Single place to change the currency. Cost is stored as a plain number, so
+ * this only affects display.
+ */
+export const CURRENCY = 'GBP';
+
+export function formatMoney(amount: number): string {
+  return new Intl.NumberFormat('en-GB', {
+    style: 'currency',
+    currency: CURRENCY,
+    maximumFractionDigits: amount % 1 === 0 ? 0 : 2,
+  }).format(amount);
+}
+
 export const PROJECT_STATUS_LABELS: Record<ProjectStatus, string> = {
   active: 'Active',
   standby: 'Standby',

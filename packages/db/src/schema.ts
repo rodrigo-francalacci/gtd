@@ -243,11 +243,14 @@ export const listItems = pgTable(
     promotedActionId: uuid('promoted_action_id').references(() => actions.id, {
       onDelete: 'set null',
     }),
+    /** Manual sort order. See the note on `actions.position`. */
+    position: doublePrecision('position'),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [
     index('list_items_list_idx').on(t.listId),
     index('list_items_project_idx').on(t.projectId),
+    index('list_items_position_idx').on(t.position),
   ],
 );
 
@@ -320,6 +323,7 @@ export type ListItem = typeof listItems.$inferSelect;
 export type Attachment = typeof attachments.$inferSelect;
 export type InboxItem = typeof inboxItems.$inferSelect;
 
+export type ListType = (typeof listType.enumValues)[number];
 export type ProjectStatus = (typeof projectStatus.enumValues)[number];
 export type ActionStatus = (typeof actionStatus.enumValues)[number];
 export type ContextDimension = (typeof contextDimension.enumValues)[number];

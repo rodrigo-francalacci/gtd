@@ -21,8 +21,15 @@ Turbopack is the default; `middleware` is now `proxy`.
 - **Raw capture is immutable.** AI output is a suggestion layer
   (`inbox_items.ai_suggestion`), never a rewrite of `raw_text` /
   `drive_file_id`.
-- **Derived state is derived.** Stalled projects and waiting staleness are
-  computed in queries, never stored, so they can't drift from the rows.
+- **Derived state is derived.** Stalled projects, waiting staleness, and a list
+  item's `stage` are computed in queries, never stored, so they can't drift
+  from the rows.
+- **Nothing on a list is a commitment until promoted.** Promoting is the only
+  thing that spawns an action and sets `promoted_action_id`. The budget's
+  proposed / committed / already-spent buckets come from `stage`, which is
+  derived from that column plus the action's status — they are mutually
+  exclusive by construction, which is what stops spend double-counting. Don't
+  add a fourth source of truth for "is this ordered".
 - **Notes are ProseMirror JSON**, not HTML. Writing notes must also write
   `search_text` (via `extractText`) — the `search_vector` generated column
   builds from it, so skipping it silently removes the row from search.

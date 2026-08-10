@@ -1,0 +1,28 @@
+'use client';
+
+import { useRef } from 'react';
+import { createListItem } from '@/lib/actions';
+
+/** Zero-friction capture onto a list. Nothing here is a commitment yet. */
+export function QuickAddListItem({ listId }: { listId: string }) {
+  const formRef = useRef<HTMLFormElement>(null);
+
+  return (
+    <form
+      ref={formRef}
+      action={async (formData) => {
+        await createListItem(formData);
+        formRef.current?.reset();
+      }}
+      className="border-b border-grey-200 bg-paper px-4 py-2"
+    >
+      <input type="hidden" name="listId" value={listId} />
+      <input
+        name="title"
+        placeholder="Add to this list…"
+        autoComplete="off"
+        className="w-full bg-transparent text-[13px] text-grey-800 placeholder:text-grey-400 focus:outline-none"
+      />
+    </form>
+  );
+}
