@@ -21,6 +21,7 @@ export function SidebarNav({
     projects: number;
     stalled: number;
     unfiled: number;
+    archived: number;
   };
   lists: { id: string; name: string; candidateCount: number }[];
 }) {
@@ -46,6 +47,7 @@ export function SidebarNav({
           alert: counts.stalled > 0,
         },
         { href: '/areas', label: 'Areas & goals' },
+        { href: '/archive', label: 'Archive', count: counts.archived },
       ],
     },
     {

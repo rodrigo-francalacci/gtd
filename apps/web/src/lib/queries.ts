@@ -11,7 +11,17 @@ import {
   lists,
   projects,
 } from '@gtd/db';
-import { and, asc, count, desc, eq, inArray, isNull, sql } from 'drizzle-orm';
+import {
+  and,
+  asc,
+  count,
+  desc,
+  eq,
+  inArray,
+  isNull,
+  notInArray,
+  sql,
+} from 'drizzle-orm';
 import type {
   ActionRow,
   ListItemRow,
@@ -182,7 +192,16 @@ export async function getWaitingActions(): Promise<ActionRow[]> {
   return attachContexts(rows);
 }
 
-/** Projects with their open-action counts. */
+/**
+ * Statuses that mean a project is finished and belongs in the archive.
+ * Not `as const` — Drizzle's `inArray` takes a mutable array.
+ */
+const ARCHIVED_STATUSES: ('completed' | 'dropped')[] = ['completed', 'dropped'];
+
+/**
+ * Live projects only. Finished ones live in the archive, so they no longer
+ * clutter the working pane or appear as drop targets when filing an action.
+ */
 export async function getProjects(): Promise<ProjectRow[]> {
   // The alias names must differ: both are joined into the same statement, and
   // Drizzle references them unqualified.
@@ -220,6 +239,7 @@ export async function getProjects(): Promise<ProjectRow[]> {
     .leftJoin(areasOfFocus, eq(areasOfFocus.id, projects.areaId))
     .leftJoin(nextCounts, eq(nextCounts.projectId, projects.id))
     .leftJoin(waitingCounts, eq(waitingCounts.projectId, projects.id))
+    .where(notInArray(projects.status, ARCHIVED_STATUSES))
     .orderBy(
       asc(projects.status),
       sql`${projects.position} asc nulls last`,
@@ -227,6 +247,53 @@ export async function getProjects(): Promise<ProjectRow[]> {
     );
 
   return rows;
+}
+
+export type ArchivedProjectRow = {
+  id: string;
+  title: string;
+  status: 'completed' | 'dropped';
+  completedAt: Date | null;
+  areaName: string | null;
+  goalTitle: string | null;
+  doneActionCount: number;
+  hasNotes: boolean;
+};
+
+/**
+ * The archive: finished projects, newest first.
+ *
+ * A project is worth keeping for what it recorded, so this carries the counts
+ * that tell you whether there's anything in there — notes, and how much got
+ * done — rather than the next-action counts that matter for live work.
+ */
+export async function getArchivedProjects(): Promise<ArchivedProjectRow[]> {
+  const doneCounts = db
+    .select({ projectId: actions.projectId, n: count().as('done_n') })
+    .from(actions)
+    .where(eq(actions.status, 'done'))
+    .groupBy(actions.projectId)
+    .as('done_counts');
+
+  const rows = await db
+    .select({
+      id: projects.id,
+      title: projects.title,
+      status: projects.status,
+      completedAt: projects.completedAt,
+      areaName: areasOfFocus.name,
+      goalTitle: goals.title,
+      doneActionCount: sql<number>`coalesce(${doneCounts.n}, 0)::int`,
+      hasNotes: sql<boolean>`(${projects.searchText} is not null and ${projects.searchText} <> '')`,
+    })
+    .from(projects)
+    .leftJoin(areasOfFocus, eq(areasOfFocus.id, projects.areaId))
+    .leftJoin(goals, eq(goals.id, projects.goalId))
+    .leftJoin(doneCounts, eq(doneCounts.projectId, projects.id))
+    .where(inArray(projects.status, ARCHIVED_STATUSES))
+    .orderBy(sql`${projects.completedAt} desc nulls last`, asc(projects.title));
+
+  return rows as ArchivedProjectRow[];
 }
 
 export async function getProject(id: string) {
@@ -242,6 +309,7 @@ export async function getProject(id: string) {
       areaName: areasOfFocus.name,
       driveFolderId: projects.driveFolderId,
       gmailLabelId: projects.gmailLabelId,
+      completedAt: projects.completedAt,
       createdAt: projects.createdAt,
     })
     .from(projects)
@@ -446,9 +514,15 @@ export async function getSidebarCounts() {
     .from(actions)
     .where(and(isNull(actions.projectId), inArray(actions.status, ['next', 'waiting'])));
 
+  const [archivedRow] = await db
+    .select({ n: count() })
+    .from(projects)
+    .where(inArray(projects.status, ARCHIVED_STATUSES));
+
   const projectRows = await getProjects();
 
   return {
+    archived: archivedRow?.n ?? 0,
     next: nextRow?.n ?? 0,
     waiting: waitingRow?.n ?? 0,
     projects: projectRows.filter((p) => p.status === 'active').length,

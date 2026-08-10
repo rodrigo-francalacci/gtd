@@ -126,12 +126,19 @@ export const projects = pgTable(
     searchVector: searchVector('title', 'search_text'),
     /** Manual sort order. See the note on `actions.position`. */
     position: doublePrecision('position'),
+    /**
+     * When the project was finished — set on the move to completed or dropped,
+     * cleared if it's reopened. Distinct from `updated_at`, which any edit
+     * bumps and so can't be trusted to date the archive.
+     */
+    completedAt: timestamp('completed_at', { withTimezone: true }),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [
     index('projects_status_idx').on(t.status),
     index('projects_position_idx').on(t.position),
+    index('projects_completed_at_idx').on(t.completedAt),
     index('projects_area_idx').on(t.areaId),
     index('projects_goal_idx').on(t.goalId),
     index('projects_search_idx').using('gin', t.searchVector),

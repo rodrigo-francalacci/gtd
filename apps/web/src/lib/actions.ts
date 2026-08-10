@@ -91,6 +91,14 @@ export async function setProjectStatus(
     throw new Error('A standby project needs a return condition.');
   }
 
+  const isArchived = status === 'completed' || status === 'dropped';
+
+  const [existing] = await db
+    .select({ completedAt: projects.completedAt })
+    .from(projects)
+    .where(eq(projects.id, projectId))
+    .limit(1);
+
   const [project] = await db
     .update(projects)
     .set({
@@ -98,6 +106,10 @@ export async function setProjectStatus(
       // Clearing the reason on the way out keeps a stale condition from
       // reappearing if the project goes back on standby later.
       standbyReason: status === 'standby' ? reason : null,
+      // Stamp the finish date once, and clear it if the project is reopened.
+      // Re-archiving an already-archived project keeps the original date
+      // rather than resetting it on an unrelated status flip.
+      completedAt: isArchived ? (existing?.completedAt ?? new Date()) : null,
       updatedAt: new Date(),
     })
     .where(eq(projects.id, projectId))

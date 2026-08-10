@@ -80,6 +80,73 @@ async function seed() {
     ])
     .returning();
 
+  // Archived examples: a finished project is kept for what it recorded, so
+  // these carry notes and completed actions rather than being bare titles.
+  const monthsAgo = (n: number) => new Date(Date.now() - n * 30 * 864e5);
+
+  const noteDoc = (text: string) => ({
+    type: 'doc',
+    content: [{ type: 'paragraph', content: [{ type: 'text', text }] }],
+  });
+
+  const [bathroom, conference] = await db
+    .insert(projects)
+    .values([
+      {
+        title: 'Replace the bathroom extractor fan',
+        areaId: home.id,
+        goalId: goal.id,
+        status: 'completed',
+        completedAt: monthsAgo(2),
+        notes: noteDoc(
+          'Model: Vent-Axia VA100LT, 100mm. Fits the existing duct. Isolator switch is in the airing cupboard. Receipt filed with the kitchen paperwork.',
+        ),
+        searchText:
+          'Model: Vent-Axia VA100LT, 100mm. Fits the existing duct. Isolator switch is in the airing cupboard. Receipt filed with the kitchen paperwork.',
+      },
+      {
+        title: 'Speak at the regional conference',
+        areaId: work.id,
+        status: 'completed',
+        completedAt: monthsAgo(7),
+        notes: noteDoc(
+          'Slides live in Drive under Talks. Organiser was Priya — good contact for next year. Room had no HDMI, bring an adapter next time.',
+        ),
+        searchText:
+          'Slides live in Drive under Talks. Organiser was Priya — good contact for next year. Room had no HDMI, bring an adapter next time.',
+      },
+      {
+        title: 'Learn to make sourdough',
+        areaId: health.id,
+        status: 'dropped',
+        completedAt: monthsAgo(4),
+        notes: noteDoc('Starter kept dying. Revisit when the kitchen is finished.'),
+        searchText: 'Starter kept dying. Revisit when the kitchen is finished.',
+      },
+    ])
+    .returning();
+
+  await db.insert(actions).values([
+    {
+      projectId: bathroom.id,
+      title: 'Measure the existing duct',
+      status: 'done',
+      completedAt: monthsAgo(2),
+    },
+    {
+      projectId: bathroom.id,
+      title: 'Fit the new unit',
+      status: 'done',
+      completedAt: monthsAgo(2),
+    },
+    {
+      projectId: conference.id,
+      title: 'Write the talk',
+      status: 'done',
+      completedAt: monthsAgo(7),
+    },
+  ]);
+
   const twentyDaysAgo = new Date(Date.now() - 20 * 864e5).toISOString().slice(0, 10);
 
   const inserted = await db

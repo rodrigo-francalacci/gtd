@@ -24,6 +24,10 @@ Turbopack is the default; `middleware` is now `proxy`.
 - **Derived state is derived.** Stalled projects, waiting staleness, and a list
   item's `stage` are computed in queries, never stored, so they can't drift
   from the rows.
+- **`completed_at` is the archive's date, not `updated_at`.** Any edit bumps
+  `updated_at`, so it can't date an archive. `setProjectStatus` stamps
+  `completed_at` on the move to completed/dropped and clears it on reopen.
+  `getProjects` excludes archived statuses; the archive has its own query.
 - **Nothing on a list is a commitment until promoted.** Promoting is the only
   thing that spawns an action and sets `promoted_action_id`. The budget's
   proposed / committed / already-spent buckets come from `stage`, which is

@@ -57,6 +57,8 @@ preview branches included.
   it (Organise view, or the projects pane)
 - Lists (Someday/Maybe, Purchases, Reference, Checklist) with promote-to-action,
   and a Purchases budget separating proposed from committed spend
+- Archive of finished projects, grouped by area and goal, newest first, keeping
+  the notes and the record of what was done
 
 ## Not built yet
 
