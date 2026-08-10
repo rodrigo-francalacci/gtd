@@ -13,13 +13,14 @@ import {
   lists,
   preferences,
   projects,
+  reviews,
   type ActionStatus,
   type ContextDimension,
   type ListType,
   type ProjectStatus,
 } from '@gtd/db';
 import type { PurchaseFields } from './queries.shared';
-import { and, eq, inArray } from 'drizzle-orm';
+import { and, eq, inArray, isNull } from 'drizzle-orm';
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import {
@@ -28,6 +29,7 @@ import {
   type ViewMode,
 } from './pane';
 import { suggester } from './ai/suggest';
+import type { ReviewStep } from './review';
 import { googleSync } from './google/sync';
 import { extractText } from './tiptap';
 
@@ -227,6 +229,66 @@ export async function moveActionToProject(actionId: string, projectId: string | 
   await db
     .update(actions)
     .set({ projectId, updatedAt: new Date() })
+    .where(eq(actions.id, actionId));
+
+  revalidateShell();
+}
+
+// ---------------------------------------------------------------------------
+// Weekly review
+// ---------------------------------------------------------------------------
+
+export async function startReview() {
+  const [existing] = await db
+    .select({ id: reviews.id })
+    .from(reviews)
+    .where(isNull(reviews.completedAt))
+    .limit(1);
+
+  // Resume rather than starting a second one — two open reviews would make
+  // "reviewed in this session" ambiguous.
+  if (!existing) {
+    await db.insert(reviews).values({ step: 'inbox' });
+  }
+
+  revalidateShell();
+  redirect('/review');
+}
+
+export async function setReviewStep(reviewId: string, step: ReviewStep) {
+  await db.update(reviews).set({ step }).where(eq(reviews.id, reviewId));
+  revalidateShell();
+}
+
+export async function completeReview(reviewId: string) {
+  await db
+    .update(reviews)
+    .set({ completedAt: new Date(), step: 'done' })
+    .where(eq(reviews.id, reviewId));
+
+  revalidateShell();
+}
+
+/** Abandon without recording it as done — nothing else is undone. */
+export async function abandonReview(reviewId: string) {
+  await db.delete(reviews).where(eq(reviews.id, reviewId));
+  revalidateShell();
+  redirect('/review');
+}
+
+export async function markProjectReviewed(projectId: string, reviewed: boolean) {
+  await db
+    .update(projects)
+    .set({ lastReviewedAt: reviewed ? new Date() : null })
+    .where(eq(projects.id, projectId));
+
+  revalidateShell();
+}
+
+export async function markActionReviewed(actionId: string, reviewed: boolean) {
+  await db
+    .update(actions)
+    .set({ lastReviewedAt: reviewed ? new Date() : null })
     .where(eq(actions.id, actionId));
 
   revalidateShell();

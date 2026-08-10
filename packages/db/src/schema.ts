@@ -146,6 +146,8 @@ export const projects = pgTable(
      * bumps and so can't be trusted to date the archive.
      */
     completedAt: timestamp('completed_at', { withTimezone: true }),
+    /** When this was last ticked off in a weekly review. */
+    lastReviewedAt: timestamp('last_reviewed_at', { withTimezone: true }),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },
@@ -185,6 +187,8 @@ export const actions = pgTable(
      * still lands in the right place globally.
      */
     position: doublePrecision('position'),
+    /** When this was last ticked off in a weekly review. */
+    lastReviewedAt: timestamp('last_reviewed_at', { withTimezone: true }),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },
@@ -332,6 +336,38 @@ export const inboxItems = pgTable(
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [index('inbox_items_status_idx').on(t.status)],
+);
+
+// ---------------------------------------------------------------------------
+// Weekly review
+// ---------------------------------------------------------------------------
+
+export const reviewStep = pgEnum('review_step', [
+  'inbox',
+  'projects',
+  'stalled',
+  'waiting',
+  'standby',
+  'done',
+]);
+
+/**
+ * A weekly review sitting.
+ *
+ * Persisted rather than held in the client because the review is gated: "you
+ * reviewed this project" has to survive a refresh, or the gates would be
+ * theatre. `started_at` is the reference point — an item counts as reviewed
+ * when its `last_reviewed_at` is at or after it.
+ */
+export const reviews = pgTable(
+  'reviews',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    startedAt: timestamp('started_at', { withTimezone: true }).notNull().defaultNow(),
+    completedAt: timestamp('completed_at', { withTimezone: true }),
+    step: reviewStep('step').notNull().default('inbox'),
+  },
+  (t) => [index('reviews_completed_idx').on(t.completedAt)],
 );
 
 // ---------------------------------------------------------------------------

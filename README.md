@@ -47,7 +47,7 @@ preview branches included.
 ## What exists so far
 
 - Inbox capture and a clarify screen running the GTD decision tree
-
+- Guided weekly review, gated so no section can be skipped
 - Full schema for every table in the brief, live on Neon
 - Three-pane shell: nav → list → detail
 - "What can I do now" filtered by context dimensions
@@ -68,8 +68,8 @@ preview branches included.
 
 ## Not built yet
 
-Weekly review mode, search UI, attachments, photo/audio capture, real Google
-Drive/Gmail sync, the Expo capture app.
+Search UI, attachments, photo/audio capture, real Google Drive/Gmail sync,
+the Expo capture app.
 
 Clarify suggestions come from local entity matching against project and context
 names — no model, no API key. Swap `suggester` in

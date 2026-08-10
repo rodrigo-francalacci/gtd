@@ -50,6 +50,13 @@
       "when": 1786363717158,
       "tag": "0006_amazing_aaron_stack",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1786368005154,
+      "tag": "0007_demonic_sumo",
+      "breakpoints": true
     }
   ]
 }

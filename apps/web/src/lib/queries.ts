@@ -236,6 +236,7 @@ export async function getProjects(): Promise<ProjectRow[]> {
       areaId: projects.areaId,
       goalId: projects.goalId,
       areaName: areasOfFocus.name,
+      lastReviewedAt: projects.lastReviewedAt,
       nextActionCount: sql<number>`coalesce(${nextCounts.n}, 0)::int`,
       waitingCount: sql<number>`coalesce(${waitingCounts.n}, 0)::int`,
     })

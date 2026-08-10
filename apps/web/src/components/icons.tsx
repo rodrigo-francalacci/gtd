@@ -85,6 +85,15 @@ export const IconAreas = (p: IconProps) => (
   </Glyph>
 );
 
+/** Weekly review — a checklist on a clipboard. */
+export const IconReview = (p: IconProps) => (
+  <Glyph {...p}>
+    <path d="M3.4 3.4h9.2v10.2H3.4z" />
+    <path d="M6 2.2h4v2H6z" />
+    <path d="m5.6 8 1.2 1.2 2.6-2.6" />
+  </Glyph>
+);
+
 /** Archive — a lidded box. */
 export const IconArchive = (p: IconProps) => (
   <Glyph {...p}>

@@ -11,6 +11,7 @@ import {
   IconLists,
   IconNow,
   IconProject,
+  IconReview,
   IconStalled,
   IconWaiting,
   LIST_TYPE_ICONS,
@@ -99,6 +100,7 @@ export function SidebarNav({
           alert: counts.stalled > 0,
         },
         { href: '/areas', label: 'Areas & goals', icon: IconAreas },
+        { href: '/review', label: 'Weekly review', icon: IconReview },
         {
           href: '/archive',
           label: 'Archive',
@@ -182,9 +184,6 @@ export function SidebarNav({
         ))}
       </div>
 
-      <div className="border-t border-grey-200 px-4 py-2 text-[11px] text-grey-400">
-        The weekly review lands next session.
-      </div>
     </nav>
   );
 }

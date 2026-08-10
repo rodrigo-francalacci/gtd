@@ -38,6 +38,7 @@ export type ProjectRow = {
   areaId: string | null;
   goalId: string | null;
   areaName: string | null;
+  lastReviewedAt: Date | null;
   nextActionCount: number;
   waitingCount: number;
 };

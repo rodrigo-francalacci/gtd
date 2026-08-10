@@ -84,6 +84,21 @@ Turbopack is the default; `middleware` is now `proxy`.
 - `apps/web/src/lib/google/sync.ts` — the `GoogleSync` interface. Currently a
   no-op returning null IDs. Swap the implementation, not the callers.
 
+## Weekly review
+
+Steps are gated on data, never on an assertion: the inbox is empty or it
+isn't, a project is stalled or it isn't, an item was ticked in this session or
+it wasn't. `clampStep` sends a requested step back to the first incomplete one,
+so the gate holds against the URL as well as the buttons.
+
+"Reviewed in this session" is `last_reviewed_at >= reviews.started_at`, which
+is why the session is a database row rather than client state — a refresh must
+not reopen a gate you closed.
+
+Review counts come from `getProjects()`, not a second query. An earlier
+hand-written correlated subquery disagreed with the sidebar and reported every
+active project as stalled.
+
 ## Drag and drop
 
 Native HTML5 DnD, no library. Each row is independently draggable and
