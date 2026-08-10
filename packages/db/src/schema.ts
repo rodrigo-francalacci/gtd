@@ -2,6 +2,7 @@ import { sql } from 'drizzle-orm';
 import {
   customType,
   date,
+  doublePrecision,
   index,
   jsonb,
   pgEnum,
@@ -123,11 +124,14 @@ export const projects = pgTable(
     /** Plaintext flattened from `notes`, kept in sync by the app for search. */
     searchText: text('search_text'),
     searchVector: searchVector('title', 'search_text'),
+    /** Manual sort order. See the note on `actions.position`. */
+    position: doublePrecision('position'),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [
     index('projects_status_idx').on(t.status),
+    index('projects_position_idx').on(t.position),
     index('projects_area_idx').on(t.areaId),
     index('projects_goal_idx').on(t.goalId),
     index('projects_search_idx').using('gin', t.searchVector),
@@ -151,11 +155,21 @@ export const actions = pgTable(
     notes: jsonb('notes'),
     searchText: text('search_text'),
     searchVector: searchVector('title', 'search_text'),
+    /**
+     * Manual sort order, as a float rather than a contiguous integer rank.
+     * Dropping an item between two neighbours writes the midpoint of their
+     * positions, touching one row instead of renumbering the list. This is
+     * what makes reordering a *filtered* view correct: the Now list may be
+     * showing 3 of 40 actions, and the midpoint of two visible neighbours
+     * still lands in the right place globally.
+     */
+    position: doublePrecision('position'),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [
     index('actions_project_idx').on(t.projectId),
+    index('actions_position_idx').on(t.position),
     index('actions_status_idx').on(t.status),
     index('actions_waiting_since_idx').on(t.waitingSince),
     index('actions_search_idx').using('gin', t.searchVector),

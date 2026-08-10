@@ -10,7 +10,7 @@ import {
   type ContextDimension,
   type ProjectStatus,
 } from '@gtd/db';
-import { and, eq } from 'drizzle-orm';
+import { and, eq, inArray } from 'drizzle-orm';
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { googleSync } from './google/sync';
@@ -201,6 +201,80 @@ export async function moveActionToProject(actionId: string, projectId: string | 
     .update(actions)
     .set({ projectId, updatedAt: new Date() })
     .where(eq(actions.id, actionId));
+
+  revalidateShell();
+}
+
+// ---------------------------------------------------------------------------
+// Manual ordering
+// ---------------------------------------------------------------------------
+
+const POSITION_GAP = 1000;
+
+/**
+ * Given the positions of the neighbours an item was dropped between, return
+ * the position it should take.
+ *
+ * Deliberately midpoint-based rather than renumbering the list: the caller
+ * may be looking at a filtered view (the Now list showing 3 of 40 actions),
+ * and the midpoint of two *visible* neighbours is still correct globally.
+ */
+function positionBetween(prev: number | null, next: number | null): number {
+  if (prev !== null && next !== null) return (prev + next) / 2;
+  if (prev !== null) return prev + POSITION_GAP;
+  if (next !== null) return next - POSITION_GAP;
+  return POSITION_GAP;
+}
+
+async function neighbourPositions(
+  table: typeof actions | typeof projects,
+  prevId: string | null,
+  nextId: string | null,
+) {
+  const ids = [prevId, nextId].filter((id): id is string => id !== null);
+  if (ids.length === 0) return { prev: null, next: null };
+
+  const rows = await db
+    .select({ id: table.id, position: table.position })
+    .from(table)
+    .where(inArray(table.id, ids));
+
+  const at = (id: string | null) =>
+    id === null ? null : (rows.find((r) => r.id === id)?.position ?? null);
+
+  return { prev: at(prevId), next: at(nextId) };
+}
+
+/**
+ * Reorder an action. `prevId` / `nextId` are the rows it was dropped between
+ * as the user saw them — either may be null at the ends of the list.
+ */
+export async function moveActionBetween(
+  actionId: string,
+  prevId: string | null,
+  nextId: string | null,
+) {
+  const { prev, next } = await neighbourPositions(actions, prevId, nextId);
+
+  await db
+    .update(actions)
+    .set({ position: positionBetween(prev, next), updatedAt: new Date() })
+    .where(eq(actions.id, actionId));
+
+  revalidateShell();
+}
+
+export async function moveProjectBetween(
+  projectId: string,
+  prevId: string | null,
+  nextId: string | null,
+) {
+  const { prev, next } = await neighbourPositions(projects, prevId, nextId);
+
+  await db
+    .update(projects)
+    .set({ position: positionBetween(prev, next), updatedAt: new Date() })
+    .where(eq(projects.id, projectId));
 
   revalidateShell();
 }

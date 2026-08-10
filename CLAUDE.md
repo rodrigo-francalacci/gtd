@@ -28,6 +28,13 @@ Turbopack is the default; `middleware` is now `proxy`.
   builds from it, so skipping it silently removes the row from search.
 - **`queries.ts` is `server-only`.** Types and pure helpers that Client
   Components need live in `queries.shared.ts`.
+- **Manual order is a float, not a rank.** Dropping between two rows writes the
+  midpoint of their positions, touching one row. That is what makes reordering
+  a *filtered* list correct — the midpoint of two visible neighbours is still
+  right globally. Never renumber a list from its visible indices.
+- **Optimistic UI holds ids, never row copies.** `SortableList` keeps an
+  optimistic id order and always renders content from the latest server props.
+  Caching whole rows freezes fields that other mutations change.
 - **Long work never blocks a request.** Transcription, OCR, and Drive/Gmail
   sync belong in a background job, not a route handler.
 
@@ -38,6 +45,26 @@ Turbopack is the default; `middleware` is now `proxy`.
 - `apps/web/src/lib/queries.ts` — all reads. `actions.ts` — all writes.
 - `apps/web/src/lib/google/sync.ts` — the `GoogleSync` interface. Currently a
   no-op returning null IDs. Swap the implementation, not the callers.
+
+## Drag and drop
+
+Native HTML5 DnD, no library. Each row is independently draggable and
+droppable, so a drag works across panes that live in different route segments
+without a shared React context.
+
+The payload is only readable on `drop`, but `dataTransfer.types` is readable
+during `dragover` — which is why each kind has its own MIME type
+(`application/x-gtd-action`, `application/x-gtd-project`). A drop target
+inspects the type to decide whether to light up, and the *target* decides what
+the drag means: the same action drag reorders within a list or files into a
+project depending on where it lands.
+
+Handlers read the dragged id and the insertion point off the drop event rather
+than from React state set during `dragstart`/`dragover`, so behaviour doesn't
+depend on commit timing.
+
+Caveat: HTML5 DnD has no touch support. This is a desktop view; the phone
+capture app is separate.
 
 ## Gotchas hit already
 

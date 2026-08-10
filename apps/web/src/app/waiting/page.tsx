@@ -1,5 +1,5 @@
 import { ActionDetail } from '@/components/action-detail';
-import { ActionItem } from '@/components/action-item';
+import { SortableActionList } from '@/components/sortable-action-list';
 import { DetailPane, EmptyDetail, EmptyList, ListPane } from '@/components/panes';
 import {
   WAITING_STALE_DAYS,
@@ -33,18 +33,13 @@ export default async function WaitingPage(props: PageProps<'/waiting'>) {
               }`
         }
       >
-        {rows.length === 0 ? (
-          <EmptyList message="Nothing is waiting on anyone else right now." />
-        ) : (
-          rows.map((a) => (
-            <ActionItem
-              key={a.id}
-              action={a}
-              href={`/waiting?action=${a.id}`}
-              selected={a.id === selectedId}
-            />
-          ))
-        )}
+        <SortableActionList
+          actions={rows.map((a) => ({ ...a, href: `/waiting?action=${a.id}` }))}
+          selectedId={selectedId}
+          emptyState={
+            <EmptyList message="Nothing is waiting on anyone else right now." />
+          }
+        />
       </ListPane>
 
       {selected ? (

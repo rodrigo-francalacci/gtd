@@ -10,10 +10,18 @@ import {
   projects,
 } from '@gtd/db';
 import { and, asc, count, desc, eq, inArray, isNull, sql } from 'drizzle-orm';
-import type { ActionRow } from './queries.shared';
+import type { ActionRow, ProjectRow } from './queries.shared';
+import { isStalled } from './queries.shared';
 
-export type { ActionRow } from './queries.shared';
-export { WAITING_STALE_DAYS, daysSince, isStale } from './queries.shared';
+export type { ActionRow, ProjectRow } from './queries.shared';
+export {
+  PROJECT_STATUS_LABELS,
+  PROJECT_STATUS_ORDER,
+  WAITING_STALE_DAYS,
+  daysSince,
+  isStale,
+  isStalled,
+} from './queries.shared';
 
 /** Contexts grouped by dimension, for the filter bar. */
 export async function getContextsByDimension() {
@@ -71,7 +79,18 @@ const actionSelect = {
   waitingSince: actions.waitingSince,
   projectId: actions.projectId,
   projectTitle: projects.title,
+  position: actions.position,
 };
+
+/**
+ * Manual order first, creation order as the tiebreak. Rows that have never
+ * been dragged have a position from the backfill, so nulls should be rare —
+ * but they sort last rather than jumping to the top if they occur.
+ */
+const byPosition = [
+  sql`${actions.position} asc nulls last`,
+  asc(actions.createdAt),
+];
 
 /**
  * The "what can I do now" query. Context filters are AND-ed across dimensions
@@ -90,7 +109,7 @@ export async function getNowActions(contextIds: string[]): Promise<ActionRow[]> 
       .from(actions)
       .leftJoin(projects, eq(projects.id, actions.projectId))
       .where(base)
-      .orderBy(asc(actions.createdAt));
+      .orderBy(...byPosition);
     return attachContexts(rows);
   }
 
@@ -121,38 +140,28 @@ export async function getNowActions(contextIds: string[]): Promise<ActionRow[]> 
     .from(actions)
     .leftJoin(projects, eq(projects.id, actions.projectId))
     .where(and(base, ...dimensionClauses))
-    .orderBy(asc(actions.createdAt));
+    .orderBy(...byPosition);
 
   return attachContexts(rows);
 }
 
-/** Waiting-for list, oldest first so the stalest sits at the top. */
+/**
+ * Waiting-for list. Manual order wins, with the oldest first underneath it —
+ * staleness is still surfaced by the row badge and the pane header, so
+ * dragging this list doesn't hide anything.
+ */
 export async function getWaitingActions(): Promise<ActionRow[]> {
   const rows = await db
     .select(actionSelect)
     .from(actions)
     .leftJoin(projects, eq(projects.id, actions.projectId))
     .where(eq(actions.status, 'waiting'))
-    .orderBy(asc(actions.waitingSince));
+    .orderBy(sql`${actions.position} asc nulls last`, asc(actions.waitingSince));
 
   return attachContexts(rows);
 }
 
-export type ProjectRow = {
-  id: string;
-  title: string;
-  status: string;
-  standbyReason: string | null;
-  areaName: string | null;
-  nextActionCount: number;
-  waitingCount: number;
-};
-
-/**
- * Projects with their open-action counts. An active project with zero next
- * actions is stalled — that's derived here rather than stored, so it can never
- * drift out of sync with the actions themselves.
- */
+/** Projects with their open-action counts. */
 export async function getProjects(): Promise<ProjectRow[]> {
   // The alias names must differ: both are joined into the same statement, and
   // Drizzle references them unqualified.
@@ -190,13 +199,13 @@ export async function getProjects(): Promise<ProjectRow[]> {
     .leftJoin(areasOfFocus, eq(areasOfFocus.id, projects.areaId))
     .leftJoin(nextCounts, eq(nextCounts.projectId, projects.id))
     .leftJoin(waitingCounts, eq(waitingCounts.projectId, projects.id))
-    .orderBy(asc(projects.status), asc(projects.title));
+    .orderBy(
+      asc(projects.status),
+      sql`${projects.position} asc nulls last`,
+      asc(projects.title),
+    );
 
   return rows;
-}
-
-export function isStalled(p: Pick<ProjectRow, 'status' | 'nextActionCount'>): boolean {
-  return p.status === 'active' && p.nextActionCount === 0;
 }
 
 export async function getProject(id: string) {
@@ -228,7 +237,7 @@ export async function getProjectActions(projectId: string): Promise<ActionRow[]>
     .from(actions)
     .leftJoin(projects, eq(projects.id, actions.projectId))
     .where(eq(actions.projectId, projectId))
-    .orderBy(asc(actions.status), desc(actions.createdAt));
+    .orderBy(asc(actions.status), ...byPosition);
 
   return attachContexts(rows);
 }
@@ -301,6 +310,11 @@ export async function getSidebarCounts() {
     .from(actions)
     .where(eq(actions.status, 'waiting'));
 
+  const [unfiledRow] = await db
+    .select({ n: count() })
+    .from(actions)
+    .where(and(isNull(actions.projectId), inArray(actions.status, ['next', 'waiting'])));
+
   const projectRows = await getProjects();
 
   return {
@@ -308,5 +322,6 @@ export async function getSidebarCounts() {
     waiting: waitingRow?.n ?? 0,
     projects: projectRows.filter((p) => p.status === 'active').length,
     stalled: projectRows.filter(isStalled).length,
+    unfiled: unfiledRow?.n ?? 0,
   };
 }

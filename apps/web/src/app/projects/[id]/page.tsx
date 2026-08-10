@@ -1,6 +1,6 @@
 import { notFound } from 'next/navigation';
-import { ActionItem } from '@/components/action-item';
 import { DetailPane } from '@/components/panes';
+import { SortableActionList } from '@/components/sortable-action-list';
 import { ProjectDetail } from '@/components/project-detail';
 import { ProjectListPane } from '@/components/project-list-pane';
 import { QuickAddAction } from '@/components/quick-add';
@@ -35,31 +35,26 @@ export default async function ProjectPage(props: PageProps<'/projects/[id]'>) {
           <div className="overflow-hidden rounded-sm border border-grey-200">
             <QuickAddAction projectId={id} />
 
-            {openActions.length === 0 ? (
-              <p className="px-4 py-3 text-[12px] text-grey-500">
-                No open actions. Add the very next physical step above.
-              </p>
-            ) : (
-              openActions.map((a) => (
-                <ActionItem
-                  key={a.id}
-                  action={a}
-                  href={`/now?action=${a.id}`}
-                  selected={false}
-                  showProject={false}
-                />
-              ))
-            )}
+            <SortableActionList
+              actions={openActions.map((a) => ({
+                ...a,
+                href: `/now?action=${a.id}`,
+              }))}
+              showProject={false}
+              emptyState={
+                <p className="px-4 py-3 text-[12px] text-grey-500">
+                  No open actions. Add the very next physical step above.
+                </p>
+              }
+            />
 
-            {doneActions.map((a) => (
-              <ActionItem
-                key={a.id}
-                action={a}
-                href={`/now?action=${a.id}`}
-                selected={false}
-                showProject={false}
-              />
-            ))}
+            <SortableActionList
+              actions={doneActions.map((a) => ({
+                ...a,
+                href: `/now?action=${a.id}`,
+              }))}
+              showProject={false}
+            />
           </div>
         </section>
       </DetailPane>

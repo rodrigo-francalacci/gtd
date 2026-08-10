@@ -8,6 +8,20 @@
       "when": 1786311324405,
       "tag": "0000_ordinary_sebastian_shaw",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1786315471044,
+      "tag": "0001_grey_bug",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1786320000000,
+      "tag": "0002_renumber_action_positions",
+      "breakpoints": true
     }
   ]
 }

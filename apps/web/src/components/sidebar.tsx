@@ -14,7 +14,13 @@ type Item = {
 export function SidebarNav({
   counts,
 }: {
-  counts: { next: number; waiting: number; projects: number; stalled: number };
+  counts: {
+    next: number;
+    waiting: number;
+    projects: number;
+    stalled: number;
+    unfiled: number;
+  };
 }) {
   const pathname = usePathname();
 
@@ -29,6 +35,7 @@ export function SidebarNav({
     {
       heading: 'Organise',
       items: [
+        { href: '/organise', label: 'File actions', count: counts.unfiled },
         { href: '/projects', label: 'Projects', count: counts.projects },
         {
           href: '/projects?filter=stalled',

@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useTransition } from 'react';
 import { setActionStatus } from '@/lib/actions';
 import { daysSince, isStale, type ActionRow } from '@/lib/queries.shared';
+import { DragGrip } from './sortable';
 
 /**
  * One row in the middle pane. The checkbox completes; the row body selects.
@@ -13,11 +14,13 @@ export function ActionItem({
   href,
   selected,
   showProject = true,
+  isDragging = false,
 }: {
   action: ActionRow;
   href: string;
   selected: boolean;
   showProject?: boolean;
+  isDragging?: boolean;
 }) {
   const [pending, startTransition] = useTransition();
 
@@ -30,8 +33,10 @@ export function ActionItem({
         'group flex items-start gap-2 border-b border-grey-150 px-4 py-2.5',
         selected ? 'bg-selected-bg' : 'hover:bg-grey-100',
         pending ? 'opacity-50' : '',
+        isDragging ? 'opacity-40' : '',
       ].join(' ')}
     >
+      <DragGrip />
       <button
         type="button"
         aria-label={action.status === 'done' ? 'Mark not done' : 'Mark done'}
@@ -49,7 +54,9 @@ export function ActionItem({
         ].join(' ')}
       />
 
-      <Link href={href} className="min-w-0 flex-1">
+      {/* draggable={false}: an <a> is natively draggable and would hijack the
+          row's drag with a link drag instead. */}
+      <Link href={href} draggable={false} className="min-w-0 flex-1">
         <span
           className={[
             'block truncate text-[13px]',

@@ -1,5 +1,5 @@
-import { ActionItem } from '@/components/action-item';
 import { ActionDetail } from '@/components/action-detail';
+import { SortableActionList } from '@/components/sortable-action-list';
 import { ContextFilter } from '@/components/context-filter';
 import { DetailPane, EmptyDetail, EmptyList, ListPane } from '@/components/panes';
 import { QuickAddAction } from '@/components/quick-add';
@@ -32,24 +32,19 @@ export default async function NowPage(props: PageProps<'/now'>) {
         subtitle={<ContextFilter groups={groups} />}
       >
         <QuickAddAction />
-        {rows.length === 0 ? (
-          <EmptyList
-            message={
-              contextIds.length > 0
-                ? 'Nothing matches this combination of contexts. Loosen a filter.'
-                : 'No next actions. Either you are done, or something needs clarifying.'
-            }
-          />
-        ) : (
-          rows.map((a) => (
-            <ActionItem
-              key={a.id}
-              action={a}
-              href={qs(a.id)}
-              selected={a.id === selectedId}
+        <SortableActionList
+          actions={rows.map((a) => ({ ...a, href: qs(a.id) }))}
+          selectedId={selectedId}
+          emptyState={
+            <EmptyList
+              message={
+                contextIds.length > 0
+                  ? 'Nothing matches this combination of contexts. Loosen a filter.'
+                  : 'No next actions. Either you are done, or something needs clarifying.'
+              }
             />
-          ))
-        )}
+          }
+        />
       </ListPane>
 
       {selected ? (

@@ -53,6 +53,8 @@ preview branches included.
 - Waiting For with staleness surfacing
 - TipTap notes on projects and actions, indexed for full-text search
 - Areas & goals gap view
+- Drag to reorder actions and projects; drag an action onto a project to file
+  it (Organise view, or the projects pane)
 
 ## Not built yet
 
