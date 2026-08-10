@@ -63,7 +63,10 @@ export class LiveGoogleSync implements GoogleSync {
     }
 
     if (project.gmailLabelId && title) {
-      // Gmail "moves" a label by renaming its path segment.
+      // Gmail "moves" a label by renaming its path. The destination parent has
+      // to exist first, or the rename produces a flat label literally called
+      // "Standby/Thing" instead of a child of Standby.
+      await ensureLabel(container);
       await renameLabel(project.gmailLabelId, `${container}/${title}`);
     }
   }

@@ -125,23 +125,45 @@ export async function listLabels(): Promise<GmailLabel[]> {
 }
 
 /**
- * Gmail has no folders — nesting is a naming convention, `Projects/Kitchen`.
- * Creating a label whose name already exists returns 409, so look first.
+ * Ensure a label exists, creating every ancestor along the way.
+ *
+ * Gmail has no folders — nesting is purely a naming convention, and the API
+ * creates exactly the name you give it. Asking for "Standby/Kitchen" when
+ * "Standby" doesn't exist yields one flat label called "Standby/Kitchen"
+ * rather than a child of a Standby parent, so each segment has to be created
+ * in turn. Creating a label that already exists is a 409, hence the lookup.
+ *
+ * Returns the id of the leaf.
  */
 export async function ensureLabel(name: string): Promise<string> {
-  const existing = (await listLabels()).find((label) => label.name === name);
-  if (existing) return existing.id;
+  const byName = new Map((await listLabels()).map((label) => [label.name, label.id]));
 
-  const created = await call<GmailLabel>(`${GMAIL}/labels`, {
-    method: 'POST',
-    body: JSON.stringify({
-      name,
-      labelListVisibility: 'labelShow',
-      messageListVisibility: 'show',
-    }),
-  });
+  let path = '';
+  let leafId = '';
 
-  return created.id;
+  for (const segment of name.split('/')) {
+    path = path ? `${path}/${segment}` : segment;
+
+    const existing = byName.get(path);
+    if (existing) {
+      leafId = existing;
+      continue;
+    }
+
+    const created = await call<GmailLabel>(`${GMAIL}/labels`, {
+      method: 'POST',
+      body: JSON.stringify({
+        name: path,
+        labelListVisibility: 'labelShow',
+        messageListVisibility: 'show',
+      }),
+    });
+
+    byName.set(path, created.id);
+    leafId = created.id;
+  }
+
+  return leafId;
 }
 
 /** Renaming a label is how a project "moves" between Gmail containers. */
