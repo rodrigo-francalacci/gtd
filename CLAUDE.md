@@ -64,6 +64,16 @@ Turbopack is the default; `middleware` is now `proxy`.
 - **Notes are ProseMirror JSON**, not HTML. Writing notes must also write
   `search_text` (via `extractText`) — the `search_vector` generated column
   builds from it, so skipping it silently removes the row from search.
+- **Never hand a ProseMirror document straight to a Server Action.** Its node
+  and mark `attrs` are built with `Object.create(null)`, and React's Server
+  Action serialiser silently drops objects without `Object.prototype` — no
+  error, the property just never arrives. `toPlainJson` in `note-editor.tsx`
+  round-trips through JSON first. Without it every link lost its `href`
+  between the browser and Postgres.
+- **The note editor must not resync from props.** Saving revalidates the
+  route, so a fresh `notes` object arrives on every autosave; calling
+  `setContent` with it resets the document mid-sentence and discards
+  unsaved typing. Switching items is handled by `key={id}` at the call site.
 - **`queries.ts` is `server-only`.** Types and pure helpers that Client
   Components need live in `queries.shared.ts`.
 - **Manual order is a float, not a rank.** Dropping between two rows writes the

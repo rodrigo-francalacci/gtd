@@ -4,10 +4,27 @@ import { EditorContent, useEditor } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { emptyDoc } from '@/lib/tiptap';
+import { EditorToolbar } from './editor-toolbar';
 
 type SaveState = 'idle' | 'dirty' | 'saving' | 'saved';
 
 const AUTOSAVE_MS = 800;
+
+/**
+ * Round-trip the document through JSON before handing it to a Server Action.
+ *
+ * ProseMirror builds node and mark `attrs` with `Object.create(null)`, and
+ * React's Server Action serialiser silently drops objects without
+ * `Object.prototype` — no error, the property simply never arrives. That cost
+ * every link its `href`: the editor showed it, the client sent it, and the
+ * server received `{"type":"link"}` with no attrs at all.
+ *
+ * Anything with attributes is affected, so this belongs here rather than in a
+ * link-specific fix.
+ */
+function toPlainJson<T>(value: T): T {
+  return JSON.parse(JSON.stringify(value)) as T;
+}
 
 /**
  * TipTap bound to a `notes` jsonb column. Content is stored as ProseMirror
@@ -38,7 +55,23 @@ export function NoteEditor({
   }, [onSave]);
 
   const editor = useEditor({
-    extensions: [StarterKit],
+    extensions: [
+      StarterKit.configure({
+        // Link ships inside StarterKit v3 — configured, not added, or the
+        // duplicate extension name throws.
+        link: {
+          openOnClick: false, // clicking in the editor should place the cursor
+          autolink: true,
+          defaultProtocol: 'https',
+          protocols: ['http', 'https', 'mailto'],
+          HTMLAttributes: {
+            // Notes can hold anything; treat every link as untrusted.
+            rel: 'noopener noreferrer nofollow',
+            target: '_blank',
+          },
+        },
+      }),
+    ],
     content: (initialContent as object) ?? emptyDoc,
     // Editors render on the client only; rendering on the server first causes
     // a hydration mismatch against ProseMirror's own DOM.
@@ -50,7 +83,7 @@ export function NoteEditor({
       },
     },
     onUpdate: ({ editor }) => {
-      latest.current = editor.getJSON();
+      latest.current = toPlainJson(editor.getJSON());
       setState('dirty');
 
       if (timer.current) clearTimeout(timer.current);
@@ -66,15 +99,13 @@ export function NoteEditor({
     };
   }, [flush]);
 
-  // Swap content when the selected item changes without remounting the editor.
-  useEffect(() => {
-    if (!editor) return;
-    editor.commands.setContent((initialContent as object) ?? emptyDoc, {
-      emitUpdate: false,
-    });
-    latest.current = null;
-    setState('idle');
-  }, [editor, initialContent]);
+  // NOTE: there is deliberately no effect resyncing `initialContent`.
+  //
+  // Saving revalidates the route, so the server sends a fresh `notes` object
+  // on every autosave. Calling setContent on that would reset the document
+  // mid-sentence and throw away whatever was typed since the save started.
+  // Switching to a different project or action is handled by `key={id}` at
+  // the call sites, which remounts the editor with the right content.
 
   return (
     <div>
@@ -83,6 +114,7 @@ export function NoteEditor({
           {state === 'saving' ? 'Saving…' : state === 'saved' ? 'Saved' : ''}
         </span>
       </div>
+      <EditorToolbar editor={editor} />
       <EditorContent editor={editor} />
     </div>
   );

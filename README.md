@@ -55,7 +55,9 @@ preview branches included.
 - "What can I do now" filtered by context dimensions
 - Projects with status, standby return conditions, stalled detection
 - Waiting For with staleness surfacing
-- TipTap notes on projects and actions, indexed for full-text search
+- TipTap notes on projects and actions with a formatting toolbar (bold,
+  italic, underline, strike, code, headings, lists, quote, links), indexed for
+  full-text search
 - Areas & goals gap view
 - Drag to reorder actions and projects; drag an action onto a project to file
   it (Organise view, or the projects pane)

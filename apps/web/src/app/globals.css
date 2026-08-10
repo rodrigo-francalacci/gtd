@@ -129,6 +129,24 @@ body {
   margin: 1.2em 0;
 }
 
+/* Links are the one place colour earns its keep outside the semantic set:
+   without it, a link is indistinguishable from underlined text. */
+.ProseMirror a {
+  color: var(--color-selected);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+
+.ProseMirror a:hover {
+  text-decoration-thickness: 2px;
+}
+
+/* A selected horizontal rule needs to be visible to be deletable. */
+.ProseMirror hr.ProseMirror-selectednode {
+  border-top-color: var(--color-selected);
+}
+
 /* Empty-state placeholder on the first paragraph. */
 .ProseMirror p.is-editor-empty:first-child::before {
   content: attr(data-placeholder);
