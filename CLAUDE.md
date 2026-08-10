@@ -145,6 +145,19 @@ depend on commit timing.
 Caveat: HTML5 DnD has no touch support. This is a desktop view; the phone
 capture app is separate.
 
+## Deployment
+
+Vercel project root is `apps/web`. `@gtd/db` is a workspace dependency, so the
+install has to happen at the repo root — if a build reports `Module not found:
+@gtd/db`, set the install command to `cd ../.. && npm install`.
+
+**A build must never require runtime secrets.** `next build` evaluates route
+modules to collect page data, so anything thrown at module evaluation fails the
+build. `packages/db/src/client.ts` connects lazily behind a Proxy for exactly
+this reason — it used to throw on a missing `DATABASE_URL` at import and broke
+the first Vercel deploy before serving a request. Every route is
+`force-dynamic`, so nothing needs the database until a request arrives.
+
 ## Gotchas hit already
 
 - Drizzle subqueries joined into one statement need **distinct** alias names
