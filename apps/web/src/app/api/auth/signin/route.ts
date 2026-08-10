@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import {
   IDENTITY_SCOPES,
+  SYNC_SCOPES,
   authorizeUrl,
   googleConfig,
   randomToken,
@@ -21,6 +22,11 @@ const TEN_MINUTES = 60 * 10;
 export async function GET(request: Request) {
   const { clientId } = googleConfig();
 
+  // `?scopes=sync` asks for Drive and Gmail on top of identity. Google's
+  // include_granted_scopes makes this incremental: the new grant keeps what
+  // was already approved, so signing in for sync doesn't drop identity.
+  const wantsSync = new URL(request.url).searchParams.get('scopes') === 'sync';
+
   const state = randomToken();
   const verifier = randomToken();
 
@@ -29,7 +35,7 @@ export async function GET(request: Request) {
     redirectUri: redirectUri(request),
     state,
     verifier,
-    scopes: IDENTITY_SCOPES,
+    scopes: wantsSync ? [...IDENTITY_SCOPES, ...SYNC_SCOPES] : IDENTITY_SCOPES,
   });
 
   const response = NextResponse.redirect(url);

@@ -71,6 +71,13 @@
       "when": 1786387527979,
       "tag": "0009_special_franklin_storm",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1786395122568,
+      "tag": "0010_mighty_slapstick",
+      "breakpoints": true
     }
   ]
 }

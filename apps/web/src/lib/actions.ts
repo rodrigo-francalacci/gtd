@@ -31,7 +31,7 @@ import {
 import { suggester } from './ai/suggest';
 import { requireSession } from './auth/session';
 import type { ReviewStep } from './review';
-import { googleSync } from './google/sync';
+import { enqueueSync } from './google/queue';
 import { extractText } from './tiptap';
 
 /**
@@ -61,19 +61,9 @@ export async function createProject(formData: FormData) {
     .values({ title, areaId: areaId || null, status: 'active' })
     .returning();
 
-  // One-way push to Google. Stubbed tonight — returns null, which leaves the
-  // ID columns null rather than filling them with anything fake.
-  const [driveFolderId, gmailLabelId] = await Promise.all([
-    googleSync.createProjectFolder(project.id, title),
-    googleSync.createGmailLabel(project.id, title),
-  ]);
-
-  if (driveFolderId || gmailLabelId) {
-    await db
-      .update(projects)
-      .set({ driveFolderId, gmailLabelId })
-      .where(eq(projects.id, project.id));
-  }
+  // Queued, not called: Drive and Gmail are slow and a serverless request
+  // must not wait on them. The worker fills in the IDs shortly after.
+  await enqueueSync('create_project_links', project.id);
 
   revalidateShell();
   redirect(`/projects/${project.id}`);
@@ -132,7 +122,7 @@ export async function setProjectStatus(
     .where(eq(projects.id, projectId))
     .returning();
 
-  await googleSync.moveForStatus(project, status);
+  await enqueueSync('move_project_links', project.id);
 
   revalidateShell();
 }
@@ -404,16 +394,7 @@ export async function clarifyInboxItem(itemId: string, decision: ClarifyDecision
       .returning();
     outcomeId = project.id;
 
-    const [driveFolderId, gmailLabelId] = await Promise.all([
-      googleSync.createProjectFolder(project.id, title),
-      googleSync.createGmailLabel(project.id, title),
-    ]);
-    if (driveFolderId || gmailLabelId) {
-      await db
-        .update(projects)
-        .set({ driveFolderId, gmailLabelId })
-        .where(eq(projects.id, project.id));
-    }
+    await enqueueSync('create_project_links', project.id);
   } else if (decision.kind === 'list_item') {
     const title = decision.title.trim();
     if (!title) return;

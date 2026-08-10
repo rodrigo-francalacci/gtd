@@ -14,6 +14,27 @@ const USERINFO_ENDPOINT = 'https://openidconnect.googleapis.com/v1/userinfo';
  */
 export const IDENTITY_SCOPES = ['openid', 'email', 'profile'];
 
+/**
+ * Scopes for the Drive and Gmail sync.
+ *
+ * `drive.file` rather than the full `drive` scope: it grants access only to
+ * files and folders this app created, so the app can never read the rest of
+ * the Drive. That is the right trade for a tool whose job is making its own
+ * project folders, and it avoids Google's restricted-scope verification.
+ *
+ * `gmail.labels` manages labels only — it cannot read a single message.
+ */
+export const SYNC_SCOPES = [
+  'https://www.googleapis.com/auth/drive.file',
+  'https://www.googleapis.com/auth/gmail.labels',
+];
+
+export function hasSyncScopes(granted: string | null | undefined): boolean {
+  if (!granted) return false;
+  const set = new Set(granted.split(/\s+/));
+  return SYNC_SCOPES.every((scope) => set.has(scope));
+}
+
 export function googleConfig() {
   const clientId = process.env.GOOGLE_CLIENT_ID;
   const clientSecret = process.env.GOOGLE_CLIENT_SECRET;

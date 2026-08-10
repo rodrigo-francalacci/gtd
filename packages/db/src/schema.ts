@@ -384,6 +384,55 @@ export const reviews = pgTable(
 );
 
 // ---------------------------------------------------------------------------
+// Sync outbox
+// ---------------------------------------------------------------------------
+
+export const syncJobKind = pgEnum('sync_job_kind', [
+  'create_project_links',
+  'move_project_links',
+]);
+
+export const syncJobStatus = pgEnum('sync_job_status', [
+  'pending',
+  'running',
+  'done',
+  'failed',
+]);
+
+/**
+ * Outbox for Drive/Gmail work.
+ *
+ * The brief forbids running sync inside a request handler: a serverless
+ * function would time out and the user would be left waiting on Google to
+ * create a folder. Mutations enqueue a row and return immediately; a cron
+ * worker drains the queue.
+ *
+ * Recording the intent in the same database as the change it follows also
+ * means a failed push is visible and retryable, rather than lost.
+ */
+export const syncJobs = pgTable(
+  'sync_jobs',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    kind: syncJobKind('kind').notNull(),
+    projectId: uuid('project_id')
+      .notNull()
+      .references(() => projects.id, { onDelete: 'cascade' }),
+    status: syncJobStatus('status').notNull().default('pending'),
+    attempts: integer('attempts').notNull().default(0),
+    lastError: text('last_error'),
+    /** Earliest time to try again — set on retry for backoff. */
+    runAfter: timestamp('run_after', { withTimezone: true }).notNull().defaultNow(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    completedAt: timestamp('completed_at', { withTimezone: true }),
+  },
+  (t) => [
+    index('sync_jobs_status_idx').on(t.status, t.runAfter),
+    index('sync_jobs_project_idx').on(t.projectId),
+  ],
+);
+
+// ---------------------------------------------------------------------------
 // Auth
 // ---------------------------------------------------------------------------
 

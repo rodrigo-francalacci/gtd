@@ -94,6 +94,14 @@ export const IconReview = (p: IconProps) => (
   </Glyph>
 );
 
+/** Connections — two links of a chain. */
+export const IconConnections = (p: IconProps) => (
+  <Glyph {...p}>
+    <path d="M6.6 9.4a2.6 2.6 0 0 0 3.9.3l1.8-1.8a2.6 2.6 0 0 0-3.7-3.7l-1 1" />
+    <path d="M9.4 6.6a2.6 2.6 0 0 0-3.9-.3L3.7 8.1a2.6 2.6 0 0 0 3.7 3.7l1-1" />
+  </Glyph>
+);
+
 /** Archive — a lidded box. */
 export const IconArchive = (p: IconProps) => (
   <Glyph {...p}>

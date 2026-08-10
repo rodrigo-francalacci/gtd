@@ -5,6 +5,7 @@ import { usePathname } from 'next/navigation';
 import type { ComponentType, SVGProps } from 'react';
 import {
   IconAreas,
+  IconConnections,
   IconInbox,
   IconArchive,
   IconFile,
@@ -108,6 +109,7 @@ export function SidebarNav({
           icon: IconArchive,
           count: counts.archived,
         },
+        { href: '/connections', label: 'Google', icon: IconConnections },
       ],
     },
     {

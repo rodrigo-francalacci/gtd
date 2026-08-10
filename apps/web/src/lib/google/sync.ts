@@ -7,10 +7,6 @@ import type { ProjectStatus } from '@gtd/db';
  *
  * Only IDs cross this boundary. Names and paths are Google's business, so a
  * rename in Drive never breaks the link.
- *
- * Tonight this is a no-op implementation. Swapping in the real Google client
- * means implementing this interface and changing `googleSync` below — no
- * caller changes.
  */
 export interface GoogleSync {
   /** Returns the Drive folder ID created for a new project. */
@@ -23,6 +19,7 @@ export interface GoogleSync {
   moveForStatus(
     project: {
       id: string;
+      title?: string;
       driveFolderId: string | null;
       gmailLabelId: string | null;
     },
@@ -36,7 +33,11 @@ export interface GoogleSync {
 export type LinkDrift = {
   projectId: string;
   projectTitle: string;
-  issue: 'missing_drive_folder' | 'missing_gmail_label' | 'wrong_parent';
+  issue:
+    | 'missing_drive_folder'
+    | 'missing_gmail_label'
+    | 'wrong_parent'
+    | 'not_linked';
   detail: string;
 };
 
@@ -55,37 +56,10 @@ export function targetContainer(status: ProjectStatus): 'Projects' | 'Standby' |
 }
 
 /**
- * No-op stub. Returns null IDs so `drive_folder_id` / `gmail_label_id` stay
- * null rather than being filled with fake values that would later look real.
+ * Drive and Gmail both reject some characters in names, and a project title
+ * is free text. `/` is the worst offender: in Gmail it would silently create
+ * a nested label.
  */
-class NoopGoogleSync implements GoogleSync {
-  private log(message: string) {
-    if (process.env.NODE_ENV !== 'production') {
-      console.log(`[google-sync:stub] ${message}`);
-    }
-  }
-
-  async createProjectFolder(projectId: string, title: string) {
-    this.log(`would create Drive folder Projects/${title} for project ${projectId}`);
-    return null;
-  }
-
-  async createGmailLabel(projectId: string, title: string) {
-    this.log(`would create Gmail label Projects/${title} for project ${projectId}`);
-    return null;
-  }
-
-  async moveForStatus(
-    project: { id: string; driveFolderId: string | null; gmailLabelId: string | null },
-    status: ProjectStatus,
-  ) {
-    this.log(`would move project ${project.id} to ${targetContainer(status)}`);
-  }
-
-  async verifyLinks() {
-    this.log('verifyLinks is a no-op until the Google client is wired up');
-    return [];
-  }
+export function safeName(title: string): string {
+  return title.replace(/[\\/]/g, '-').replace(/\s+/g, ' ').trim().slice(0, 100);
 }
-
-export const googleSync: GoogleSync = new NoopGoogleSync();
