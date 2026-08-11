@@ -14,6 +14,9 @@ Turbopack is the default; `middleware` is now `proxy`.
   `paper`, `ink`). The only colour tokens are `waiting`, `stale`, and
   `selected`, plus their `-bg` pairs. Nothing decorative. Sidebar icons are
   monochrome strokes for this reason — no emoji, no colour.
+- **Contexts are user data, not an enum.** The four *dimensions* are fixed;
+  their contents are managed at `/contexts`. Deleting one cascades through
+  `action_contexts`, so the UI shows the usage count before confirming.
 - **Two list densities.** `comfortable` wraps metadata onto a second line;
   `compact` is the old Evernote table view. Column sets live in
   `lib/columns.ts`; the header and the rows share one grid template, and
@@ -42,6 +45,14 @@ Turbopack is the default; `middleware` is now `proxy`.
   request must not wait on Drive. Jobs are claimed with `FOR UPDATE SKIP
   LOCKED`, and retries back off only for transient failures — a revoked token
   or a 4xx will never succeed on retry.
+- **Everything Google-side lives under one root** (`ROOT` in
+  `lib/google/sync.ts`): `GTD/Projects/...` in Gmail, `GTD/Projects/...` in
+  Drive. A top-level `Projects` label would scatter through a label list that
+  already has its own taxonomy.
+- **Gmail label nesting is naming, and the parents must exist.** The API
+  creates literally the name given, so `ensureLabel` walks the path and
+  creates every ancestor; a rename into a new container ensures that
+  container first.
 - **Scopes stay narrow:** `drive.file` (only files this app created) and
   `gmail.labels` (no message access). Widening either would drag the app into
   Google's restricted-scope verification, and neither is needed.
@@ -103,8 +114,11 @@ Turbopack is the default; `middleware` is now `proxy`.
 - `packages/db` — Drizzle schema (`schema.ts`), Neon client, migrations, seed.
   Ships raw TS; `apps/web` transpiles it via `transpilePackages`.
 - `apps/web/src/lib/queries.ts` — all reads. `actions.ts` — all writes.
-- `apps/web/src/lib/google/sync.ts` — the `GoogleSync` interface. Currently a
-  no-op returning null IDs. Swap the implementation, not the callers.
+- `apps/web/src/lib/google/` — `sync.ts` holds the `GoogleSync` interface and
+  the naming rules, `client.ts` the Drive/Gmail HTTP calls, `live-sync.ts` the
+  real implementation, `queue.ts` the outbox and worker.
+- `apps/web/src/lib/auth/` — `session.ts` (server-side sessions),
+  `google.ts` (OAuth flow, scopes), `token.ts` (grant + access-token refresh).
 
 ## Search
 

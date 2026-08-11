@@ -12,7 +12,7 @@ import {
   moveFile,
   renameLabel,
 } from './client';
-import { safeName, targetContainer, type GoogleSync, type LinkDrift } from './sync';
+import { ROOT, safeName, targetContainer, type GoogleSync, type LinkDrift } from './sync';
 
 /**
  * The real thing: Drive folders and Gmail labels, pushed one way.
@@ -30,7 +30,7 @@ export class LiveGoogleSync implements GoogleSync {
   async createProjectFolder(projectId: string, title: string): Promise<string | null> {
     if (!(await this.enabled())) return null;
 
-    const root = await ensureFolder('GTD');
+    const root = await ensureFolder(ROOT);
     const container = await ensureFolder('Projects', root);
     return ensureFolder(safeName(title), container);
   }
@@ -38,8 +38,8 @@ export class LiveGoogleSync implements GoogleSync {
   async createGmailLabel(projectId: string, title: string): Promise<string | null> {
     if (!(await this.enabled())) return null;
 
-    // Gmail nests by name, so the label reads "Projects/Renovate the kitchen".
-    return ensureLabel(`Projects/${safeName(title)}`);
+    // Gmail nests by name, so this reads "GTD/Projects/Renovate the kitchen".
+    return ensureLabel(`${ROOT}/Projects/${safeName(title)}`);
   }
 
   async moveForStatus(
@@ -57,7 +57,7 @@ export class LiveGoogleSync implements GoogleSync {
     const title = safeName(project.title ?? '');
 
     if (project.driveFolderId) {
-      const root = await ensureFolder('GTD');
+      const root = await ensureFolder(ROOT);
       const destination = await ensureFolder(container, root);
       await moveFile(project.driveFolderId, destination);
     }
@@ -66,8 +66,8 @@ export class LiveGoogleSync implements GoogleSync {
       // Gmail "moves" a label by renaming its path. The destination parent has
       // to exist first, or the rename produces a flat label literally called
       // "Standby/Thing" instead of a child of Standby.
-      await ensureLabel(container);
-      await renameLabel(project.gmailLabelId, `${container}/${title}`);
+      await ensureLabel(`${ROOT}/${container}`);
+      await renameLabel(project.gmailLabelId, `${ROOT}/${container}/${title}`);
     }
   }
 
@@ -127,7 +127,7 @@ export class LiveGoogleSync implements GoogleSync {
             detail: 'The Gmail label no longer exists.',
           });
         } else {
-          const expected = `${targetContainer(project.status)}/${safeName(project.title)}`;
+          const expected = `${ROOT}/${targetContainer(project.status)}/${safeName(project.title)}`;
           if (label.name !== expected) {
             drift.push({
               projectId: project.id,

@@ -844,6 +844,35 @@ export async function createContext(name: string, dimension: ContextDimension) {
   const trimmed = name.trim();
   if (!trimmed) return;
 
-  await db.insert(contexts).values({ name: trimmed, dimension });
+  // Same name twice in one dimension would be indistinguishable in the filter
+  // bar, so quietly reuse rather than creating a confusing duplicate.
+  const [existing] = await db
+    .select({ id: contexts.id })
+    .from(contexts)
+    .where(and(eq(contexts.dimension, dimension), eq(contexts.name, trimmed)))
+    .limit(1);
+
+  if (!existing) await db.insert(contexts).values({ name: trimmed, dimension });
+
+  revalidateShell();
+}
+
+export async function renameContext(contextId: string, name: string) {
+  await requireSession();
+  const trimmed = name.trim();
+  if (!trimmed) return;
+
+  await db.update(contexts).set({ name: trimmed }).where(eq(contexts.id, contextId));
+  revalidateShell();
+}
+
+/**
+ * Deleting a context removes it from every action that carried it —
+ * `action_contexts` cascades. The actions themselves are untouched; they just
+ * lose that tag, which is why the UI shows the usage count first.
+ */
+export async function deleteContext(contextId: string) {
+  await requireSession();
+  await db.delete(contexts).where(eq(contexts.id, contextId));
   revalidateShell();
 }

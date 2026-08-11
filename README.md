@@ -49,6 +49,8 @@ preview branches included.
 - Inbox capture and a clarify screen running the GTD decision tree
 - Guided weekly review, gated so no section can be skipped
 - Google sign-in, plus Drive folder and Gmail label sync via a background queue
+  (everything nested under a single GTD root in both)
+- Editable contexts across all four dimensions
 - Full-text search across projects, actions, list items and inbox captures,
   with ranked results and highlighted snippets
 - Full schema for every table in the brief, live on Neon

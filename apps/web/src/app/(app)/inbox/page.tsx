@@ -10,6 +10,7 @@ import {
   getListOptions,
   getProjectOptions,
 } from '@/lib/queries';
+import { INBOX_COLUMNS } from '@/lib/columns';
 import { getPreferences, paneWidth } from '@/lib/view-mode';
 
 const stamp = new Intl.DateTimeFormat('en-GB', {
@@ -28,6 +29,7 @@ export default async function InboxPage(props: PageProps<'/inbox'>) {
   const selectedId = typeof searchParams.item === 'string' ? searchParams.item : null;
 
   const [items, prefs] = await Promise.all([getInboxItems(), getPreferences()]);
+  const compact = prefs.viewMode === 'compact';
 
   // `items` is pending-only, so an id that isn't in it has just been clarified.
   // Falling back to the head of the queue makes processing advance by itself:
@@ -49,7 +51,9 @@ export default async function InboxPage(props: PageProps<'/inbox'>) {
     <>
       <ListPane
         title="Inbox"
+        viewMode={prefs.viewMode}
         paneWidth={paneWidth(prefs)}
+        columns={INBOX_COLUMNS}
         subtitle={
           items.length === 0
             ? 'Empty — nothing waiting to be clarified'
@@ -61,35 +65,66 @@ export default async function InboxPage(props: PageProps<'/inbox'>) {
         {items.length === 0 ? (
           <EmptyList message="Nothing here. Capture anything above — you can decide what it is later." />
         ) : (
-          items.map((item) => (
-            <Link
-              key={item.id}
-              href={`/inbox?item=${item.id}`}
-              className={[
-                'block border-b border-grey-150 px-4 py-2.5',
-                item.id === targetId ? 'bg-selected-bg' : 'hover:bg-grey-100',
-              ].join(' ')}
-            >
-              <span
+          items.map((item) =>
+            compact ? (
+              <Link
+                key={item.id}
+                href={`/inbox?item=${item.id}`}
+                style={{ gridTemplateColumns: INBOX_COLUMNS.template }}
                 className={[
-                  'line-clamp-2 text-[13px]',
-                  item.id === targetId
-                    ? 'font-medium text-grey-900'
-                    : 'text-grey-800',
+                  'grid items-center gap-2 border-b border-grey-150 px-4 py-1 text-[12px]',
+                  item.id === targetId ? 'bg-selected-bg' : 'hover:bg-grey-100',
                 ].join(' ')}
               >
-                {item.rawText}
-              </span>
-              <span className="mt-1 flex items-center gap-2 text-[11px] text-grey-500">
-                {stamp.format(item.createdAt)}
-                {item.aiSuggestion?.projectId ? (
-                  <span className="rounded-sm bg-grey-200 px-1.5 py-px text-grey-600">
-                    suggestion
-                  </span>
-                ) : null}
-              </span>
-            </Link>
-          ))
+                {/* One line: the capture is often a sentence, so it takes the
+                    space and the date becomes a column rather than a row. */}
+                <span
+                  className={[
+                    'truncate',
+                    item.id === targetId
+                      ? 'font-medium text-grey-900'
+                      : 'text-grey-800',
+                  ].join(' ')}
+                >
+                  {item.rawText}
+                </span>
+                <span className="truncate text-grey-500">
+                  {item.aiSuggestion?.projectId ? 'suggestion' : '—'}
+                </span>
+                <span className="truncate tabular-nums text-grey-500">
+                  {stamp.format(item.createdAt)}
+                </span>
+              </Link>
+            ) : (
+              <Link
+                key={item.id}
+                href={`/inbox?item=${item.id}`}
+                className={[
+                  'block border-b border-grey-150 px-4 py-2.5',
+                  item.id === targetId ? 'bg-selected-bg' : 'hover:bg-grey-100',
+                ].join(' ')}
+              >
+                <span
+                  className={[
+                    'line-clamp-2 text-[13px]',
+                    item.id === targetId
+                      ? 'font-medium text-grey-900'
+                      : 'text-grey-800',
+                  ].join(' ')}
+                >
+                  {item.rawText}
+                </span>
+                <span className="mt-1 flex items-center gap-2 text-[11px] text-grey-500">
+                  {stamp.format(item.createdAt)}
+                  {item.aiSuggestion?.projectId ? (
+                    <span className="rounded-sm bg-grey-200 px-1.5 py-px text-grey-600">
+                      suggestion
+                    </span>
+                  ) : null}
+                </span>
+              </Link>
+            ),
+          )
         )}
       </ListPane>
 

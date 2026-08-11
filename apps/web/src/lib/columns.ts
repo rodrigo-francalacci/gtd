@@ -53,6 +53,13 @@ export const PURCHASE_COLUMNS: ColumnSet = {
   leading: 'grip',
 };
 
+/** Inbox rows have no controls before the title, hence `leading: 'none'`. */
+export const INBOX_COLUMNS: ColumnSet = {
+  template: 'minmax(0,1fr) 4.5rem 6.5rem',
+  headers: ['Captured', 'Hint', 'When'],
+  leading: 'none',
+};
+
 export const ARCHIVE_COLUMNS: ColumnSet = {
   template: 'minmax(0,1fr) 8rem 6rem',
   headers: ['Project', 'Goal', 'Finished'],

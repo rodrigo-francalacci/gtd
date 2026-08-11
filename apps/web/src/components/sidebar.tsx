@@ -6,6 +6,7 @@ import type { ComponentType, SVGProps } from 'react';
 import {
   IconAreas,
   IconConnections,
+  IconContexts,
   IconInbox,
   IconArchive,
   IconFile,
@@ -102,6 +103,7 @@ export function SidebarNav({
           alert: counts.stalled > 0,
         },
         { href: '/areas', label: 'Areas & goals', icon: IconAreas },
+        { href: '/contexts', label: 'Contexts', icon: IconContexts },
         { href: '/review', label: 'Weekly review', icon: IconReview },
         {
           href: '/archive',

@@ -56,6 +56,23 @@ export {
   stageOf,
 } from './queries.shared';
 
+/** Contexts with how many actions carry each — shown before deleting one. */
+export async function getContextsWithUsage() {
+  const rows = await db
+    .select({
+      id: contexts.id,
+      name: contexts.name,
+      dimension: contexts.dimension,
+      usage: sql<number>`(
+        select count(*) from ${actionContexts} ac where ac.context_id = ${contexts.id}
+      )::int`,
+    })
+    .from(contexts)
+    .orderBy(asc(contexts.dimension), asc(contexts.name));
+
+  return rows;
+}
+
 /** Contexts grouped by dimension, for the filter bar. */
 export async function getContextsByDimension() {
   const rows = await db

@@ -41,6 +41,14 @@ export type LinkDrift = {
   detail: string;
 };
 
+/**
+ * Everything the app creates lives under one root, in Drive and in Gmail
+ * alike. Without it the app's containers would scatter through a label list
+ * that already has its own taxonomy, and a top-level "Projects" would be easy
+ * to confuse with one you made yourself.
+ */
+export const ROOT = 'GTD';
+
 /** Where a project's folder/label should live for a given status. */
 export function targetContainer(status: ProjectStatus): 'Projects' | 'Standby' | 'Archive' {
   switch (status) {

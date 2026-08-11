@@ -94,6 +94,14 @@ export const IconReview = (p: IconProps) => (
   </Glyph>
 );
 
+/** Contexts — tags. */
+export const IconContexts = (p: IconProps) => (
+  <Glyph {...p}>
+    <path d="M2.6 7.4V3.4a.8.8 0 0 1 .8-.8h4l6.2 6.2-4.8 4.8L2.6 7.4z" />
+    <path d="M5.4 5.4h.01" />
+  </Glyph>
+);
+
 /** Connections — two links of a chain. */
 export const IconConnections = (p: IconProps) => (
   <Glyph {...p}>
