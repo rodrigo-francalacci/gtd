@@ -57,7 +57,11 @@ export default async function NowPage(props: PageProps<'/now'>) {
 
       {selected ? (
         <DetailPane>
-          <ActionDetail action={selected} contextGroups={groups} />
+          <ActionDetail
+            action={selected}
+            contextGroups={groups}
+            parties={groups.person.map((p) => p.name)}
+          />
         </DetailPane>
       ) : (
         <EmptyDetail message="Select an action" />

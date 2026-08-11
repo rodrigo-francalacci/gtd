@@ -13,12 +13,14 @@ import {
 } from '@/lib/actions';
 import { daysSince, isStale } from '@/lib/queries.shared';
 import { NoteEditor } from './note-editor';
+import { WaitingOnField } from './waiting-on-field';
 
 type ActionDetailData = {
   id: string;
   title: string;
   status: 'next' | 'waiting' | 'done';
   waitingSince: string | null;
+  waitingOn: string | null;
   notes: unknown;
   projectId: string | null;
   projectTitle: string | null;
@@ -28,8 +30,11 @@ type ActionDetailData = {
 export function ActionDetail({
   action,
   contextGroups,
+  parties,
 }: {
   action: ActionDetailData;
+  /** Existing waiting-on names, offered as suggestions. */
+  parties: string[];
   contextGroups: {
     place: Context[];
     time: Context[];
@@ -124,6 +129,16 @@ export function ActionDetail({
             Chased today
           </button>
         </div>
+      ) : null}
+
+      {action.status === 'waiting' ? (
+        <section className="mt-4">
+          <WaitingOnField
+            actionId={action.id}
+            value={action.waitingOn}
+            parties={parties}
+          />
+        </section>
       ) : null}
 
       <section className="mt-6">

@@ -20,7 +20,7 @@ import {
   type ProjectStatus,
 } from '@gtd/db';
 import type { PurchaseFields } from './queries.shared';
-import { and, eq, inArray, isNull } from 'drizzle-orm';
+import { and, eq, inArray, isNull, sql } from 'drizzle-orm';
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import {
@@ -193,6 +193,56 @@ export async function setActionStatus(actionId: string, status: ActionStatus) {
       completedAt: status === 'done' ? new Date() : null,
       updatedAt: new Date(),
     })
+    .where(eq(actions.id, actionId));
+
+  revalidateShell();
+}
+
+/**
+ * Resolve a typed name to a person context, reusing an existing one whenever
+ * it plausibly means the same party.
+ *
+ * The match is case- and whitespace-insensitive, so "neil" finds "Neil" and a
+ * stray trailing space doesn't mint a second row. This is the whole point of
+ * the feature: without it you end up chasing three different Neils.
+ */
+async function resolveParty(name: string): Promise<string | null> {
+  const trimmed = name.trim().replace(/\s+/g, ' ');
+  if (!trimmed) return null;
+
+  const [existing] = await db
+    .select({ id: contexts.id })
+    .from(contexts)
+    .where(
+      and(
+        eq(contexts.dimension, 'person'),
+        sql`lower(${contexts.name}) = lower(${trimmed})`,
+      ),
+    )
+    .limit(1);
+
+  if (existing) return existing.id;
+
+  const [created] = await db
+    .insert(contexts)
+    .values({ name: trimmed, dimension: 'person' })
+    .returning({ id: contexts.id });
+
+  return created.id;
+}
+
+/**
+ * Set who an action is waiting on. Accepts a typed name; an empty string
+ * clears it.
+ */
+export async function setWaitingOn(actionId: string, name: string) {
+  await requireSession();
+
+  const waitingOnId = await resolveParty(name);
+
+  await db
+    .update(actions)
+    .set({ waitingOnId, updatedAt: new Date() })
     .where(eq(actions.id, actionId));
 
   revalidateShell();

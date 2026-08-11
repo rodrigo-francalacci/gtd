@@ -14,6 +14,12 @@ Turbopack is the default; `middleware` is now `proxy`.
   `paper`, `ink`). The only colour tokens are `waiting`, `stale`, and
   `selected`, plus their `-bg` pairs. Nothing decorative. Sidebar icons are
   monochrome strokes for this reason — no emoji, no colour.
+- **Who you're waiting on is an entity, not free text.** `actions.waiting_on_id`
+  points at a `person`-dimension context — the same rows that serve the agenda
+  side of contexts, because the people you chase and the people you have things
+  to raise with are the same people. `resolveParty` matches case- and
+  whitespace-insensitively so "neil" reuses "Neil"; without that you end up
+  chasing three different Neils and a rename fixes only one of them.
 - **Contexts are user data, not an enum.** The four *dimensions* are fixed;
   their contents are managed at `/contexts`. Deleting one cascades through
   `action_contexts`, so the UI shows the usage count before confirming.

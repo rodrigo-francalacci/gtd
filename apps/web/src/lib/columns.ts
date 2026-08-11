@@ -28,6 +28,16 @@ export const ACTION_COLUMNS: ColumnSet = {
   leading: 'grip-check',
 };
 
+/**
+ * On the Waiting pane, who you're waiting on matters more than the contexts —
+ * you chase a person, not a place.
+ */
+export const WAITING_COLUMNS: ColumnSet = {
+  template: 'minmax(0,1fr) 8rem 8rem 3.5rem',
+  headers: ['Title', 'Project', 'Waiting on', 'For'],
+  leading: 'grip-check',
+};
+
 /** Inside a project the project column would repeat, so it's dropped. */
 export const PROJECT_ACTION_COLUMNS: ColumnSet = {
   template: 'minmax(0,1fr) 9rem 3.5rem',

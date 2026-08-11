@@ -1,9 +1,12 @@
 import 'server-only';
 
-import { actions, db, inboxItems, projects, reviews } from '@gtd/db';
+import { actions, contexts, db, inboxItems, projects, reviews } from '@gtd/db';
+import { alias } from 'drizzle-orm/pg-core';
 import { asc, count, desc, eq, isNull, sql } from 'drizzle-orm';
 import { getProjects } from './queries';
 import { isStalled } from './queries.shared';
+
+const waitingParty = alias(contexts, 'waiting_party');
 
 export type ReviewStep = 'inbox' | 'projects' | 'stalled' | 'waiting' | 'standby' | 'done';
 
@@ -174,11 +177,13 @@ export async function getWaitingForReview(startedAt: Date) {
       id: actions.id,
       title: actions.title,
       waitingSince: actions.waitingSince,
+      waitingOn: waitingParty.name,
       lastReviewedAt: actions.lastReviewedAt,
       projectTitle: projects.title,
     })
     .from(actions)
     .leftJoin(projects, eq(projects.id, actions.projectId))
+    .leftJoin(waitingParty, eq(waitingParty.id, actions.waitingOnId))
     .where(eq(actions.status, 'waiting'))
     .orderBy(asc(actions.waitingSince));
 

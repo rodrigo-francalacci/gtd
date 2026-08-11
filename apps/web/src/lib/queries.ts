@@ -24,6 +24,7 @@ import {
   notInArray,
   sql,
 } from 'drizzle-orm';
+import { alias } from 'drizzle-orm/pg-core';
 import type {
   ActionRow,
   ListItemRow,
@@ -63,8 +64,11 @@ export async function getContextsWithUsage() {
       id: contexts.id,
       name: contexts.name,
       dimension: contexts.dimension,
+      // Includes waiting-on use, not just tags — otherwise deleting a person
+      // would silently strip them from waiting items too.
       usage: sql<number>`(
-        select count(*) from ${actionContexts} ac where ac.context_id = ${contexts.id}
+        (select count(*) from ${actionContexts} ac where ac.context_id = ${contexts.id})
+        + (select count(*) from ${actions} a where a.waiting_on_id = ${contexts.id})
       )::int`,
     })
     .from(contexts)
@@ -122,11 +126,15 @@ async function attachContexts(
   return rows.map((r) => ({ ...r, contexts: byAction.get(r.id) ?? [] }));
 }
 
+/** Aliased so the party join doesn't collide with the contexts join. */
+const waitingParty = alias(contexts, 'waiting_party');
+
 const actionSelect = {
   id: actions.id,
   title: actions.title,
   status: actions.status,
   waitingSince: actions.waitingSince,
+  waitingOn: waitingParty.name,
   projectId: actions.projectId,
   projectTitle: projects.title,
   position: actions.position,
@@ -158,6 +166,7 @@ export async function getNowActions(contextIds: string[]): Promise<ActionRow[]> 
       .select(actionSelect)
       .from(actions)
       .leftJoin(projects, eq(projects.id, actions.projectId))
+      .leftJoin(waitingParty, eq(waitingParty.id, actions.waitingOnId))
       .where(base)
       .orderBy(...byPosition);
     return attachContexts(rows);
@@ -189,6 +198,7 @@ export async function getNowActions(contextIds: string[]): Promise<ActionRow[]> 
     .select(actionSelect)
     .from(actions)
     .leftJoin(projects, eq(projects.id, actions.projectId))
+    .leftJoin(waitingParty, eq(waitingParty.id, actions.waitingOnId))
     .where(and(base, ...dimensionClauses))
     .orderBy(...byPosition);
 
@@ -205,6 +215,7 @@ export async function getWaitingActions(): Promise<ActionRow[]> {
     .select(actionSelect)
     .from(actions)
     .leftJoin(projects, eq(projects.id, actions.projectId))
+    .leftJoin(waitingParty, eq(waitingParty.id, actions.waitingOnId))
     .where(eq(actions.status, 'waiting'))
     .orderBy(sql`${actions.position} asc nulls last`, asc(actions.waitingSince));
 
@@ -347,6 +358,7 @@ export async function getProjectActions(projectId: string): Promise<ActionRow[]>
     .select(actionSelect)
     .from(actions)
     .leftJoin(projects, eq(projects.id, actions.projectId))
+    .leftJoin(waitingParty, eq(waitingParty.id, actions.waitingOnId))
     .where(eq(actions.projectId, projectId))
     .orderBy(asc(actions.status), ...byPosition);
 
@@ -360,6 +372,7 @@ export async function getAction(id: string) {
       title: actions.title,
       status: actions.status,
       waitingSince: actions.waitingSince,
+      waitingOn: waitingParty.name,
       notes: actions.notes,
       projectId: actions.projectId,
       projectTitle: projects.title,
@@ -367,6 +380,7 @@ export async function getAction(id: string) {
     })
     .from(actions)
     .leftJoin(projects, eq(projects.id, actions.projectId))
+    .leftJoin(waitingParty, eq(waitingParty.id, actions.waitingOnId))
     .where(eq(actions.id, id))
     .limit(1);
 

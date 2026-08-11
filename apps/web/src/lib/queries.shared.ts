@@ -11,6 +11,8 @@ export type ActionRow = {
   title: string;
   status: ActionStatus;
   waitingSince: string | null;
+  /** Who or what you're waiting on — null when unrecorded. */
+  waitingOn: string | null;
   projectId: string | null;
   projectTitle: string | null;
   position: number | null;

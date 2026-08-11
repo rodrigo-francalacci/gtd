@@ -314,6 +314,9 @@ async function WaitingStep({ startedAt }: { startedAt: Date }) {
                 {a.projectTitle ? (
                   <span className="text-grey-500">{a.projectTitle}</span>
                 ) : null}
+                <span className={a.waitingOn ? 'text-grey-600' : 'text-grey-400'}>
+                  {a.waitingOn ? `on ${a.waitingOn}` : 'nobody recorded'}
+                </span>
                 <span className={stale ? 'font-medium text-stale' : 'text-waiting'}>
                   waiting {days ?? 0}d{stale ? ' — chase it' : ''}
                 </span>

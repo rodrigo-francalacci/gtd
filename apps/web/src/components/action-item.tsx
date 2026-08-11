@@ -3,7 +3,11 @@
 import Link from 'next/link';
 import { useTransition } from 'react';
 import { setActionStatus } from '@/lib/actions';
-import { ACTION_COLUMNS, PROJECT_ACTION_COLUMNS } from '@/lib/columns';
+import {
+  ACTION_COLUMNS,
+  PROJECT_ACTION_COLUMNS,
+  WAITING_COLUMNS,
+} from '@/lib/columns';
 import { daysSince, isStale, type ActionRow } from '@/lib/queries.shared';
 import { DragGrip } from './sortable';
 
@@ -20,6 +24,7 @@ export function ActionItem({
   showProject = true,
   isDragging = false,
   compact = false,
+  variant = 'default',
 }: {
   action: ActionRow;
   href: string;
@@ -27,6 +32,8 @@ export function ActionItem({
   showProject?: boolean;
   isDragging?: boolean;
   compact?: boolean;
+  /** 'waiting' swaps the contexts column for who you're waiting on. */
+  variant?: 'default' | 'waiting';
 }) {
   const [pending, startTransition] = useTransition();
 
@@ -64,7 +71,12 @@ export function ActionItem({
   };
 
   if (compact) {
-    const columns = showProject ? ACTION_COLUMNS : PROJECT_ACTION_COLUMNS;
+    const columns =
+      variant === 'waiting'
+        ? WAITING_COLUMNS
+        : showProject
+          ? ACTION_COLUMNS
+          : PROJECT_ACTION_COLUMNS;
 
     return (
       <div
@@ -99,9 +111,11 @@ export function ActionItem({
         ) : null}
 
         <span className="truncate text-grey-500">
-          {action.contexts.length > 0
-            ? action.contexts.map((c) => c.name).join(', ')
-            : '—'}
+          {variant === 'waiting'
+            ? (action.waitingOn ?? '—')
+            : action.contexts.length > 0
+              ? action.contexts.map((c) => c.name).join(', ')
+              : '—'}
         </span>
 
         <span className="truncate">{stateLabel()}</span>
@@ -164,6 +178,12 @@ export function ActionItem({
                 : stale
                   ? `waiting ${days}d — chase it`
                   : `waiting ${days}d`}
+            </span>
+          ) : null}
+
+          {action.status === 'waiting' ? (
+            <span className="truncate text-grey-500">
+              {action.waitingOn ? `on ${action.waitingOn}` : 'on ?'}
             </span>
           ) : null}
         </div>

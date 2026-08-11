@@ -179,6 +179,19 @@ export const actions = pgTable(
     status: actionStatus('status').notNull().default('next'),
     /** Stamped when status becomes 'waiting'; drives the staleness surface. */
     waitingSince: date('waiting_since'),
+    /**
+     * Who or what you're waiting on, as a reference to a `person`-dimension
+     * context rather than free text.
+     *
+     * Shared with the agenda side of contexts on purpose: the people you're
+     * waiting on and the people you have things to raise with are the same
+     * people. Making it an entity is what stops "Neil", "neil" and "Neil S"
+     * becoming three different parties, and lets a rename fix every action at
+     * once. `set null` on delete so losing the party never destroys the action.
+     */
+    waitingOnId: uuid('waiting_on_id').references(() => contexts.id, {
+      onDelete: 'set null',
+    }),
     completedAt: timestamp('completed_at', { withTimezone: true }),
     notes: jsonb('notes'),
     searchText: text('search_text'),
@@ -202,6 +215,7 @@ export const actions = pgTable(
     index('actions_position_idx').on(t.position),
     index('actions_status_idx').on(t.status),
     index('actions_waiting_since_idx').on(t.waitingSince),
+    index('actions_waiting_on_idx').on(t.waitingOnId),
     index('actions_search_idx').using('gin', t.searchVector),
   ],
 );
