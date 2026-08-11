@@ -1,0 +1,1 @@
+ALTER TABLE "preferences" ADD COLUMN "preview_pane_width" integer;

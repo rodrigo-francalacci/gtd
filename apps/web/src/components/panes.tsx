@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 import type { ColumnSet } from '@/lib/columns';
-import type { ViewMode } from '@/lib/pane';
+import { DEFAULT_PANE_WIDTH, type ViewMode } from '@/lib/pane';
 import { ResizablePane } from './resizable-pane';
 import { ViewToggle } from './view-toggle';
 
@@ -75,7 +75,14 @@ export function ListPane({
     );
   }
 
-  return <ResizablePane initialWidth={paneWidth}>{body}</ResizablePane>;
+  return (
+    <ResizablePane
+      initialWidth={paneWidth}
+      defaultWidth={DEFAULT_PANE_WIDTH[viewMode ?? 'comfortable']}
+    >
+      {body}
+    </ResizablePane>
+  );
 }
 
 /** The column strip above a compact list, as in old Evernote's table view. */

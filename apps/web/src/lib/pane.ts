@@ -15,13 +15,26 @@ export const DEFAULT_PANE_WIDTH: Record<ViewMode, number> = {
   compact: 736,
 };
 
+/**
+ * The preview pane's own bounds. Wider floor than the list pane: a PDF page
+ * below about 380px is not a preview, it's a thumbnail with scrollbars.
+ */
+export const MIN_PREVIEW_WIDTH = 380;
+export const MAX_PREVIEW_WIDTH = 1100;
+export const DEFAULT_PREVIEW_WIDTH = 512;
+
 export type Preferences = {
   viewMode: ViewMode;
   /** Null means "no explicit choice yet" — fall back to the per-mode default. */
   listPaneWidth: number | null;
+  previewPaneWidth: number | null;
 };
 
 /** The width to render, honouring an explicit choice over the mode default. */
 export function paneWidth(prefs: Preferences): number {
   return prefs.listPaneWidth ?? DEFAULT_PANE_WIDTH[prefs.viewMode];
+}
+
+export function previewWidth(prefs: Preferences): number {
+  return prefs.previewPaneWidth ?? DEFAULT_PREVIEW_WIDTH;
 }

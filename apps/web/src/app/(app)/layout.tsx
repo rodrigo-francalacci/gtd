@@ -2,6 +2,7 @@ import { FilePreviewProvider } from '@/components/file-preview';
 import { SidebarNav } from '@/components/sidebar';
 import { requireSession } from '@/lib/auth/session';
 import { getLists, getSidebarCounts } from '@/lib/queries';
+import { getPreferences, previewWidth } from '@/lib/view-mode';
 
 /**
  * The signed-in shell.
@@ -14,12 +15,16 @@ import { getLists, getSidebarCounts } from '@/lib/queries';
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   await requireSession();
 
-  const [counts, lists] = await Promise.all([getSidebarCounts(), getLists()]);
+  const [counts, lists, prefs] = await Promise.all([
+    getSidebarCounts(),
+    getLists(),
+    getPreferences(),
+  ]);
 
   return (
     /* Pane 1 of 3. Panes 2 and 3 come from each section's own page. The file
        preview adds a fourth on the right, but only while something is open. */
-    <FilePreviewProvider>
+    <FilePreviewProvider initialWidth={previewWidth(prefs)}>
       <SidebarNav counts={counts} lists={lists} />
       <main className="flex min-w-0 flex-1">{children}</main>
     </FilePreviewProvider>

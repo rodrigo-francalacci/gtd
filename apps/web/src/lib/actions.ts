@@ -25,7 +25,9 @@ import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import {
   MAX_PANE_WIDTH,
+  MAX_PREVIEW_WIDTH,
   MIN_PANE_WIDTH,
+  MIN_PREVIEW_WIDTH,
   type ViewMode,
 } from './pane';
 import { suggester } from './ai/suggest';
@@ -677,6 +679,7 @@ export async function setProjectParent(
 async function savePreference(patch: {
   viewMode?: ViewMode;
   listPaneWidth?: number;
+  previewPaneWidth?: number;
 }) {
   await db
     .insert(preferences)
@@ -703,6 +706,16 @@ export async function setListPaneWidth(width: number) {
     Math.min(MAX_PANE_WIDTH, Math.max(MIN_PANE_WIDTH, width)),
   );
   await savePreference({ listPaneWidth: clamped });
+  revalidateShell();
+}
+
+/** Same gesture, same one write on release — see `setListPaneWidth`. */
+export async function setPreviewPaneWidth(width: number) {
+  await requireSession();
+  const clamped = Math.round(
+    Math.min(MAX_PREVIEW_WIDTH, Math.max(MIN_PREVIEW_WIDTH, width)),
+  );
+  await savePreference({ previewPaneWidth: clamped });
   revalidateShell();
 }
 

@@ -2,12 +2,18 @@
 
 import {
   createContext,
-  useCallback,
   useContext,
   useMemo,
   useState,
   type ReactNode,
 } from 'react';
+import { setPreviewPaneWidth } from '@/lib/actions';
+import {
+  DEFAULT_PREVIEW_WIDTH,
+  MAX_PREVIEW_WIDTH,
+  MIN_PREVIEW_WIDTH,
+} from '@/lib/pane';
+import { ResizablePane } from './resizable-pane';
 
 export type PreviewFile = {
   id: string;
@@ -34,7 +40,14 @@ const Context = createContext<PreviewApi | null>(null);
  * survive clicking through to another project. A search param would also have
  * to be threaded through five separate pages that each own their own panes.
  */
-export function FilePreviewProvider({ children }: { children: ReactNode }) {
+export function FilePreviewProvider({
+  children,
+  initialWidth,
+}: {
+  children: ReactNode;
+  /** Persisted pane width, resolved on the server so there's no flash. */
+  initialWidth: number;
+}) {
   const [file, setFile] = useState<PreviewFile | null>(null);
 
   const api = useMemo<PreviewApi>(
@@ -53,7 +66,13 @@ export function FilePreviewProvider({ children }: { children: ReactNode }) {
     <Context.Provider value={api}>
       <div className="flex h-screen w-screen">
         {children}
-        {file ? <PreviewPane file={file} onClose={() => setFile(null)} /> : null}
+        {file ? (
+          <PreviewPane
+            file={file}
+            width={initialWidth}
+            onClose={() => setFile(null)}
+          />
+        ) : null}
       </div>
     </Context.Provider>
   );
@@ -67,9 +86,11 @@ export function useFilePreview(): PreviewApi {
 
 function PreviewPane({
   file,
+  width,
   onClose,
 }: {
   file: PreviewFile;
+  width: number;
   onClose: () => void;
 }) {
   const [failed, setFailed] = useState(false);
@@ -77,7 +98,16 @@ function PreviewPane({
   const type = file.mimeType ?? '';
 
   return (
-    <aside className="flex w-[32rem] shrink-0 flex-col border-l border-grey-200 bg-grey-50">
+    <ResizablePane
+      initialWidth={width}
+      defaultWidth={DEFAULT_PREVIEW_WIDTH}
+      edge="left"
+      min={MIN_PREVIEW_WIDTH}
+      max={MAX_PREVIEW_WIDTH}
+      label="Resize preview pane"
+      onCommit={setPreviewPaneWidth}
+      className="border-l border-grey-200 bg-grey-50"
+    >
       <header className="flex items-center gap-2 border-b border-grey-200 px-3 py-2">
         <h2 className="min-w-0 flex-1 truncate text-[12px] font-medium text-grey-800">
           {file.name}
@@ -131,7 +161,7 @@ function PreviewPane({
           />
         )}
       </div>
-    </aside>
+    </ResizablePane>
   );
 }
 

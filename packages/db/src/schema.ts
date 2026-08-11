@@ -522,6 +522,8 @@ export const preferences = pgTable('preferences', {
   id: text('id').primaryKey().default(SINGLETON),
   /** Width of the middle pane in pixels. Null means "use the default". */
   listPaneWidth: integer('list_pane_width'),
+  /** Width of the file preview pane. Same convention. */
+  previewPaneWidth: integer('preview_pane_width'),
   /** 'comfortable' | 'compact' */
   viewMode: text('view_mode'),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),

@@ -56,7 +56,11 @@ Turbopack is the default; `middleware` is now `proxy`.
   query.
 - **The pane width is written once, on pointer-up.** The resize follows the
   cursor in local state; persisting each `pointermove` would be a request per
-  pixel.
+  pixel. `ResizablePane` serves both the list pane and the preview pane; `edge`
+  signs the drag delta, because a pane on the right of the window grows as the
+  cursor moves *left*. `defaultWidth` is what a double-click returns to and is
+  deliberately separate from `initialWidth` — resetting to the saved width is a
+  no-op, which is what the handle silently did for months.
 - **Font is Source Sans**, Evernote's UI typeface until they moved to Inter in
   January 2024 — the era this three-pane layout copies. Self-hosted via
   `next/font`, no runtime request.
