@@ -14,6 +14,19 @@ Turbopack is the default; `middleware` is now `proxy`.
   `paper`, `ink`). The only colour tokens are `waiting`, `stale`, and
   `selected`, plus their `-bg` pairs. Nothing decorative. Sidebar icons are
   monochrome strokes for this reason — no emoji, no colour.
+- **`future` actions are parked, not next.** They stay on the project, never
+  reach the Now view, and deliberately don't satisfy the stalled check — a
+  project whose only remaining steps are future still needs a real next action.
+  Dragging between the Active and Future buckets sets the status.
+- **A cross-list drop must be allowed to bubble.** `SortableList` ignores drops
+  of items it doesn't contain (no `preventDefault`, no `stopPropagation`) so an
+  enclosing `ActionBucket` can act on them. Reorder-within and move-between
+  share one drag type.
+- **Finishing an action can name its successor.** `turnIntoNextAction` marks
+  the current one done and inserts a new row carrying the project, contexts and
+  list position. A new row rather than a rename: the finished step stays in the
+  record, and the follow-up gets a genuinely fresh `created_at` instead of
+  inheriting the age of the step before it.
 - **Who you're waiting on is an entity, not free text.** `actions.waiting_on_id`
   points at a `person`-dimension context — the same rows that serve the agenda
   side of contexts, because the people you chase and the people you have things

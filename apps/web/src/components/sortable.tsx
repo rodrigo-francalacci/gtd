@@ -144,9 +144,17 @@ export function SortableList<T extends Identified>({
           }}
           onDrop={(e) => {
             if (!hasDragType(e, mimeType)) return;
+
+            // An item from a different list isn't a reorder — leave the event
+            // alone so a surrounding drop zone can decide what it means. This
+            // is what lets a project's Active and Future buckets exchange
+            // actions while each still reorders internally.
+            const id = dragPayload(e, mimeType) ?? draggingId;
+            if (!id || !order.some((item) => item.id === id)) return;
+
             e.preventDefault();
             e.stopPropagation();
-            handleDrop(dragPayload(e, mimeType) ?? draggingId, insertionIndex(e, index));
+            handleDrop(id, insertionIndex(e, index));
           }}
           className="relative"
         >

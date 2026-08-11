@@ -52,7 +52,18 @@ export const projectStatus = pgEnum('project_status', [
   'dropped',
 ]);
 
-export const actionStatus = pgEnum('action_status', ['next', 'waiting', 'done']);
+/**
+ * `future` is parked work: known, wanted, but deliberately not a candidate for
+ * "what can I do now". It keeps a project's later steps recorded without them
+ * competing for attention today, and it doesn't count towards a next action —
+ * a project whose only actions are future is still stalled, which is correct.
+ */
+export const actionStatus = pgEnum('action_status', [
+  'next',
+  'future',
+  'waiting',
+  'done',
+]);
 
 export const contextDimension = pgEnum('context_dimension', [
   'place',

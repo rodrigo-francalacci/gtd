@@ -13,12 +13,13 @@ import {
 } from '@/lib/actions';
 import { daysSince, isStale } from '@/lib/queries.shared';
 import { NoteEditor } from './note-editor';
+import { TurnIntoNextAction } from './turn-into-next';
 import { WaitingOnField } from './waiting-on-field';
 
 type ActionDetailData = {
   id: string;
   title: string;
-  status: 'next' | 'waiting' | 'done';
+  status: 'next' | 'future' | 'waiting' | 'done';
   waitingSince: string | null;
   waitingOn: string | null;
   notes: unknown;
@@ -50,8 +51,12 @@ export function ActionDetail({
   const stale = action.status === 'waiting' && isStale(action.waitingSince);
   const days = daysSince(action.waitingSince);
 
-  const statuses: { value: 'next' | 'waiting' | 'done'; label: string }[] = [
+  const statuses: {
+    value: 'next' | 'future' | 'waiting' | 'done';
+    label: string;
+  }[] = [
     { value: 'next', label: 'Next' },
+    { value: 'future', label: 'Future' },
     { value: 'waiting', label: 'Waiting for' },
     { value: 'done', label: 'Done' },
   ];
@@ -128,6 +133,12 @@ export function ActionDetail({
           >
             Chased today
           </button>
+        </div>
+      ) : null}
+
+      {action.status === 'next' || action.status === 'future' ? (
+        <div className="mt-3 flex">
+          <TurnIntoNextAction actionId={action.id} />
         </div>
       ) : null}
 

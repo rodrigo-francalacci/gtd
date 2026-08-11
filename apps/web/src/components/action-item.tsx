@@ -62,6 +62,8 @@ export function ActionItem({
 
   const stateLabel = () => {
     if (done) return <span className="text-grey-400">done</span>;
+    if (action.status === 'future')
+      return <span className="text-grey-500">future</span>;
     if (action.status !== 'waiting') return <span className="text-grey-400">next</span>;
     return (
       <span className={stale ? 'font-medium text-stale' : 'text-waiting'}>

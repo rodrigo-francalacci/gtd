@@ -51,6 +51,9 @@ preview branches included.
 - Google sign-in, plus Drive folder and Gmail label sync via a background queue
   (everything nested under a single GTD root in both)
 - Editable contexts across all four dimensions
+- Waiting For records who you're waiting on, reusing existing names
+- Active and Future action buckets per project, drag between them; finish an
+  action and name its successor in one step
 - Full-text search across projects, actions, list items and inbox captures,
   with ranked results and highlighted snippets
 - Full schema for every table in the brief, live on Neon

@@ -199,6 +199,64 @@ export async function setActionStatus(actionId: string, status: ActionStatus) {
 }
 
 /**
+ * Complete an action and name the one that follows it, in a single step.
+ *
+ * The successor is a new row rather than a rename, so the thing you finished
+ * stays in the record and the follow-up gets a genuinely fresh creation date —
+ * a renamed row would carry the age of the step before it and read as stale
+ * immediately. Project and contexts carry across, because the follow-up is
+ * almost always doable in the same circumstances.
+ */
+export async function turnIntoNextAction(actionId: string, nextTitle: string) {
+  await requireSession();
+
+  const title = nextTitle.trim();
+  if (!title) return;
+
+  const [current] = await db
+    .select({
+      id: actions.id,
+      projectId: actions.projectId,
+      position: actions.position,
+    })
+    .from(actions)
+    .where(eq(actions.id, actionId))
+    .limit(1);
+
+  if (!current) return;
+
+  const [successor] = await db
+    .insert(actions)
+    .values({
+      title,
+      projectId: current.projectId,
+      status: 'next',
+      // Sits where the finished one sat, so the list doesn't reshuffle.
+      position: current.position,
+    })
+    .returning({ id: actions.id });
+
+  const carried = await db
+    .select({ contextId: actionContexts.contextId })
+    .from(actionContexts)
+    .where(eq(actionContexts.actionId, actionId));
+
+  if (carried.length > 0) {
+    await db
+      .insert(actionContexts)
+      .values(carried.map((c) => ({ actionId: successor.id, contextId: c.contextId })));
+  }
+
+  await db
+    .update(actions)
+    .set({ status: 'done', completedAt: new Date(), updatedAt: new Date() })
+    .where(eq(actions.id, actionId));
+
+  revalidateShell();
+  return successor.id;
+}
+
+/**
  * Resolve a typed name to a person context, reusing an existing one whenever
  * it plausibly means the same party.
  *

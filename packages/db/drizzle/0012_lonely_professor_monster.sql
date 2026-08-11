@@ -1,0 +1,1 @@
+ALTER TYPE "public"."action_status" ADD VALUE 'future' BEFORE 'waiting';
