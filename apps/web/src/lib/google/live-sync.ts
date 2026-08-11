@@ -15,6 +15,7 @@ import {
 import {
   ROOT,
   containerPath,
+  projectLabelName,
   safeName,
   type GoogleSync,
   type LinkDrift,
@@ -137,11 +138,11 @@ export class LiveGoogleSync implements GoogleSync {
             detail: 'The Gmail label no longer exists.',
           });
         } else {
-          const expected = [
-            ROOT,
-            ...containerPath(project.status, project.completedAt),
-            safeName(project.title),
-          ].join('/');
+          const expected = projectLabelName(
+            project.status,
+            project.completedAt,
+            project.title,
+          );
           if (label.name !== expected) {
             drift.push({
               projectId: project.id,

@@ -11,6 +11,11 @@ import {
   updateProjectNotes,
   updateProjectTitle,
 } from '@/lib/actions';
+import {
+  driveFolderUrl,
+  gmailLabelUrl,
+  projectLabelName,
+} from '@/lib/google/sync';
 import { NoteEditor } from './note-editor';
 
 type ProjectDetailData = {
@@ -24,6 +29,7 @@ type ProjectDetailData = {
   areaName: string | null;
   driveFolderId: string | null;
   gmailLabelId: string | null;
+  completedAt: Date | null;
 };
 
 export type HorizonOptions = {
@@ -236,21 +242,43 @@ export function ProjectDetail({
             sentence about the app. Only new projects and status changes queue
             sync work, so anything older than the Google connection simply has
             no links until it's backfilled. */}
-        <p className="text-[11px] text-grey-400">
-          {project.driveFolderId || project.gmailLabelId ? (
-            <>
-              Drive folder {project.driveFolderId ? 'linked' : 'not linked'} · Gmail
-              label {project.gmailLabelId ? 'linked' : 'not linked'}
-            </>
-          ) : (
-            <>
-              Not linked to Drive or Gmail yet.{' '}
-              <Link href="/connections" className="underline underline-offset-2">
-                Connect or backfill
-              </Link>
-            </>
-          )}
-        </p>
+        {project.driveFolderId || project.gmailLabelId ? (
+          <div className="flex flex-wrap items-center gap-3 text-[11px]">
+            {project.driveFolderId ? (
+              <a
+                href={driveFolderUrl(project.driveFolderId)}
+                target="_blank"
+                rel="noreferrer"
+                className="text-grey-500 underline underline-offset-2 hover:text-grey-800"
+              >
+                Open Drive folder ↗
+              </a>
+            ) : null}
+            {project.gmailLabelId ? (
+              <a
+                href={gmailLabelUrl(
+                  projectLabelName(
+                    project.status,
+                    project.completedAt,
+                    project.title,
+                  ),
+                )}
+                target="_blank"
+                rel="noreferrer"
+                className="text-grey-500 underline underline-offset-2 hover:text-grey-800"
+              >
+                Open Gmail label ↗
+              </a>
+            ) : null}
+          </div>
+        ) : (
+          <p className="text-[11px] text-grey-400">
+            Not linked to Drive or Gmail yet.{' '}
+            <Link href="/connections" className="underline underline-offset-2">
+              Connect or backfill
+            </Link>
+          </p>
+        )}
         <button
           type="button"
           onClick={() =>

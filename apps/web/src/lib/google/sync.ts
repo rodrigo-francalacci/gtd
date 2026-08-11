@@ -93,3 +93,30 @@ export function containerPath(
 export function safeName(title: string): string {
   return title.replace(/[\\/]/g, '-').replace(/\s+/g, ' ').trim().slice(0, 100);
 }
+
+/** The full Gmail label a project should have, e.g. `GTD/Archive/2026/Thing`. */
+export function projectLabelName(
+  status: ProjectStatus,
+  completedAt: Date | null,
+  title: string,
+): string {
+  return [ROOT, ...containerPath(status, completedAt), safeName(title)].join('/');
+}
+
+export function driveFolderUrl(folderId: string): string {
+  return `https://drive.google.com/drive/folders/${folderId}`;
+}
+
+/**
+ * Gmail addresses a label by *name* in the URL, not by id — the id we store is
+ * only good for the API. The name is ours to compute, since the app is the one
+ * that set it; if you rename the label in Gmail this link goes stale, which is
+ * exactly the drift `verifyLinks` exists to report.
+ *
+ * `u/0` is the browser's first signed-in Google account. There is no way to
+ * address an account by id in a Gmail URL.
+ */
+export function gmailLabelUrl(labelName: string): string {
+  const encoded = labelName.replace(/ /g, '+').replace(/\//g, '%2F');
+  return `https://mail.google.com/mail/u/0/#label/${encoded}`;
+}
