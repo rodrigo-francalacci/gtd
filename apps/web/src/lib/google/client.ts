@@ -115,6 +115,70 @@ export async function moveFile(fileId: string, newParentId: string): Promise<voi
   await call(`${DRIVE}/files/${fileId}?${params}`, { method: 'PATCH', body: '{}' });
 }
 
+/**
+ * Upload bytes to Drive as a new file under `parentId`.
+ *
+ * Multipart rather than resumable: resumable pays for itself on large files
+ * that might need to restart mid-flight, and the platform caps the request
+ * body long before a file gets big enough to care.
+ *
+ * Not idempotent, unlike the rest of this module — re-running it creates a
+ * second copy. That's why the upload happens in the request that has the
+ * bytes rather than in the retrying worker.
+ */
+export async function uploadFile(
+  name: string,
+  mimeType: string,
+  bytes: ArrayBuffer,
+  parentId: string,
+): Promise<DriveFile> {
+  const token = await getAccessToken();
+  const boundary = `gtd-${crypto.randomUUID()}`;
+
+  const metadata = JSON.stringify({ name, parents: [parentId] });
+  const head =
+    `--${boundary}\r\n` +
+    'Content-Type: application/json; charset=UTF-8\r\n\r\n' +
+    `${metadata}\r\n` +
+    `--${boundary}\r\n` +
+    `Content-Type: ${mimeType || 'application/octet-stream'}\r\n\r\n`;
+  const tail = `\r\n--${boundary}--`;
+
+  const body = new Blob([head, bytes, tail]);
+
+  const response = await fetch(
+    'https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,name',
+    {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': `multipart/related; boundary=${boundary}`,
+      },
+      body,
+    },
+  );
+
+  if (!response.ok) {
+    throw new GoogleApiError(
+      `upload of ${name} failed: ${response.status} ${await response.text()}`,
+      response.status,
+    );
+  }
+
+  return (await response.json()) as DriveFile;
+}
+
+/**
+ * Bin a file this app created. Drive's trash, not a permanent delete — the
+ * app should never be able to destroy something of yours outright.
+ */
+export async function trashFile(fileId: string): Promise<void> {
+  await call(`${DRIVE}/files/${fileId}?fields=id`, {
+    method: 'PATCH',
+    body: JSON.stringify({ trashed: true }),
+  });
+}
+
 // --- Gmail ----------------------------------------------------------------
 
 export type GmailLabel = { id: string; name: string };

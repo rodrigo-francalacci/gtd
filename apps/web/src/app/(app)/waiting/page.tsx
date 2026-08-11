@@ -5,6 +5,7 @@ import { WAITING_COLUMNS } from '@/lib/columns';
 import {
   WAITING_STALE_DAYS,
   getAction,
+  getAttachments,
   getContextsByDimension,
   getWaitingActions,
   isStale,
@@ -55,6 +56,7 @@ export default async function WaitingPage(props: PageProps<'/waiting'>) {
         <DetailPane>
           <ActionDetail
             action={selected}
+            attachments={await getAttachments('action', selected.id)}
             contextGroups={groups}
             parties={groups.person.map((p) => p.name)}
           />

@@ -17,14 +17,18 @@ import {
   type ListItemRow as Row,
   type PurchaseImpact,
   type PurchaseWhere,
+  type AttachmentRow,
 } from '@/lib/queries.shared';
+import { Attachments } from './attachments';
 
 export function ListItemDetail({
   item,
+  attachments,
   isPurchases,
   projectOptions,
 }: {
   item: Row;
+  attachments: AttachmentRow[];
   isPurchases: boolean;
   projectOptions: { id: string; title: string }[];
 }) {
@@ -158,6 +162,13 @@ export function ListItemDetail({
           ))}
         </select>
       </section>
+
+      <Attachments
+        parentType="list_item"
+        parentId={item.id}
+        rows={attachments}
+        label="Photos & files"
+      />
 
       <footer className="mt-8 border-t border-grey-150 pt-3">
         <button

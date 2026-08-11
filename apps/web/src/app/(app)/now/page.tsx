@@ -4,7 +4,12 @@ import { ContextFilter } from '@/components/context-filter';
 import { DetailPane, EmptyDetail, EmptyList, ListPane } from '@/components/panes';
 import { QuickAddAction } from '@/components/quick-add';
 import { ACTION_COLUMNS } from '@/lib/columns';
-import { getAction, getContextsByDimension, getNowActions } from '@/lib/queries';
+import {
+  getAction,
+  getAttachments,
+  getContextsByDimension,
+  getNowActions,
+} from '@/lib/queries';
 import { getPreferences, paneWidth } from '@/lib/view-mode';
 
 export default async function NowPage(props: PageProps<'/now'>) {
@@ -59,6 +64,7 @@ export default async function NowPage(props: PageProps<'/now'>) {
         <DetailPane>
           <ActionDetail
             action={selected}
+            attachments={await getAttachments('action', selected.id)}
             contextGroups={groups}
             parties={groups.person.map((p) => p.name)}
           />

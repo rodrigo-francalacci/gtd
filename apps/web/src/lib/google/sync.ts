@@ -107,6 +107,10 @@ export function driveFolderUrl(folderId: string): string {
   return `https://drive.google.com/drive/folders/${folderId}`;
 }
 
+export function driveFileUrl(fileId: string): string {
+  return `https://drive.google.com/file/d/${fileId}/view`;
+}
+
 /**
  * Gmail addresses a label by *name* in the URL, not by id — the id we store is
  * only good for the API. The name is ours to compute, since the app is the one

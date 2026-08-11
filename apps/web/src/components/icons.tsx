@@ -189,3 +189,28 @@ export const IconViewCompact = (p: IconProps) => (
     <path d="M6.4 3.6v8.8" />
   </Glyph>
 );
+
+/** An attached document — a page with a folded corner. */
+export const IconDocument = (p: IconProps) => (
+  <Glyph {...p}>
+    <path d="M9.2 2H4.2v12h7.6V4.6z" />
+    <path d="M9.2 2v2.6h2.6" />
+  </Glyph>
+);
+
+/** An attached image — a frame with a horizon. */
+export const IconImage = (p: IconProps) => (
+  <Glyph {...p}>
+    <rect x="2.2" y="3.4" width="11.6" height="9.2" rx="1" />
+    <path d="M2.6 10.6 6 7.6l2.4 2 2-1.6 2.9 2.5" />
+    <circle cx="5.6" cy="6.2" r="0.9" />
+  </Glyph>
+);
+
+/** An attached recording — a microphone. */
+export const IconAudio = (p: IconProps) => (
+  <Glyph {...p}>
+    <rect x="6.2" y="1.8" width="3.6" height="7.2" rx="1.8" />
+    <path d="M3.8 7.4a4.2 4.2 0 0 0 8.4 0M8 11.6V14" />
+  </Glyph>
+);

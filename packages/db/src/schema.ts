@@ -324,6 +324,15 @@ export const attachments = pgTable(
     parentId: uuid('parent_id').notNull(),
     kind: attachmentKind('kind').notNull(),
     driveFileId: text('drive_file_id'),
+    /**
+     * Kept beside the Drive id rather than fetched. Listing attachments is a
+     * read on every project and action pane, and none of those may wait on
+     * Drive — a filename is not worth a round trip, and the app still can't
+     * render a row for a file whose name it would have to ask for.
+     */
+    name: text('name').notNull().default(''),
+    mimeType: text('mime_type'),
+    sizeBytes: integer('size_bytes'),
     /** Populated asynchronously by the enrichment queue. */
     transcription: text('transcription'),
     ocrText: text('ocr_text'),
@@ -541,3 +550,5 @@ export type ListType = (typeof listType.enumValues)[number];
 export type ProjectStatus = (typeof projectStatus.enumValues)[number];
 export type ActionStatus = (typeof actionStatus.enumValues)[number];
 export type ContextDimension = (typeof contextDimension.enumValues)[number];
+export type AttachmentKind = (typeof attachmentKind.enumValues)[number];
+export type AttachmentParentType = (typeof attachmentParentType.enumValues)[number];

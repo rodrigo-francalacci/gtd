@@ -11,7 +11,8 @@ import {
   updateActionNotes,
   updateActionTitle,
 } from '@/lib/actions';
-import { daysSince, isStale } from '@/lib/queries.shared';
+import { daysSince, isStale, type AttachmentRow } from '@/lib/queries.shared';
+import { Attachments } from './attachments';
 import { NoteEditor } from './note-editor';
 import { TurnIntoNextAction } from './turn-into-next';
 import { WaitingOnField } from './waiting-on-field';
@@ -30,10 +31,12 @@ type ActionDetailData = {
 
 export function ActionDetail({
   action,
+  attachments,
   contextGroups,
   parties,
 }: {
   action: ActionDetailData;
+  attachments: AttachmentRow[];
   /** Existing waiting-on names, offered as suggestions. */
   parties: string[];
   contextGroups: {
@@ -206,6 +209,12 @@ export function ActionDetail({
           }}
         />
       </section>
+
+      <Attachments
+        parentType="action"
+        parentId={action.id}
+        rows={attachments}
+      />
 
       <footer className="mt-8 border-t border-grey-150 pt-3">
         <button

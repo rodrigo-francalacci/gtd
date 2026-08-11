@@ -5,6 +5,7 @@ import { ProjectDetail } from '@/components/project-detail';
 import {
   getAreasAndGoals,
   getArchivedProjects,
+  getAttachments,
   getProject,
   getProjectActions,
 } from '@/lib/queries';
@@ -57,7 +58,12 @@ export default async function ArchivePage(props: PageProps<'/archive'>) {
           {/* Same editable detail as a live project: reopening it is just a
               status change, and notes stay editable so you can add what you
               learned after the fact. */}
-          <ProjectDetail project={selected} stalled={false} horizons={horizons} />
+          <ProjectDetail
+            project={selected}
+            attachments={await getAttachments('project', selected.id)}
+            stalled={false}
+            horizons={horizons}
+          />
           <ProjectActionsSection
             projectId={selected.id}
             actions={selectedActions}

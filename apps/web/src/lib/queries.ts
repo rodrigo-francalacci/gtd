@@ -4,6 +4,7 @@ import {
   actionContexts,
   actions,
   areasOfFocus,
+  attachments,
   contexts,
   db,
   goals,
@@ -12,6 +13,7 @@ import {
   lists,
   projects,
   type AiSuggestion,
+  type AttachmentParentType,
 } from '@gtd/db';
 import {
   and,
@@ -27,6 +29,7 @@ import {
 import { alias } from 'drizzle-orm/pg-core';
 import type {
   ActionRow,
+  AttachmentRow,
   ListItemRow,
   ListRow,
   ProjectRow,
@@ -36,6 +39,7 @@ import { isStalled, stageOf } from './queries.shared';
 
 export type {
   ActionRow,
+  AttachmentRow,
   ListItemRow,
   ListRow,
   ProjectRow,
@@ -716,4 +720,36 @@ export async function getSidebarCounts() {
     stalled: projectRows.filter(isStalled).length,
     unfiled: unfiledRow?.n ?? 0,
   };
+}
+
+// ---------------------------------------------------------------------------
+// Attachments
+// ---------------------------------------------------------------------------
+
+/**
+ * Files hanging off one project, action or list item. Name and type come from
+ * our own row rather than Drive: a detail pane must never wait on Google.
+ */
+export async function getAttachments(
+  parentType: AttachmentParentType,
+  parentId: string,
+): Promise<AttachmentRow[]> {
+  return db
+    .select({
+      id: attachments.id,
+      name: attachments.name,
+      kind: attachments.kind,
+      mimeType: attachments.mimeType,
+      sizeBytes: attachments.sizeBytes,
+      driveFileId: attachments.driveFileId,
+      createdAt: attachments.createdAt,
+    })
+    .from(attachments)
+    .where(
+      and(
+        eq(attachments.parentType, parentType),
+        eq(attachments.parentId, parentId),
+      ),
+    )
+    .orderBy(asc(attachments.createdAt));
 }

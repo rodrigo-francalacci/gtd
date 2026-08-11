@@ -1,7 +1,7 @@
 import 'server-only';
 
 import { db, projects, syncJobs } from '@gtd/db';
-import { and, eq, isNull, sql } from 'drizzle-orm';
+import { eq, isNull, or, sql } from 'drizzle-orm';
 import { GoogleAuthError } from '@/lib/auth/token';
 import { GoogleApiError } from './client';
 import { LiveGoogleSync } from './live-sync';
@@ -175,6 +175,20 @@ export async function getSyncQueueStatus() {
 }
 
 /**
+ * Missing *either* link, not both.
+ *
+ * A project can end up half-linked: attaching a file to one of its actions
+ * creates the Drive folder on the spot, because the upload needs somewhere to
+ * go, but says nothing about Gmail. Requiring both to be null would quietly
+ * exclude exactly those projects from the backfill and leave them without a
+ * label for good. `create_project_links` fills in only what's missing.
+ */
+const UNLINKED = or(
+  isNull(projects.driveFolderId),
+  isNull(projects.gmailLabelId),
+);
+
+/**
  * Queue link creation for projects that predate the Google connection.
  *
  * Only new projects and status changes enqueue work, so anything created
@@ -183,15 +197,7 @@ export async function getSyncQueueStatus() {
  * creating folders you didn't ask for.
  */
 export async function backfillProjectLinks(): Promise<number> {
-  const rows = await db
-    .select({ id: projects.id })
-    .from(projects)
-    .where(
-      and(
-        isNull(projects.driveFolderId),
-        isNull(projects.gmailLabelId),
-      ),
-    );
+  const rows = await db.select({ id: projects.id }).from(projects).where(UNLINKED);
 
   for (const row of rows) {
     await enqueueSync('create_project_links', row.id);
@@ -205,7 +211,7 @@ export async function countUnlinkedProjects(): Promise<number> {
   const [row] = await db
     .select({ n: sql<number>`count(*)::int` })
     .from(projects)
-    .where(and(isNull(projects.driveFolderId), isNull(projects.gmailLabelId)));
+    .where(UNLINKED);
 
   return row?.n ?? 0;
 }

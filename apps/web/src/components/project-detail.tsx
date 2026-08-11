@@ -16,6 +16,8 @@ import {
   gmailLabelUrl,
   projectLabelName,
 } from '@/lib/google/sync';
+import type { AttachmentRow } from '@/lib/queries.shared';
+import { Attachments } from './attachments';
 import { NoteEditor } from './note-editor';
 
 type ProjectDetailData = {
@@ -47,10 +49,12 @@ const STATUSES: { value: ProjectStatus; label: string }[] = [
 
 export function ProjectDetail({
   project,
+  attachments,
   stalled,
   horizons,
 }: {
   project: ProjectDetailData;
+  attachments: AttachmentRow[];
   stalled: boolean;
   horizons: HorizonOptions;
 }) {
@@ -236,6 +240,12 @@ export function ProjectDetail({
           }}
         />
       </section>
+
+      <Attachments
+        parentType="project"
+        parentId={project.id}
+        rows={attachments}
+      />
 
       <footer className="mt-8 space-y-2 border-t border-grey-150 pt-3">
         {/* Says what is actually true of this project, rather than a fixed

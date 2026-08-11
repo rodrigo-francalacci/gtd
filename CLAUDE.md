@@ -66,11 +66,35 @@ Turbopack is the default; `middleware` is now `proxy`.
   Drive/Gmail. There is no reconciliation — `verifyLinks` reports drift, it
   doesn't fix it. Recreating something the user deleted in Drive would be the
   app overruling a deliberate act.
-- **Never call Google inside a request.** Mutations `enqueueSync(...)` and
-  return; the cron worker at `/api/cron/sync` drains `sync_jobs`. A serverless
-  request must not wait on Drive. Jobs are claimed with `FOR UPDATE SKIP
-  LOCKED`, and retries back off only for transient failures — a revoked token
-  or a 4xx will never succeed on retry.
+- **Never call Google inside a request — except an upload.** Mutations
+  `enqueueSync(...)` and return; the cron worker at `/api/cron/sync` drains
+  `sync_jobs`. A serverless request must not wait on Drive. Jobs are claimed
+  with `FOR UPDATE SKIP LOCKED`, and retries back off only for transient
+  failures — a revoked token or a 4xx will never succeed on retry.
+  `POST /api/attachments` is the one exception: an upload *is* its payload, and
+  queueing it would mean parking the bytes somewhere first, which Drive is.
+  That also makes it the one non-idempotent Google call, hence a route handler
+  the user retries by hand rather than a job the worker retries blindly.
+- **An attachment's name, type and size live in our row.** Every detail pane
+  lists attachments, and none of them may wait on Drive for a filename. The id
+  is the only thing the two systems share.
+- **Files follow the project, not the thing they're attached to.** An action's
+  upload lands in its *project's* Drive folder — the project is the unit you go
+  looking in a year later, and a folder per action buries it. Anything with no
+  project goes to `GTD/Inbox`. If the project has no folder yet, attaching
+  creates it there and then: the alternative is filing the upload somewhere the
+  user didn't ask for.
+- **A project can be half-linked**, precisely because of the above — a Drive
+  folder made for an upload says nothing about Gmail. `UNLINKED` in `queue.ts`
+  therefore matches *either* id being null, not both; the older `and` quietly
+  excluded exactly those projects from the backfill forever.
+- **Removing an attachment trashes the Drive file, never deletes it**, and only
+  ever a file this app uploaded. If Drive refuses, the row still goes — being
+  unable to detach anything because of a problem at Google's end is worse than
+  an orphaned file in a bin you can empty.
+- **Uploads are capped at 4 MB** because Vercel caps a serverless request body
+  at 4.5. Enforced in `attachments.ts` with a sentence you can act on, rather
+  than as a platform 413.
 - **Everything Google-side lives under one root** (`ROOT` in
   `lib/google/sync.ts`): `GTD/Projects/...` in Gmail, `GTD/Projects/...` in
   Drive. A top-level `Projects` label would scatter through a label list that
@@ -150,7 +174,8 @@ Turbopack is the default; `middleware` is now `proxy`.
 - `apps/web/src/lib/queries.ts` — all reads. `actions.ts` — all writes.
 - `apps/web/src/lib/google/` — `sync.ts` holds the `GoogleSync` interface and
   the naming rules, `client.ts` the Drive/Gmail HTTP calls, `live-sync.ts` the
-  real implementation, `queue.ts` the outbox and worker.
+  real implementation, `queue.ts` the outbox and worker, `attachments.ts` the
+  upload path behind `POST /api/attachments`.
 - `apps/web/src/lib/auth/` — `session.ts` (server-side sessions),
   `google.ts` (OAuth flow, scopes), `token.ts` (grant + access-token refresh).
 
@@ -165,10 +190,11 @@ of throwing. Title matches get a +0.5 rank nudge over body-only matches.
 `sanitiseHeadline`, which strips every tag except the `<mark>` pair Postgres
 was asked for. Never render a headline without it.
 
-Attachments already carry a `search_vector` over transcription and OCR text
-but are deliberately **not** in the union — there is no way to create an
-attachment yet, and untested code for absent data is worse than a gap. Wire it
-when attachments land with Drive.
+Attachments carry a `search_vector` over transcription and OCR text and are
+still deliberately **not** in the union. You can upload one now, but nothing
+fills either column yet, so joining them in would add a branch that can only
+ever match nothing. Wire it up with the enrichment queue, in the same change
+that first writes an `ocr_text`.
 
 ## Weekly review
 

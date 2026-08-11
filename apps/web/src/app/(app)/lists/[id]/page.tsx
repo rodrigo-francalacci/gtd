@@ -7,6 +7,7 @@ import { SortableListItems } from '@/components/sortable-list-items';
 import { LIST_ITEM_COLUMNS, PURCHASE_COLUMNS } from '@/lib/columns';
 import {
   formatMoney,
+  getAttachments,
   getList,
   getListItem,
   getListItems,
@@ -92,6 +93,7 @@ export default async function ListPage(props: PageProps<'/lists/[id]'>) {
         <DetailPane>
           <ListItemDetail
             item={selected}
+            attachments={await getAttachments('list_item', selected.id)}
             isPurchases={isPurchases}
             projectOptions={projectOptions}
           />

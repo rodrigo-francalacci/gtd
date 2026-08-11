@@ -1,4 +1,4 @@
-import type { ActionStatus, ProjectStatus } from '@gtd/db';
+import type { ActionStatus, AttachmentKind, ProjectStatus } from '@gtd/db';
 
 /**
  * Types and pure helpers shared by server queries and client components.
@@ -160,4 +160,18 @@ export const PROJECT_STATUS_LABELS: Record<ProjectStatus, string> = {
   someday: 'Someday',
   completed: 'Completed',
   dropped: 'Dropped',
+};
+
+// ---------------------------------------------------------------------------
+// Attachments
+// ---------------------------------------------------------------------------
+
+export type AttachmentRow = {
+  id: string;
+  name: string;
+  kind: AttachmentKind;
+  mimeType: string | null;
+  sizeBytes: number | null;
+  driveFileId: string | null;
+  createdAt: Date;
 };

@@ -31,6 +31,7 @@ import {
 import { suggester } from './ai/suggest';
 import { requireSession } from './auth/session';
 import type { ReviewStep } from './review';
+import { removeAttachment } from './google/attachments';
 import { enqueueSync } from './google/queue';
 import { extractText } from './tiptap';
 
@@ -982,5 +983,20 @@ export async function renameContext(contextId: string, name: string) {
 export async function deleteContext(contextId: string) {
   await requireSession();
   await db.delete(contexts).where(eq(contexts.id, contextId));
+  revalidateShell();
+}
+
+// ---------------------------------------------------------------------------
+// Attachments
+// ---------------------------------------------------------------------------
+
+/**
+ * Detach a file. The upload itself goes through `/api/attachments` — a Server
+ * Action's body limit makes it the wrong door for bytes — but removal is an
+ * ordinary mutation and belongs here with the rest.
+ */
+export async function detachAttachment(attachmentId: string) {
+  await requireSession();
+  await removeAttachment(attachmentId);
   revalidateShell();
 }
