@@ -95,6 +95,25 @@ Turbopack is the default; `middleware` is now `proxy`.
 - **Uploads are capped at 4 MB** because Vercel caps a serverless request body
   at 4.5. Enforced in `attachments.ts` with a sentence you can act on, rather
   than as a platform 413.
+- **Attachment bytes are served through us, never linked to directly.** Drive's
+  download URLs aren't embeddable — they want Google cookies and don't survive
+  an `<img>` or an `<iframe>`. `GET /api/attachments/[id]/file` puts the file
+  on our own origin, which is the whole reason a PDF can render in a pane. It
+  streams `upstream.body` rather than buffering, serves
+  `Content-Disposition: inline`, and is `Cache-Control: private` — one person's
+  file behind one person's session must never sit in a shared cache. The
+  session gate is the only authorisation: a uuid in a URL is not one.
+- **The preview pane is the fourth column, and its state lives in the shell.**
+  `FilePreviewProvider` *is* the flex row, so the pane is a sibling of the
+  other three rather than an overlay on top of them. Not a search param: the
+  pane belongs to the window rather than the row it was opened from, it should
+  survive clicking through to another project, and a param would have to be
+  threaded through five pages that each own their own panes.
+- **A plain click previews; a modified click still opens Drive.** The `href` on
+  an attachment is the real Drive URL and only an unmodified left click is
+  intercepted, so ctrl/cmd-click and middle-click behave the way every other
+  link on the machine does. Detaching the file being previewed closes the pane
+  — otherwise it sits there rendering a 404.
 - **Everything Google-side lives under one root** (`ROOT` in
   `lib/google/sync.ts`): `GTD/Projects/...` in Gmail, `GTD/Projects/...` in
   Drive. A top-level `Projects` label would scatter through a label list that

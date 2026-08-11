@@ -169,6 +169,19 @@ export async function uploadFile(
 }
 
 /**
+ * Fetch a file's content. Returns the raw response so the caller can stream it
+ * straight through rather than buffering a whole PDF into memory to hand it
+ * back out again.
+ */
+export async function downloadFile(fileId: string): Promise<Response> {
+  const token = await getAccessToken();
+
+  return fetch(`${DRIVE}/files/${fileId}?alt=media`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+}
+
+/**
  * Bin a file this app created. Drive's trash, not a permanent delete — the
  * app should never be able to destroy something of yours outright.
  */

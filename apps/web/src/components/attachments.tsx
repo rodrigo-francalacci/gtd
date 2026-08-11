@@ -6,6 +6,7 @@ import type { AttachmentParentType } from '@gtd/db';
 import { detachAttachment } from '@/lib/actions';
 import { driveFileUrl } from '@/lib/google/sync';
 import type { AttachmentRow } from '@/lib/queries.shared';
+import { useFilePreview } from './file-preview';
 import { IconAudio, IconDocument, IconImage } from './icons';
 
 /**
@@ -29,6 +30,7 @@ export function Attachments({
   label?: string;
 }) {
   const router = useRouter();
+  const preview = useFilePreview();
   const input = useRef<HTMLInputElement>(null);
 
   const [over, setOver] = useState(false);
@@ -143,20 +145,36 @@ export function Attachments({
               >
                 <Glyph kind={row.kind} />
 
-                {row.driveFileId ? (
-                  <a
-                    href={driveFileUrl(row.driveFileId)}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="min-w-0 flex-1 truncate text-grey-800 hover:underline"
-                  >
-                    {row.name}
-                  </a>
-                ) : (
-                  <span className="min-w-0 flex-1 truncate text-grey-800">
-                    {row.name}
-                  </span>
-                )}
+                {/* The href is the real Drive URL, so ctrl/cmd-click and
+                    middle-click still open it in a tab exactly as a link
+                    should. A plain click is intercepted and shown in the
+                    preview pane instead — the common case shouldn't cost you
+                    the page you were on. */}
+                <a
+                  href={row.driveFileId ? driveFileUrl(row.driveFileId) : undefined}
+                  target="_blank"
+                  rel="noreferrer"
+                  onClick={(e) => {
+                    if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+                    e.preventDefault();
+                    preview.open({
+                      id: row.id,
+                      name: row.name,
+                      mimeType: row.mimeType,
+                      driveUrl: row.driveFileId
+                        ? driveFileUrl(row.driveFileId)
+                        : null,
+                    });
+                  }}
+                  className={[
+                    'min-w-0 flex-1 cursor-pointer truncate hover:underline',
+                    preview.openId === row.id
+                      ? 'font-medium text-grey-900'
+                      : 'text-grey-800',
+                  ].join(' ')}
+                >
+                  {row.name}
+                </a>
 
                 <span className="shrink-0 tabular-nums text-[11px] text-grey-400">
                   {formatSize(row.sizeBytes)}
@@ -167,6 +185,9 @@ export function Attachments({
                   title="Remove — the file goes to Drive’s bin"
                   onClick={() =>
                     startTransition(async () => {
+                      // Close the pane first if it's showing this very file —
+                      // otherwise it sits there rendering a 404.
+                      preview.closeIf(row.id);
                       await detachAttachment(row.id);
                     })
                   }
