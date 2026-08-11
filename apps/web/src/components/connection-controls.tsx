@@ -1,7 +1,12 @@
 'use client';
 
 import { useState, useTransition } from 'react';
-import { retrySyncFailures, runSyncNow, verifyLinksNow } from '@/lib/google/actions';
+import {
+  backfillLinks,
+  retrySyncFailures,
+  runSyncNow,
+  verifyLinksNow,
+} from '@/lib/google/actions';
 import type { LinkDrift } from '@/lib/google/sync';
 
 const ISSUE_LABELS: Record<LinkDrift['issue'], string> = {
@@ -37,6 +42,51 @@ export function SyncControls({ hasFailures }: { hasFailures: boolean }) {
       ) : null}
 
       {pending ? <span className="text-[11px] text-grey-500">Working…</span> : null}
+    </div>
+  );
+}
+
+/**
+ * Catch-up for projects that existed before Google was connected. Deliberately
+ * a button rather than something automatic: creating folders and labels in
+ * someone's account is not a thing to do behind their back.
+ */
+export function BackfillLinks({ unlinked }: { unlinked: number }) {
+  const [pending, startTransition] = useTransition();
+  const [queued, setQueued] = useState<number | null>(null);
+
+  if (unlinked === 0 && queued === null) {
+    return (
+      <p className="mt-2 text-[12px] text-grey-600">
+        Every project has its folder and label.
+      </p>
+    );
+  }
+
+  return (
+    <div className="mt-3">
+      <button
+        type="button"
+        disabled={pending}
+        onClick={() =>
+          startTransition(async () => {
+            setQueued(await backfillLinks());
+          })
+        }
+        className="rounded-sm border border-grey-300 px-2.5 py-1 text-[12px] text-grey-700 disabled:opacity-40"
+      >
+        {pending
+          ? 'Creating…'
+          : `Create links for ${unlinked} project${unlinked === 1 ? '' : 's'}`}
+      </button>
+
+      {queued !== null && !pending ? (
+        <p className="mt-2 text-[12px] text-grey-600">
+          {queued === 0
+            ? 'Nothing left to link.'
+            : `Queued ${queued} and ran them. Reload to see the links.`}
+        </p>
+      ) : null}
     </div>
   );
 }

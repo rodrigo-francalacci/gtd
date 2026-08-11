@@ -1,7 +1,7 @@
 import 'server-only';
 
 import { db, projects, syncJobs } from '@gtd/db';
-import { eq, sql } from 'drizzle-orm';
+import { and, eq, isNull, sql } from 'drizzle-orm';
 import { GoogleAuthError } from '@/lib/auth/token';
 import { GoogleApiError } from './client';
 import { LiveGoogleSync } from './live-sync';
@@ -112,6 +112,7 @@ async function runJob(
       id: projects.id,
       title: projects.title,
       status: projects.status,
+      completedAt: projects.completedAt,
       driveFolderId: projects.driveFolderId,
       gmailLabelId: projects.gmailLabelId,
     })
@@ -171,6 +172,42 @@ export async function getSyncQueueStatus() {
     failed: byStatus.failed ?? 0,
     failures,
   };
+}
+
+/**
+ * Queue link creation for projects that predate the Google connection.
+ *
+ * Only new projects and status changes enqueue work, so anything created
+ * before Google was connected has no folder or label. This is the deliberate
+ * catch-up, rather than a background sweep that would surprise you by
+ * creating folders you didn't ask for.
+ */
+export async function backfillProjectLinks(): Promise<number> {
+  const rows = await db
+    .select({ id: projects.id })
+    .from(projects)
+    .where(
+      and(
+        isNull(projects.driveFolderId),
+        isNull(projects.gmailLabelId),
+      ),
+    );
+
+  for (const row of rows) {
+    await enqueueSync('create_project_links', row.id);
+  }
+
+  return rows.length;
+}
+
+/** How many projects the backfill would act on. */
+export async function countUnlinkedProjects(): Promise<number> {
+  const [row] = await db
+    .select({ n: sql<number>`count(*)::int` })
+    .from(projects)
+    .where(and(isNull(projects.driveFolderId), isNull(projects.gmailLabelId)));
+
+  return row?.n ?? 0;
 }
 
 /** Re-queue everything that gave up, e.g. after reconnecting Google. */

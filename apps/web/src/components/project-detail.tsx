@@ -1,5 +1,7 @@
 'use client';
 
+import Link from 'next/link';
+
 import type { ProjectStatus } from '@gtd/db';
 import { useState, useTransition } from 'react';
 import {
@@ -230,10 +232,24 @@ export function ProjectDetail({
       </section>
 
       <footer className="mt-8 space-y-2 border-t border-grey-150 pt-3">
+        {/* Says what is actually true of this project, rather than a fixed
+            sentence about the app. Only new projects and status changes queue
+            sync work, so anything older than the Google connection simply has
+            no links until it's backfilled. */}
         <p className="text-[11px] text-grey-400">
-          Drive folder:{' '}
-          {project.driveFolderId ?? 'not linked (Google sync stubbed this session)'}
-          {' · '}Gmail label: {project.gmailLabelId ?? 'not linked'}
+          {project.driveFolderId || project.gmailLabelId ? (
+            <>
+              Drive folder {project.driveFolderId ? 'linked' : 'not linked'} · Gmail
+              label {project.gmailLabelId ? 'linked' : 'not linked'}
+            </>
+          ) : (
+            <>
+              Not linked to Drive or Gmail yet.{' '}
+              <Link href="/connections" className="underline underline-offset-2">
+                Connect or backfill
+              </Link>
+            </>
+          )}
         </p>
         <button
           type="button"

@@ -35,7 +35,7 @@ export async function ProjectListPane({
             Show all projects
           </Link>
         ) : (
-          `${all.filter((p) => p.status === 'active').length} active · drag an action onto a project to file it`
+          `${all.filter((p) => p.status === 'active').length} active · drag across a heading to restage`
         )
       }
     >

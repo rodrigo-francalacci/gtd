@@ -1,7 +1,11 @@
-import { SyncControls, VerifyLinks } from '@/components/connection-controls';
+import {
+  BackfillLinks,
+  SyncControls,
+  VerifyLinks,
+} from '@/components/connection-controls';
 import { SYNC_SCOPES, hasSyncScopes } from '@/lib/auth/google';
 import { getGrant } from '@/lib/auth/token';
-import { getSyncQueueStatus } from '@/lib/google/queue';
+import { countUnlinkedProjects, getSyncQueueStatus } from '@/lib/google/queue';
 
 const SCOPE_LABELS: Record<string, string> = {
   'https://www.googleapis.com/auth/drive.file':
@@ -10,7 +14,11 @@ const SCOPE_LABELS: Record<string, string> = {
 };
 
 export default async function ConnectionsPage() {
-  const [grant, queue] = await Promise.all([getGrant(), getSyncQueueStatus()]);
+  const [grant, queue, unlinked] = await Promise.all([
+    getGrant(),
+    getSyncQueueStatus(),
+    countUnlinkedProjects(),
+  ]);
   const connected = Boolean(grant?.refreshToken);
   const syncReady = connected && hasSyncScopes(grant?.scope);
 
@@ -90,6 +98,20 @@ export default async function ConnectionsPage() {
 
           <SyncControls hasFailures={queue.failed > 0} />
         </section>
+
+        {syncReady ? (
+          <section className="mt-7 border-t border-grey-150 pt-5">
+            <h2 className="text-[10px] font-semibold uppercase tracking-wider text-grey-500">
+              Existing projects
+            </h2>
+            <p className="mt-1 max-w-prose text-[12px] leading-relaxed text-grey-600">
+              Folders and labels are made when a project is created, so anything
+              you had before connecting Google has none. This creates them, in
+              the container its status calls for.
+            </p>
+            <BackfillLinks unlinked={unlinked} />
+          </section>
+        ) : null}
 
         <section className="mt-7 border-t border-grey-150 pt-5">
           <h2 className="text-[10px] font-semibold uppercase tracking-wider text-grey-500">

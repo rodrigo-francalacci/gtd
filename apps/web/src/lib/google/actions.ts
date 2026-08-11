@@ -2,7 +2,7 @@
 
 import { revalidatePath } from 'next/cache';
 import { requireSession } from '@/lib/auth/session';
-import { drainSyncQueue, retryFailedJobs } from './queue';
+import { backfillProjectLinks, drainSyncQueue, retryFailedJobs } from './queue';
 import { LiveGoogleSync } from './live-sync';
 import type { LinkDrift } from './sync';
 
@@ -10,6 +10,16 @@ export async function runSyncNow() {
   await requireSession();
   await drainSyncQueue(25);
   revalidatePath('/connections');
+}
+
+export async function backfillLinks() {
+  await requireSession();
+  const queued = await backfillProjectLinks();
+  // Run straight away rather than waiting for the next cron tick; you asked
+  // for it, so you should see it happen.
+  if (queued > 0) await drainSyncQueue(50);
+  revalidatePath('/connections');
+  return queued;
 }
 
 export async function retrySyncFailures() {

@@ -20,8 +20,15 @@ Turbopack is the default; `middleware` is now `proxy`.
   Dragging between the Active and Future buckets sets the status.
 - **A cross-list drop must be allowed to bubble.** `SortableList` ignores drops
   of items it doesn't contain (no `preventDefault`, no `stopPropagation`) so an
-  enclosing `ActionBucket` can act on them. Reorder-within and move-between
-  share one drag type.
+  enclosing `ActionBucket` or `ProjectBucket` can act on them. Reorder-within
+  and move-between share one drag type. A bucket that highlights on `dragover`
+  must clear that highlight in the *capture* phase — a reorder handled inside
+  it stops the bubble, so a bubble-phase handler would never see the drop and
+  the highlight would stick.
+- **Project status buckets are always rendered.** Active, Standby and Someday
+  appear on `/projects` even when empty, because an empty group you can't see
+  is an empty group you can't drop into. Dropping on Standby opens the return
+  condition prompt rather than parking the project with no way back.
 - **Finishing an action can name its successor.** `turnIntoNextAction` marks
   the current one done and inserts a new row carrying the project, contexts and
   list position. A new row rather than a rename: the finished step stays in the
@@ -68,6 +75,14 @@ Turbopack is the default; `middleware` is now `proxy`.
   `lib/google/sync.ts`): `GTD/Projects/...` in Gmail, `GTD/Projects/...` in
   Drive. A top-level `Projects` label would scatter through a label list that
   already has its own taxonomy.
+- **The archive is split by year** — `GTD/Archive/2026/…`. `containerPath` owns
+  that decision for Drive and Gmail alike, so the two can't disagree. The year
+  comes from `completed_at`, which is stamped once and kept if the project is
+  re-archived, so a finished project never migrates between year folders.
+- **Links are only made on create and move.** Nothing sweeps the table, so a
+  project that predates the Google connection has no folder or label until
+  `backfillProjectLinks` is run from `/connections`. Deliberately a button:
+  creating folders in someone's Drive is not a thing to do in the background.
 - **Gmail label nesting is naming, and the parents must exist.** The API
   creates literally the name given, so `ensureLabel` walks the path and
   creates every ancestor; a rename into a new container ensures that
