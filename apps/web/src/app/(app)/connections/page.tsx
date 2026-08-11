@@ -1,10 +1,12 @@
 import {
   BackfillLinks,
+  EnrichmentControls,
   SyncControls,
   VerifyLinks,
 } from '@/components/connection-controls';
 import { SYNC_SCOPES, hasSyncScopes } from '@/lib/auth/google';
 import { getGrant } from '@/lib/auth/token';
+import { getEnrichmentStatus } from '@/lib/enrich/queue';
 import { countUnlinkedProjects, getSyncQueueStatus } from '@/lib/google/queue';
 
 const SCOPE_LABELS: Record<string, string> = {
@@ -14,10 +16,11 @@ const SCOPE_LABELS: Record<string, string> = {
 };
 
 export default async function ConnectionsPage() {
-  const [grant, queue, unlinked] = await Promise.all([
+  const [grant, queue, unlinked, enrichment] = await Promise.all([
     getGrant(),
     getSyncQueueStatus(),
     countUnlinkedProjects(),
+    getEnrichmentStatus(),
   ]);
   const connected = Boolean(grant?.refreshToken);
   const syncReady = connected && hasSyncScopes(grant?.scope);
@@ -112,6 +115,46 @@ export default async function ConnectionsPage() {
             <BackfillLinks unlinked={unlinked} />
           </section>
         ) : null}
+
+        <section className="mt-7 border-t border-grey-150 pt-5">
+          <h2 className="text-[10px] font-semibold uppercase tracking-wider text-grey-500">
+            Reading files
+          </h2>
+          <p className="mt-1 max-w-prose text-[12px] leading-relaxed text-grey-600">
+            Photos, PDFs and text files you attach are read in the background so
+            search can reach inside them — a photographed page, a whiteboard, a
+            receipt. The file itself is never altered; the text sits beside it.
+          </p>
+          <p className="mt-1.5 text-[13px] text-grey-700">
+            {enrichment.done} read · {enrichment.pending} waiting
+            {enrichment.failed > 0 ? (
+              <span className="text-stale"> · {enrichment.failed} failed</span>
+            ) : null}
+          </p>
+
+          {enrichment.failures.length > 0 ? (
+            <ul className="mt-2 space-y-1">
+              {enrichment.failures.map((f) => (
+                <li key={f.id} className="text-[11px] text-stale">
+                  {f.name ?? 'a file'} — {f.lastError}
+                </li>
+              ))}
+            </ul>
+          ) : null}
+
+          <EnrichmentControls
+            configured={enrichment.configured}
+            pending={enrichment.pending}
+            failed={enrichment.failed}
+            neverQueued={enrichment.neverQueued}
+          />
+
+          <p className="mt-2 max-w-prose text-[11px] leading-relaxed text-grey-500">
+            Voice notes aren’t transcribed yet — that needs a speech provider,
+            which nothing here has. Audio you attach is kept and linked, just
+            not yet searchable by what’s said in it.
+          </p>
+        </section>
 
         <section className="mt-7 border-t border-grey-150 pt-5">
           <h2 className="text-[10px] font-semibold uppercase tracking-wider text-grey-500">

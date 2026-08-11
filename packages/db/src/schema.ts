@@ -507,6 +507,50 @@ export const googleAccounts = pgTable('google_accounts', {
 });
 
 // ---------------------------------------------------------------------------
+// Enrichment queue
+// ---------------------------------------------------------------------------
+
+/**
+ * `ocr` covers anything read by eye — a photographed page, a whiteboard, a
+ * PDF. `transcribe` is speech. They are separate kinds because they need
+ * different providers, not because the queue cares.
+ */
+export const enrichmentJobKind = pgEnum('enrichment_job_kind', [
+  'ocr',
+  'transcribe',
+]);
+
+/**
+ * Reads an attachment so its contents become searchable.
+ *
+ * Deliberately a second queue rather than more kinds on `sync_jobs`: that one
+ * is keyed on a project and exists to push *out* to Google, this one is keyed
+ * on an attachment and pulls text *in*. Sharing a table would mean a nullable
+ * foreign key on both and a worker that has to ask which sort of row it got.
+ * The status enum is shared, because a job is a job.
+ */
+export const enrichmentJobs = pgTable(
+  'enrichment_jobs',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    kind: enrichmentJobKind('kind').notNull(),
+    attachmentId: uuid('attachment_id')
+      .notNull()
+      .references(() => attachments.id, { onDelete: 'cascade' }),
+    status: syncJobStatus('status').notNull().default('pending'),
+    attempts: integer('attempts').notNull().default(0),
+    lastError: text('last_error'),
+    runAfter: timestamp('run_after', { withTimezone: true }).notNull().defaultNow(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    completedAt: timestamp('completed_at', { withTimezone: true }),
+  },
+  (t) => [
+    index('enrichment_jobs_status_idx').on(t.status, t.runAfter),
+    index('enrichment_jobs_attachment_idx').on(t.attachmentId),
+  ],
+);
+
+// ---------------------------------------------------------------------------
 // Preferences
 // ---------------------------------------------------------------------------
 
@@ -546,6 +590,7 @@ export type NewContext = typeof contexts.$inferInsert;
 export type List = typeof lists.$inferSelect;
 export type ListItem = typeof listItems.$inferSelect;
 export type Attachment = typeof attachments.$inferSelect;
+export type EnrichmentJobKind = (typeof enrichmentJobKind.enumValues)[number];
 export type InboxItem = typeof inboxItems.$inferSelect;
 
 export type ListType = (typeof listType.enumValues)[number];

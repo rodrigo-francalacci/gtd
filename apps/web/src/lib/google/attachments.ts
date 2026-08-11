@@ -5,6 +5,7 @@ import type { AttachmentKind, AttachmentParentType } from '@gtd/db';
 import { eq } from 'drizzle-orm';
 import { getGrant } from '@/lib/auth/token';
 import { hasSyncScopes } from '@/lib/auth/google';
+import { enqueueEnrichment } from '@/lib/enrich/queue';
 import { ensureFolder, trashFile, uploadFile } from './client';
 import { ROOT, safeName } from './sync';
 
@@ -137,6 +138,10 @@ export async function uploadAttachment(
       sizeBytes: file.size,
     })
     .returning({ id: attachments.id, name: attachments.name });
+
+  // Reading the file happens afterwards, in the worker. Capture never waits
+  // on a model any more than it waits on Drive.
+  await enqueueEnrichment(row.id, mimeType);
 
   return row;
 }

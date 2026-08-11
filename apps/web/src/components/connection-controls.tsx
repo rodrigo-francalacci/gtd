@@ -3,7 +3,10 @@
 import { useState, useTransition } from 'react';
 import {
   backfillLinks,
+  readExistingFiles,
+  retryEnrichmentFailures,
   retrySyncFailures,
+  runEnrichmentNow,
   runSyncNow,
   verifyLinksNow,
 } from '@/lib/google/actions';
@@ -88,6 +91,90 @@ export function BackfillLinks({ unlinked }: { unlinked: number }) {
         </p>
       ) : null}
     </div>
+  );
+}
+
+/**
+ * The reading queue. Kept apart from the sync controls because its usual
+ * failure is a different one — a missing API key rather than a Google
+ * problem — and running them together would send you to the wrong place.
+ */
+export function EnrichmentControls({
+  configured,
+  pending,
+  failed,
+  neverQueued,
+}: {
+  configured: boolean;
+  pending: number;
+  failed: number;
+  neverQueued: number;
+}) {
+  const [running, startTransition] = useTransition();
+  const [queued, setQueued] = useState<number | null>(null);
+
+  return (
+    <>
+      {configured ? null : (
+        <p className="mt-2 max-w-prose text-[12px] leading-relaxed text-stale">
+          No <code className="text-[11px]">ANTHROPIC_API_KEY</code> is set.
+          Plain text is still read — that needs no model — but photos and PDFs
+          are left alone.{' '}
+          {pending > 0
+            ? `${pending} ${pending === 1 ? 'file is' : 'files are'} queued and will be read the moment there is a key; they are waiting, not lost.`
+            : null}
+        </p>
+      )}
+
+      <div className="mt-3 flex flex-wrap items-center gap-3">
+        <button
+          type="button"
+          disabled={running}
+          onClick={() => startTransition(async () => void runEnrichmentNow())}
+          className="rounded-sm border border-grey-300 px-2.5 py-1 text-[12px] text-grey-700 disabled:opacity-40"
+        >
+          Read queued files now
+        </button>
+
+        {neverQueued > 0 ? (
+          <button
+            type="button"
+            disabled={running}
+            onClick={() =>
+              startTransition(async () => {
+                setQueued(await readExistingFiles());
+              })
+            }
+            className="text-[12px] text-grey-600 underline underline-offset-2"
+          >
+            Read the {neverQueued} already attached
+          </button>
+        ) : null}
+
+        {failed > 0 ? (
+          <button
+            type="button"
+            disabled={running}
+            onClick={() =>
+              startTransition(async () => void retryEnrichmentFailures())
+            }
+            className="text-[12px] text-grey-600 underline underline-offset-2"
+          >
+            Retry {failed} failed
+          </button>
+        ) : null}
+
+        {running ? (
+          <span className="text-[11px] text-grey-500">Reading…</span>
+        ) : null}
+      </div>
+
+      {queued !== null && !running ? (
+        <p className="mt-2 text-[12px] text-grey-600">
+          Queued {queued}. Anything a model has to read waits for a key.
+        </p>
+      ) : null}
+    </>
   );
 }
 

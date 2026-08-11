@@ -5,6 +5,11 @@ import { requireSession } from '@/lib/auth/session';
 import { backfillProjectLinks, drainSyncQueue, retryFailedJobs } from './queue';
 import { LiveGoogleSync } from './live-sync';
 import type { LinkDrift } from './sync';
+import {
+  backfillEnrichment,
+  drainEnrichmentQueue,
+  retryFailedEnrichment,
+} from '@/lib/enrich/queue';
 
 export async function runSyncNow() {
   await requireSession();
@@ -25,6 +30,27 @@ export async function backfillLinks() {
 export async function retrySyncFailures() {
   await requireSession();
   await retryFailedJobs();
+  revalidatePath('/connections');
+}
+
+export async function runEnrichmentNow() {
+  await requireSession();
+  await drainEnrichmentQueue(10);
+  revalidatePath('/connections');
+}
+
+export async function readExistingFiles() {
+  await requireSession();
+  const queued = await backfillEnrichment();
+  if (queued > 0) await drainEnrichmentQueue(20);
+  revalidatePath('/connections');
+  return queued;
+}
+
+export async function retryEnrichmentFailures() {
+  await requireSession();
+  await retryFailedEnrichment();
+  await drainEnrichmentQueue(10);
   revalidatePath('/connections');
 }
 

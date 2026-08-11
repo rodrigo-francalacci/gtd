@@ -3,7 +3,7 @@ import 'server-only';
 import { db } from '@gtd/db';
 import { sql } from 'drizzle-orm';
 
-export type SearchKind = 'project' | 'action' | 'list_item' | 'inbox';
+export type SearchKind = 'project' | 'action' | 'list_item' | 'inbox' | 'attachment';
 
 export type SearchHit = {
   kind: SearchKind;
@@ -96,6 +96,27 @@ export async function search(term: string, limit = 60): Promise<SearchHit[]> {
       from inbox_items ib
       cross join q
       where ib.search_vector @@ q.tsq
+
+      union all
+
+      -- Reaches into what a file says: a photographed page, a whiteboard, a
+      -- PDF. The meta column carries the parent, so a hit can be clicked
+      -- through to the thing the file hangs off rather than to the file
+      -- alone. Aliased att, not at: AT is a keyword in SQL.
+      select
+        'attachment',
+        att.id::text,
+        att.name,
+        ts_headline('english', coalesce(att.ocr_text, '') || ' ' || coalesce(att.transcription, ''), q.tsq, ${HEADLINE_OPTS}),
+        coalesce(pr.title, act.title, li.title),
+        att.parent_type::text || ':' || att.parent_id::text,
+        ts_rank(att.search_vector, q.tsq)
+      from attachments att
+      cross join q
+      left join projects pr on pr.id = att.parent_id and att.parent_type = 'project'
+      left join actions act on act.id = att.parent_id and att.parent_type = 'action'
+      left join list_items li on li.id = att.parent_id and att.parent_type = 'list_item'
+      where att.search_vector @@ q.tsq
     ) hits
     order by rank desc, title asc
     limit ${limit}
@@ -109,6 +130,7 @@ export const KIND_LABELS: Record<SearchKind, string> = {
   action: 'Actions',
   list_item: 'List items',
   inbox: 'Inbox',
+  attachment: 'Files',
 };
 
 /** Where a hit sends you when clicked. */
@@ -122,5 +144,21 @@ export function hrefFor(hit: SearchHit): string {
       return `/lists/${hit.meta}?item=${hit.id}`;
     case 'inbox':
       return `/inbox?item=${hit.id}`;
+    case 'attachment':
+      return attachmentHref(hit.meta);
   }
+}
+
+/**
+ * A file has no page of its own — it lives on a project, an action or a list
+ * item, and that is where a search hit should land you. `meta` carries
+ * "<parent_type>:<uuid>" because the union has one column set for every kind.
+ */
+function attachmentHref(meta: string | null): string {
+  const [type, id] = (meta ?? '').split(':');
+  if (!id) return '/projects';
+
+  if (type === 'project') return `/projects/${id}`;
+  if (type === 'action') return `/now?action=${id}`;
+  return `/lists?item=${id}`;
 }

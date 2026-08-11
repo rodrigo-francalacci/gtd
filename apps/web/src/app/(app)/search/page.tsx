@@ -1,7 +1,13 @@
 import Link from 'next/link';
 import { KIND_LABELS, hrefFor, search, type SearchHit, type SearchKind } from '@/lib/search';
 
-const KIND_ORDER: SearchKind[] = ['project', 'action', 'list_item', 'inbox'];
+const KIND_ORDER: SearchKind[] = [
+  'project',
+  'action',
+  'list_item',
+  'inbox',
+  'attachment',
+];
 
 export default async function SearchPage(props: PageProps<'/search'>) {
   const searchParams = await props.searchParams;

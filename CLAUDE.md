@@ -213,11 +213,42 @@ of throwing. Title matches get a +0.5 rank nudge over body-only matches.
 `sanitiseHeadline`, which strips every tag except the `<mark>` pair Postgres
 was asked for. Never render a headline without it.
 
-Attachments carry a `search_vector` over transcription and OCR text and are
-still deliberately **not** in the union. You can upload one now, but nothing
-fills either column yet, so joining them in would add a branch that can only
-ever match nothing. Wire it up with the enrichment queue, in the same change
-that first writes an `ocr_text`.
+Attachments **are** in the union now that the enrichment queue fills
+`ocr_text`. A file has no page of its own, so a hit carries
+`<parent_type>:<uuid>` in `meta` and clicks through to the project, action or
+list item it hangs off. The alias is `att`, not `at` — `AT` is a SQL keyword.
+
+## Enrichment
+
+Attachments are read in the background so search can reach inside them.
+`enrichment_jobs` is a second queue rather than more kinds on `sync_jobs`:
+that one is keyed on a project and pushes *out* to Google, this one is keyed on
+an attachment and pulls text *in*. One cron tick drains both.
+
+**Claude reads the files, not an OCR engine.** The things worth photographing
+here are messy — a book spine at an angle, a whiteboard, a handwritten note —
+and a literal text detector reads those badly. It also means a photo of an
+object with no text on it still yields a sentence worth searching.
+
+**Plain text never reaches a model.** It is already the thing we want to store;
+sending it would be slower, cost money and paraphrase an exact answer. `text/html`
+is stripped of markup first, or the search vector fills with `div` and `href`
+and every saved page matches every other.
+
+**Without an API key the queue does not claim what it cannot run.** Text jobs
+still go through `TextReader`; anything needing a model stays `pending` and
+untouched, so adding a key later picks up everything captured in the meantime
+rather than finding a pile of failures. This is why the claim query joins
+`attachments` — it filters on mime type before taking the row.
+
+**An empty `ocr_text` is an answer.** A blank page is blank. `''` records "read,
+found nothing" where `null` cannot be told apart from "never looked", which is
+also what `backfillEnrichment` keys on: it matches attachments with no *job*,
+never attachments with no *text*, so a blank page isn't paid for twice.
+
+**Audio is the gap.** There is no speech provider wired up, so audio is never
+queued — a job nothing can run is a manufactured failure. The `transcribe` job
+kind and the `transcription` column are there for when one is.
 
 ## Weekly review
 
