@@ -85,8 +85,9 @@ export default async function ConnectionsPage() {
             ) : null}
           </p>
           <p className="mt-1 max-w-prose text-[11px] leading-relaxed text-grey-500">
-            Drive and Gmail calls run in a background job every ten minutes, so
-            saving a project never waits on Google.
+            Drive and Gmail calls run in a background job once a day — the most
+            a Hobby account allows — so saving a project never waits on Google.
+            Use the button below when you don’t want to wait for it.
           </p>
 
           {queue.failures.length > 0 ? (

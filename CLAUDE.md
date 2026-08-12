@@ -373,6 +373,14 @@ this reason — it used to throw on a missing `DATABASE_URL` at import and broke
 the first Vercel deploy before serving a request. Every route is
 `force-dynamic`, so nothing needs the database until a request arrives.
 
+**The cron schedule must be daily.** Hobby accounts reject anything more
+frequent, and they reject it when the *deployment is created* — before a build
+exists, so nothing appears in the deployments list at all. `vercel.json` landed
+in `a427778` with `*/10 * * * *`, and every one of the eighteen pushes after it
+silently failed that validation while looking exactly like a dead webhook. If
+pushes stop producing deployments, suspect `vercel.json` before the Git
+integration.
+
 ## Gotchas hit already
 
 - Drizzle subqueries joined into one statement need **distinct** alias names
