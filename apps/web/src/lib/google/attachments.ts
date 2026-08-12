@@ -2,13 +2,14 @@ import 'server-only';
 
 import { attachments, actions, db, listItems, projects } from '@gtd/db';
 import type { AttachmentKind, AttachmentParentType } from '@gtd/db';
-import { eq } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
 import { getGrant } from '@/lib/auth/token';
 import { hasSyncScopes } from '@/lib/auth/google';
 import { enqueueEnrichment } from '@/lib/enrich/queue';
 import {
   createGoogleFile,
   ensureFolder,
+  getFile,
   trashFile,
   uploadFile,
 } from './client';
@@ -196,6 +197,54 @@ export async function createGoogleDocument(
   // Nothing to read in an empty document. It gets queued the first time the
   // enrichment backfill runs after you have actually written something.
   return { ...row, driveFileId: created.id };
+}
+
+/**
+ * Pull Docs and Sheets names back from Google.
+ *
+ * This looks like it contradicts one-way sync, and doesn't. For a project
+ * folder the app owns the name — the project title is the source of truth and
+ * a rename in Drive is drift to report. For a document, Google owns it: you
+ * rename a doc by typing in its title bar, and this app offers no other way to
+ * do it. Holding a stale copy of a name whose only editor is elsewhere would
+ * be the app pretending to own something it doesn't.
+ *
+ * Only Docs-editor files. An uploaded file's name is the name it was uploaded
+ * with, and the app is the one that set it.
+ */
+export async function refreshGoogleNames(limit = 50): Promise<number> {
+  const grant = await getGrant();
+  if (!grant?.refreshToken || !hasSyncScopes(grant.scope)) return 0;
+
+  const rows = await db
+    .select({
+      id: attachments.id,
+      name: attachments.name,
+      driveFileId: attachments.driveFileId,
+    })
+    .from(attachments)
+    .where(sql`${attachments.mimeType} like 'application/vnd.google-apps.%'`)
+    .limit(limit);
+
+  let changed = 0;
+
+  for (const row of rows) {
+    if (!row.driveFileId) continue;
+
+    // A file that has been deleted in Drive gets left alone rather than
+    // renamed to nothing — losing the label as well would be losing twice.
+    const file = await getFile(row.driveFileId);
+    if (!file?.name || file.name === row.name) continue;
+
+    await db
+      .update(attachments)
+      .set({ name: file.name })
+      .where(eq(attachments.id, row.id));
+
+    changed += 1;
+  }
+
+  return changed;
 }
 
 /**

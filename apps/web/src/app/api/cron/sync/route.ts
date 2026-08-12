@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { timingSafeEqual } from 'node:crypto';
 import { drainEnrichmentQueue } from '@/lib/enrich/queue';
+import { refreshGoogleNames } from '@/lib/google/attachments';
 import { drainSyncQueue } from '@/lib/google/queue';
 import { getSession } from '@/lib/auth/session';
 
@@ -38,10 +39,11 @@ export async function GET(request: Request) {
 
   // Both queues on one tick. They touch different tables and different APIs,
   // and a second cron entry would be a second thing to forget to configure.
-  const [sync, enrich] = await Promise.all([
+  const [sync, enrich, renamed] = await Promise.all([
     drainSyncQueue(),
     drainEnrichmentQueue(),
+    refreshGoogleNames(),
   ]);
 
-  return NextResponse.json({ ok: true, sync, enrich });
+  return NextResponse.json({ ok: true, sync, enrich, renamed });
 }

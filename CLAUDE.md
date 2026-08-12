@@ -131,6 +131,25 @@ Turbopack is the default; `middleware` is now `proxy`.
   enormous line and a browser renders it as exactly that. Falls back to raw
   text when it doesn't parse — a file claiming to be JSON and failing is
   precisely when you want to see it.
+- **Docs and Sheets names are pulled *from* Google.** This looks like it
+  contradicts one-way sync and doesn't: for a project folder the app owns the
+  name and a rename in Drive is drift to report, but you rename a *document* by
+  typing in its title bar and the app offers no other way to do it. Holding a
+  stale copy of a name whose only editor is elsewhere would be the app
+  pretending to own something it doesn't. `refreshGoogleNames` runs on the cron
+  tick and on "run sync now", and touches Docs-editor files only.
+- **Audio and video are fetched into a blob, not pointed at the endpoint.** A
+  media element loads over its own path, separate from `fetch`, and negotiates
+  ranges before it will admit a duration — easy to get subtly wrong through a
+  proxy and hard to tell from a broken file. Handing it bytes it already has
+  removes the negotiation. Nothing is lost at a 4 MB ceiling.
+- **The proxy honours `Range` anyway**, because Chrome's PDF viewer asks for
+  one, and because `Accept-Ranges` is what tells a player it may seek at all.
+- **The image viewer keeps zoom and offset in one piece of state.** They were
+  two, with the offset set from *inside* the zoom updater — React may call an
+  updater more than once, and does in development, so every wheel notch
+  compounded the pan and the image shot off screen. One pure update, computed
+  from one previous value.
 - **A plain click previews; a modified click still opens Drive.** The `href` on
   an attachment is the real Drive URL and only an unmodified left click is
   intercepted, so ctrl/cmd-click and middle-click behave the way every other

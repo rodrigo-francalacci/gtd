@@ -2,8 +2,10 @@
 
 import {
   createContext,
+  useCallback,
   useContext,
   useEffect,
+  useRef,
   useMemo,
   useState,
   type ReactNode,
@@ -153,13 +155,11 @@ function PreviewPane({
             className="h-full w-full border-0 bg-paper"
           />
         ) : type.startsWith('image/') ? (
-          // eslint-disable-next-line @next/next/no-img-element -- proxied bytes
-          <img
-            src={src}
-            alt={file.name}
-            onError={() => setFailed(true)}
-            className="mx-auto block max-w-full p-3"
-          />
+          <ImageViewer src={src} alt={file.name} onFail={() => setFailed(true)} />
+        ) : type.startsWith('audio/') ? (
+          <MediaPlayer src={src} kind="audio" />
+        ) : type.startsWith('video/') ? (
+          <MediaPlayer src={src} kind="video" />
         ) : isJson(type) ? (
           <JsonView src={src} onFail={() => setFailed(true)} />
         ) : type === 'application/pdf' || isBrowserText(type) ? (
@@ -179,6 +179,232 @@ function PreviewPane({
         )}
       </div>
     </ResizablePane>
+  );
+}
+
+/**
+ * Audio and video, played where they are.
+ *
+ * A voice note you cannot hear without leaving for Drive is barely attached to
+ * anything. Nothing clever: the browser's own transport controls do the job,
+ * and the proxy passes a Content-Length so the timeline is draggable.
+ */
+function MediaPlayer({ src, kind }: { src: string; kind: 'audio' | 'video' }) {
+  const [objectUrl, setObjectUrl] = useState<string | null>(null);
+  const [error, setError] = useState(false);
+
+  /**
+   * Fetched into a blob rather than pointed at the endpoint.
+   *
+   * A media element loads over its own path, separate from `fetch`, and it
+   * negotiates ranges before it will admit to a duration — an easy thing to
+   * get subtly wrong through a proxy, and hard to tell apart from a broken
+   * file when it does. Handing it bytes it already has removes the
+   * negotiation entirely: the clip either decodes or it doesn't. Nothing is
+   * lost at a 4 MB ceiling, where progressive playback would save a moment at
+   * most.
+   */
+  useEffect(() => {
+    let url: string | null = null;
+    let live = true;
+
+    void (async () => {
+      try {
+        const response = await fetch(src);
+        if (!response.ok) throw new Error(String(response.status));
+
+        const blob = await response.blob();
+        if (!live) return;
+
+        url = URL.createObjectURL(blob);
+        setObjectUrl(url);
+      } catch {
+        if (live) setError(true);
+      }
+    })();
+
+    return () => {
+      live = false;
+      if (url) URL.revokeObjectURL(url);
+    };
+  }, [src]);
+
+  if (error) {
+    return (
+      <p className="p-6 text-center text-[12px] text-grey-500">
+        That file would not load.
+      </p>
+    );
+  }
+
+  if (!objectUrl) {
+    return <p className="p-6 text-center text-[12px] text-grey-400">Loading…</p>;
+  }
+
+  if (kind === 'video') {
+    return (
+      <div className="flex h-full items-center justify-center bg-ink p-3">
+        <video src={objectUrl} controls className="max-h-full max-w-full" />
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex h-full flex-col items-center justify-center gap-3 p-6">
+      <audio src={objectUrl} controls className="w-full max-w-md" />
+      <p className="max-w-xs text-center text-[11px] leading-relaxed text-grey-500">
+        Not transcribed — search can’t reach inside this yet.
+      </p>
+    </div>
+  );
+}
+
+const MIN_ZOOM = 0.1;
+const MAX_ZOOM = 12;
+
+type View = { zoom: number; x: number; y: number };
+
+const clampZoom = (z: number) => Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, z));
+
+/**
+ * An image you can get close to.
+ *
+ * A photographed page or whiteboard is unreadable scaled to fit a side pane,
+ * which is exactly the sort of thing this app expects you to attach. Wheel
+ * zooms about the cursor rather than the centre, so you magnify the bit you
+ * are pointing at; drag pans; double-click returns to fit.
+ *
+ * Zoom and offset are one piece of state updated in one pure function. They
+ * were two, with the offset set from inside the zoom updater — which React is
+ * free to call more than once, and does in development, so every notch
+ * compounded the pan and the image shot off screen.
+ *
+ * The wheel listener is attached by hand because React's `onWheel` is passive,
+ * and a passive handler cannot call `preventDefault` — without it every zoom
+ * would scroll the pane as well.
+ */
+function ImageViewer({
+  src,
+  alt,
+  onFail,
+}: {
+  src: string;
+  alt: string;
+  onFail: () => void;
+}) {
+  const box = useRef<HTMLDivElement>(null);
+  const [view, setView] = useState<View>({ zoom: 1, x: 0, y: 0 });
+  const [natural, setNatural] = useState<{ w: number; h: number } | null>(null);
+  const drag = useRef<{ x: number; y: number; ox: number; oy: number } | null>(null);
+
+  /** Centred, at the scale that shows the whole image, never enlarging it. */
+  const fit = useCallback(() => {
+    const frame = box.current?.getBoundingClientRect();
+    if (!frame || !natural) return;
+
+    const zoom = Math.min(
+      1,
+      (frame.width - 24) / natural.w,
+      (frame.height - 24) / natural.h,
+    );
+
+    setView({
+      zoom,
+      x: (frame.width - natural.w * zoom) / 2,
+      y: (frame.height - natural.h * zoom) / 2,
+    });
+  }, [natural]);
+
+  // Fit on load, and again whenever the pane is resized under it.
+  useEffect(() => {
+    if (!natural) return;
+    fit();
+
+    const frame = box.current;
+    if (!frame || typeof ResizeObserver === 'undefined') return;
+
+    const observer = new ResizeObserver(() => fit());
+    observer.observe(frame);
+    return () => observer.disconnect();
+  }, [natural, fit]);
+
+  useEffect(() => {
+    const frame = box.current;
+    if (!frame) return;
+
+    const onWheel = (e: WheelEvent) => {
+      e.preventDefault();
+
+      const rect = frame.getBoundingClientRect();
+      const px = e.clientX - rect.left;
+      const py = e.clientY - rect.top;
+
+      setView((v) => {
+        const zoom = clampZoom(v.zoom * Math.exp(-e.deltaY / 400));
+        // Hold the point under the cursor still: whatever pixel of the image
+        // sits there must sit there afterwards too.
+        return {
+          zoom,
+          x: px - ((px - v.x) / v.zoom) * zoom,
+          y: py - ((py - v.y) / v.zoom) * zoom,
+        };
+      });
+    };
+
+    frame.addEventListener('wheel', onWheel, { passive: false });
+    return () => frame.removeEventListener('wheel', onWheel);
+  }, []);
+
+  return (
+    <div
+      ref={box}
+      onPointerDown={(e) => {
+        e.currentTarget.setPointerCapture(e.pointerId);
+        drag.current = { x: e.clientX, y: e.clientY, ox: view.x, oy: view.y };
+      }}
+      onPointerMove={(e) => {
+        const from = drag.current;
+        if (!from) return;
+        setView((v) => ({
+          ...v,
+          x: from.ox + (e.clientX - from.x),
+          y: from.oy + (e.clientY - from.y),
+        }));
+      }}
+      onPointerUp={() => {
+        drag.current = null;
+      }}
+      onPointerCancel={() => {
+        drag.current = null;
+      }}
+      onDoubleClick={fit}
+      className="relative h-full w-full cursor-grab overflow-hidden bg-grey-200 active:cursor-grabbing"
+      style={{ touchAction: 'none' }}
+    >
+      {/* eslint-disable-next-line @next/next/no-img-element -- proxied bytes */}
+      <img
+        src={src}
+        alt={alt}
+        draggable={false}
+        onLoad={(e) =>
+          setNatural({
+            w: e.currentTarget.naturalWidth,
+            h: e.currentTarget.naturalHeight,
+          })
+        }
+        onError={onFail}
+        style={{
+          transform: `translate(${view.x}px, ${view.y}px) scale(${view.zoom})`,
+          transformOrigin: '0 0',
+        }}
+        className="max-w-none select-none"
+      />
+
+      <div className="pointer-events-none absolute inset-x-0 bottom-0 flex items-center justify-between gap-2 bg-grey-900/70 px-2 py-1 text-[10px] text-paper">
+        <span className="tabular-nums">{Math.round(view.zoom * 100)}%</span>
+        <span>scroll to zoom · drag to pan · double-click to fit</span>
+      </div>
+    </div>
   );
 }
 

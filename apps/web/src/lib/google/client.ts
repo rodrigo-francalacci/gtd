@@ -210,11 +210,21 @@ export async function exportFile(
  * straight through rather than buffering a whole PDF into memory to hand it
  * back out again.
  */
-export async function downloadFile(fileId: string): Promise<Response> {
+export async function downloadFile(
+  fileId: string,
+  range?: string | null,
+): Promise<Response> {
   const token = await getAccessToken();
 
   return fetch(`${DRIVE}/files/${fileId}?alt=media`, {
-    headers: { Authorization: `Bearer ${token}` },
+    headers: {
+      Authorization: `Bearer ${token}`,
+      // Drive honours byte ranges, and passing the browser's straight through
+      // is what lets an <audio> element ask for the first few kilobytes,
+      // decode a duration, and then seek. Without it the player asks for a
+      // range, gets the whole file, and sits there stalled.
+      ...(range ? { Range: range } : {}),
+    },
   });
 }
 

@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache';
 import { requireSession } from '@/lib/auth/session';
 import { backfillProjectLinks, drainSyncQueue, retryFailedJobs } from './queue';
+import { refreshGoogleNames } from './attachments';
 import { LiveGoogleSync } from './live-sync';
 import type { LinkDrift } from './sync';
 import {
@@ -13,8 +14,10 @@ import {
 
 export async function runSyncNow() {
   await requireSession();
-  await drainSyncQueue(25);
-  revalidatePath('/connections');
+  // Names come back in the same pass: if you have just renamed a doc in
+  // Google, "run sync now" is the button you would reach for.
+  await Promise.all([drainSyncQueue(25), refreshGoogleNames()]);
+  revalidateShell();
 }
 
 export async function backfillLinks() {
@@ -31,6 +34,11 @@ export async function retrySyncFailures() {
   await requireSession();
   await retryFailedJobs();
   revalidatePath('/connections');
+}
+
+/** Every pane shows attachment names, so a rename touches all of them. */
+function revalidateShell() {
+  revalidatePath('/', 'layout');
 }
 
 export async function runEnrichmentNow() {
