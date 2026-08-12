@@ -15,6 +15,7 @@ import {
   projects,
   reviews,
   type ActionStatus,
+  type AttachmentParentType,
   type ContextDimension,
   type ListType,
   type ProjectStatus,
@@ -33,7 +34,10 @@ import {
 import { suggester } from './ai/suggest';
 import { requireSession } from './auth/session';
 import type { ReviewStep } from './review';
-import { removeAttachment } from './google/attachments';
+import {
+  createGoogleDocument,
+  removeAttachment,
+} from './google/attachments';
 import { enqueueSync } from './google/queue';
 import { extractText } from './tiptap';
 
@@ -1008,6 +1012,23 @@ export async function deleteContext(contextId: string) {
  * Action's body limit makes it the wrong door for bytes — but removal is an
  * ordinary mutation and belongs here with the rest.
  */
+/**
+ * Make a Google Doc or Sheet against something. Returns the row so the caller
+ * can open it in the preview pane straight away — creating a document and then
+ * making you go and find it would be a strange way round.
+ */
+export async function createDocument(
+  parentType: AttachmentParentType,
+  parentId: string,
+  mimeType: string,
+  name: string,
+) {
+  await requireSession();
+  const row = await createGoogleDocument(parentType, parentId, mimeType, name);
+  revalidateShell();
+  return row;
+}
+
 export async function detachAttachment(attachmentId: string) {
   await requireSession();
   await removeAttachment(attachmentId);

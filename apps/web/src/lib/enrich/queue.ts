@@ -4,10 +4,32 @@ import { attachments, db, enrichmentJobs } from '@gtd/db';
 import type { EnrichmentJobKind } from '@gtd/db';
 import { eq, sql } from 'drizzle-orm';
 import { GoogleAuthError } from '@/lib/auth/token';
-import { GoogleApiError, downloadFile } from '@/lib/google/client';
+import { GoogleApiError, downloadFile, exportFile } from '@/lib/google/client';
+import { exportTypeFor, isGoogleNative } from '@/lib/google/sync';
 import { TextReader, UnreadableFile, canRead, reader, type Reader } from './reader';
 
 const MAX_ATTEMPTS = 4;
+
+/**
+ * The mime types worth queueing, as SQL. `canRead` says the same thing in
+ * TypeScript; both exist because one guards an insert and the other filters a
+ * claim, and having them disagree would mean rows queued that never run.
+ */
+const READABLE = sql`(
+  mime_type like 'text/%'
+  or mime_type like 'application/vnd.google-apps.%'
+  or mime_type in (
+    'application/pdf', 'application/json', 'application/xml', 'application/x-yaml',
+    'image/jpeg', 'image/png', 'image/gif', 'image/webp'
+  )
+)`;
+
+/** Of those, the ones needing no model — so they run without an API key. */
+const READABLE_WITHOUT_MODEL = sql`(
+  mime_type like 'text/%'
+  or mime_type like 'application/vnd.google-apps.%'
+  or mime_type in ('application/json', 'application/xml', 'application/x-yaml')
+)`;
 
 /**
  * Queue a file to be read, if anything can read it.
@@ -61,7 +83,7 @@ export async function drainEnrichmentQueue(limit = 5): Promise<EnrichResult> {
         join ${attachments} a on a.id = j.attachment_id
         where j.status = 'pending'
           and j.run_after <= now()
-          and (${model !== null} or a.mime_type like 'text/%')
+          and (${model !== null} or ${READABLE_WITHOUT_MODEL})
         order by j.created_at
         limit ${limit}
         for update skip locked
@@ -138,17 +160,27 @@ async function runJob(read: Reader, attachmentId: string) {
   // moot, and the cascade will take the row soon enough anyway.
   if (!row?.driveFileId) return;
 
-  const upstream = await downloadFile(row.driveFileId);
+  // A Docs-editor file has no bytes to download — Drive refuses `alt=media`
+  // outright — so ask Google to render it first. A sheet comes back as CSV,
+  // everything else as plain text, and either way what arrives is text the
+  // reader can store without a model.
+  const google = isGoogleNative(row.mimeType);
+  const asType = google ? exportTypeFor(row.mimeType!) : (row.mimeType ?? 'application/octet-stream');
+
+  const upstream = google
+    ? await exportFile(row.driveFileId, asType)
+    : await downloadFile(row.driveFileId);
+
   if (!upstream.ok) {
     throw new GoogleApiError(
-      `download of ${row.name} failed: ${upstream.status}`,
+      `${google ? 'export' : 'download'} of ${row.name} failed: ${upstream.status}`,
       upstream.status,
     );
   }
 
   const text = await read.read({
     name: row.name,
-    mimeType: row.mimeType ?? 'application/octet-stream',
+    mimeType: asType,
     bytes: await upstream.arrayBuffer(),
   });
 
@@ -216,11 +248,7 @@ export async function getEnrichmentStatus() {
     .where(
       sql`not exists (
         select 1 from ${enrichmentJobs} j where j.attachment_id = ${attachments.id}
-      ) and (
-        ${attachments.mimeType} like 'text/%'
-        or ${attachments.mimeType} = 'application/pdf'
-        or ${attachments.mimeType} in ('image/jpeg', 'image/png', 'image/gif', 'image/webp')
-      )`,
+      ) and ${READABLE}`,
     );
 
   return {

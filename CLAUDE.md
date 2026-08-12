@@ -113,6 +113,24 @@ Turbopack is the default; `middleware` is now `proxy`.
   pane belongs to the window rather than the row it was opened from, it should
   survive clicking through to another project, and a param would have to be
   threaded through five pages that each own their own panes.
+- **Docs and Sheets are made, not uploaded.** A Docs-editor file has no bytes,
+  so `createGoogleFile` is metadata only — the one kind of file the app can
+  create with nothing to send. `drive.file` covers it because the app made it.
+- **The preview embeds Google's editor, not our proxy.** `alt=media` refuses a
+  Docs file outright, and embedding `docs.google.com/…/edit?rm=embedded` is
+  what makes it *editable* in the pane rather than merely readable. It runs off
+  the browser's Google session rather than the app's OAuth token, so it shows
+  whichever account is signed in first (`u/0`) — a permission prompt there is
+  the wrong-account case, not a broken link. Everything non-native falls back to
+  `drive.google.com/file/d/…/preview`, which renders far more formats than a
+  browser will.
+- **Anything wanting a Docs file's contents must `export` it.** A sheet comes
+  back as CSV, everything else as plain text; `exportTypeFor` owns that choice
+  so the enrichment queue and any future caller can't disagree.
+- **JSON is fetched and indented, not framed.** A minified export is one
+  enormous line and a browser renders it as exactly that. Falls back to raw
+  text when it doesn't parse — a file claiming to be JSON and failing is
+  precisely when you want to see it.
 - **A plain click previews; a modified click still opens Drive.** The `href` on
   an attachment is the real Drive URL and only an unmodified left click is
   intercepted, so ctrl/cmd-click and middle-click behave the way every other
@@ -245,6 +263,13 @@ rather than finding a pile of failures. This is why the claim query joins
 found nothing" where `null` cannot be told apart from "never looked", which is
 also what `backfillEnrichment` keys on: it matches attachments with no *job*,
 never attachments with no *text*, so a blank page isn't paid for twice.
+
+**Readable types are declared twice, deliberately.** `canRead` guards the
+insert in TypeScript; `READABLE` and `READABLE_WITHOUT_MODEL` in `queue.ts`
+filter the claim and the backfill count in SQL. They must agree — a type in one
+and not the other means rows queued that never run, or files that are never
+offered. Docs-editor files and JSON sit in the no-model set because both
+resolve to text.
 
 **Audio is the gap.** There is no speech provider wired up, so audio is never
 queued — a job nothing can run is a manufactured failure. The `transcribe` job

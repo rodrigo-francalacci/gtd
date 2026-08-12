@@ -6,7 +6,12 @@ import { eq } from 'drizzle-orm';
 import { getGrant } from '@/lib/auth/token';
 import { hasSyncScopes } from '@/lib/auth/google';
 import { enqueueEnrichment } from '@/lib/enrich/queue';
-import { ensureFolder, trashFile, uploadFile } from './client';
+import {
+  createGoogleFile,
+  ensureFolder,
+  trashFile,
+  uploadFile,
+} from './client';
 import { ROOT, safeName } from './sync';
 
 /**
@@ -144,6 +149,53 @@ export async function uploadAttachment(
   await enqueueEnrichment(row.id, mimeType);
 
   return row;
+}
+
+/**
+ * Make an empty Google Doc or Sheet on this project, action or list item.
+ *
+ * The counterpart to uploading: there are no bytes, so nothing has to squeeze
+ * through a request body, and the result is editable in the preview pane
+ * rather than only readable. It lands in the same folder an upload would.
+ */
+export async function createGoogleDocument(
+  parentType: AttachmentParentType,
+  parentId: string,
+  mimeType: string,
+  name: string,
+): Promise<{ id: string; name: string; driveFileId: string }> {
+  const grant = await getGrant();
+  if (!grant?.refreshToken || !hasSyncScopes(grant.scope)) {
+    throw new AttachmentError(
+      'Drive is not connected. Connect it on the Google page first.',
+    );
+  }
+
+  const title = safeName(name) || 'Untitled';
+  const folderId = await destinationFolder(parentType, parentId);
+  const created = await createGoogleFile(title, mimeType, folderId);
+
+  const [row] = await db
+    .insert(attachments)
+    .values({
+      parentType,
+      parentId,
+      kind: 'file',
+      driveFileId: created.id,
+      name: created.name ?? title,
+      mimeType,
+      // Google stores it; there is no size on our side to record.
+      sizeBytes: null,
+    })
+    .returning({
+      id: attachments.id,
+      name: attachments.name,
+      driveFileId: attachments.driveFileId,
+    });
+
+  // Nothing to read in an empty document. It gets queued the first time the
+  // enrichment backfill runs after you have actually written something.
+  return { ...row, driveFileId: created.id };
 }
 
 /**

@@ -111,6 +111,52 @@ export function driveFileUrl(fileId: string): string {
   return `https://drive.google.com/file/d/${fileId}/view`;
 }
 
+// ---------------------------------------------------------------------------
+// Docs-editor files
+// ---------------------------------------------------------------------------
+
+/** The three Google formats worth making from here. */
+export const GOOGLE_DOC = 'application/vnd.google-apps.document';
+export const GOOGLE_SHEET = 'application/vnd.google-apps.spreadsheet';
+export const GOOGLE_SLIDES = 'application/vnd.google-apps.presentation';
+
+export function isGoogleNative(mimeType: string | null): boolean {
+  return Boolean(mimeType?.startsWith('application/vnd.google-apps.'));
+}
+
+/** Editor path per type — the URL shape differs for each, annoyingly. */
+const EDITOR_SEGMENT: Record<string, string> = {
+  [GOOGLE_DOC]: 'document',
+  [GOOGLE_SHEET]: 'spreadsheets',
+  [GOOGLE_SLIDES]: 'presentation',
+};
+
+/**
+ * A URL that can be put in an iframe.
+ *
+ * `rm=embedded` asks Google for the chrome-less editor. This works off the
+ * *browser's* Google session, not the app's OAuth token — so it shows the file
+ * as whichever account is signed in first (`u/0`), and there is no way to
+ * address an account by id in an editor URL. If it comes back asking for
+ * permission, that is the wrong-account case, not a broken link.
+ *
+ * Anything that isn't a Docs-editor file falls back to Drive's read-only
+ * preview, which handles far more formats than a browser will render natively.
+ */
+export function embedUrl(mimeType: string | null, fileId: string): string {
+  const segment = mimeType ? EDITOR_SEGMENT[mimeType] : undefined;
+
+  return segment
+    ? `https://docs.google.com/${segment}/d/${fileId}/edit?rm=embedded`
+    : `https://drive.google.com/file/d/${fileId}/preview`;
+}
+
+/** What a Docs-editor file should be exported as to read its text. */
+export function exportTypeFor(mimeType: string): string {
+  if (mimeType === GOOGLE_SHEET) return 'text/csv';
+  return 'text/plain';
+}
+
 /**
  * Gmail addresses a label by *name* in the URL, not by id — the id we store is
  * only good for the API. The name is ours to compute, since the app is the one

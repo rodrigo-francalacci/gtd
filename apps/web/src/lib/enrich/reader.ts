@@ -1,5 +1,7 @@
 import 'server-only';
 
+import { isGoogleNative } from '@/lib/google/sync';
+
 /**
  * Turning a file into text that search can reach.
  *
@@ -29,15 +31,28 @@ export function canRead(mimeType: string | null): boolean {
   return (
     IMAGE_TYPES.has(mimeType) ||
     mimeType === 'application/pdf' ||
-    mimeType.startsWith('text/')
+    isGoogleNative(mimeType) ||
+    isPlainText(mimeType)
   );
 }
 
 export class UnreadableFile extends Error {}
 
-/** Plain text needs no model: it is already the thing we want to store. */
+/**
+ * Plain text needs no model: it is already the thing we want to store.
+ *
+ * JSON, XML and YAML are text in every sense but their top-level type, and
+ * excluding them meant a captured export sat there unreadable for no reason.
+ */
 export function isPlainText(mimeType: string | null): boolean {
-  return Boolean(mimeType?.startsWith('text/'));
+  if (!mimeType) return false;
+  return (
+    mimeType.startsWith('text/') ||
+    mimeType === 'application/json' ||
+    mimeType.endsWith('+json') ||
+    mimeType === 'application/xml' ||
+    mimeType === 'application/x-yaml'
+  );
 }
 
 /**

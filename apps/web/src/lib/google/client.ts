@@ -169,6 +169,43 @@ export async function uploadFile(
 }
 
 /**
+ * Create an empty Google Doc, Sheet or Slide deck.
+ *
+ * No bytes involved — a Docs-editor file is metadata plus whatever Google
+ * stores behind it, so this is the one kind of file the app can make without
+ * anything to upload. `drive.file` covers it, because the app created it.
+ */
+export async function createGoogleFile(
+  name: string,
+  mimeType: string,
+  parentId: string,
+): Promise<DriveFile> {
+  return call<DriveFile>(`${DRIVE}/files?fields=id,name`, {
+    method: 'POST',
+    body: JSON.stringify({ name, mimeType, parents: [parentId] }),
+  });
+}
+
+/**
+ * Export a Docs-editor file to a real format.
+ *
+ * `alt=media` refuses these outright — there is no binary to fetch — so
+ * anything that wants their *contents* (the enrichment queue, mostly) has to
+ * ask Google to render them first.
+ */
+export async function exportFile(
+  fileId: string,
+  mimeType: string,
+): Promise<Response> {
+  const token = await getAccessToken();
+
+  return fetch(
+    `${DRIVE}/files/${fileId}/export?mimeType=${encodeURIComponent(mimeType)}`,
+    { headers: { Authorization: `Bearer ${token}` } },
+  );
+}
+
+/**
  * Fetch a file's content. Returns the raw response so the caller can stream it
  * straight through rather than buffering a whole PDF into memory to hand it
  * back out again.

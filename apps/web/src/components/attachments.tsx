@@ -3,8 +3,8 @@
 import { useRef, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import type { AttachmentParentType } from '@gtd/db';
-import { detachAttachment } from '@/lib/actions';
-import { driveFileUrl } from '@/lib/google/sync';
+import { createDocument, detachAttachment } from '@/lib/actions';
+import { GOOGLE_DOC, GOOGLE_SHEET, driveFileUrl } from '@/lib/google/sync';
 import type { AttachmentRow } from '@/lib/queries.shared';
 import { useFilePreview } from './file-preview';
 import { IconAudio, IconDocument, IconImage } from './icons';
@@ -36,7 +36,38 @@ export function Attachments({
   const [over, setOver] = useState(false);
   const [busy, setBusy] = useState<string[]>([]);
   const [errors, setErrors] = useState<string[]>([]);
+  const [creating, setCreating] = useState(false);
   const [, startTransition] = useTransition();
+
+  /**
+   * A new Doc or Sheet opens in the preview pane the moment it exists —
+   * making a document and then leaving you to go and find it would be a
+   * strange way round.
+   */
+  const create = async (mimeType: string, label: string) => {
+    setErrors([]);
+    setCreating(true);
+    try {
+      const row = await createDocument(
+        parentType,
+        parentId,
+        mimeType,
+        `${label} — ${new Date().toLocaleDateString('en-GB')}`,
+      );
+      preview.open({
+        id: row.id,
+        name: row.name,
+        mimeType,
+        driveFileId: row.driveFileId,
+        driveUrl: driveFileUrl(row.driveFileId),
+      });
+      router.refresh();
+    } catch {
+      setErrors([`Could not create that ${label.toLowerCase()}.`]);
+    } finally {
+      setCreating(false);
+    }
+  };
 
   const upload = async (files: FileList | File[]) => {
     const list = [...files];
@@ -80,13 +111,31 @@ export function Attachments({
             <span className="ml-1.5 tabular-nums text-grey-400">{rows.length}</span>
           ) : null}
         </h2>
-        <button
-          type="button"
-          onClick={() => input.current?.click()}
-          className="text-[11px] text-grey-500 underline underline-offset-2 hover:text-grey-800"
-        >
-          Choose a file
-        </button>
+        <div className="flex shrink-0 items-center gap-3">
+          <button
+            type="button"
+            disabled={creating}
+            onClick={() => create(GOOGLE_DOC, 'Doc')}
+            className="text-[11px] text-grey-500 underline underline-offset-2 hover:text-grey-800 disabled:opacity-40"
+          >
+            New doc
+          </button>
+          <button
+            type="button"
+            disabled={creating}
+            onClick={() => create(GOOGLE_SHEET, 'Sheet')}
+            className="text-[11px] text-grey-500 underline underline-offset-2 hover:text-grey-800 disabled:opacity-40"
+          >
+            New sheet
+          </button>
+          <button
+            type="button"
+            onClick={() => input.current?.click()}
+            className="text-[11px] text-grey-500 underline underline-offset-2 hover:text-grey-800"
+          >
+            Choose a file
+          </button>
+        </div>
       </div>
 
       <input
@@ -161,6 +210,7 @@ export function Attachments({
                       id: row.id,
                       name: row.name,
                       mimeType: row.mimeType,
+                      driveFileId: row.driveFileId,
                       driveUrl: row.driveFileId
                         ? driveFileUrl(row.driveFileId)
                         : null,
