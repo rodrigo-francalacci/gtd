@@ -5,6 +5,13 @@
 
 export type ViewMode = 'comfortable' | 'compact';
 
+/**
+ * Null is a real value here: it means no choice has been made, and the
+ * operating system decides in CSS. Only an explicit pick is stored, so
+ * changing the OS setting still moves an app that was never told otherwise.
+ */
+export type Theme = 'light' | 'dark' | null;
+
 /** Bounds enforced both by the drag handle and by the server action. */
 export const MIN_PANE_WIDTH = 260;
 export const MAX_PANE_WIDTH = 900;
@@ -28,6 +35,7 @@ export type Preferences = {
   /** Null means "no explicit choice yet" — fall back to the per-mode default. */
   listPaneWidth: number | null;
   previewPaneWidth: number | null;
+  theme: Theme;
 };
 
 /** The width to render, honouring an explicit choice over the mode default. */

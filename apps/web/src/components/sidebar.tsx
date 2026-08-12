@@ -18,6 +18,8 @@ import {
   IconWaiting,
   LIST_TYPE_ICONS,
 } from './icons';
+import type { Theme } from '@/lib/pane';
+import { ThemeToggle } from './theme-toggle';
 import type { ListRow } from '@/lib/queries.shared';
 import { SearchBox } from './search-box';
 
@@ -35,7 +37,10 @@ type Item = {
 export function SidebarNav({
   counts,
   lists,
+  theme,
 }: {
+  /** Passed through to the toggle so it can offer the opposite. */
+  theme: Theme;
   counts: {
     next: number;
     waiting: number;
@@ -191,19 +196,19 @@ export function SidebarNav({
         ))}
       </div>
 
-      {/* POST, so that merely loading a crafted page can't sign you out. */}
-      <form
-        action="/api/auth/signout"
-        method="post"
-        className="border-t border-grey-200 px-4 py-2"
-      >
-        <button
-          type="submit"
-          className="text-[11px] text-grey-400 underline underline-offset-2 hover:text-grey-700"
-        >
-          Sign out
-        </button>
-      </form>
+      <div className="flex items-center justify-between gap-2 border-t border-grey-200 px-4 py-2">
+        {/* POST, so that merely loading a crafted page can't sign you out. */}
+        <form action="/api/auth/signout" method="post">
+          <button
+            type="submit"
+            className="text-[11px] text-grey-400 underline underline-offset-2 hover:text-grey-700"
+          >
+            Sign out
+          </button>
+        </form>
+
+        <ThemeToggle preference={theme} />
+      </div>
     </nav>
   );
 }

@@ -570,6 +570,8 @@ export const preferences = pgTable('preferences', {
   previewPaneWidth: integer('preview_pane_width'),
   /** 'comfortable' | 'compact' */
   viewMode: text('view_mode'),
+  /** 'light' | 'dark'. Null means "whatever the operating system says". */
+  theme: text('theme'),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 });
 

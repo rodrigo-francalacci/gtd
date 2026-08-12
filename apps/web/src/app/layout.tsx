@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import { Source_Sans_3 } from 'next/font/google';
 import './globals.css';
+import { getPreferences } from '@/lib/view-mode';
 
 /**
  * Source Sans was Evernote's UI font until they switched to Inter in January
@@ -31,11 +32,28 @@ export const dynamic = 'force-dynamic';
  * `/signin` can render outside them. A gate in this layout would redirect the
  * sign-in page to itself.
  */
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export default async function RootLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
+  // Read here rather than in the app shell because the attribute belongs on
+  // <html>, and because /signin renders outside that shell and should not be
+  // the one page that ignores your theme.
+  //
+  // Absent when no explicit choice has been made, which is what lets the CSS
+  // media query hand the decision to the operating system.
+  const { theme } = await getPreferences();
+
   // suppressHydrationWarning: browser extensions inject attributes onto <html>
   // before React hydrates. Scoped to this element only.
   return (
-    <html lang="en" className={sourceSans.variable} suppressHydrationWarning>
+    <html
+      lang="en"
+      data-theme={theme ?? undefined}
+      className={sourceSans.variable}
+      suppressHydrationWarning
+    >
       <body className="antialiased">{children}</body>
     </html>
   );

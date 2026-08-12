@@ -684,6 +684,7 @@ async function savePreference(patch: {
   viewMode?: ViewMode;
   listPaneWidth?: number;
   previewPaneWidth?: number;
+  theme?: 'light' | 'dark' | null;
 }) {
   await db
     .insert(preferences)
@@ -710,6 +711,17 @@ export async function setListPaneWidth(width: number) {
     Math.min(MAX_PANE_WIDTH, Math.max(MIN_PANE_WIDTH, width)),
   );
   await savePreference({ listPaneWidth: clamped });
+  revalidateShell();
+}
+
+/**
+ * Light or dark, stored like every other UI preference: in the database, so
+ * the server can render the right one on the first paint and so the choice
+ * follows the account rather than the browser.
+ */
+export async function setTheme(theme: 'light' | 'dark') {
+  await requireSession();
+  await savePreference({ theme });
   revalidateShell();
 }
 

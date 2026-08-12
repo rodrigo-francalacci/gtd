@@ -35,6 +35,82 @@
     "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
 }
 
+
+/* Dark mode -------------------------------------------------------------- */
+
+/*
+ * Two selectors, one palette, and the duplication is deliberate.
+ *
+ * With no explicit choice stored, the operating system decides — and it has to
+ * be a media query to do that without a flash, because the server cannot know
+ * what the OS prefers. An explicit choice is written to `data-theme` and wins
+ * over the query in both directions, which is why the media rule excludes
+ * `light` rather than simply matching bare `:root`.
+ */
+:root[data-theme='dark'] {
+  color-scheme: dark;
+
+  --color-paper: #17181a;
+  --color-ink: #e6e6e4;
+
+  /* The same ramp, walked from the other end. Every component already asks
+     for grey-800 to mean "prominent text" and grey-200 to mean "a hairline",
+     so inverting the ramp is the whole of dark mode — nothing else changes. */
+  --color-grey-50: #1d1e21;
+  --color-grey-100: #232427;
+  --color-grey-150: #2a2b2f;
+  --color-grey-200: #34353a;
+  --color-grey-300: #43444a;
+  --color-grey-400: #6d6f76;
+  --color-grey-500: #94969d;
+  --color-grey-600: #b0b2b8;
+  --color-grey-700: #c8cace;
+  --color-grey-800: #dedfe2;
+  --color-grey-900: #f0f0f1;
+
+  /* Semantic colours keep their meaning and lose their brightness: the same
+     hues at a contrast that belongs on a dark ground rather than a white one. */
+  --color-waiting: #d9a441;
+  --color-waiting-bg: #2e2617;
+  --color-stale: #e08272;
+  --color-stale-bg: #33201d;
+  --color-selected: #7aa2f7;
+  --color-selected-bg: #1e2740;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+  color-scheme: dark;
+
+  --color-paper: #17181a;
+  --color-ink: #e6e6e4;
+
+  /* The same ramp, walked from the other end. Every component already asks
+     for grey-800 to mean "prominent text" and grey-200 to mean "a hairline",
+     so inverting the ramp is the whole of dark mode — nothing else changes. */
+  --color-grey-50: #1d1e21;
+  --color-grey-100: #232427;
+  --color-grey-150: #2a2b2f;
+  --color-grey-200: #34353a;
+  --color-grey-300: #43444a;
+  --color-grey-400: #6d6f76;
+  --color-grey-500: #94969d;
+  --color-grey-600: #b0b2b8;
+  --color-grey-700: #c8cace;
+  --color-grey-800: #dedfe2;
+  --color-grey-900: #f0f0f1;
+
+  /* Semantic colours keep their meaning and lose their brightness: the same
+     hues at a contrast that belongs on a dark ground rather than a white one. */
+  --color-waiting: #d9a441;
+  --color-waiting-bg: #2e2617;
+  --color-stale: #e08272;
+  --color-stale-bg: #33201d;
+  --color-selected: #7aa2f7;
+  --color-selected-bg: #1e2740;
+  }
+}
+
 html,
 body {
   height: 100%;

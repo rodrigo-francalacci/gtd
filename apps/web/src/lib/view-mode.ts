@@ -6,6 +6,7 @@ import type { Preferences } from './pane';
 
 export type {
   Preferences,
+  Theme,
   ViewMode,
 } from './pane';
 export {
@@ -35,5 +36,6 @@ export async function getPreferences(): Promise<Preferences> {
     viewMode: row?.viewMode === 'compact' ? 'compact' : 'comfortable',
     listPaneWidth: row?.listPaneWidth ?? null,
     previewPaneWidth: row?.previewPaneWidth ?? null,
+    theme: row?.theme === 'dark' ? 'dark' : row?.theme === 'light' ? 'light' : null,
   };
 }

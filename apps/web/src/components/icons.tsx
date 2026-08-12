@@ -214,3 +214,18 @@ export const IconAudio = (p: IconProps) => (
     <path d="M3.8 7.4a4.2 4.2 0 0 0 8.4 0M8 11.6V14" />
   </Glyph>
 );
+
+/** Light mode — a sun. */
+export const IconSun = (p: IconProps) => (
+  <Glyph {...p}>
+    <circle cx="8" cy="8" r="3.1" />
+    <path d="M8 1.4v1.5M8 13.1v1.5M1.4 8h1.5M13.1 8h1.5M3.3 3.3l1.1 1.1M11.6 11.6l1.1 1.1M12.7 3.3l-1.1 1.1M4.4 11.6l-1.1 1.1" />
+  </Glyph>
+);
+
+/** Dark mode — a crescent. */
+export const IconMoon = (p: IconProps) => (
+  <Glyph {...p}>
+    <path d="M13 9.6A5.6 5.6 0 0 1 6.4 3a5.7 5.7 0 1 0 6.6 6.6z" />
+  </Glyph>
+);

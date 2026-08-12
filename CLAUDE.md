@@ -10,6 +10,15 @@ Turbopack is the default; `middleware` is now `proxy`.
 
 ## Conventions that carry weight
 
+- **Dark mode is the same ramp walked backwards.** `grey-800` means "prominent
+  text" and `grey-200` means "a hairline" in both themes, so inverting the
+  greyscale variables under `[data-theme='dark']` is the whole of it — no
+  component knows which theme it is in. The semantic three keep their hues and
+  drop their brightness. A null preference means "ask the operating system",
+  which a media query answers before first paint; an explicit choice writes
+  `data-theme` on `<html>` from the *root* layout and beats the query in both
+  directions. That's also why `/signin` gets the theme: it renders outside the
+  app shell.
 - **Colour is semantic only.** Base is greyscale (`grey-50`…`grey-900`,
   `paper`, `ink`). The only colour tokens are `waiting`, `stale`, and
   `selected`, plus their `-bg` pairs. Nothing decorative. Sidebar icons are
