@@ -568,6 +568,33 @@ export async function getInboxItems(): Promise<InboxRow[]> {
   return rows as InboxRow[];
 }
 
+/**
+ * The last few captures, newest first.
+ *
+ * For the phone, where the desktop's oldest-first queue is the wrong way round
+ * and the wrong length. What you want after typing on a phone is proof it
+ * landed — seeing the thing you just wrote sitting at the top is that proof,
+ * and it costs one query rather than a round trip you have to trust.
+ */
+export async function getRecentCaptures(limit = 5): Promise<InboxRow[]> {
+  const rows = await db
+    .select({
+      id: inboxItems.id,
+      rawType: inboxItems.rawType,
+      rawText: inboxItems.rawText,
+      aiSuggestion: inboxItems.aiSuggestion,
+      createdAt: inboxItems.createdAt,
+      attachmentCount: sql<number>`coalesce(${inboxAttachmentCount.n}, 0)`,
+    })
+    .from(inboxItems)
+    .leftJoin(inboxAttachmentCount, eq(inboxAttachmentCount.parentId, inboxItems.id))
+    .where(eq(inboxItems.status, 'pending'))
+    .orderBy(desc(inboxItems.createdAt))
+    .limit(limit);
+
+  return rows as InboxRow[];
+}
+
 export async function getInboxItem(id: string): Promise<InboxRow | null> {
   const [row] = await db
     .select({

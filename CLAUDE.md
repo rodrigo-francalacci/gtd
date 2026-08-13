@@ -231,6 +231,23 @@ Turbopack is the default; `middleware` is now `proxy`.
   still no speech provider, so `MediaRecorder` output goes up the ordinary
   attachment path and stops there. `enqueueEnrichment` won't queue it, which is
   deliberate: a job nothing can run is a manufactured failure.
+- **`/capture` is the phone, and sits outside `(app)`.** That route group *is*
+  the three-pane desktop shell, and none of it belongs on a phone held in one
+  hand — so this is a sibling of `/signin`, gating on `requireSession()` itself
+  because no group layout is doing it. It is not the desktop box made
+  narrower: whole screen as the field, thumb-sized targets, camera as a
+  first-class button, and no drag-and-drop, which touch doesn't have anyway.
+  It writes through the same `captureInboxItem` and `/api/attachments`, so a
+  capture made on the phone is not a second kind of capture.
+- **The phone draft lives in `localStorage`, and that doesn't contradict
+  preferences living in the database.** A preference follows the account; a
+  half-typed sentence is worthless on another device, changes every keystroke,
+  and exists to survive the one thing phones do freely — discarding a
+  backgrounded tab mid-word. `app/manifest.ts` starts at `/capture` rather than
+  `/`, because the reason to install it is to capture in one tap.
+- **Inputs on the phone are 16px minimum.** iOS Safari zooms the page in when a
+  smaller field takes focus. The fix is the type size, never
+  `user-scalable=no` — blocking pinch-zoom to stop it is a bad trade.
 - **Panels seeded from a selected row need `key={row.id}`.** `useState`
   initialisers only run on mount, so without it the clarify panel (and the
   note editor) keep the previous row's draft. This has bitten twice.
