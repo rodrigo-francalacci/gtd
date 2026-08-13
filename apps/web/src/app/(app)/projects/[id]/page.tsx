@@ -31,7 +31,11 @@ export default async function ProjectPage(props: PageProps<'/projects/[id]'>) {
       <ProjectListPane selectedId={id} filter={filter} />
 
       <DetailPane>
+        {/* key: even across a route param, React reconciles the same component
+            in the same position and keeps its state — so /projects/a →
+            /projects/b would hold a's title in the field. */}
         <ProjectDetail
+          key={project.id}
           project={project}
           attachments={files}
           stalled={stalled}

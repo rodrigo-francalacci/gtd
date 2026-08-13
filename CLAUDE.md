@@ -249,8 +249,15 @@ Turbopack is the default; `middleware` is now `proxy`.
   smaller field takes focus. The fix is the type size, never
   `user-scalable=no` — blocking pinch-zoom to stop it is a bad trade.
 - **Panels seeded from a selected row need `key={row.id}`.** `useState`
-  initialisers only run on mount, so without it the clarify panel (and the
-  note editor) keep the previous row's draft. This has bitten twice.
+  initialisers only run on mount, so without it a panel keeps the previous
+  row's draft. Found again across *every* detail pane — actions, list items,
+  projects, areas and goals — where it rendered two records at once: a stale
+  title from client state beside a fresh project and contexts from props. That
+  is worse than a cosmetic glitch, because saving renames the row you were
+  looking at a moment ago. The route-param case (`/projects/[id]`) needs the
+  key too: React reconciles the same component in the same position and keeps
+  its state across the navigation. If a pane holds a draft, key it — the only
+  ones that don't need it are the panes with no `useState` seeded from props.
 - **Derived state is derived.** Stalled projects, waiting staleness, and a list
   item's `stage` are computed in queries, never stored, so they can't drift
   from the rows.

@@ -62,7 +62,9 @@ export default async function NowPage(props: PageProps<'/now'>) {
 
       {selected ? (
         <DetailPane>
+          {/* key: `useState(action.title)` only runs on mount. */}
           <ActionDetail
+            key={selected.id}
             action={selected}
             attachments={await getAttachments('action', selected.id)}
             contextGroups={groups}

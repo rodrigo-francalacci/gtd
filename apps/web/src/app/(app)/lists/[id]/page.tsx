@@ -91,7 +91,13 @@ export default async function ListPage(props: PageProps<'/lists/[id]'>) {
 
       {selected ? (
         <DetailPane>
+          {/* key: the panel seeds title and cost into useState, and an
+              initialiser only runs on mount. Without a fresh mount per item,
+              selecting another one keeps the previous item's title in the
+              field while everything around it updates — and saving would
+              rename the wrong row. */}
           <ListItemDetail
+            key={selected.id}
             item={selected}
             attachments={await getAttachments('list_item', selected.id)}
             isPurchases={isPurchases}

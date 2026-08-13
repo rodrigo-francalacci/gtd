@@ -58,7 +58,9 @@ export default async function ArchivePage(props: PageProps<'/archive'>) {
           {/* Same editable detail as a live project: reopening it is just a
               status change, and notes stay editable so you can add what you
               learned after the fact. */}
+          {/* key: `useState(project.title)` only runs on mount. */}
           <ProjectDetail
+            key={selected.id}
             project={selected}
             attachments={await getAttachments('project', selected.id)}
             stalled={false}

@@ -141,15 +141,21 @@ export default async function AreasPage(props: PageProps<'/areas'>) {
         ) : null}
       </ListPane>
 
+      {/* Both panels below are keyed: EditableTitle and the goal's target date
+          seed useState from props, and an initialiser only runs on mount — so
+          without it, selecting another area or goal keeps the previous one's
+          text in the field while the rest of the pane updates. */}
       <DetailPane>
         {selectedGoal ? (
           <GoalDetail
+            key={selectedGoal.id}
             goal={selectedGoal}
             areas={areas.map((a) => ({ id: a.id, name: a.name }))}
             projects={detailProjects}
           />
         ) : selectedArea ? (
           <AreaDetail
+            key={selectedArea.id}
             area={selectedArea}
             goals={areas.find((a) => a.id === selectedArea.id)?.goals ?? []}
             projects={detailProjects}

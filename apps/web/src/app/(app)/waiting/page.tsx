@@ -54,7 +54,9 @@ export default async function WaitingPage(props: PageProps<'/waiting'>) {
 
       {selected ? (
         <DetailPane>
+          {/* key: `useState(action.title)` only runs on mount. */}
           <ActionDetail
+            key={selected.id}
             action={selected}
             attachments={await getAttachments('action', selected.id)}
             contextGroups={groups}
