@@ -6,6 +6,7 @@ import { eq, sql } from 'drizzle-orm';
 import { getGrant } from '@/lib/auth/token';
 import { hasSyncScopes } from '@/lib/auth/google';
 import { enqueueEnrichment } from '@/lib/enrich/queue';
+import { MAX_UPLOAD_BYTES } from '@/lib/upload';
 import {
   createGoogleFile,
   ensureFolder,
@@ -16,13 +17,13 @@ import {
 import { ROOT, safeName } from './sync';
 
 /**
- * Vercel caps a serverless request body at 4.5 MB, and the bytes have to
- * travel through the request because Drive is the only storage this app has —
- * there is nowhere to park them for a background worker to pick up. So the
- * limit is real, and it's enforced here with a sentence you can act on rather
- * than a platform-level 413.
+ * Re-exported so existing callers keep reading it from here. The number itself
+ * lives in `lib/upload.ts`, which the capture box can import — this module is
+ * `server-only`, and the limit has to be known on both sides so an oversized
+ * file is refused before it spends a minute uploading, with a sentence you can
+ * act on rather than a platform-level 413.
  */
-export const MAX_UPLOAD_BYTES = 4 * 1024 * 1024;
+export { MAX_UPLOAD_BYTES };
 
 export class AttachmentError extends Error {}
 
@@ -49,21 +50,26 @@ async function destinationFolder(
   const projectId =
     parentType === 'project'
       ? parentId
-      : parentType === 'action'
-        ? (
-            await db
-              .select({ projectId: actions.projectId })
-              .from(actions)
-              .where(eq(actions.id, parentId))
-              .limit(1)
-          )[0]?.projectId
-        : (
-            await db
-              .select({ projectId: listItems.projectId })
-              .from(listItems)
-              .where(eq(listItems.id, parentId))
-              .limit(1)
-          )[0]?.projectId;
+      : // A capture is unfiled by definition — deciding where it belongs is
+        // what clarifying is for, and it hasn't happened yet. `GTD/Inbox` is
+        // the honest answer rather than a guess.
+        parentType === 'inbox_item'
+        ? null
+        : parentType === 'action'
+          ? (
+              await db
+                .select({ projectId: actions.projectId })
+                .from(actions)
+                .where(eq(actions.id, parentId))
+                .limit(1)
+            )[0]?.projectId
+          : (
+              await db
+                .select({ projectId: listItems.projectId })
+                .from(listItems)
+                .where(eq(listItems.id, parentId))
+                .limit(1)
+            )[0]?.projectId;
 
   const root = await ensureFolder(ROOT);
   if (!projectId) return ensureFolder(INBOX, root);

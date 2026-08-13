@@ -524,6 +524,13 @@ export type InboxRow = {
   rawText: string | null;
   aiSuggestion: AiSuggestion | null;
   createdAt: Date;
+  /**
+   * How many files the capture carries. A photo captured with no note has no
+   * text to render, so the row needs something else to show — and a count is
+   * enough for a list, where the files themselves belong in the pane beside
+   * it.
+   */
+  attachmentCount: number;
 };
 
 /**
@@ -532,6 +539,17 @@ export type InboxRow = {
  * Deliberately not newest-first: the inbox is a queue you empty from the top,
  * and putting the freshest thing there would let old items rot at the bottom.
  */
+/** Files hanging off a capture, counted per row in one pass. */
+const inboxAttachmentCount = db
+  .select({
+    parentId: attachments.parentId,
+    n: sql<number>`count(*)::int`.as('inbox_att_n'),
+  })
+  .from(attachments)
+  .where(eq(attachments.parentType, 'inbox_item'))
+  .groupBy(attachments.parentId)
+  .as('inbox_att');
+
 export async function getInboxItems(): Promise<InboxRow[]> {
   const rows = await db
     .select({
@@ -540,8 +558,10 @@ export async function getInboxItems(): Promise<InboxRow[]> {
       rawText: inboxItems.rawText,
       aiSuggestion: inboxItems.aiSuggestion,
       createdAt: inboxItems.createdAt,
+      attachmentCount: sql<number>`coalesce(${inboxAttachmentCount.n}, 0)`,
     })
     .from(inboxItems)
+    .leftJoin(inboxAttachmentCount, eq(inboxAttachmentCount.parentId, inboxItems.id))
     .where(eq(inboxItems.status, 'pending'))
     .orderBy(asc(inboxItems.createdAt));
 
@@ -556,8 +576,10 @@ export async function getInboxItem(id: string): Promise<InboxRow | null> {
       rawText: inboxItems.rawText,
       aiSuggestion: inboxItems.aiSuggestion,
       createdAt: inboxItems.createdAt,
+      attachmentCount: sql<number>`coalesce(${inboxAttachmentCount.n}, 0)`,
     })
     .from(inboxItems)
+    .leftJoin(inboxAttachmentCount, eq(inboxAttachmentCount.parentId, inboxItems.id))
     .where(eq(inboxItems.id, id))
     .limit(1);
 

@@ -79,10 +79,21 @@ export const listType = pgEnum('list_type', [
   'checklist',
 ]);
 
+/**
+ * `inbox_item` is here so a captured photo or recording is a real attachment
+ * rather than a bare Drive id on the inbox row.
+ *
+ * The alternative — `inbox_items.drive_file_id` — stores the id and nothing
+ * else: no name, no mime type, no size, and no enrichment, because the
+ * enrichment queue and the search union both key on an attachment. A photo
+ * captured that way would be the only file in the app that can't be read,
+ * previewed or found, which is the exact opposite of what capture is for.
+ */
 export const attachmentParentType = pgEnum('attachment_parent_type', [
   'project',
   'action',
   'list_item',
+  'inbox_item',
 ]);
 
 export const attachmentKind = pgEnum('attachment_kind', [
@@ -360,7 +371,19 @@ export const inboxItems = pgTable(
   'inbox_items',
   {
     id: uuid('id').primaryKey().defaultRandom(),
+    /**
+     * What the capture *is*, which is what the row renders as. A capture can
+     * carry both a photo and a sentence about it; `photo` and `audio` mean the
+     * artefact is the point and the text is a note beside it.
+     */
     rawType: inboxRawType('raw_type').notNull(),
+    /**
+     * Superseded by an `attachments` row with `parent_type = 'inbox_item'`,
+     * which carries the name, type, size and — the reason for the change — the
+     * enrichment that makes a captured photo searchable. Kept because a raw
+     * capture is immutable, so the handful of rows written before the move
+     * keep pointing at their file.
+     */
     driveFileId: text('drive_file_id'),
     rawText: text('raw_text'),
     /** Suggestion layer only — sits on top of the raw artefact. */
@@ -594,6 +617,7 @@ export type ListItem = typeof listItems.$inferSelect;
 export type Attachment = typeof attachments.$inferSelect;
 export type EnrichmentJobKind = (typeof enrichmentJobKind.enumValues)[number];
 export type InboxItem = typeof inboxItems.$inferSelect;
+export type InboxRawType = (typeof inboxRawType.enumValues)[number];
 
 export type ListType = (typeof listType.enumValues)[number];
 export type ProjectStatus = (typeof projectStatus.enumValues)[number];

@@ -1,3 +1,4 @@
+import { CaptureHotkey } from '@/components/capture-hotkey';
 import { FilePreviewProvider } from '@/components/file-preview';
 import { SidebarNav } from '@/components/sidebar';
 import { requireSession } from '@/lib/auth/session';
@@ -25,6 +26,9 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     /* Pane 1 of 3. Panes 2 and 3 come from each section's own page. The file
        preview adds a fourth on the right, but only while something is open. */
     <FilePreviewProvider initialWidth={previewWidth(prefs)}>
+      {/* Renders nothing; listens for `c` so a thought can be captured from
+          wherever you happen to be when it arrives. */}
+      <CaptureHotkey />
       <SidebarNav counts={counts} lists={lists} theme={prefs.theme} />
       <main className="flex min-w-0 flex-1">{children}</main>
     </FilePreviewProvider>

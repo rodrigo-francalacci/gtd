@@ -4,12 +4,14 @@ import { InboxCapture } from '@/components/inbox-capture';
 import { DetailPane, EmptyDetail, EmptyList, ListPane } from '@/components/panes';
 import {
   getAreasAndGoals,
+  getAttachments,
   getContextsByDimension,
   getInboxItem,
   getInboxItems,
   getListOptions,
   getProjectOptions,
 } from '@/lib/queries';
+import { IconPaperclip } from '@/components/icons';
 import { INBOX_COLUMNS } from '@/lib/columns';
 import { getPreferences, paneWidth } from '@/lib/view-mode';
 
@@ -19,6 +21,20 @@ const stamp = new Intl.DateTimeFormat('en-GB', {
   hour: '2-digit',
   minute: '2-digit',
 });
+
+/**
+ * What the row says.
+ *
+ * A photo or a voice note is a complete capture on its own, so there is often
+ * no text — the row still has to be recognisable, and "Photo" beside a
+ * timestamp is enough to know which one it is until it's clarified.
+ */
+function label(item: { rawText: string | null; rawType: string }): string {
+  if (item.rawText) return item.rawText;
+  if (item.rawType === 'photo') return 'Photo';
+  if (item.rawType === 'audio') return 'Voice note';
+  return 'Untitled capture';
+}
 
 /**
  * Capture and clarify — the front of the GTD loop. Everything else in the app
@@ -39,13 +55,15 @@ export default async function InboxPage(props: PageProps<'/inbox'>) {
       ? selectedId
       : (items[0]?.id ?? null);
 
-  const [selected, projects, horizons, listOptions, contextGroups] = await Promise.all([
-    targetId ? getInboxItem(targetId) : Promise.resolve(null),
-    getProjectOptions(),
-    getAreasAndGoals(),
-    getListOptions(),
-    getContextsByDimension(),
-  ]);
+  const [selected, files, projects, horizons, listOptions, contextGroups] =
+    await Promise.all([
+      targetId ? getInboxItem(targetId) : Promise.resolve(null),
+      targetId ? getAttachments('inbox_item', targetId) : Promise.resolve([]),
+      getProjectOptions(),
+      getAreasAndGoals(),
+      getListOptions(),
+      getContextsByDimension(),
+    ]);
 
   return (
     <>
@@ -80,13 +98,19 @@ export default async function InboxPage(props: PageProps<'/inbox'>) {
                     space and the date becomes a column rather than a row. */}
                 <span
                   className={[
-                    'truncate',
+                    'flex items-center gap-1.5 truncate',
                     item.id === targetId
                       ? 'font-medium text-grey-900'
                       : 'text-grey-800',
+                    item.rawText ? '' : 'italic text-grey-500',
                   ].join(' ')}
                 >
-                  {item.rawText}
+                  {item.attachmentCount > 0 ? (
+                    <span className="shrink-0 text-grey-400">
+                      <IconPaperclip />
+                    </span>
+                  ) : null}
+                  <span className="truncate">{label(item)}</span>
                 </span>
                 <span className="truncate text-grey-500">
                   {item.aiSuggestion?.projectId ? 'suggestion' : '—'}
@@ -110,12 +134,19 @@ export default async function InboxPage(props: PageProps<'/inbox'>) {
                     item.id === targetId
                       ? 'font-medium text-grey-900'
                       : 'text-grey-800',
+                    item.rawText ? '' : 'italic text-grey-500',
                   ].join(' ')}
                 >
-                  {item.rawText}
+                  {label(item)}
                 </span>
                 <span className="mt-1 flex items-center gap-2 text-[11px] text-grey-500">
                   {stamp.format(item.createdAt)}
+                  {item.attachmentCount > 0 ? (
+                    <span className="flex items-center gap-1 text-grey-400">
+                      <IconPaperclip />
+                      <span className="tabular-nums">{item.attachmentCount}</span>
+                    </span>
+                  ) : null}
                   {item.aiSuggestion?.projectId ? (
                     <span className="rounded-sm bg-grey-200 px-1.5 py-px text-grey-600">
                       suggestion
@@ -137,6 +168,7 @@ export default async function InboxPage(props: PageProps<'/inbox'>) {
           <ClarifyPanel
             key={selected.id}
             item={selected}
+            attachments={files}
             projects={projects}
             areas={horizons.areas}
             lists={listOptions}

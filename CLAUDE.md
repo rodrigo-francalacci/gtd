@@ -195,6 +195,42 @@ Turbopack is the default; `middleware` is now `proxy`.
   then attempts a suggestion in a try/catch — a failing suggester must never
   cost you the thought. Suggestions pre-fill the clarify form and commit
   nothing on their own.
+- **A captured photo is an `attachment`, not `inbox_items.drive_file_id`.**
+  That column holds an id and nothing else — no name, type or size, and no
+  enrichment, because both the enrichment queue and the search union key on an
+  attachment. A photo stored there would be the one file in the app that can't
+  be read, previewed or found, which is the opposite of what capture is for.
+  So `attachment_parent_type` has `inbox_item`, and the column stays only
+  because a raw capture is immutable and the pre-existing rows still point at
+  their file.
+- **The row is written before the bytes go up.** `captureInboxItem` returns the
+  new id and the client posts each file to `/api/attachments` against it — a
+  Server Action caps its body at 1 MB and is the wrong shape for a file. It is
+  also the right order: if Drive is down, the thought is already safe and the
+  file can be attached again from the clarify pane.
+- **A capture needs text *or* a file, not both.** A photo with no note is a
+  complete capture; the list falls back to "Photo" / "Voice note" so the row is
+  still recognisable, and the clarify panel seeds its title from the file name.
+- **Files follow the clarify decision.** The photo *is* the thing you captured,
+  so re-parenting it to the action, project or list item the capture became is
+  what keeps it findable — stranding it on a clarified inbox row nobody reopens
+  would lose it. `trashed` is the exception: no outcome row, so the file stays
+  on the capture, which is also what keeps the evidence intact. The Drive file
+  itself does not move — it stays in `GTD/Inbox`, because moving it is a Google
+  call and `sync_jobs.project_id` is non-null, so there is nowhere to queue it
+  yet.
+- **`c` captures from anywhere.** The barrier is almost never the typing, it is
+  that the thought arrives three clicks from the inbox. `CaptureHotkey` yields
+  to any focused field — `isContentEditable` included, or the note editor would
+  swallow every "c" typed into it — and reaches the capture box through a
+  window event, because the two live in different route segments.
+- **Pasting a screenshot is the commonest visual capture there is.** The
+  listener is on `window`, not the field, and only claims events carrying
+  files, so pasted text still behaves normally.
+- **Audio is recorded, stored and playable — and not searchable.** There is
+  still no speech provider, so `MediaRecorder` output goes up the ordinary
+  attachment path and stops there. `enqueueEnrichment` won't queue it, which is
+  deliberate: a job nothing can run is a manufactured failure.
 - **Panels seeded from a selected row need `key={row.id}`.** `useState`
   initialisers only run on mount, so without it the clarify panel (and the
   note editor) keep the previous row's draft. This has bitten twice.

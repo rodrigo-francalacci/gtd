@@ -2,7 +2,9 @@
 
 import { useState, useTransition } from 'react';
 import { clarifyInboxItem, type ClarifyDecision } from '@/lib/actions';
+import type { AttachmentRow } from '@/lib/queries.shared';
 import type { Context } from '@gtd/db';
+import { Attachments } from './attachments';
 
 type Kind = ClarifyDecision['kind'];
 
@@ -20,6 +22,7 @@ const NOT_ACTIONABLE: { kind: Kind; label: string; hint: string }[] = [
 
 export function ClarifyPanel({
   item,
+  attachments,
   projects,
   areas,
   lists,
@@ -35,6 +38,7 @@ export function ClarifyPanel({
       confidence?: number;
     } | null;
   };
+  attachments: AttachmentRow[];
   projects: { id: string; title: string }[];
   areas: { id: string; name: string }[];
   lists: { id: string; name: string; type: string }[];
@@ -48,8 +52,12 @@ export function ClarifyPanel({
   const [pending, startTransition] = useTransition();
   const [kind, setKind] = useState<Kind | null>(null);
 
-  // The suggestion pre-fills; it never commits anything on its own.
-  const [title, setTitle] = useState((item.rawText ?? '').split('\n')[0].trim());
+  // The suggestion pre-fills; it never commits anything on its own. A capture
+  // with no note — a photo on its own — borrows the file's name, which is
+  // usually better than an empty box and always editable.
+  const [title, setTitle] = useState(
+    (item.rawText ?? '').split('\n')[0].trim() || attachments[0]?.name || '',
+  );
   const [projectId, setProjectId] = useState(item.aiSuggestion?.projectId ?? '');
   const [areaId, setAreaId] = useState('');
   const [listId, setListId] = useState(lists[0]?.id ?? '');
@@ -81,6 +89,23 @@ export function ClarifyPanel({
     });
   };
 
+  /**
+   * The one-click exits.
+   *
+   * Most of what lands in an inbox is not a project needing a title, a parent
+   * and three contexts — it is rubbish, something already done, or something
+   * for later. Making those go through the full form is why inboxes stop
+   * getting emptied, and emptying it is the step that actually decays.
+   */
+  const somedayList = lists.find((l) => l.type === 'someday_maybe');
+  const quickTitle = title.trim();
+
+  const quickFile = (decision: ClarifyDecision) =>
+    startTransition(async () => {
+      await clarifyInboxItem(item.id, decision);
+      setKind(null);
+    });
+
   const needsTitle = kind !== null && kind !== 'trashed';
   const dimensions: { key: keyof typeof contextGroups; label: string }[] = [
     { key: 'place', label: 'Where' },
@@ -104,10 +129,56 @@ export function ClarifyPanel({
             minute: '2-digit',
           }).format(item.createdAt)}
         </h2>
-        <blockquote className="mt-2 whitespace-pre-wrap border-l-2 border-grey-300 pl-3 text-[15px] leading-relaxed text-grey-800">
-          {item.rawText}
-        </blockquote>
+        {item.rawText ? (
+          <blockquote className="mt-2 whitespace-pre-wrap border-l-2 border-grey-300 pl-3 text-[15px] leading-relaxed text-grey-800">
+            {item.rawText}
+          </blockquote>
+        ) : (
+          <p className="mt-2 border-l-2 border-grey-300 pl-3 text-[13px] italic text-grey-500">
+            No note — the file below is the capture.
+          </p>
+        )}
       </section>
+
+      {/* The quick exits sit above the form, because most captures deserve one
+          of them and should never have to scroll past a project picker. */}
+      <div className="mt-4 flex flex-wrap items-center gap-1.5">
+        <span className="mr-1 text-[10px] uppercase tracking-wider text-grey-400">
+          Quick
+        </span>
+        <QuickButton
+          label="Did it"
+          hint="Already done — records it and clears the capture"
+          disabled={pending || !quickTitle}
+          onClick={() =>
+            quickFile({
+              kind: 'done',
+              title: quickTitle,
+              projectId: null,
+              contextIds: [],
+            })
+          }
+        />
+        <QuickButton
+          label="Someday"
+          hint={
+            somedayList
+              ? `Park it on ${somedayList.name}`
+              : 'No Someday/Maybe list exists yet'
+          }
+          disabled={pending || !quickTitle || !somedayList}
+          onClick={() =>
+            somedayList &&
+            quickFile({ kind: 'list_item', title: quickTitle, listId: somedayList.id })
+          }
+        />
+        <QuickButton
+          label="Trash"
+          hint="No action, no value — the capture stays in the record"
+          disabled={pending}
+          onClick={() => quickFile({ kind: 'trashed' })}
+        />
+      </div>
 
       <p className="mt-5 text-[13px] font-medium text-grey-800">Is it actionable?</p>
 
@@ -282,7 +353,41 @@ export function ClarifyPanel({
           </div>
         </section>
       ) : null}
+
+      {/* Files can be added here too, not only at capture — a photo you meant
+          to take at the time, or a PDF the thought was really about. They
+          follow the decision to whatever the capture becomes. */}
+      <Attachments
+        parentType="inbox_item"
+        parentId={item.id}
+        rows={attachments}
+        label="Captured files"
+      />
     </div>
+  );
+}
+
+function QuickButton({
+  label,
+  hint,
+  disabled,
+  onClick,
+}: {
+  label: string;
+  hint: string;
+  disabled: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      title={hint}
+      disabled={disabled}
+      onClick={onClick}
+      className="rounded-sm border border-grey-300 px-2 py-0.5 text-[11px] text-grey-600 hover:border-grey-500 hover:text-grey-800 disabled:opacity-40 disabled:hover:border-grey-300"
+    >
+      {label}
+    </button>
   );
 }
 

@@ -215,6 +215,35 @@ export const IconAudio = (p: IconProps) => (
   </Glyph>
 );
 
+/** Take a photo — a camera body with a lens. */
+export const IconCamera = (p: IconProps) => (
+  <Glyph {...p}>
+    <path d="M2.2 5.6h2.6l1-1.6h4.4l1 1.6h2.6v7.2H2.2z" />
+    <circle cx="8" cy="9.2" r="2.4" />
+  </Glyph>
+);
+
+/** Attach a file — a paperclip. */
+export const IconPaperclip = (p: IconProps) => (
+  <Glyph {...p}>
+    <path d="M12.4 7.6 7.7 12.3a3 3 0 0 1-4.2-4.2l5.2-5.2a2 2 0 0 1 2.8 2.8l-5.2 5.2a1 1 0 0 1-1.4-1.4l4.7-4.7" />
+  </Glyph>
+);
+
+/** Recording in progress — a filled dot. */
+export const IconRecord = (p: IconProps) => (
+  <Glyph {...p}>
+    <circle cx="8" cy="8" r="4" fill="currentColor" stroke="none" />
+  </Glyph>
+);
+
+/** Stop recording — a square. */
+export const IconStop = (p: IconProps) => (
+  <Glyph {...p}>
+    <rect x="4.4" y="4.4" width="7.2" height="7.2" rx="1" fill="currentColor" stroke="none" />
+  </Glyph>
+);
+
 /** Light mode — a sun. */
 export const IconSun = (p: IconProps) => (
   <Glyph {...p}>

@@ -5,6 +5,7 @@ import {
   actionContexts,
   actions,
   areasOfFocus,
+  attachments,
   contexts,
   db,
   goals,
@@ -17,6 +18,7 @@ import {
   type ActionStatus,
   type AttachmentParentType,
   type ContextDimension,
+  type InboxRawType,
   type ListType,
   type ProjectStatus,
 } from '@gtd/db';
@@ -423,21 +425,43 @@ export async function markActionReviewed(actionId: string, reviewed: boolean) {
 // ---------------------------------------------------------------------------
 
 /**
- * Capture. Zero required fields beyond the text itself, and no classification
- * — deciding what something is happens later, at clarify time. Enrichment runs
- * after the row exists so a slow suggester can never delay a capture.
+ * Capture. Zero required fields, no classification — deciding what something
+ * is happens later, at clarify time. Enrichment runs after the row exists so a
+ * slow suggester can never delay a capture.
+ *
+ * Returns the new id because the files, if there are any, go up separately to
+ * `POST /api/attachments` against this row: a Server Action caps its request
+ * body at 1 MB and is the wrong shape for bytes. So the row is written first
+ * and the artefact arrives a moment later — which is also the right order for
+ * capture, since the thought is safe before the upload can fail.
+ *
+ * `rawType` is a hint from the client, which is the only side that knows what
+ * it is about to send.
  */
-export async function captureInboxItem(formData: FormData) {
+export async function captureInboxItem(
+  formData: FormData,
+): Promise<{ id: string } | null> {
   await requireSession();
   const rawText = String(formData.get('rawText') ?? '').trim();
-  if (!rawText) return;
+  const hinted = String(formData.get('rawType') ?? 'text');
+  const rawType: InboxRawType =
+    hinted === 'photo' || hinted === 'audio' ? hinted : 'text';
+
+  // A photo or a recording is a capture on its own — the note beside it is
+  // optional. Only a text capture needs words.
+  if (!rawText && rawType === 'text') return null;
 
   const [item] = await db
     .insert(inboxItems)
-    .values({ rawType: 'text', rawText })
+    .values({ rawType, rawText: rawText || null })
     .returning();
 
   revalidateShell();
+
+  // Nothing to suggest from yet when the capture is a photo with no note. The
+  // file hasn't been read at that point either — enrichment happens in the
+  // worker, minutes or hours later, long after this request is gone.
+  if (!rawText) return { id: item.id };
 
   // Best-effort suggestion. A failure here must not lose the capture, which
   // is already safely stored above.
@@ -466,6 +490,8 @@ export async function captureInboxItem(formData: FormData) {
   } catch (error) {
     console.error('[inbox] suggestion failed, capture kept', error);
   }
+
+  return { id: item.id };
 }
 
 export type ClarifyDecision =
@@ -550,6 +576,27 @@ export async function clarifyInboxItem(itemId: string, decision: ClarifyDecision
     }
   }
 
+  // The photo *is* the thing you captured, so it follows the decision to
+  // whatever the capture became — a photographed book spine belongs on the
+  // list item it turned into, not stranded on a clarified inbox row nobody
+  // opens again. The raw capture stays immutable either way: it keeps its
+  // text and now points at the outcome that holds the file.
+  //
+  // Trashed is the exception. Deliberately dropping something shouldn't strand
+  // its file on nothing, so the attachment stays on the capture — which keeps
+  // the evidence intact, and keeps the Drive file recoverable.
+  if (outcomeId && decision.kind !== 'trashed') {
+    await db
+      .update(attachments)
+      .set({ parentType: PARENT_FOR_OUTCOME[decision.kind], parentId: outcomeId })
+      .where(
+        and(
+          eq(attachments.parentType, 'inbox_item'),
+          eq(attachments.parentId, itemId),
+        ),
+      );
+  }
+
   await db
     .update(inboxItems)
     .set({
@@ -562,6 +609,23 @@ export async function clarifyInboxItem(itemId: string, decision: ClarifyDecision
 
   revalidateShell();
 }
+
+/**
+ * Which attachment parent a clarify decision produces.
+ *
+ * `trashed` never gets here — it has no outcome row to hang a file off — and
+ * the three action-shaped decisions all produce an action.
+ */
+const PARENT_FOR_OUTCOME: Record<
+  Exclude<ClarifyDecision['kind'], 'trashed'>,
+  AttachmentParentType
+> = {
+  next_action: 'action',
+  waiting: 'action',
+  done: 'action',
+  project: 'project',
+  list_item: 'list_item',
+};
 
 // ---------------------------------------------------------------------------
 // Areas of focus and goals

@@ -8,7 +8,12 @@ export const dynamic = 'force-dynamic';
 /** A Drive upload over a domestic connection is slower than a page render. */
 export const maxDuration = 60;
 
-const PARENT_TYPES: AttachmentParentType[] = ['project', 'action', 'list_item'];
+const PARENT_TYPES: AttachmentParentType[] = [
+  'project',
+  'action',
+  'list_item',
+  'inbox_item',
+];
 
 /**
  * A route handler rather than a Server Action: actions cap the request body at

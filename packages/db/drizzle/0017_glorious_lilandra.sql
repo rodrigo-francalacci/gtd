@@ -1,0 +1,1 @@
+ALTER TYPE "public"."attachment_parent_type" ADD VALUE 'inbox_item';

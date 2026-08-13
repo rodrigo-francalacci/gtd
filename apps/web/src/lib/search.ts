@@ -108,7 +108,14 @@ export async function search(term: string, limit = 60): Promise<SearchHit[]> {
         att.id::text,
         att.name,
         ts_headline('english', coalesce(att.ocr_text, '') || ' ' || coalesce(att.transcription, ''), q.tsq, ${HEADLINE_OPTS}),
-        coalesce(pr.title, act.title, li.title),
+        coalesce(
+          pr.title, act.title, li.title,
+          -- A photo captured straight to the inbox often has no note beside
+          -- it, so the parent has no title to borrow. Say where it lives
+          -- rather than showing a hit with a blank context.
+          nullif(btrim(coalesce(ibp.raw_text, '')), ''),
+          case when ibp.id is not null then 'Inbox capture' end
+        ),
         att.parent_type::text || ':' || att.parent_id::text,
         ts_rank(att.search_vector, q.tsq)
       from attachments att
@@ -116,6 +123,7 @@ export async function search(term: string, limit = 60): Promise<SearchHit[]> {
       left join projects pr on pr.id = att.parent_id and att.parent_type = 'project'
       left join actions act on act.id = att.parent_id and att.parent_type = 'action'
       left join list_items li on li.id = att.parent_id and att.parent_type = 'list_item'
+      left join inbox_items ibp on ibp.id = att.parent_id and att.parent_type = 'inbox_item'
       where att.search_vector @@ q.tsq
     ) hits
     order by rank desc, title asc
@@ -150,9 +158,10 @@ export function hrefFor(hit: SearchHit): string {
 }
 
 /**
- * A file has no page of its own — it lives on a project, an action or a list
- * item, and that is where a search hit should land you. `meta` carries
- * "<parent_type>:<uuid>" because the union has one column set for every kind.
+ * A file has no page of its own — it lives on a project, an action, a list
+ * item or an unclarified capture, and that is where a search hit should land
+ * you. `meta` carries "<parent_type>:<uuid>" because the union has one column
+ * set for every kind.
  */
 function attachmentHref(meta: string | null): string {
   const [type, id] = (meta ?? '').split(':');
@@ -160,5 +169,6 @@ function attachmentHref(meta: string | null): string {
 
   if (type === 'project') return `/projects/${id}`;
   if (type === 'action') return `/now?action=${id}`;
+  if (type === 'inbox_item') return `/inbox?item=${id}`;
   return `/lists?item=${id}`;
 }
