@@ -177,6 +177,14 @@ export function Attachments({
           <p className="px-3 py-4 text-center text-[12px] text-grey-500">
             {parentType === 'project' ? (
               <>Drop a file here — it goes into this project’s Drive folder.</>
+            ) : parentType === 'inbox_item' ? (
+              // A capture has no project by definition — that is what
+              // clarifying decides — so there is no "or" to offer here.
+              <>
+                Drop a file here — it goes into{' '}
+                <span className="whitespace-nowrap">GTD/Inbox</span> until you
+                clarify this capture.
+              </>
             ) : (
               <>
                 Drop a file here — it goes into the project’s Drive folder, or{' '}
