@@ -13,6 +13,8 @@
  * genuinely over.
  */
 
+import { UploadError, uploadToDrive } from './drive-upload';
+
 export type UploadFailure = { file: File; message: string };
 
 /**
@@ -37,22 +39,24 @@ export async function uploadCaptureFiles(
       if (index >= files.length) return;
 
       const file = files[index];
-      const body = new FormData();
-      body.set('parentType', 'inbox_item');
-      body.set('parentId', parentId);
-      body.set('file', file);
 
       try {
-        const response = await fetch('/api/attachments', { method: 'POST', body });
-        if (!response.ok) {
-          const { error } = await response.json().catch(() => ({}));
-          failures.push({ file, message: error ?? `${file.name} was refused.` });
-        }
-      } catch {
-        // A dropped connection, or the tab being torn down mid-flight. The
-        // file stays with the caller so it can be sent again rather than
-        // vanishing with no record that it was ever chosen.
-        failures.push({ file, message: `${file.name} did not upload.` });
+        // Straight to Drive. Going through our own function would put the file
+        // back under Vercel's 4.5 MB body cap, which is the ceiling a phone
+        // photo regularly exceeds.
+        await uploadToDrive({ parentType: 'inbox_item', parentId }, file);
+      } catch (error) {
+        // `UploadError` already says something specific and true. Anything
+        // else is a dropped connection or the tab being torn down mid-flight.
+        // Either way the file stays with the caller so it can be sent again,
+        // rather than vanishing with no record that it was ever chosen.
+        failures.push({
+          file,
+          message:
+            error instanceof UploadError
+              ? error.message
+              : `${file.name} did not upload.`,
+        });
       } finally {
         finished += 1;
         onProgress(finished, files.length);

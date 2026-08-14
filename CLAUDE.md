@@ -105,9 +105,28 @@ Turbopack is the default; `middleware` is now `proxy`.
   ever a file this app uploaded. If Drive refuses, the row still goes — being
   unable to detach anything because of a problem at Google's end is worse than
   an orphaned file in a bin you can empty.
-- **Uploads are capped at 4 MB** because Vercel caps a serverless request body
-  at 4.5. Enforced in `attachments.ts` with a sentence you can act on, rather
-  than as a platform 413.
+- **Uploads go from the browser straight to Drive**, so Vercel's 4.5 MB
+  request-body cap never applies and the ceiling is Drive's. Three steps:
+  `POST /api/attachments/session` picks the folder and opens a resumable
+  session, the browser PUTs the bytes to the URL that comes back, and
+  `POST /api/attachments/complete` records the row. The access token never
+  leaves the server — the session URL is the capability, and it authorises one
+  upload of one file into one folder.
+- **The session is bound to the origin that opened it.** A server sends no
+  `Origin`, so the route forwards the browser's; without it the session works
+  from curl and is refused by the page holding the bytes, with nothing but
+  "Failed to fetch" to go on. Taken from the request rather than configured, so
+  localhost, previews and production are all correct for free.
+- **`complete` trusts the id and nothing else.** Name, type and size are read
+  back from Drive with `getFile`, so a client cannot make our row disagree with
+  the file. `drive.file` does the authorisation: an id for anything this app
+  did not create comes back null and is refused.
+- **`MAX_UPLOAD_BYTES` (4 MB) still guards the old proxy route**, which stays
+  for the single-request case. `MAX_DIRECT_UPLOAD_MB` (512) is a sanity rail,
+  not a platform limit — Drive's own is 5 TB.
+- **`XMLHttpRequest`, not `fetch`, for the PUT.** `fetch` still cannot report
+  upload progress, and a 20 MB file over a phone connection with no progress
+  bar is indistinguishable from one that has stalled.
 - **Attachment bytes are served through us, never linked to directly.** Drive's
   download URLs aren't embeddable — they want Google cookies and don't survive
   an `<img>` or an `<iframe>`. `GET /api/attachments/[id]/file` puts the file

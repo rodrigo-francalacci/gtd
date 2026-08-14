@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { captureInboxItem } from '@/lib/actions';
 import { uploadCaptureFiles } from '@/lib/capture-upload';
-import { MAX_UPLOAD_MB } from '@/lib/upload';
+import { MAX_DIRECT_UPLOAD_MB } from '@/lib/upload';
 import { AudioRecorder } from './audio-recorder';
 import { IconAudio, IconCamera, IconImage, IconPaperclip, IconStop } from './icons';
 
@@ -85,19 +85,19 @@ export function MobileCapture({ recent }: { recent: Recent[] }) {
     const list = [...files];
     if (list.length === 0) return;
 
-    const tooBig = list.filter((f) => f.size > MAX_UPLOAD_MB * 1024 * 1024);
+    const tooBig = list.filter((f) => f.size > MAX_DIRECT_UPLOAD_MB * 1024 * 1024);
     if (tooBig.length > 0) {
       setErrors((e) => [
         ...e,
         ...tooBig.map(
-          (f) => `${f.name} is too big — the limit is ${MAX_UPLOAD_MB} MB.`,
+          (f) => `${f.name} is too big — the limit is ${MAX_DIRECT_UPLOAD_MB} MB.`,
         ),
       ]);
     }
 
     setStaged((s) => [
       ...s,
-      ...list.filter((f) => f.size > 0 && f.size <= MAX_UPLOAD_MB * 1024 * 1024),
+      ...list.filter((f) => f.size > 0 && f.size <= MAX_DIRECT_UPLOAD_MB * 1024 * 1024),
     ]);
   };
 

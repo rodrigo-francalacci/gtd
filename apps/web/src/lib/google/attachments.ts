@@ -9,6 +9,7 @@ import { enqueueEnrichment } from '@/lib/enrich/queue';
 import { MAX_UPLOAD_BYTES } from '@/lib/upload';
 import {
   createGoogleFile,
+  createResumableSession,
   ensureFolder,
   getFile,
   trashFile,
@@ -153,6 +154,79 @@ export async function uploadAttachment(
 
   // Reading the file happens afterwards, in the worker. Capture never waits
   // on a model any more than it waits on Drive.
+  await enqueueEnrichment(row.id, mimeType);
+
+  return row;
+}
+
+/**
+ * Step one of a direct upload: pick the folder and open a Drive session.
+ *
+ * The browser sends the bytes itself, so nothing here is limited by Vercel's
+ * 4.5 MB body cap — which is the whole reason this path exists beside
+ * `uploadAttachment`. That one stays for small files and for anything that
+ * would rather do a single request.
+ */
+export async function startUploadSession(
+  parentType: AttachmentParentType,
+  parentId: string,
+  name: string,
+  mimeType: string,
+  origin: string,
+): Promise<string> {
+  const grant = await getGrant();
+  if (!grant?.refreshToken || !hasSyncScopes(grant.scope)) {
+    throw new AttachmentError(
+      'Drive is not connected. Connect it on the Google page first.',
+    );
+  }
+
+  const folderId = await destinationFolder(parentType, parentId);
+  return createResumableSession(
+    safeName(name),
+    mimeType || 'application/octet-stream',
+    folderId,
+    origin,
+  );
+}
+
+/**
+ * Step two: record the file the browser just uploaded.
+ *
+ * The name, type and size come from *Google*, not from the request. The client
+ * supplies only an id, and `getFile` both confirms the file exists and settles
+ * what it actually is — a browser that lied about a 4 KB text file being a
+ * 40 MB PDF cannot make our row disagree with Drive.
+ *
+ * `drive.file` is doing quiet work here too: it can only see files this app
+ * created, so an id belonging to anything else comes back null and is refused.
+ */
+export async function completeUpload(
+  parentType: AttachmentParentType,
+  parentId: string,
+  driveFileId: string,
+): Promise<{ id: string; name: string }> {
+  const file = await getFile(driveFileId);
+  if (!file) {
+    throw new AttachmentError('That upload could not be found in Drive.');
+  }
+
+  const mimeType = file.mimeType ?? 'application/octet-stream';
+  const size = file.size ? Number(file.size) : null;
+
+  const [row] = await db
+    .insert(attachments)
+    .values({
+      parentType,
+      parentId,
+      kind: kindFor(mimeType),
+      driveFileId: file.id,
+      name: file.name,
+      mimeType,
+      sizeBytes: Number.isFinite(size) ? size : null,
+    })
+    .returning({ id: attachments.id, name: attachments.name });
+
   await enqueueEnrichment(row.id, mimeType);
 
   return row;

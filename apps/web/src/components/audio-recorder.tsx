@@ -1,7 +1,6 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { MAX_UPLOAD_MB } from '@/lib/upload';
 
 /**
  * Record a voice note in the browser and hand it back as a file.
@@ -135,11 +134,12 @@ export function AudioRecorder({
   };
 
   /**
-   * Roughly where the 4 MB ceiling bites, at Opus's usual bitrate. It is a
-   * warning rather than a hard stop: cutting somebody off mid-sentence to
-   * enforce a limit the upload will report anyway would be worse.
+   * Not a size warning any more — uploads go straight to Drive, so at Opus's
+   * usual bitrate the ceiling is measured in days. This is about the recording
+   * itself: past about half an hour you almost certainly meant to stop, and
+   * the whole thing lives in memory until you do.
    */
-  const nearLimit = seconds > 8 * 60;
+  const nearLimit = seconds > 30 * 60;
 
   if (error) {
     return (
@@ -162,7 +162,7 @@ export function AudioRecorder({
         <span className="h-2 w-2 shrink-0 animate-pulse rounded-full bg-waiting" />
         Recording · <span className="tabular-nums">{clock(seconds)}</span>
         {nearLimit ? (
-          <span className="text-grey-500">— getting long for a {MAX_UPLOAD_MB} MB limit</span>
+          <span className="text-grey-500">— still recording</span>
         ) : null}
       </span>
 

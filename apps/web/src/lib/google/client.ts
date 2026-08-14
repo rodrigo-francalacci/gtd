@@ -43,7 +43,15 @@ async function call<T>(url: string, init?: RequestInit): Promise<T> {
 
 // --- Drive ----------------------------------------------------------------
 
-export type DriveFile = { id: string; name: string; parents?: string[]; trashed?: boolean };
+export type DriveFile = {
+  id: string;
+  name: string;
+  parents?: string[];
+  trashed?: boolean;
+  /** Strings: Drive returns 64-bit sizes as decimal strings, not numbers. */
+  size?: string;
+  mimeType?: string;
+};
 
 const FOLDER_MIME = 'application/vnd.google-apps.folder';
 
@@ -93,7 +101,7 @@ export async function ensureFolder(
 export async function getFile(fileId: string): Promise<DriveFile | null> {
   try {
     return await call<DriveFile>(
-      `${DRIVE}/files/${fileId}?fields=id,name,parents,trashed`,
+      `${DRIVE}/files/${fileId}?fields=id,name,parents,trashed,size,mimeType`,
     );
   } catch (error) {
     if (error instanceof GoogleApiError && error.status === 404) return null;
@@ -113,6 +121,68 @@ export async function moveFile(fileId: string, newParentId: string): Promise<voi
   if (previous) params.set('removeParents', previous);
 
   await call(`${DRIVE}/files/${fileId}?${params}`, { method: 'PATCH', body: '{}' });
+}
+
+/**
+ * Open a resumable upload and return the URL the *browser* will send bytes to.
+ *
+ * This is how a file larger than 4.5 MB reaches Drive at all: Vercel caps a
+ * function's request body there, and the app has nowhere else to park bytes,
+ * so anything bigger could never travel through us. Google hands back a
+ * one-file, one-week session URL, and the browser PUTs straight to it — the
+ * upload never touches our infrastructure and the ceiling becomes Drive's.
+ *
+ * The access token stays on this side. The session URL is the capability, and
+ * it authorises exactly one upload of one file into one folder, which is a far
+ * smaller thing to hand a page than an hour of Drive access.
+ *
+ * Verified against the real API before this was written: the cross-origin POST
+ * is permitted and `Location` is readable from a browser. Drive allows this;
+ * Cloud Storage, whose documented CORS failures say otherwise, is a different
+ * service.
+ */
+export async function createResumableSession(
+  name: string,
+  mimeType: string,
+  parentId: string,
+  origin: string,
+): Promise<string> {
+  const token = await getAccessToken();
+
+  const response = await fetch(
+    'https://www.googleapis.com/upload/drive/v3/files?uploadType=resumable&fields=id,name',
+    {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json; charset=UTF-8',
+        // Declaring the type up front means Drive stores it even though the
+        // bytes arrive later, from somewhere else.
+        'X-Upload-Content-Type': mimeType || 'application/octet-stream',
+        /**
+         * The session is bound to whichever origin opened it, and only that
+         * origin may PUT to it. This request comes from a server, which sends
+         * no Origin of its own, so the browser's is forwarded — without it the
+         * session works perfectly from curl and is refused by the page that
+         * actually has the bytes. Cost me a confusing "Failed to fetch" after
+         * a spike that worked, because the spike opened the session from the
+         * browser and inherited the right origin by accident.
+         */
+        Origin: origin,
+      },
+      body: JSON.stringify({ name, parents: [parentId] }),
+    },
+  );
+
+  const location = response.headers.get('Location');
+  if (!response.ok || !location) {
+    throw new GoogleApiError(
+      `Drive refused to open an upload session (${response.status})`,
+      response.status,
+    );
+  }
+
+  return location;
 }
 
 /**

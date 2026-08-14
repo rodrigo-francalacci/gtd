@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { captureInboxItem } from '@/lib/actions';
 import { uploadCaptureFiles } from '@/lib/capture-upload';
-import { MAX_UPLOAD_MB } from '@/lib/upload';
+import { MAX_DIRECT_UPLOAD_MB } from '@/lib/upload';
 import {
   IconAudio,
   IconCamera,
@@ -109,15 +109,15 @@ export function InboxCapture() {
     const list = [...files];
     if (list.length === 0) return;
 
-    const tooBig = list.filter((f) => f.size > MAX_UPLOAD_MB * 1024 * 1024);
-    const ok = list.filter((f) => f.size <= MAX_UPLOAD_MB * 1024 * 1024 && f.size > 0);
+    const tooBig = list.filter((f) => f.size > MAX_DIRECT_UPLOAD_MB * 1024 * 1024);
+    const ok = list.filter((f) => f.size <= MAX_DIRECT_UPLOAD_MB * 1024 * 1024 && f.size > 0);
 
     if (tooBig.length > 0) {
       setErrors((e) => [
         ...e,
         ...tooBig.map(
           (f) =>
-            `${f.name} is ${(f.size / 1024 / 1024).toFixed(1)} MB — the limit is ${MAX_UPLOAD_MB} MB.`,
+            `${f.name} is ${(f.size / 1024 / 1024).toFixed(1)} MB — the limit is ${MAX_DIRECT_UPLOAD_MB} MB.`,
         ),
       ]);
     }

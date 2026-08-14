@@ -4,6 +4,7 @@ import { useRef, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import type { AttachmentParentType } from '@gtd/db';
 import { createDocument, detachAttachment } from '@/lib/actions';
+import { UploadError, uploadToDrive } from '@/lib/drive-upload';
 import { GOOGLE_DOC, GOOGLE_SHEET, driveFileUrl } from '@/lib/google/sync';
 import type { AttachmentRow } from '@/lib/queries.shared';
 import { useFilePreview } from './file-preview';
@@ -35,6 +36,8 @@ export function Attachments({
 
   const [over, setOver] = useState(false);
   const [busy, setBusy] = useState<string[]>([]);
+  /** Per-file 0–1, keyed by name. A book takes long enough to need a bar. */
+  const [progress, setProgress] = useState<Record<string, number>>({});
   const [errors, setErrors] = useState<string[]>([]);
   const [creating, setCreating] = useState(false);
   const [, startTransition] = useTransition();
@@ -76,25 +79,29 @@ export function Attachments({
     setErrors([]);
     setBusy((b) => [...b, ...list.map((f) => f.name)]);
 
-    // One request per file, so a rejected 20 MB video doesn't take the two
-    // small files beside it down with it.
+    // One upload per file, so a rejected file doesn't take the ones beside it
+    // down with it. Each goes straight to Drive, which is what lets a 21 MB
+    // book be attached at all — through our own function it would hit Vercel's
+    // 4.5 MB body cap.
     await Promise.all(
       list.map(async (file) => {
-        const body = new FormData();
-        body.set('parentType', parentType);
-        body.set('parentId', parentId);
-        body.set('file', file);
-
         try {
-          const response = await fetch('/api/attachments', { method: 'POST', body });
-          if (!response.ok) {
-            const { error } = await response.json().catch(() => ({}));
-            setErrors((e) => [...e, error ?? `${file.name} failed to upload.`]);
-          }
-        } catch {
-          setErrors((e) => [...e, `${file.name} failed to upload.`]);
+          await uploadToDrive({ parentType, parentId }, file, (fraction) =>
+            setProgress((p) => ({ ...p, [file.name]: fraction })),
+          );
+        } catch (error) {
+          setErrors((e) => [
+            ...e,
+            error instanceof UploadError
+              ? error.message
+              : `${file.name} failed to upload.`,
+          ]);
         } finally {
           setBusy((b) => b.filter((n) => n !== file.name));
+          setProgress((p) => {
+            const { [file.name]: _done, ...rest } = p;
+            return rest;
+          });
         }
       }),
     );
@@ -263,7 +270,13 @@ export function Attachments({
               >
                 <IconDocument className="shrink-0" />
                 <span className="min-w-0 flex-1 truncate">{name}</span>
-                <span className="shrink-0 text-[11px]">uploading…</span>
+                {/* A percentage, because a large file otherwise looks
+                    indistinguishable from a stalled one. */}
+                <span className="shrink-0 tabular-nums text-[11px]">
+                  {progress[name] === undefined
+                    ? 'uploading…'
+                    : `${Math.round(progress[name] * 100)}%`}
+                </span>
               </li>
             ))}
           </ul>
