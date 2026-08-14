@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { captureInboxItem } from '@/lib/actions';
+import { uploadCaptureFiles } from '@/lib/capture-upload';
 import { MAX_UPLOAD_MB } from '@/lib/upload';
 import { AudioRecorder } from './audio-recorder';
 import { IconAudio, IconCamera, IconImage, IconPaperclip, IconStop } from './icons';
@@ -44,6 +45,22 @@ export function MobileCapture({ recent }: { recent: Recent[] }) {
   const [recording, setRecording] = useState(false);
   const [errors, setErrors] = useState<string[]>([]);
   const [flash, setFlash] = useState<string | null>(null);
+  const [progress, setProgress] = useState<{ done: number; total: number } | null>(
+    null,
+  );
+
+  /**
+   * Phones background a tab the instant you switch app, and the staged files
+   * exist only in memory — there is nothing to resume from. This is the one
+   * moment worth interrupting a navigation for.
+   */
+  useEffect(() => {
+    if (!progress) return;
+
+    const warn = (event: BeforeUnloadEvent) => event.preventDefault();
+    window.addEventListener('beforeunload', warn);
+    return () => window.removeEventListener('beforeunload', warn);
+  }, [progress]);
 
   /**
    * A draft is not a preference, so it belongs here rather than in the
@@ -89,7 +106,10 @@ export function MobileCapture({ recent }: { recent: Recent[] }) {
     setErrors([]);
 
     const files = staged;
-    setStaged([]);
+    // The text clears at once — the next thought should not queue behind
+    // Drive. The files stay on screen until they have actually arrived, which
+    // is the whole point: clearing them early is what let four photos of five
+    // die quietly behind a screen that already said it was done.
     setText('');
 
     try {
@@ -105,42 +125,34 @@ export function MobileCapture({ recent }: { recent: Recent[] }) {
       );
 
       const item = await captureInboxItem(body);
-      if (!item) return;
-
-      let failed = 0;
-      for (const file of files) {
-        const upload = new FormData();
-        upload.set('parentType', 'inbox_item');
-        upload.set('parentId', item.id);
-        upload.set('file', file);
-
-        try {
-          const response = await fetch('/api/attachments', {
-            method: 'POST',
-            body: upload,
-          });
-          if (!response.ok) {
-            const { error } = await response.json().catch(() => ({}));
-            setErrors((e) => [...e, error ?? `${file.name} failed to upload.`]);
-            failed += 1;
-          }
-        } catch {
-          setErrors((e) => [
-            ...e,
-            `${file.name} failed to upload — the note was saved.`,
-          ]);
-          failed += 1;
-        }
+      if (!item) {
+        setStaged([]);
+        return;
       }
 
-      // On a phone you cannot see the inbox behind this screen, so the
-      // confirmation has to be explicit rather than implied by an empty field.
+      if (files.length === 0) {
+        setStaged([]);
+        setFlash('Captured.');
+        router.refresh();
+        return;
+      }
+
+      setProgress({ done: 0, total: files.length });
+      const failures = await uploadCaptureFiles(item.id, files, (done, total) =>
+        setProgress({ done, total }),
+      );
+      setProgress(null);
+
+      // Anything that failed stays staged so "Capture" sends it again, rather
+      // than the photo simply ceasing to exist.
+      setStaged(failures.map((f) => f.file));
+      setErrors(failures.map((f) => f.message));
+
+      const landed = files.length - failures.length;
       setFlash(
-        files.length === 0
-          ? 'Captured.'
-          : failed === 0
-            ? `Captured with ${files.length} file${files.length > 1 ? 's' : ''}.`
-            : 'Captured — but some files did not upload.',
+        failures.length === 0
+          ? `Captured with ${landed} file${landed === 1 ? '' : 's'}.`
+          : `Captured — ${landed} of ${files.length} files arrived. Tap Capture to retry the rest.`,
       );
       router.refresh();
     } catch {
@@ -201,14 +213,16 @@ export function MobileCapture({ recent }: { recent: Recent[] }) {
                 )}
               </span>
               <span className="min-w-0 flex-1 truncate">{file.name}</span>
-              <button
-                type="button"
-                aria-label={`Remove ${file.name}`}
-                onClick={() => setStaged((s) => s.filter((_, j) => j !== i))}
-                className="shrink-0 px-2 text-[18px] leading-none text-grey-500"
-              >
-                ×
-              </button>
+              {progress ? null : (
+                <button
+                  type="button"
+                  aria-label={`Remove ${file.name}`}
+                  onClick={() => setStaged((s) => s.filter((_, j) => j !== i))}
+                  className="shrink-0 px-2 text-[18px] leading-none text-grey-500"
+                >
+                  ×
+                </button>
+              )}
             </li>
           ))}
         </ul>
@@ -276,8 +290,17 @@ export function MobileCapture({ recent }: { recent: Recent[] }) {
           disabled={busy || (!text.trim() && staged.length === 0)}
           className="w-full rounded-sm bg-grey-800 py-3 text-[15px] font-medium text-paper disabled:opacity-40"
         >
-          {busy ? 'Capturing…' : 'Capture'}
+          {progress
+            ? `Uploading ${progress.done} of ${progress.total}…`
+            : busy
+              ? 'Capturing…'
+              : 'Capture'}
         </button>
+        {progress ? (
+          <p className="text-center text-[12px] text-grey-500">
+            Your note is saved. Stay here until the files finish.
+          </p>
+        ) : null}
       </div>
 
       {recent.length > 0 ? (

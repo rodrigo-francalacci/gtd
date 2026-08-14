@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { captureInboxItem } from '@/lib/actions';
+import { uploadCaptureFiles } from '@/lib/capture-upload';
 import { MAX_UPLOAD_MB } from '@/lib/upload';
 import {
   IconAudio,
@@ -39,6 +40,23 @@ export function InboxCapture() {
   const [busy, setBusy] = useState(false);
   const [recording, setRecording] = useState(false);
   const [errors, setErrors] = useState<string[]>([]);
+  const [progress, setProgress] = useState<{ done: number; total: number } | null>(
+    null,
+  );
+
+  /**
+   * Closing the tab mid-upload loses whatever has not gone yet, and the files
+   * are only in memory — there is no queue to resume from. The browser's own
+   * dialog is the only thing that can interrupt a navigation, so it is worth
+   * the small rudeness while bytes are actually in flight.
+   */
+  useEffect(() => {
+    if (!progress) return;
+
+    const warn = (event: BeforeUnloadEvent) => event.preventDefault();
+    window.addEventListener('beforeunload', warn);
+    return () => window.removeEventListener('beforeunload', warn);
+  }, [progress]);
 
   /**
    * Focus on demand, from anywhere in the app.
@@ -107,6 +125,12 @@ export function InboxCapture() {
    * fails, the capture still exists with its text and the file can be attached
    * again from the clarify pane — losing the thought because Google was
    * unavailable is the one outcome capture must never have.
+   *
+   * The text field clears immediately, because the next thought should not
+   * have to wait for Drive. The *files* deliberately do not: they stay on
+   * screen, counting down, until they have actually arrived. Clearing them
+   * early is what made five photos look like a finished capture while four of
+   * them were still queued.
    */
   const submit = async () => {
     const text = fieldRef.current?.value.trim() ?? '';
@@ -116,9 +140,6 @@ export function InboxCapture() {
     setErrors([]);
 
     const files = staged;
-    // Cleared up front so the field is ready for the next thought immediately,
-    // rather than after a round trip to Drive.
-    setStaged([]);
     if (fieldRef.current) fieldRef.current.value = '';
 
     try {
@@ -127,26 +148,25 @@ export function InboxCapture() {
       body.set('rawType', rawTypeFor(files));
 
       const item = await captureInboxItem(body);
-      if (!item) return;
+      if (!item) {
+        setStaged([]);
+        return;
+      }
 
-      for (const file of files) {
-        const upload = new FormData();
-        upload.set('parentType', 'inbox_item');
-        upload.set('parentId', item.id);
-        upload.set('file', file);
+      if (files.length > 0) {
+        setProgress({ done: 0, total: files.length });
 
-        try {
-          const response = await fetch('/api/attachments', {
-            method: 'POST',
-            body: upload,
-          });
-          if (!response.ok) {
-            const { error } = await response.json().catch(() => ({}));
-            setErrors((e) => [...e, error ?? `${file.name} failed to upload.`]);
-          }
-        } catch {
-          setErrors((e) => [...e, `${file.name} failed to upload.`]);
-        }
+        const failures = await uploadCaptureFiles(item.id, files, (done, total) =>
+          setProgress({ done, total }),
+        );
+
+        // Whatever failed stays staged, so "Capture" sends it again against a
+        // new row rather than the file quietly ceasing to exist.
+        setStaged(failures.map((f) => f.file));
+        setErrors(failures.map((f) => f.message));
+        setProgress(null);
+      } else {
+        setStaged([]);
       }
 
       router.refresh();
@@ -214,14 +234,16 @@ export function InboxCapture() {
                 )}
               </span>
               <span className="max-w-[16rem] truncate">{file.name}</span>
-              <button
-                type="button"
-                onClick={() => unstage(i)}
-                aria-label={`Remove ${file.name}`}
-                className="text-grey-500 hover:text-grey-800"
-              >
-                ×
-              </button>
+              {progress ? null : (
+                <button
+                  type="button"
+                  onClick={() => unstage(i)}
+                  aria-label={`Remove ${file.name}`}
+                  className="text-grey-500 hover:text-grey-800"
+                >
+                  ×
+                </button>
+              )}
             </li>
           ))}
         </ul>
@@ -278,7 +300,9 @@ export function InboxCapture() {
           </button>
 
           <span className="ml-1 text-[11px] text-grey-400">
-            Enter to capture · paste or drop a file
+            {progress
+              ? `Uploading ${progress.done} of ${progress.total} — the note is already saved`
+              : 'Enter to capture · paste or drop a file'}
           </span>
         </div>
 
@@ -287,7 +311,11 @@ export function InboxCapture() {
           disabled={busy}
           className="shrink-0 rounded-sm bg-grey-800 px-2 py-0.5 text-[11px] text-paper disabled:opacity-40"
         >
-          {busy ? 'Capturing…' : 'Capture'}
+          {progress
+            ? `${progress.done}/${progress.total}`
+            : busy
+              ? 'Capturing…'
+              : 'Capture'}
         </button>
       </div>
 

@@ -208,6 +208,19 @@ Turbopack is the default; `middleware` is now `proxy`.
   Server Action caps its body at 1 MB and is the wrong shape for a file. It is
   also the right order: if Drive is down, the thought is already safe and the
   file can be attached again from the clarify pane.
+- **The screen must stay honest until the last file lands.** The text field
+  clears the moment the row is written — the next thought must not queue behind
+  Drive — but the *staged files* stay visible, counting down, because they are
+  still going. Clearing them early made a five-photo capture look finished
+  while four uploads were still queued, and leaving the page then killed them:
+  one photo of five arrived, with nothing recorded about the rest. That is not
+  a rare failure, it is what the design did whenever you believed it.
+  `uploadCaptureFiles` runs three at a time (nine seconds down to two and a
+  half for five files), reports progress, keeps failures staged so Capture
+  retries them, and a `beforeunload` guard covers the window where bytes are
+  genuinely in flight. There is no server-side queue to resume from — the files
+  live only in the tab — which is exactly why the tab must not lie about being
+  done.
 - **A capture needs text *or* a file, not both.** A photo with no note is a
   complete capture; the list falls back to "Photo" / "Voice note" so the row is
   still recognisable, and the clarify panel seeds its title from the file name.
