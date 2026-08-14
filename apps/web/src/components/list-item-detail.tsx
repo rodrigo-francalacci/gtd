@@ -8,6 +8,7 @@ import {
   setListItemProject,
   unpromoteListItem,
   updateListItemFields,
+  updateListItemNotes,
   updateListItemTitle,
 } from '@/lib/actions';
 import {
@@ -20,6 +21,7 @@ import {
   type AttachmentRow,
 } from '@/lib/queries.shared';
 import { Attachments } from './attachments';
+import { NoteEditor } from './note-editor';
 
 export function ListItemDetail({
   item,
@@ -161,6 +163,22 @@ export function ListItemDetail({
             </option>
           ))}
         </select>
+      </section>
+
+      <section className="mt-6">
+        <h2 className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-grey-500">
+          Notes
+        </h2>
+        {/* key: the editor must not resync from props on autosave, so switching
+            items is handled by remounting rather than by an effect. */}
+        <NoteEditor
+          key={item.id}
+          initialContent={item.notes}
+          placeholder="Why this is here, what it depends on…"
+          onSave={async (doc) => {
+            await updateListItemNotes(item.id, doc);
+          }}
+        />
       </section>
 
       <Attachments

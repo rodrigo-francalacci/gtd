@@ -691,6 +691,9 @@ export async function getListItems(listId: string): Promise<ListItemRow[]> {
     ...r,
     fields: (r.fields as PurchaseFields | null) ?? null,
     stage: stageOf(r.promotedActionId, r.promotedActionStatus),
+    // A list renders titles. Selecting a row fetches its body separately, so
+    // a long note on one item costs nothing to draw the other twenty.
+    notes: null,
   }));
 }
 
@@ -706,6 +709,7 @@ export async function getListItem(id: string): Promise<ListItemRow | null> {
       promotedActionId: listItems.promotedActionId,
       promotedActionStatus: actions.status,
       position: listItems.position,
+      notes: listItems.notes,
     })
     .from(listItems)
     .leftJoin(projects, eq(projects.id, listItems.projectId))

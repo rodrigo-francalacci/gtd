@@ -9,6 +9,7 @@ import {
   IconAudio,
   IconCamera,
   IconImage,
+  IconNote,
   IconPaperclip,
   IconRecord,
   IconStop,
@@ -32,8 +33,15 @@ export function InboxCapture() {
   const router = useRouter();
   const formRef = useRef<HTMLFormElement>(null);
   const fieldRef = useRef<HTMLTextAreaElement>(null);
+  const noteRef = useRef<HTMLTextAreaElement>(null);
   const filePicker = useRef<HTMLInputElement>(null);
   const cameraPicker = useRef<HTMLInputElement>(null);
+
+  /**
+   * Hidden until asked for. Most captures are one line, and a second box
+   * always on screen makes the quick case look like a form to fill in.
+   */
+  const [noteOpen, setNoteOpen] = useState(false);
 
   const [staged, setStaged] = useState<File[]>([]);
   const [over, setOver] = useState(false);
@@ -133,7 +141,14 @@ export function InboxCapture() {
    * them were still queued.
    */
   const submit = async () => {
-    const text = fieldRef.current?.value.trim() ?? '';
+    const title = fieldRef.current?.value.trim() ?? '';
+    const note = noteRef.current?.value.trim() ?? '';
+    // One field on the way in, because the raw capture is exactly what you
+    // typed and splitting it into columns would be the app editing it. Clarify
+    // already reads the first line as the title, so the blank line is the
+    // whole convention.
+    const text = note ? `${title}\n\n${note}` : title;
+
     if (!text && staged.length === 0) return;
 
     setBusy(true);
@@ -141,6 +156,8 @@ export function InboxCapture() {
 
     const files = staged;
     if (fieldRef.current) fieldRef.current.value = '';
+    if (noteRef.current) noteRef.current.value = '';
+    setNoteOpen(false);
 
     try {
       const body = new FormData();
@@ -216,6 +233,21 @@ export function InboxCapture() {
         }}
         className="w-full resize-none bg-transparent text-[13px] leading-relaxed text-grey-800 placeholder:text-grey-400 focus:outline-none"
       />
+
+      {noteOpen ? (
+        <textarea
+          ref={noteRef}
+          rows={3}
+          autoFocus
+          placeholder="A bit more — why it matters, what it depends on…"
+          onKeyDown={(e) => {
+            // Enter makes new lines here. A note is prose; committing on
+            // Enter would fight every paragraph you try to write.
+            if (e.key === 'Escape') setNoteOpen(false);
+          }}
+          className="mt-1 w-full resize-none border-l-2 border-grey-200 bg-transparent pl-2 text-[12px] leading-relaxed text-grey-700 placeholder:text-grey-400 focus:outline-none"
+        />
+      ) : null}
 
       {staged.length > 0 ? (
         <ul className="mb-2 mt-1 flex flex-wrap gap-1.5">
@@ -297,6 +329,18 @@ export function InboxCapture() {
             className={recording ? 'text-waiting' : 'hover:text-grey-800'}
           >
             {recording ? <IconStop /> : <IconRecord />}
+          </button>
+          <button
+            type="button"
+            title={noteOpen ? 'Hide the note' : 'Add a note'}
+            aria-label={noteOpen ? 'Hide the note' : 'Add a note'}
+            onClick={() => {
+              setNoteOpen((open) => !open);
+              if (noteOpen && noteRef.current) noteRef.current.value = '';
+            }}
+            className={noteOpen ? 'text-grey-800' : 'hover:text-grey-800'}
+          >
+            <IconNote />
           </button>
 
           <span className="ml-1 text-[11px] text-grey-400">

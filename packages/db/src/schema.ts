@@ -311,8 +311,16 @@ export const listItems = pgTable(
     }),
     /** Manual sort order. See the note on `actions.position`. */
     position: doublePrecision('position'),
-    /** Title only — `fields` holds costs and enums, nothing worth searching. */
-    searchVector: searchVector('title'),
+    /**
+     * TipTap JSON, like every other notes column. A list item was title-only
+     * until a capture could carry a note: "Basic training" tells you nothing
+     * in a year, and the sentence explaining why you wrote it down is the part
+     * worth keeping.
+     */
+    notes: jsonb('notes'),
+    /** Plaintext flattened from `notes`, kept in sync by the app for search. */
+    searchText: text('search_text'),
+    searchVector: searchVector('title', 'search_text'),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [

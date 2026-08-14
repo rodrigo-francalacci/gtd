@@ -215,6 +215,13 @@ export const IconAudio = (p: IconProps) => (
   </Glyph>
 );
 
+/** Add a note — ruled lines. */
+export const IconNote = (p: IconProps) => (
+  <Glyph {...p}>
+    <path d="M3 4.2h10M3 8h10M3 11.8h6" />
+  </Glyph>
+);
+
 /** Take a photo — a camera body with a lens. */
 export const IconCamera = (p: IconProps) => (
   <Glyph {...p}>

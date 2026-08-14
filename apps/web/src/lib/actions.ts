@@ -41,7 +41,7 @@ import {
   removeAttachment,
 } from './google/attachments';
 import { enqueueSync } from './google/queue';
-import { extractText } from './tiptap';
+import { docFromText, extractText } from './tiptap';
 
 /**
  * Every mutation revalidates the whole shell: the sidebar counts, the stalled
@@ -338,6 +338,19 @@ export async function updateActionNotes(actionId: string, notes: unknown) {
     .where(eq(actions.id, actionId));
 }
 
+/**
+ * A list item's notes. Same shape as the project and action versions — it
+ * gained a notes column when captures started carrying one, and a note you can
+ * write at capture time but never edit afterwards would be a strange half.
+ */
+export async function updateListItemNotes(listItemId: string, notes: unknown) {
+  await requireSession();
+  await db
+    .update(listItems)
+    .set({ notes: notes as object, searchText: extractText(notes) })
+    .where(eq(listItems.id, listItemId));
+}
+
 export async function deleteAction(actionId: string) {
   await requireSession();
   await db.delete(actions).where(eq(actions.id, actionId));
@@ -494,16 +507,41 @@ export async function captureInboxItem(
   return { id: item.id };
 }
 
+/**
+ * `note` is the rest of the capture — everything after the first line.
+ *
+ * It used to go nowhere. Clarify took line one as the title and left the rest
+ * on the capture, so the sentence explaining *why* you wrote something down
+ * was dropped at exactly the moment it became a real commitment. It is written
+ * into the outcome's `notes` instead, as plain paragraphs the note editor can
+ * open and add to.
+ */
+type WithNote = { note: string };
+
 export type ClarifyDecision =
-  | {
+  | ({
       kind: 'next_action' | 'waiting' | 'done';
       title: string;
       projectId: string | null;
       contextIds: string[];
-    }
-  | { kind: 'project'; title: string; areaId: string | null }
-  | { kind: 'list_item'; title: string; listId: string }
+    } & WithNote)
+  | ({ kind: 'project'; title: string; areaId: string | null } & WithNote)
+  | ({ kind: 'list_item'; title: string; listId: string } & WithNote)
   | { kind: 'trashed' };
+
+/**
+ * The note as a stored document, plus the flattened copy search reads.
+ *
+ * `search_text` is not optional: `search_vector` is generated from it, so
+ * writing `notes` without it silently removes the row's body from search.
+ */
+function noteColumns(note: string) {
+  const text = note.trim();
+  if (!text) return { notes: null, searchText: null };
+
+  const doc = docFromText(text);
+  return { notes: doc, searchText: extractText(doc) };
+}
 
 /**
  * Clarify a capture into something real.
@@ -531,7 +569,12 @@ export async function clarifyInboxItem(itemId: string, decision: ClarifyDecision
 
     const [project] = await db
       .insert(projects)
-      .values({ title, areaId: decision.areaId, status: 'active' })
+      .values({
+        title,
+        areaId: decision.areaId,
+        status: 'active',
+        ...noteColumns(decision.note),
+      })
       .returning();
     outcomeId = project.id;
 
@@ -542,7 +585,7 @@ export async function clarifyInboxItem(itemId: string, decision: ClarifyDecision
 
     const [listItem] = await db
       .insert(listItems)
-      .values({ listId: decision.listId, title })
+      .values({ listId: decision.listId, title, ...noteColumns(decision.note) })
       .returning();
     outcomeId = listItem.id;
   } else if (decision.kind !== 'trashed') {
@@ -562,6 +605,7 @@ export async function clarifyInboxItem(itemId: string, decision: ClarifyDecision
         status,
         waitingSince: status === 'waiting' ? today() : null,
         completedAt: status === 'done' ? new Date() : null,
+        ...noteColumns(decision.note),
       })
       .returning();
     outcomeId = action.id;

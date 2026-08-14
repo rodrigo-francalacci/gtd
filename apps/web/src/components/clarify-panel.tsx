@@ -58,6 +58,15 @@ export function ClarifyPanel({
   const [title, setTitle] = useState(
     (item.rawText ?? '').split('\n')[0].trim() || attachments[0]?.name || '',
   );
+
+  /**
+   * Everything after the first line. It travels onto whatever the capture
+   * becomes, so the reason you wrote something down survives the moment it
+   * turns into a commitment — which is precisely when you stop remembering it.
+   */
+  const [note, setNote] = useState(
+    (item.rawText ?? '').split('\n').slice(1).join('\n').trim(),
+  );
   const [projectId, setProjectId] = useState(item.aiSuggestion?.projectId ?? '');
   const [areaId, setAreaId] = useState('');
   const [listId, setListId] = useState(lists[0]?.id ?? '');
@@ -77,11 +86,13 @@ export function ClarifyPanel({
 
     let decision: ClarifyDecision;
     if (kind === 'trashed') decision = { kind: 'trashed' };
-    else if (kind === 'project') decision = { kind, title, areaId: areaId || null };
+    else if (kind === 'project')
+      decision = { kind, title, areaId: areaId || null, note };
     else if (kind === 'list_item') {
       if (!listId) return;
-      decision = { kind, title, listId };
-    } else decision = { kind, title, projectId: projectId || null, contextIds };
+      decision = { kind, title, listId, note };
+    } else
+      decision = { kind, title, projectId: projectId || null, contextIds, note };
 
     startTransition(async () => {
       await clarifyInboxItem(item.id, decision);
@@ -105,6 +116,8 @@ export function ClarifyPanel({
       await clarifyInboxItem(item.id, decision);
       setKind(null);
     });
+
+  const quickNote = note;
 
   const needsTitle = kind !== null && kind !== 'trashed';
   const dimensions: { key: keyof typeof contextGroups; label: string }[] = [
@@ -156,6 +169,7 @@ export function ClarifyPanel({
               title: quickTitle,
               projectId: null,
               contextIds: [],
+              note: quickNote,
             })
           }
         />
@@ -169,7 +183,12 @@ export function ClarifyPanel({
           disabled={pending || !quickTitle || !somedayList}
           onClick={() =>
             somedayList &&
-            quickFile({ kind: 'list_item', title: quickTitle, listId: somedayList.id })
+            quickFile({
+              kind: 'list_item',
+              title: quickTitle,
+              listId: somedayList.id,
+              note: quickNote,
+            })
           }
         />
         <QuickButton
@@ -220,6 +239,21 @@ export function ClarifyPanel({
               deleted.
             </p>
           )}
+
+          {needsTitle ? (
+            <div className="mt-3">
+              <label className="block text-[10px] font-semibold uppercase tracking-wider text-grey-500">
+                Note
+              </label>
+              <textarea
+                value={note}
+                onChange={(e) => setNote(e.target.value)}
+                rows={3}
+                placeholder="Anything worth remembering about it — carried over to the notes."
+                className="mt-1 w-full resize-none rounded-sm border border-grey-300 bg-paper px-2 py-1 text-[12px] leading-relaxed focus:border-grey-500 focus:outline-none"
+              />
+            </div>
+          ) : null}
 
           {kind === 'next_action' || kind === 'waiting' || kind === 'done' ? (
             <>

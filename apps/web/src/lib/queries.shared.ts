@@ -115,6 +115,12 @@ export type ListItemRow = {
   promotedActionStatus: ActionStatus | null;
   position: number | null;
   stage: ItemStage;
+  /**
+   * Only the detail pane needs the body, so the list query leaves it out —
+   * `getListItem` fills it and `getListItems` sets it null rather than
+   * shipping a document per row to render a title.
+   */
+  notes: unknown;
 };
 
 export function stageOf(

@@ -224,6 +224,19 @@ Turbopack is the default; `middleware` is now `proxy`.
 - **A capture needs text *or* a file, not both.** A photo with no note is a
   complete capture; the list falls back to "Photo" / "Voice note" so the row is
   still recognisable, and the clarify panel seeds its title from the file name.
+- **A capture is one `raw_text`: first line the title, blank line, then the
+  note.** Two boxes on the way in, one column at rest — splitting the raw
+  capture across columns would be the app editing what you typed, and clarify
+  already read line one as the title. The note is written into the *outcome's*
+  `notes` on clarify, via `docFromText`, because it used to go nowhere: the
+  sentence explaining why you wrote something down was dropped at exactly the
+  moment it became a commitment. `noteColumns` writes `search_text` alongside
+  it — `search_vector` is generated from that column, so notes without it are
+  silently unsearchable. `list_items` gained `notes`/`search_text` for this;
+  it was title-only before.
+- **`docFromText` normalises CRLF.** A textarea submits `\r\n` by
+  specification, and a stray `\r` survives `trim()` in the middle of a
+  paragraph and ends up in the stored document.
 - **Files follow the clarify decision.** The photo *is* the thing you captured,
   so re-parenting it to the action, project or list item the capture became is
   what keeps it findable — stranding it on a clarified inbox row nobody reopens

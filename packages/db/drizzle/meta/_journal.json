@@ -127,6 +127,13 @@
       "when": 1786661994276,
       "tag": "0017_glorious_lilandra",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1786718791181,
+      "tag": "0018_special_blazing_skull",
+      "breakpoints": true
     }
   ]
 }

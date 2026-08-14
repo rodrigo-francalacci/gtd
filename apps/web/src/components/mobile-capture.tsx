@@ -40,6 +40,9 @@ export function MobileCapture({ recent }: { recent: Recent[] }) {
   const cameraPicker = useRef<HTMLInputElement>(null);
 
   const [text, setText] = useState('');
+  /** The longer half, hidden until asked for — most captures are one line. */
+  const [detail, setDetail] = useState('');
+  const [noteOpen, setNoteOpen] = useState(false);
   const [staged, setStaged] = useState<File[]>([]);
   const [busy, setBusy] = useState(false);
   const [recording, setRecording] = useState(false);
@@ -99,7 +102,11 @@ export function MobileCapture({ recent }: { recent: Recent[] }) {
   };
 
   const submit = async () => {
-    const note = text.trim();
+    const title = text.trim();
+    const extra = detail.trim();
+    // Same convention as the desktop: one raw capture, first line is the
+    // title, blank line then the note.
+    const note = extra ? `${title}\n\n${extra}` : title;
     if (!note && staged.length === 0) return;
 
     setBusy(true);
@@ -111,6 +118,8 @@ export function MobileCapture({ recent }: { recent: Recent[] }) {
     // is the whole point: clearing them early is what let four photos of five
     // die quietly behind a screen that already said it was done.
     setText('');
+    setDetail('');
+    setNoteOpen(false);
 
     try {
       const body = new FormData();
@@ -195,6 +204,25 @@ export function MobileCapture({ recent }: { recent: Recent[] }) {
         autoFocus
         className="min-h-[7rem] flex-1 resize-none bg-transparent py-2 text-[16px] leading-relaxed text-grey-800 placeholder:text-grey-400 focus:outline-none"
       />
+
+      {noteOpen ? (
+        <textarea
+          value={detail}
+          onChange={(e) => setDetail(e.target.value)}
+          rows={4}
+          autoFocus
+          placeholder="A bit more…"
+          className="mb-2 shrink-0 resize-none border-l-2 border-grey-200 bg-transparent pl-2 text-[16px] leading-relaxed text-grey-700 placeholder:text-grey-400 focus:outline-none"
+        />
+      ) : (
+        <button
+          type="button"
+          onClick={() => setNoteOpen(true)}
+          className="mb-2 shrink-0 self-start text-[13px] text-grey-500 underline underline-offset-2"
+        >
+          Add a note
+        </button>
+      )}
 
       {staged.length > 0 ? (
         <ul className="shrink-0 space-y-1.5 pb-2">
