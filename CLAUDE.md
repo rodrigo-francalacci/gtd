@@ -256,6 +256,20 @@ Turbopack is the default; `middleware` is now `proxy`.
 - **`docFromText` normalises CRLF.** A textarea submits `\r\n` by
   specification, and a stray `\r` survives `trim()` in the middle of a
   paragraph and ends up in the stored document.
+- **The inbox list shows the first line only.** The note lives below it in the
+  same `raw_text`, and letting it spill into the list turns a queue you scan
+  into a wall of prose — the list exists to tell twenty captures apart at a
+  glance. An icon flags that a note is there; reading it is a click away, in
+  the pane. Same rule on the phone's "just captured" list.
+- **The Chrome extension opens `/capture`; it does not post.** The session
+  cookie is `SameSite=Lax`, which sends it on a top-level navigation but not on
+  a cross-site `fetch` — and `chrome-extension://` is cross-site, so a popup
+  posting to the API would be signed out every time. The fix people reach for
+  is `SameSite=None`, which weakens the whole app to save one click. A
+  navigation carries the cookie, so the extension needs no credentials, no host
+  permissions and no API of its own. `?text=` and `?url=` prefill it; the URL
+  goes in the *note*, because a line of query string is unreadable as a title.
+  Lives in `extension/`, unpacked, not on the Web Store.
 - **Files follow the clarify decision.** The photo *is* the thing you captured,
   so re-parenting it to the action, project or list item the capture became is
   what keeps it findable — stranding it on a clarified inbox row nobody reopens

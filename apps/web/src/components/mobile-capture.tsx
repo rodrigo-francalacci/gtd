@@ -33,16 +33,32 @@ type Recent = {
   attachmentCount: number;
 };
 
-export function MobileCapture({ recent }: { recent: Recent[] }) {
+export function MobileCapture({
+  recent,
+  initialText = '',
+  initialUrl = '',
+}: {
+  recent: Recent[];
+  /** Prefilled by the browser extension: the selection, or the page title. */
+  initialText?: string;
+  /** The page it came from, kept as the note so the title stays a title. */
+  initialUrl?: string;
+}) {
   const router = useRouter();
   const field = useRef<HTMLTextAreaElement>(null);
   const filePicker = useRef<HTMLInputElement>(null);
   const cameraPicker = useRef<HTMLInputElement>(null);
 
-  const [text, setText] = useState('');
-  /** The longer half, hidden until asked for — most captures are one line. */
-  const [detail, setDetail] = useState('');
-  const [noteOpen, setNoteOpen] = useState(false);
+  const [text, setText] = useState(initialText);
+  /**
+   * The longer half, hidden until asked for — most captures are one line.
+   *
+   * A URL from the extension goes here rather than in the title: the title is
+   * what the list shows, and a line of query string is unreadable there. It
+   * also opens the note automatically, so you can see what was captured.
+   */
+  const [detail, setDetail] = useState(initialUrl);
+  const [noteOpen, setNoteOpen] = useState(Boolean(initialUrl));
   const [staged, setStaged] = useState<File[]>([]);
   const [busy, setBusy] = useState(false);
   const [recording, setRecording] = useState(false);
@@ -72,9 +88,14 @@ export function MobileCapture({ recent }: { recent: Recent[] }) {
    * backgrounded tab mid-sentence — is local by definition.
    */
   useEffect(() => {
+    // An extension capture arrives with its own text, and that is the thing
+    // you just asked for — a draft left over from yesterday must not replace
+    // the page you deliberately captured a second ago.
+    if (initialText) return;
+
     const saved = window.localStorage.getItem(DRAFT_KEY);
     if (saved) setText(saved);
-  }, []);
+  }, [initialText]);
 
   useEffect(() => {
     if (text) window.localStorage.setItem(DRAFT_KEY, text);
@@ -143,6 +164,7 @@ export function MobileCapture({ recent }: { recent: Recent[] }) {
         setStaged([]);
         setFlash('Captured.');
         router.refresh();
+        dismissIfPopup();
         return;
       }
 
@@ -164,6 +186,7 @@ export function MobileCapture({ recent }: { recent: Recent[] }) {
           : `Captured — ${landed} of ${files.length} files arrived. Tap Capture to retry the rest.`,
       );
       router.refresh();
+      if (failures.length === 0) dismissIfPopup();
     } catch {
       // The thought is the thing worth protecting: put it back rather than
       // clearing a field whose contents went nowhere.
@@ -343,7 +366,9 @@ export function MobileCapture({ recent }: { recent: Recent[] }) {
                 className="flex items-baseline gap-2 text-[13px] text-grey-600"
               >
                 <span className="min-w-0 flex-1 truncate">
-                  {item.rawText ||
+                  {/* First line only — the note below it would otherwise be
+                      what you see, having pushed the title out of view. */}
+                  {item.rawText?.split('\n')[0].trim() ||
                     (item.rawType === 'photo'
                       ? 'Photo'
                       : item.rawType === 'audio'
@@ -396,6 +421,21 @@ const time = new Intl.DateTimeFormat('en-GB', {
   hour: '2-digit',
   minute: '2-digit',
 });
+
+/**
+ * Close the extension's capture window once the thought is in.
+ *
+ * Only ever a window the extension opened: `window.close()` is refused for a
+ * tab the user navigated to themselves, so the phone and a normal browser tab
+ * are unaffected and simply stay put. Delayed so the confirmation is readable
+ * rather than a flash of something disappearing.
+ */
+function dismissIfPopup() {
+  if (typeof window === 'undefined') return;
+  if (!new URLSearchParams(window.location.search).has('text')) return;
+
+  setTimeout(() => window.close(), 900);
+}
 
 function BigButton({
   label,

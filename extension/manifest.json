@@ -1,0 +1,16 @@
+{
+  "manifest_version": 3,
+  "name": "GTD Capture",
+  "version": "1.0.0",
+  "description": "Send the page you're on, or the text you've selected, to your GTD inbox.",
+  "permissions": ["contextMenus", "activeTab", "scripting", "storage"],
+  "background": { "service_worker": "background.js" },
+  "options_page": "options.html",
+  "action": { "default_title": "Capture to GTD" },
+  "commands": {
+    "capture": {
+      "suggested_key": { "default": "Ctrl+Shift+U", "mac": "Command+Shift+U" },
+      "description": "Capture this page to GTD"
+    }
+  }
+}

@@ -11,7 +11,7 @@ import {
   getListOptions,
   getProjectOptions,
 } from '@/lib/queries';
-import { IconPaperclip } from '@/components/icons';
+import { IconNote, IconPaperclip } from '@/components/icons';
 import { INBOX_COLUMNS } from '@/lib/columns';
 import { getPreferences, paneWidth } from '@/lib/view-mode';
 
@@ -23,17 +23,28 @@ const stamp = new Intl.DateTimeFormat('en-GB', {
 });
 
 /**
- * What the row says.
+ * What the row says: the first line and nothing else.
+ *
+ * The note lives below it in the same `raw_text`, and letting it spill into the
+ * list turned a queue you scan into a wall of prose — the whole point of the
+ * list is telling twenty captures apart at a glance. The note is a click away,
+ * flagged by an icon so you know it is there.
  *
  * A photo or a voice note is a complete capture on its own, so there is often
- * no text — the row still has to be recognisable, and "Photo" beside a
- * timestamp is enough to know which one it is until it's clarified.
+ * no text at all; "Photo" beside a timestamp is enough to know which one it is
+ * until it's clarified.
  */
 function label(item: { rawText: string | null; rawType: string }): string {
-  if (item.rawText) return item.rawText;
+  const first = item.rawText?.split('\n')[0].trim();
+  if (first) return first;
   if (item.rawType === 'photo') return 'Photo';
   if (item.rawType === 'audio') return 'Voice note';
   return 'Untitled capture';
+}
+
+/** Whether anything follows the first line — i.e. the capture carries a note. */
+function hasNote(item: { rawText: string | null }): boolean {
+  return (item.rawText ?? '').split('\n').slice(1).join('\n').trim().length > 0;
 }
 
 /**
@@ -110,6 +121,11 @@ export default async function InboxPage(props: PageProps<'/inbox'>) {
                       <IconPaperclip />
                     </span>
                   ) : null}
+                  {hasNote(item) ? (
+                    <span className="shrink-0 text-grey-400" title="Has a note">
+                      <IconNote />
+                    </span>
+                  ) : null}
                   <span className="truncate">{label(item)}</span>
                 </span>
                 <span className="truncate text-grey-500">
@@ -128,9 +144,12 @@ export default async function InboxPage(props: PageProps<'/inbox'>) {
                   item.id === targetId ? 'bg-selected-bg' : 'hover:bg-grey-100',
                 ].join(' ')}
               >
+                {/* One line here too, now that a capture can carry a note.
+                    `line-clamp-2` was for a long single thought; wrapping the
+                    note in as well made every row a paragraph. */}
                 <span
                   className={[
-                    'line-clamp-2 text-[13px]',
+                    'block truncate text-[13px]',
                     item.id === targetId
                       ? 'font-medium text-grey-900'
                       : 'text-grey-800',
@@ -145,6 +164,11 @@ export default async function InboxPage(props: PageProps<'/inbox'>) {
                     <span className="flex items-center gap-1 text-grey-400">
                       <IconPaperclip />
                       <span className="tabular-nums">{item.attachmentCount}</span>
+                    </span>
+                  ) : null}
+                  {hasNote(item) ? (
+                    <span className="flex items-center gap-1 text-grey-400" title="Has a note">
+                      <IconNote />
                     </span>
                   ) : null}
                   {item.aiSuggestion?.projectId ? (

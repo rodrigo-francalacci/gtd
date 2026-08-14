@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>GTD Capture</title>
+    <style>
+      body {
+        font-family: system-ui, sans-serif;
+        max-width: 32rem;
+        margin: 2rem auto;
+        padding: 0 1rem;
+        color: #1c1c1c;
+      }
+      @media (prefers-color-scheme: dark) {
+        body { background: #1c1c1c; color: #f5f5f4; }
+        input { background: #262626; color: inherit; border-color: #444; }
+      }
+      label { display: block; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.05em; opacity: 0.6; }
+      input { width: 100%; padding: 0.5rem; margin-top: 0.35rem; font-size: 1rem; border: 1px solid #ccc; border-radius: 2px; }
+      button { margin-top: 0.75rem; padding: 0.5rem 0.9rem; font-size: 0.9rem; cursor: pointer; }
+      p { font-size: 0.85rem; line-height: 1.5; opacity: 0.75; }
+      #saved { color: #2d7a4f; font-size: 0.85rem; }
+    </style>
+  </head>
+  <body>
+    <h1>GTD Capture</h1>
+    <p>
+      Where your GTD app lives. Change this if you run it somewhere else — the
+      extension opens the capture page there, so you stay signed in exactly as
+      you are in the browser.
+    </p>
+    <label for="origin">App address</label>
+    <input id="origin" type="url" placeholder="https://gtd-web-ten.vercel.app" />
+    <button id="save">Save</button>
+    <span id="saved" hidden>Saved.</span>
+    <script src="options.js"></script>
+  </body>
+</html>
