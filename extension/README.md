@@ -15,42 +15,61 @@ open the extension's **Details → Extension options** and change it.
 
 ## Using it
 
-- **Ctrl+Shift+U** (**⌘⇧U** on a Mac) captures the current page
+- **Ctrl+Shift+U** (**⌘⇧U** on a Mac) opens the sidebar for the current page
 - **Right-click → Capture to GTD** on a page, a selection, or a link
-- The toolbar button does the same as the shortcut
+- The toolbar button does the same
 
-Selected text becomes the capture; the page URL goes in the note, so the title
-of the item stays readable in the list. With nothing selected, the page title
-is used instead.
+The sidebar stays open while you browse. Selected text becomes the capture and
+the page URL goes in the note, so the item's title stays readable in the inbox
+list; with nothing selected, the page title is used. **Ctrl+Enter** commits
+without reaching for the mouse.
 
-The window closes itself once the capture lands.
+The header follows whichever tab you're on, so it always says which page you're
+about to capture. It only updates the *display* — anything you've typed is left
+alone, because a navigation must never delete a half-written sentence.
+**Use this page** pulls the current page into the fields deliberately.
 
 If the shortcut collides with something else, remap it at
 `chrome://extensions/shortcuts`.
 
-## Why it opens a window instead of posting quietly
+## How it stays signed in
 
 The app's session cookie is `SameSite=Lax`, deliberately: the Google OAuth
 callback is a cross-site redirect back to the app, and `Strict` would withhold
 the cookie exactly there and break sign-in.
 
-`Lax` sends the cookie on **top-level navigations** but not on a cross-site
-`fetch` — and an extension's origin (`chrome-extension://…`) is cross-site. A
-popup that POSTed to the API would therefore be signed out on every request.
-The fix people reach for is `SameSite=None`, which weakens the whole app to
-save one click here.
+`Lax` normally withholds the cookie on a cross-site `fetch`, and an extension's
+origin (`chrome-extension://…`) is cross-site. But Chrome makes one exception:
 
-Opening the capture page is a navigation, so the cookie travels, the app gates
-the request exactly as it gates every other one, and the extension needs no
-credentials, no host permissions, and no API of its own. It stays about a
-hundred lines and has nothing to keep in sync.
+> Requests from an extension to a third-party are treated as same-site if the
+> extension has host permissions for the third-party.
+
+So the sidebar's capture reaches the app signed in — **without** the app having
+to relax its cookie to `SameSite=None`, which would weaken it for every client
+to suit this one.
+
+That exemption does **not** apply when third-party cookies are blocked. So a
+`401` isn't treated as a bug: the sidebar opens the capture page as an ordinary
+navigation instead, carrying your text with it. A navigation always carries a
+`Lax` cookie. You lose nothing but a click.
+
+Note this is also why the sidebar has its own form rather than embedding the
+app: a third-party site framed inside an extension page is **partitioned** by
+the extension's origin, so it could never see your session at all.
 
 ## Permissions, and why each one
 
+- `sidePanel` — the sidebar itself
 - `contextMenus` — the right-click item
 - `activeTab` + `scripting` — read the current selection, only when you invoke
   it, only on the tab you invoked it from
+- `tabs` — read the title and URL of the tab you're on, so the sidebar can keep
+  showing the right page as you browse. This is the broadest thing here: it
+  covers tab titles and URLs generally, not just when invoked
 - `storage` — remembers your app's address
+- host permissions for your GTD app only — what makes the session cookie
+  travel, per the exemption above. Nothing else is listed; a different address
+  is asked for at the moment you set it in options
 
-No host permissions: it never reads a page unless you ask it to, and it never
-talks to your GTD app except by opening it.
+It never reads page *content* unless you invoke it, and the only server it
+talks to is your own.

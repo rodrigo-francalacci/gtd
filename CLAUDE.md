@@ -261,15 +261,25 @@ Turbopack is the default; `middleware` is now `proxy`.
   into a wall of prose — the list exists to tell twenty captures apart at a
   glance. An icon flags that a note is there; reading it is a click away, in
   the pane. Same rule on the phone's "just captured" list.
-- **The Chrome extension opens `/capture`; it does not post.** The session
-  cookie is `SameSite=Lax`, which sends it on a top-level navigation but not on
-  a cross-site `fetch` — and `chrome-extension://` is cross-site, so a popup
-  posting to the API would be signed out every time. The fix people reach for
-  is `SameSite=None`, which weakens the whole app to save one click. A
-  navigation carries the cookie, so the extension needs no credentials, no host
-  permissions and no API of its own. `?text=` and `?url=` prefill it; the URL
-  goes in the *note*, because a line of query string is unreadable as a title.
-  Lives in `extension/`, unpacked, not on the Web Store.
+- **The Chrome extension is a sidebar, and host permissions are what sign it
+  in.** `SameSite=Lax` would normally withhold the session cookie from a
+  cross-site `fetch`, and `chrome-extension://` is cross-site — but Chrome
+  treats an extension's request as *same-site* when it holds host permissions
+  for the target, so `POST /api/capture` arrives authenticated without the app
+  relaxing its cookie to `SameSite=None`. The fetch lives in the service
+  worker, where that behaviour is least ambiguous.
+- **The sidebar cannot embed the app.** A third-party site framed inside an
+  extension page is partitioned by the extension's origin, so it would never
+  see the session. Hence its own small form, and hence `/api/capture` — a
+  Server Action speaks a private framework protocol and is not a public API.
+- **A 401 from the sidebar is a fallback, not an error.** The host-permission
+  exemption does not apply when third-party cookies are blocked, so the sidebar
+  opens `/capture?text=&url=` as an ordinary navigation instead, which carries
+  a `Lax` cookie under any setting. `getSession` not `requireSession` in that
+  route: a redirect to `/signin` is useless to a caller expecting JSON.
+- **The URL goes in the *note*, never the title**, because a line of query
+  string is unreadable in the inbox list. Extension lives in `extension/`,
+  unpacked, not on the Web Store.
 - **Files follow the clarify decision.** The photo *is* the thing you captured,
   so re-parenting it to the action, project or list item the capture became is
   what keeps it findable — stranding it on a clarified inbox row nobody reopens

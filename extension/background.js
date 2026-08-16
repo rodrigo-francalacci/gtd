@@ -1,20 +1,20 @@
 /**
- * GTD Capture — the whole extension.
+ * GTD Capture — service worker.
  *
- * It opens a small window at the app's own /capture page with the fields
- * pre-filled. That is the entire design, and the reason is authentication:
+ * Two jobs: open the sidebar with the current page's context, and do the
+ * network call on the sidebar's behalf.
  *
- * The app's session cookie is SameSite=Lax, which is deliberate — the OAuth
- * callback is a cross-site redirect back from Google and Strict would withhold
- * the cookie there. Lax sends the cookie on top-level navigations but *not* on
- * a cross-site fetch, and an extension's origin (chrome-extension://) is
- * cross-site. So a popup that POSTed to the API would be signed out on every
- * request, and the tempting fix — SameSite=None — would weaken the app
- * everywhere to save one click here.
+ * The network call lives *here* rather than in the sidebar page for a reason
+ * worth writing down. Chrome treats a request from an extension as same-site
+ * when the extension holds host permissions for the target, which is what lets
+ * the app's `SameSite=Lax` session cookie travel — no `SameSite=None`, no
+ * weakening of the app to suit one client. The service worker is where that
+ * behaviour is least ambiguous, and keeping every request in one place means
+ * one place to reason about.
  *
- * A navigation is not a fetch. Opening the page carries the cookie, the app
- * gates it exactly as it gates everything else, and the extension needs no
- * credentials, no host permissions and no API of its own.
+ * The exemption does not apply when third-party cookies are blocked. So a 401
+ * is not treated as a bug: the sidebar falls back to opening the capture page
+ * as an ordinary navigation, which carries the cookie under any setting.
  */
 
 const DEFAULT_ORIGIN = 'https://gtd-web-ten.vercel.app';
@@ -22,32 +22,6 @@ const DEFAULT_ORIGIN = 'https://gtd-web-ten.vercel.app';
 async function appOrigin() {
   const { origin } = await chrome.storage.sync.get('origin');
   return (origin || DEFAULT_ORIGIN).replace(/\/+$/, '');
-}
-
-/**
- * A capture window, not a tab.
- *
- * The point of the shortcut is to capture without losing the page you were
- * reading. A tab replaces your context; a small window beside it does not, and
- * it closes itself once the thought is in.
- */
-async function openCapture({ title, url, selection }) {
-  const params = new URLSearchParams();
-
-  // Selected text is the thought; the page is the reference. With nothing
-  // selected the page title is the best guess at what you meant.
-  if (selection) params.set('text', selection);
-  else if (title) params.set('text', title);
-  if (url) params.set('url', url);
-
-  const target = `${await appOrigin()}/capture?${params}`;
-
-  await chrome.windows.create({
-    url: target,
-    type: 'popup',
-    width: 460,
-    height: 640,
-  });
 }
 
 /** Read the selection without a content script — activeTab covers this. */
@@ -59,21 +33,38 @@ async function selectionIn(tabId) {
     });
     return (result?.result ?? '').trim();
   } catch {
-    // chrome:// pages, the web store and PDFs refuse injection. The page title
-    // and URL are still worth capturing, so this is not an error.
+    // chrome:// pages, the web store and PDFs refuse injection. The title and
+    // URL are still worth capturing, so this is not an error.
     return '';
   }
 }
 
-async function captureActiveTab() {
-  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-  if (!tab) return;
+/**
+ * What the sidebar should be showing.
+ *
+ * Kept in `storage.session` rather than passed as a message, because the panel
+ * may not be listening yet — it is opening in the same gesture. The panel
+ * reads this on load and listens for the message for when it is already open.
+ */
+async function publishContext(context) {
+  await chrome.storage.session.set({ pending: context });
+  // Fails harmlessly when nothing is listening, which is the common case.
+  chrome.runtime.sendMessage({ type: 'gtd:context', context }).catch(() => {});
+}
 
-  await openCapture({
-    title: tab.title,
-    url: tab.url,
-    selection: tab.id ? await selectionIn(tab.id) : '',
-  });
+async function contextForTab(tab) {
+  return {
+    title: tab?.title ?? '',
+    url: tab?.url ?? '',
+    selection: tab?.id ? await selectionIn(tab.id) : '',
+  };
+}
+
+async function openSidebar(tab, context) {
+  // Must be called in the same turn as the user gesture, so the panel is
+  // opened before anything is awaited that could yield.
+  await chrome.sidePanel.open({ windowId: tab.windowId });
+  await publishContext(context ?? (await contextForTab(tab)));
 }
 
 chrome.runtime.onInstalled.addListener(() => {
@@ -84,17 +75,95 @@ chrome.runtime.onInstalled.addListener(() => {
   });
 });
 
-chrome.contextMenus.onClicked.addListener((info, tab) => {
-  void openCapture({
-    title: tab?.title,
+chrome.action.onClicked.addListener(async (tab) => {
+  await chrome.sidePanel.open({ windowId: tab.windowId });
+  await publishContext(await contextForTab(tab));
+});
+
+chrome.commands.onCommand.addListener(async (command) => {
+  if (command !== 'capture') return;
+
+  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+  if (!tab) return;
+
+  await chrome.sidePanel.open({ windowId: tab.windowId });
+  await publishContext(await contextForTab(tab));
+});
+
+chrome.contextMenus.onClicked.addListener(async (info, tab) => {
+  if (!tab) return;
+
+  await chrome.sidePanel.open({ windowId: tab.windowId });
+  await publishContext({
+    title: tab.title ?? '',
     // Right-clicking a link means that link, not the page it sits on.
-    url: info.linkUrl || info.pageUrl || tab?.url,
+    url: info.linkUrl || info.pageUrl || tab.url || '',
     selection: (info.selectionText ?? '').trim(),
   });
 });
 
-chrome.commands.onCommand.addListener((command) => {
-  if (command === 'capture') void captureActiveTab();
+/**
+ * The sidebar asks; this answers. Returning `true` keeps the message channel
+ * open for the async reply, which is the one piece of this API that fails
+ * silently and confusingly if you forget it.
+ */
+chrome.runtime.onMessage.addListener((message, _sender, respond) => {
+  if (message?.type !== 'gtd:capture') return;
+
+  (async () => {
+    const origin = await appOrigin();
+
+    try {
+      const response = await fetch(`${origin}/api/capture`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ text: message.text, note: message.note }),
+      });
+
+      if (response.status === 401) {
+        respond({ ok: false, signedOut: true });
+        return;
+      }
+
+      if (!response.ok) {
+        const { error } = await response.json().catch(() => ({}));
+        respond({ ok: false, error: error ?? `The app returned ${response.status}.` });
+        return;
+      }
+
+      respond({ ok: true });
+    } catch {
+      respond({ ok: false, error: 'Could not reach the app.' });
+    }
+  })();
+
+  return true;
 });
 
-chrome.action.onClicked.addListener(() => void captureActiveTab());
+/**
+ * The signed-out fallback: open the capture page as a real navigation.
+ *
+ * A top-level navigation carries a `SameSite=Lax` cookie regardless of
+ * third-party cookie settings, so this works when the direct call cannot.
+ */
+chrome.runtime.onMessage.addListener((message, _sender, respond) => {
+  if (message?.type !== 'gtd:fallback') return;
+
+  (async () => {
+    const params = new URLSearchParams();
+    if (message.text) params.set('text', message.text);
+    if (message.note) params.set('url', message.note);
+
+    await chrome.windows.create({
+      url: `${await appOrigin()}/capture?${params}`,
+      type: 'popup',
+      width: 460,
+      height: 640,
+    });
+
+    respond({ ok: true });
+  })();
+
+  return true;
+});

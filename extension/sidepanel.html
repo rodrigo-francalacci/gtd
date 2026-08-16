@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Capture</title>
+    <link rel="stylesheet" href="sidepanel.css" />
+  </head>
+  <body>
+    <header>
+      <h1>Capture</h1>
+      <a id="open-inbox" href="#" target="_blank">Inbox</a>
+    </header>
+
+    <!-- The page this is about. Shown rather than assumed, because the sidebar
+         stays open across navigations and it must be obvious which page you
+         are capturing. -->
+    <section id="context" hidden>
+      <span id="context-title"></span>
+      <span id="context-url"></span>
+    </section>
+
+    <label class="field-label" for="text">Capture</label>
+    <textarea id="text" rows="4" placeholder="What's worth keeping?"></textarea>
+
+    <label class="field-label" for="note">Note</label>
+    <textarea id="note" rows="4" placeholder="Why it matters…"></textarea>
+
+    <button id="capture">Capture</button>
+    <button id="refresh" class="quiet">Use this page</button>
+
+    <p id="status" role="status"></p>
+
+    <script src="sidepanel.js"></script>
+  </body>
+</html>

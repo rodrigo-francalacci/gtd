@@ -1,16 +1,22 @@
 {
   "manifest_version": 3,
   "name": "GTD Capture",
-  "version": "1.0.0",
-  "description": "Send the page you're on, or the text you've selected, to your GTD inbox.",
-  "permissions": ["contextMenus", "activeTab", "scripting", "storage"],
+  "version": "1.1.0",
+  "description": "Capture the page you're on, or the text you've selected, to your GTD inbox — from a sidebar that stays open while you read.",
+  "permissions": ["contextMenus", "activeTab", "scripting", "storage", "sidePanel", "tabs"],
+  "host_permissions": [
+    "https://gtd-web-ten.vercel.app/*",
+    "http://localhost:3000/*"
+  ],
+  "optional_host_permissions": ["https://*/*"],
   "background": { "service_worker": "background.js" },
+  "side_panel": { "default_path": "sidepanel.html" },
   "options_page": "options.html",
   "action": { "default_title": "Capture to GTD" },
   "commands": {
     "capture": {
       "suggested_key": { "default": "Ctrl+Shift+U", "mac": "Command+Shift+U" },
-      "description": "Capture this page to GTD"
+      "description": "Open the GTD capture sidebar"
     }
   }
 }

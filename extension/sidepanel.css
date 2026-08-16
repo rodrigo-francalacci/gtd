@@ -1,0 +1,123 @@
+/*
+ * Deliberately close to the app: greyscale, Source Sans if the system has it,
+ * and no colour except the one status line. A sidebar that looks like a
+ * different product from the thing it writes into is a small lie about where
+ * the capture is going.
+ */
+:root {
+  --paper: #ffffff;
+  --ink: #1c1c1c;
+  --grey-150: #f0efee;
+  --grey-300: #d6d3d1;
+  --grey-500: #78716c;
+  --grey-800: #292524;
+  --stale: #b45309;
+  --ok: #2d7a4f;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --paper: #1c1c1c;
+    --ink: #f5f5f4;
+    --grey-150: #292524;
+    --grey-300: #44403c;
+    --grey-500: #a8a29e;
+    --grey-800: #e7e5e4;
+    --stale: #fbbf24;
+    --ok: #6ee7a8;
+  }
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  padding: 0.75rem;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: 'Source Sans 3', 'Source Sans Pro', system-ui, sans-serif;
+  font-size: 13px;
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+}
+
+header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin-bottom: 0.5rem;
+}
+
+h1 { font-size: 15px; margin: 0; }
+
+header a { color: var(--grey-500); font-size: 12px; }
+
+#context {
+  border-left: 2px solid var(--grey-300);
+  padding: 0 0 0 0.5rem;
+  margin-bottom: 0.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  min-width: 0;
+}
+
+#context-title { font-size: 12px; color: var(--grey-800); }
+
+#context-url {
+  font-size: 11px;
+  color: var(--grey-500);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.field-label {
+  display: block;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--grey-500);
+  margin-bottom: 0.2rem;
+}
+
+textarea {
+  width: 100%;
+  resize: vertical;
+  padding: 0.4rem;
+  margin-bottom: 0.6rem;
+  font: inherit;
+  color: inherit;
+  background: var(--paper);
+  border: 1px solid var(--grey-300);
+  border-radius: 2px;
+}
+
+textarea:focus { outline: none; border-color: var(--grey-500); }
+
+button {
+  width: 100%;
+  padding: 0.5rem;
+  font: inherit;
+  font-weight: 500;
+  color: var(--paper);
+  background: var(--grey-800);
+  border: none;
+  border-radius: 2px;
+  cursor: pointer;
+}
+
+button:disabled { opacity: 0.4; cursor: default; }
+
+button.quiet {
+  margin-top: 0.4rem;
+  font-weight: 400;
+  color: var(--grey-500);
+  background: none;
+  border: 1px solid var(--grey-300);
+}
+
+#status { font-size: 12px; min-height: 1.2em; margin: 0.6rem 0 0; }
+#status.ok { color: var(--ok); }
+#status.bad { color: var(--stale); }
