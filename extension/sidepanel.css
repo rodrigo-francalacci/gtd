@@ -121,3 +121,51 @@ button.quiet {
 #status { font-size: 12px; min-height: 1.2em; margin: 0.6rem 0 0; }
 #status.ok { color: var(--ok); }
 #status.bad { color: var(--stale); }
+
+.row { display: flex; gap: 0.4rem; }
+.row button { margin-top: 0.4rem; }
+
+.hint {
+  font-size: 11px;
+  line-height: 1.4;
+  color: var(--grey-500);
+  margin: 0.6rem 0 0;
+}
+
+#files { list-style: none; margin: 0 0 0.6rem; padding: 0; }
+
+#files li {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.25rem 0.4rem;
+  margin-bottom: 0.2rem;
+  background: var(--grey-150);
+  border-radius: 2px;
+  font-size: 12px;
+}
+
+#files .name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+#files .size { color: var(--grey-500); font-size: 11px; font-variant-numeric: tabular-nums; }
+
+#files .drop {
+  background: none;
+  border: none;
+  color: var(--grey-500);
+  font-size: 15px;
+  line-height: 1;
+  padding: 0 0.2rem;
+  width: auto;
+  cursor: pointer;
+}
+
+/* Dropping anywhere in the panel, not onto a small target — the whole thing
+   is the drop zone, which is what you expect from a panel this narrow. */
+body.dragging { outline: 2px dashed var(--grey-500); outline-offset: -4px; }

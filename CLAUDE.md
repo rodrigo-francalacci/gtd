@@ -280,6 +280,18 @@ Turbopack is the default; `middleware` is now `proxy`.
 - **The URL goes in the *note*, never the title**, because a line of query
   string is unreadable in the inbox list. Extension lives in `extension/`,
   unpacked, not on the Web Store.
+- **The sidebar uploads from the panel, not the service worker.**
+  `runtime.sendMessage` serialises as JSON, so a `File` crossing it arrives as
+  `{}`. The panel is the same extension origin and gets the same
+  host-permission treatment, so it uses the ordinary session/PUT/complete path
+  — and the session binds to `chrome-extension://…`, which Google accepts:
+  probed before building, it echoes that origin and allows `PUT`. The proxy
+  route is kept as a fallback, capped by the platform but needing no CORS.
+- **A page image is read inside the page, never fetched by the extension.**
+  `activeTab` covers reading from the tab you right-clicked; fetching the image
+  from the worker would need host permission over whatever site it lives on —
+  the whole web, for one file. It crosses as a data URL, size-capped because
+  base64 inflates by a third and it traverses two process boundaries.
 - **Files follow the clarify decision.** The photo *is* the thing you captured,
   so re-parenting it to the action, project or list item the capture became is
   what keeps it findable — stranding it on a clarified inbox row nobody reopens

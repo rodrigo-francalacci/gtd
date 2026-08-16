@@ -25,8 +25,17 @@
     <label class="field-label" for="note">Note</label>
     <textarea id="note" rows="4" placeholder="Why it matters…"></textarea>
 
+    <ul id="files"></ul>
+
     <button id="capture">Capture</button>
-    <button id="refresh" class="quiet">Use this page</button>
+    <div class="row">
+      <button id="attach" class="quiet">Attach files</button>
+      <button id="refresh" class="quiet">Use this page</button>
+    </div>
+    <input id="picker" type="file" multiple hidden />
+
+    <p class="hint">Drop files here, or paste a screenshot. Right-click an
+      image on the page to bring it in.</p>
 
     <p id="status" role="status"></p>
 

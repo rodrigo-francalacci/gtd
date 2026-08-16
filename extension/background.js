@@ -73,7 +73,55 @@ chrome.runtime.onInstalled.addListener(() => {
     title: 'Capture to GTD',
     contexts: ['page', 'selection', 'link'],
   });
+  chrome.contextMenus.create({
+    id: 'gtd-capture-image',
+    title: 'Capture this image to GTD',
+    contexts: ['image'],
+  });
 });
+
+/**
+ * Read an image the page is already showing, as a data URL.
+ *
+ * Done *inside the page* on purpose. The bytes are usually in the browser
+ * cache already, and fetching them from the extension would need host
+ * permission for whichever site the image lives on — a permission over the
+ * whole web, to save one file. `activeTab` covers reading from the tab you
+ * just right-clicked, and nothing more.
+ */
+async function imageFromPage(tabId, srcUrl) {
+  try {
+    const [result] = await chrome.scripting.executeScript({
+      target: { tabId },
+      args: [srcUrl],
+      func: async (src) => {
+        const response = await fetch(src);
+        const blob = await response.blob();
+
+        // Base64 inflates by a third and this crosses two process boundaries,
+        // so a very large image is left to the file picker instead.
+        if (blob.size > 6 * 1024 * 1024) return null;
+
+        const dataUrl = await new Promise((resolve) => {
+          const reader = new FileReader();
+          reader.onloadend = () => resolve(reader.result);
+          reader.readAsDataURL(blob);
+        });
+
+        const guess = src.split('/').pop()?.split('?')[0] || 'image';
+        const name = /\.[a-z0-9]{2,5}$/i.test(guess)
+          ? guess
+          : `${guess}.${(blob.type.split('/')[1] || 'png').replace('jpeg', 'jpg')}`;
+
+        return { dataUrl, name };
+      },
+    });
+
+    return result?.result ?? null;
+  } catch {
+    return null;
+  }
+}
 
 chrome.action.onClicked.addListener(async (tab) => {
   await chrome.sidePanel.open({ windowId: tab.windowId });
@@ -93,12 +141,21 @@ chrome.commands.onCommand.addListener(async (command) => {
 chrome.contextMenus.onClicked.addListener(async (info, tab) => {
   if (!tab) return;
 
+  // Opened first and in the same turn as the click, because the gesture that
+  // permits it does not survive the await below.
   await chrome.sidePanel.open({ windowId: tab.windowId });
+
+  const image =
+    info.menuItemId === 'gtd-capture-image' && info.srcUrl && tab.id
+      ? await imageFromPage(tab.id, info.srcUrl)
+      : null;
+
   await publishContext({
     title: tab.title ?? '',
     // Right-clicking a link means that link, not the page it sits on.
     url: info.linkUrl || info.pageUrl || tab.url || '',
     selection: (info.selectionText ?? '').trim(),
+    image,
   });
 });
 

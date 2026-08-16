@@ -24,6 +24,25 @@ the page URL goes in the note, so the item's title stays readable in the inbox
 list; with nothing selected, the page title is used. **Ctrl+Enter** commits
 without reaching for the mouse.
 
+### Files and photos
+
+Four ways in, all landing on the same capture:
+
+- **Attach files** — the ordinary picker
+- **Drop** them anywhere on the panel
+- **Paste** a screenshot straight in
+- **Right-click an image → Capture this image to GTD** — the browser's answer
+  to the phone's camera button
+
+Files go from the panel straight to Drive, so the size limit is Drive's rather
+than the app's. Anything that fails stays in the list, and pressing Capture
+again retries just that.
+
+The image case reads the picture *inside the page*, where `activeTab` already
+grants access. Fetching it from the extension would need permission over
+whatever site it lives on — permission across the whole web, to save one file.
+Very large images are left to the file picker instead.
+
 The header follows whichever tab you're on, so it always says which page you're
 about to capture. It only updates the *display* — anything you've typed is left
 alone, because a navigation must never delete a half-written sentence.
