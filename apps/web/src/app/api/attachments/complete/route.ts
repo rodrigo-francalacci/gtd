@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { revalidatePath } from 'next/cache';
 import type { AttachmentParentType } from '@gtd/db';
-import { requireSession } from '@/lib/auth/session';
+import { apiSession } from '@/lib/auth/session';
 import { AttachmentError, completeUpload } from '@/lib/google/attachments';
 import { PARENT_TYPES } from '@/lib/upload';
 
@@ -14,7 +14,8 @@ export const dynamic = 'force-dynamic';
  * read back from Drive, so the row cannot disagree with the file.
  */
 export async function POST(request: Request) {
-  await requireSession();
+  const denied = await apiSession();
+  if (denied) return denied;
 
   const { parentType, parentId, driveFileId } = (await request
     .json()

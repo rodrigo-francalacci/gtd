@@ -67,6 +67,24 @@ export async function requireSession(): Promise<Session> {
   return session;
 }
 
+/**
+ * The session for an API route: a `Response` to return, or null to carry on.
+ *
+ * `requireSession` redirects to `/signin`, which is right for a page and wrong
+ * for a route handler — a caller expecting JSON follows the redirect, gets a
+ * 200 of HTML, and reports something baffling. The browser extension found
+ * exactly that: an upload failed with no way to tell "you are signed out" from
+ * "Drive refused", because both arrived as an unparseable success.
+ */
+export async function apiSession(): Promise<Response | null> {
+  if (await getSession()) return null;
+
+  return Response.json(
+    { error: 'Not signed in. Open the app and sign in, then try again.' },
+    { status: 401 },
+  );
+}
+
 export async function destroySession(): Promise<void> {
   const store = await cookies();
   const id = store.get(SESSION_COOKIE)?.value;

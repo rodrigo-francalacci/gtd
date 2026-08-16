@@ -275,8 +275,12 @@ Turbopack is the default; `middleware` is now `proxy`.
 - **A 401 from the sidebar is a fallback, not an error.** The host-permission
   exemption does not apply when third-party cookies are blocked, so the sidebar
   opens `/capture?text=&url=` as an ordinary navigation instead, which carries
-  a `Lax` cookie under any setting. `getSession` not `requireSession` in that
-  route: a redirect to `/signin` is useless to a caller expecting JSON.
+  a `Lax` cookie under any setting.
+- **API routes answer with `apiSession()`, never `requireSession()`.** The
+  latter redirects to `/signin`, which a `fetch` follows — so the caller gets
+  200 and a page of HTML where it expected JSON, and "signed out" becomes
+  indistinguishable from "the upload failed". Pages redirect; routes return
+  401.
 - **The URL goes in the *note*, never the title**, because a line of query
   string is unreadable in the inbox list. Extension lives in `extension/`,
   unpacked, not on the Web Store.

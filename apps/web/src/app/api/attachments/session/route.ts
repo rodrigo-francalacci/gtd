@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import type { AttachmentParentType } from '@gtd/db';
-import { requireSession } from '@/lib/auth/session';
+import { apiSession } from '@/lib/auth/session';
 import { AttachmentError, startUploadSession } from '@/lib/google/attachments';
 import { PARENT_TYPES } from '@/lib/upload';
 
@@ -14,7 +14,8 @@ export const dynamic = 'force-dynamic';
  * returns, which is exactly why a 21 MB book can be attached at all.
  */
 export async function POST(request: Request) {
-  await requireSession();
+  const denied = await apiSession();
+  if (denied) return denied;
 
   const { parentType, parentId, name, mimeType } = (await request
     .json()

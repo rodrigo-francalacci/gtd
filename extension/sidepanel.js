@@ -191,8 +191,15 @@ async function origin() {
  * platform's 4.5 MB body limit, which is enough for most things grabbed off a
  * web page. Falling back beats failing.
  */
+/** The message behind a failed response, when the server sent one. */
+async function reasonFrom(response, fallback) {
+  const body = await response.json().catch(() => null);
+  return body?.error ?? `${fallback} (${response.status})`;
+}
+
 async function uploadFile(base, parentId, file) {
   const target = { parentType: 'inbox_item', parentId };
+  let direct;
 
   try {
     const session = await fetch(`${base}/api/attachments/session`, {
@@ -205,7 +212,10 @@ async function uploadFile(base, parentId, file) {
         mimeType: file.type || 'application/octet-stream',
       }),
     });
-    if (!session.ok) throw new Error('session');
+
+    if (!session.ok) {
+      throw new Error(await reasonFrom(session, 'the app refused the upload'));
+    }
 
     const { uploadUrl } = await session.json();
 
@@ -214,7 +224,7 @@ async function uploadFile(base, parentId, file) {
       headers: { 'Content-Type': file.type || 'application/octet-stream' },
       body: file,
     });
-    if (!put.ok) throw new Error('put');
+    if (!put.ok) throw new Error(`Drive refused the file (${put.status})`);
 
     const { id } = await put.json();
 
@@ -224,11 +234,19 @@ async function uploadFile(base, parentId, file) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ ...target, driveFileId: id }),
     });
-    if (!done.ok) throw new Error('complete');
 
-    return true;
-  } catch {
-    // The single-request path. Smaller ceiling, no Drive CORS involved.
+    if (!done.ok) {
+      throw new Error(await reasonFrom(done, 'the app could not record it'));
+    }
+
+    return { ok: true };
+  } catch (error) {
+    direct = error instanceof Error ? error.message : String(error);
+    console.warn('[gtd] direct upload failed:', direct);
+  }
+
+  // The single-request path. Smaller ceiling, no Drive CORS involved.
+  try {
     const body = new FormData();
     body.set('parentType', 'inbox_item');
     body.set('parentId', parentId);
@@ -238,9 +256,20 @@ async function uploadFile(base, parentId, file) {
       method: 'POST',
       credentials: 'include',
       body,
-    }).catch(() => null);
+    });
 
-    return Boolean(proxied?.ok);
+    if (proxied.ok) return { ok: true };
+
+    // Both routes failed. Report the *first* reason: the fallback's own
+    // complaint is usually the size limit, which is a consequence of the
+    // direct path being unavailable rather than the thing that went wrong.
+    return {
+      ok: false,
+      reason: direct || (await reasonFrom(proxied, 'the upload was refused')),
+      signedOut: proxied.status === 401,
+    };
+  } catch {
+    return { ok: false, reason: direct || 'Could not reach the app.' };
   }
 }
 
@@ -266,21 +295,33 @@ async function capture() {
     els.text.value = '';
     els.note.value = '';
 
+    if (staged.length > 0 && !result.id) {
+      // Nothing to attach to. Say so rather than posting an undefined parent
+      // and reporting whatever the server makes of it.
+      say('Captured, but the app did not return an id — files not attached.', 'bad');
+      els.capture.disabled = false;
+      return;
+    }
+
     if (staged.length > 0) {
       const files = [...staged];
       const base = await origin();
       const failures = [];
 
+      let reason = '';
+
       for (const [index, file] of files.entries()) {
         say(`Uploading ${index + 1} of ${files.length}…`);
 
-        if (await uploadFile(base, result.id, file)) {
+        const outcome = await uploadFile(base, result.id, file);
+        if (outcome.ok) {
           // Cleared as each one lands, so the list never claims to be finished
           // while bytes are still going — the mistake the app's own capture
           // box made until it lost four photos out of five.
           staged = staged.filter((f) => f !== file);
         } else {
           failures.push(file);
+          reason = reason || outcome.reason;
         }
         renderFiles();
       }
@@ -293,7 +334,10 @@ async function capture() {
       say(
         failures.length === 0
           ? `Captured with ${files.length} file${files.length === 1 ? '' : 's'}.`
-          : `Captured — ${failures.length} of ${files.length} did not upload. Press Capture to retry.`,
+          : // The reason, not just the count. "1 of 1 did not upload" tells you
+            // nothing you can act on, which is how this landed on you rather
+            // than on me.
+            `${failures.length} of ${files.length} did not upload — ${reason}`,
         failures.length === 0 ? 'ok' : 'bad',
       );
       apply(current);

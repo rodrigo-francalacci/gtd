@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { revalidatePath } from 'next/cache';
 import type { AttachmentParentType } from '@gtd/db';
-import { requireSession } from '@/lib/auth/session';
+import { apiSession } from '@/lib/auth/session';
 import { AttachmentError, uploadAttachment } from '@/lib/google/attachments';
 
 export const dynamic = 'force-dynamic';
@@ -21,7 +21,8 @@ const PARENT_TYPES: AttachmentParentType[] = [
  * report progress and failures per file, which a form post gives for free.
  */
 export async function POST(request: Request) {
-  await requireSession();
+  const denied = await apiSession();
+  if (denied) return denied;
 
   const form = await request.formData();
   const parentType = String(form.get('parentType') ?? '');

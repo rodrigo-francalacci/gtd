@@ -189,7 +189,11 @@ chrome.runtime.onMessage.addListener((message, _sender, respond) => {
         return;
       }
 
-      respond({ ok: true });
+      // The new row's id must come back: the panel attaches files to it, and
+      // dropping it here made every upload post an undefined parent, which the
+      // app then refused as a bad target — correctly, and unhelpfully.
+      const { id } = await response.json().catch(() => ({}));
+      respond({ ok: true, id });
     } catch {
       respond({ ok: false, error: 'Could not reach the app.' });
     }
