@@ -3,6 +3,7 @@
 import { useState, useTransition, type ReactNode } from 'react';
 import type { ProjectStatus } from '@gtd/db';
 import { moveProjectBetween, setProjectStatus } from '@/lib/actions';
+import type { ViewMode } from '@/lib/pane';
 import {
   PROJECT_STATUS_LABELS,
   PROJECT_STATUS_ORDER,
@@ -33,11 +34,11 @@ const HINTS: Partial<Record<ProjectStatus, string>> = {
 export function SortableProjectList({
   projects,
   selectedId,
-  compact = false,
+  mode = 'comfortable',
 }: {
   projects: ProjectListItem[];
   selectedId?: string | null;
-  compact?: boolean;
+  mode?: ViewMode;
 }) {
   const [, startTransition] = useTransition();
 
@@ -150,7 +151,7 @@ export function SortableProjectList({
                 href={project.href}
                 selected={project.id === selectedId}
                 isDragging={isDragging}
-                compact={compact}
+                mode={mode}
               />
             )}
           />

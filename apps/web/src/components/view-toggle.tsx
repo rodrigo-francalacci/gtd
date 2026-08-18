@@ -5,11 +5,14 @@ import { setViewMode } from '@/lib/actions';
 // Type-only import: erased at compile time, so the server-only module is
 // never pulled into the client bundle.
 import type { ViewMode } from '@/lib/pane';
-import { IconViewCompact, IconViewComfortable } from './icons';
+import { IconViewCompact, IconViewComfortable, IconViewSimple } from './icons';
 
 /**
  * The density switch, in the same place old Evernote put it — top-right of the
  * list pane header.
+ *
+ * Ordered by how much each one says, most first, so the row reads as a dial
+ * rather than three unrelated buttons.
  */
 export function ViewToggle({ mode }: { mode: ViewMode }) {
   const [pending, startTransition] = useTransition();
@@ -17,6 +20,7 @@ export function ViewToggle({ mode }: { mode: ViewMode }) {
   const options: { value: ViewMode; label: string; Icon: typeof IconViewCompact }[] = [
     { value: 'comfortable', label: 'Comfortable view', Icon: IconViewComfortable },
     { value: 'compact', label: 'Compact list view', Icon: IconViewCompact },
+    { value: 'simple', label: 'Titles only', Icon: IconViewSimple },
   ];
 
   return (

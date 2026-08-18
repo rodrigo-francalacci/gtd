@@ -597,9 +597,14 @@ export const preferences = pgTable('preferences', {
   id: text('id').primaryKey().default(SINGLETON),
   /** Width of the middle pane in pixels. Null means "use the default". */
   listPaneWidth: integer('list_pane_width'),
-  /** Width of the file preview pane. Same convention. */
+  /**
+   * No longer read: the preview pane takes whatever the detail pane doesn't
+   * need, so there is no width to choose. Kept because dropping a column to
+   * reclaim four bytes on a single row is a migration with nothing on the
+   * other side of it, and because the choice may come back.
+   */
   previewPaneWidth: integer('preview_pane_width'),
-  /** 'comfortable' | 'compact' */
+  /** 'comfortable' | 'compact' | 'simple' */
   viewMode: text('view_mode'),
   /** 'light' | 'dark'. Null means "whatever the operating system says". */
   theme: text('theme'),

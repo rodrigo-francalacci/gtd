@@ -8,7 +8,9 @@ import {
   formatMoney,
   type ListItemRow as Row,
 } from '@/lib/queries.shared';
+import type { ViewMode } from '@/lib/pane';
 import { DragGrip } from './sortable';
+import { SimpleRow } from './simple-row';
 
 /**
  * A list item. The visual weight is deliberately lower than an action row:
@@ -20,14 +22,14 @@ export function ListItemRow({
   selected,
   isPurchases,
   isDragging = false,
-  compact = false,
+  mode = 'comfortable',
 }: {
   item: Row;
   href: string;
   selected: boolean;
   isPurchases: boolean;
   isDragging?: boolean;
-  compact?: boolean;
+  mode?: ViewMode;
 }) {
   const cost = item.fields?.cost;
   const impact = item.fields?.impact;
@@ -51,7 +53,19 @@ export function ListItemRow({
     </span>
   );
 
-  if (compact) {
+  if (mode === 'simple') {
+    return (
+      <SimpleRow
+        href={href}
+        title={item.title}
+        selected={selected}
+        muted={item.stage === 'settled'}
+        faded={isDragging}
+      />
+    );
+  }
+
+  if (mode === 'compact') {
     const columns = isPurchases ? PURCHASE_COLUMNS : LIST_ITEM_COLUMNS;
 
     return (

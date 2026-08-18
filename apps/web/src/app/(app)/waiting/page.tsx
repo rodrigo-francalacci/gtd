@@ -44,7 +44,7 @@ export default async function WaitingPage(props: PageProps<'/waiting'>) {
         <SortableActionList
           actions={rows.map((a) => ({ ...a, href: `/waiting?action=${a.id}` }))}
           selectedId={selectedId}
-          compact={viewMode === 'compact'}
+          mode={viewMode}
           variant="waiting"
           emptyState={
             <EmptyList message="Nothing is waiting on anyone else right now." />

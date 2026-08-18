@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useSearchParams } from 'next/navigation';
 import type { ComponentType, SVGProps } from 'react';
 import {
   IconAreas,
@@ -32,6 +32,12 @@ type Item = {
   count?: number;
   /** Renders the count in the stale colour rather than plain grey. */
   alert?: boolean;
+  /**
+   * Match this path only, never its children. For "Manage lists", whose
+   * children each have a sidebar entry of their own — without this, opening a
+   * list lit both that list and the index above it.
+   */
+  exact?: boolean;
 };
 
 export function SidebarNav({
@@ -53,6 +59,7 @@ export function SidebarNav({
   lists: Pick<ListRow, 'id' | 'name' | 'type' | 'candidateCount'>[];
 }) {
   const pathname = usePathname();
+  const params = useSearchParams();
 
   const groups: { heading: string; items: Item[] }[] = [
     {
@@ -130,7 +137,7 @@ export function SidebarNav({
           icon: LIST_TYPE_ICONS[l.type] as Icon,
           count: l.candidateCount,
         })),
-        { href: '/lists', label: 'Manage lists', icon: IconLists },
+        { href: '/lists', label: 'Manage lists', icon: IconLists, exact: true },
       ],
     },
   ];
@@ -152,11 +159,20 @@ export function SidebarNav({
             <ul>
               {group.items.map((item) => {
                 const [path, query] = item.href.split('?');
-                // "Stalled" is a filtered view of /projects, so it must not
-                // light up merely because /projects is open.
-                const active = query
-                  ? false
-                  : pathname === path || pathname.startsWith(`${path}/`);
+                const onPath =
+                  pathname === path ||
+                  (!item.exact && pathname.startsWith(`${path}/`));
+
+                // "Stalled" is a filtered view of /projects, so the filter has
+                // to be part of the comparison: matching on the path alone lit
+                // both entries at once, and refusing to light anything with a
+                // query — the previous guard — lit neither, so the one view
+                // reached only from the sidebar was the one view the sidebar
+                // never showed you were in.
+                const active =
+                  onPath &&
+                  (params.get('filter') ?? '') ===
+                    (new URLSearchParams(query).get('filter') ?? '');
                 const Icon = item.icon;
 
                 return (

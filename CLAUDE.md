@@ -52,10 +52,29 @@ Turbopack is the default; `middleware` is now `proxy`.
 - **Contexts are user data, not an enum.** The four *dimensions* are fixed;
   their contents are managed at `/contexts`. Deleting one cascades through
   `action_contexts`, so the UI shows the usage count before confirming.
-- **Two list densities.** `comfortable` wraps metadata onto a second line;
+- **A sidebar entry lights up on its path *and* its query.** "Stalled" is
+  `/projects?filter=stalled` — a view of the same page — so comparing paths
+  alone lit both it and "Projects", and the guard that replaced it ("anything
+  with a query is never active") lit neither, leaving the one view you can only
+  reach from the sidebar as the one view the sidebar never showed you were in.
+  `exact` exists for the same reason on "Manage lists": its children have
+  entries of their own, so a prefix match lit the index as well as the list.
+- **Three list densities.** `comfortable` wraps metadata onto a second line;
   `compact` is the old Evernote table view. Column sets live in
   `lib/columns.ts`; the header and the rows share one grid template, and
-  `leading` keeps the first column label aligned over the titles.
+  `leading` keeps the first column label aligned over the titles. `simple` is
+  the third question a list gets asked — not "what else is true about this
+  row" but "what is in this list" — so it drops the metadata, the columns and
+  the hairlines between rows, and keeps the controls: a checkbox and a drag
+  grip are how you act on a row rather than facts about it. Every row type
+  renders it through one shared `SimpleRow`, because once the metadata is gone
+  an action, a project and a capture are all the same line of text. Row
+  components take `mode: ViewMode`, never a `compact` boolean — the boolean
+  had no room for a third answer.
+- **In a titles-only list, flags go on the right.** A paperclip in front of the
+  title indents the rows that have one and leaves the left edge ragged, which
+  in a view whose entire content is a column of titles is the one thing there
+  is to get right.
 - **UI preferences live in the `preferences` table**, one row pinned to
   `SINGLETON` — not a cookie or localStorage. The server needs them to render
   without a flash, and in the database they follow the account rather than the
@@ -63,13 +82,17 @@ Turbopack is the default; `middleware` is now `proxy`.
   `getPreferences()`; constants and pure helpers that Client Components need
   are in `lib/pane.ts` (no `server-only`), while `lib/view-mode.ts` does the
   query.
+- **The list pane is the only pane you can resize**, because it is the only
+  width there is a decision to make about. The detail pane is its content's
+  measure and the preview takes what's left, so both follow from that one
+  choice and the window. `preferences.preview_pane_width` is dead and kept
+  only because dropping a column has nothing on the other side of it.
 - **The pane width is written once, on pointer-up.** The resize follows the
   cursor in local state; persisting each `pointermove` would be a request per
-  pixel. `ResizablePane` serves both the list pane and the preview pane; `edge`
-  signs the drag delta, because a pane on the right of the window grows as the
-  cursor moves *left*. `defaultWidth` is what a double-click returns to and is
-  deliberately separate from `initialWidth` — resetting to the saved width is a
-  no-op, which is what the handle silently did for months.
+  pixel. `edge` signs the drag delta, because a pane on the right of the window
+  grows as the cursor moves *left*. `defaultWidth` is what a double-click
+  returns to and is deliberately separate from `initialWidth` — resetting to
+  the saved width is a no-op, which is what the handle silently did for months.
 - **Font is Source Sans**, Evernote's UI typeface until they moved to Inter in
   January 2024 — the era this three-pane layout copies. Self-hosted via
   `next/font`, no runtime request.
@@ -141,6 +164,15 @@ Turbopack is the default; `middleware` is now `proxy`.
   pane belongs to the window rather than the row it was opened from, it should
   survive clicking through to another project, and a param would have to be
   threaded through five pages that each own their own panes.
+- **The preview takes the space rather than having a width.** It's the thing
+  you opened the pane to look at. The shell row carries `data-preview`, and the
+  third pane reads it as a group to stop growing (`flex-[0_1_41rem]`, the note
+  column's own measure) — read rather than passed, because that pane is
+  rendered five route segments away and "there is something to the right of
+  you" isn't worth threading through all of them. `(app)/layout.tsx`'s `<main>`
+  needs the same rule: it wraps panes 2 and 3, so capping only the pane inside
+  it moves the empty space up one level and still leaves the preview with half
+  the window.
 - **Docs and Sheets are made, not uploaded.** A Docs-editor file has no bytes,
   so `createGoogleFile` is metadata only — the one kind of file the app can
   create with nothing to send. `drive.file` covers it because the app made it.
@@ -260,7 +292,20 @@ Turbopack is the default; `middleware` is now `proxy`.
   same `raw_text`, and letting it spill into the list turns a queue you scan
   into a wall of prose — the list exists to tell twenty captures apart at a
   glance. An icon flags that a note is there; reading it is a click away, in
-  the pane. Same rule on the phone's "just captured" list.
+  the pane. Same rule on the phone's "just captured" list — `captureLabel` in
+  `queries.shared.ts` is that rule, in one place now rather than two that
+  disagreed about what an empty capture is called.
+- **The inbox is oldest-first, except grouped by day.** Oldest-first is how you
+  *process* an inbox; a day-grouped list is read newest-day-down, the way every
+  messaging app has trained everyone to read one. So the simple view reverses
+  the queue and cuts it into days under centred date chips, and the fallback
+  selection follows the *displayed* head so clarifying still advances to the
+  row next to the one you just dealt with. Only the simple view groups: the
+  other two put a timestamp on every row, where a heading would repeat what the
+  rows already say. Days are cut in the server's timezone, which is where every
+  other date in this app is formatted — the heading and the timestamps under it
+  agree, and making either of them the *user's* timezone is one app-wide change
+  rather than something to work around in the inbox.
 - **The Chrome extension is a sidebar, and host permissions are what sign it
   in.** `SameSite=Lax` would normally withhold the session cookie from a
   cross-site `fetch`, and `chrome-extension://` is cross-site — but Chrome

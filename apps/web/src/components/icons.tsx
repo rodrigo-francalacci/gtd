@@ -190,6 +190,17 @@ export const IconViewCompact = (p: IconProps) => (
   </Glyph>
 );
 
+/** Simple view — titles and nothing else, so: lines. */
+export const IconViewSimple = (p: IconProps) => (
+  <Glyph {...p}>
+    {/* The last line is short so this doesn't read as the sidebar's list
+        glyph — three equal rules already mean something else in this app. */}
+    <path d="M2.4 4h11.2" />
+    <path d="M2.4 8h11.2" />
+    <path d="M2.4 12h7.4" />
+  </Glyph>
+);
+
 /** An attached document — a page with a folded corner. */
 export const IconDocument = (p: IconProps) => (
   <Glyph {...p}>

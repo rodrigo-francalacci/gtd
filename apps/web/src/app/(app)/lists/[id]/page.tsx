@@ -76,7 +76,7 @@ export default async function ListPage(props: PageProps<'/lists/[id]'>) {
           items={items.map((i) => ({ ...i, href: qs(i.id) }))}
           selectedId={selectedId}
           isPurchases={isPurchases}
-          compact={viewMode === 'compact'}
+          mode={viewMode}
           emptyState={
             <EmptyList
               message={

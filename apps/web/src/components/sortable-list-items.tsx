@@ -1,6 +1,7 @@
 'use client';
 
 import { moveListItemBetween } from '@/lib/actions';
+import type { ViewMode } from '@/lib/pane';
 import type { ListItemRow as Row } from '@/lib/queries.shared';
 import { ListItemRow } from './list-item-row';
 import { SortableList } from './sortable';
@@ -14,13 +15,13 @@ export function SortableListItems({
   items,
   selectedId,
   isPurchases,
-  compact = false,
+  mode = 'comfortable',
   emptyState,
 }: {
   items: ListItemWithHref[];
   selectedId?: string | null;
   isPurchases: boolean;
-  compact?: boolean;
+  mode?: ViewMode;
   emptyState?: React.ReactNode;
 }) {
   return (
@@ -36,7 +37,7 @@ export function SortableListItems({
           selected={item.id === selectedId}
           isPurchases={isPurchases}
           isDragging={isDragging}
-          compact={compact}
+          mode={mode}
         />
       )}
     />

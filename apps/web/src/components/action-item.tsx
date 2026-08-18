@@ -8,14 +8,17 @@ import {
   PROJECT_ACTION_COLUMNS,
   WAITING_COLUMNS,
 } from '@/lib/columns';
+import type { ViewMode } from '@/lib/pane';
 import { daysSince, isStale, type ActionRow } from '@/lib/queries.shared';
 import { DragGrip } from './sortable';
+import { SimpleRow } from './simple-row';
 
 /**
  * One row in the middle pane. The checkbox completes; the row body selects.
  *
- * Two densities: `comfortable` wraps metadata onto a second line, `compact`
- * lays the same fields out as table columns — the old Evernote list view.
+ * Three densities: `comfortable` wraps metadata onto a second line, `compact`
+ * lays the same fields out as table columns — the old Evernote list view — and
+ * `simple` drops the metadata entirely.
  */
 export function ActionItem({
   action,
@@ -23,7 +26,7 @@ export function ActionItem({
   selected,
   showProject = true,
   isDragging = false,
-  compact = false,
+  mode = 'comfortable',
   variant = 'default',
 }: {
   action: ActionRow;
@@ -31,7 +34,7 @@ export function ActionItem({
   selected: boolean;
   showProject?: boolean;
   isDragging?: boolean;
-  compact?: boolean;
+  mode?: ViewMode;
   /** 'waiting' swaps the contexts column for who you're waiting on. */
   variant?: 'default' | 'waiting';
 }) {
@@ -72,7 +75,20 @@ export function ActionItem({
     );
   };
 
-  if (compact) {
+  if (mode === 'simple') {
+    return (
+      <SimpleRow
+        href={href}
+        title={action.title}
+        selected={selected}
+        muted={done}
+        faded={pending || isDragging}
+        control={checkbox}
+      />
+    );
+  }
+
+  if (mode === 'compact') {
     const columns =
       variant === 'waiting'
         ? WAITING_COLUMNS

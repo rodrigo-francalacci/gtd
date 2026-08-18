@@ -5,6 +5,22 @@ import { ResizablePane } from './resizable-pane';
 import { ViewToggle } from './view-toggle';
 
 /**
+ * What the third pane gives up once the file preview is open.
+ *
+ * `0 1 41rem`: no longer grows, so the preview takes everything left over;
+ * still shrinks, so a narrow window squeezes this rather than overflowing.
+ * 41rem is the note column's own measure (38rem) plus its padding, so nothing
+ * inside the pane reflows — it stops stretching empty background it wasn't
+ * using. With no preview open the class doesn't apply and the pane fills the
+ * window exactly as before.
+ *
+ * The shell's `<main>` carries the matching rule (see `(app)/layout.tsx`).
+ * It wraps panes 2 and 3, so capping only the pane inside it just moved the
+ * empty space one level up and still left the preview with half the window.
+ */
+const CAPPED_BY_PREVIEW = 'group-data-[preview=open]/shell:flex-[0_1_41rem]';
+
+/**
  * The middle pane: a scrolling list with a sticky header.
  *
  * Wider than the classic Evernote proportion because rows here carry more than
@@ -67,7 +83,9 @@ export function ListPane({
       <div
         className={[
           'flex flex-col border-r border-grey-200 bg-grey-50',
-          fill ? 'min-w-0 flex-1' : 'w-[30rem] shrink-0',
+          // A filling pane is the rightmost one on its page, so it yields to
+          // the preview the same way a detail pane does.
+          fill ? `min-w-0 flex-1 ${CAPPED_BY_PREVIEW}` : 'w-[30rem] shrink-0',
         ].join(' ')}
       >
         {body}
@@ -124,7 +142,7 @@ function ColumnHeader({ columns }: { columns: ColumnSet }) {
  */
 export function DetailPane({ children }: { children: ReactNode }) {
   return (
-    <div className="min-w-0 flex-1 overflow-y-auto bg-paper">
+    <div className={['min-w-0 flex-1 overflow-y-auto bg-paper', CAPPED_BY_PREVIEW].join(' ')}>
       <div className="max-w-[38rem] px-7 py-6">{children}</div>
     </div>
   );
@@ -133,7 +151,12 @@ export function DetailPane({ children }: { children: ReactNode }) {
 /** Shown when nothing is selected in the middle pane. */
 export function EmptyDetail({ message }: { message: string }) {
   return (
-    <div className="flex h-full flex-1 items-center justify-center bg-paper">
+    <div
+      className={[
+        'flex h-full flex-1 items-center justify-center bg-paper',
+        CAPPED_BY_PREVIEW,
+      ].join(' ')}
+    >
       <p className="text-[13px] text-grey-400">{message}</p>
     </div>
   );

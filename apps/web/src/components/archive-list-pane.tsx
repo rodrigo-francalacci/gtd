@@ -3,6 +3,7 @@ import { EmptyList, ListPane } from '@/components/panes';
 import { ARCHIVE_COLUMNS } from '@/lib/columns';
 import type { ArchivedProjectRow } from '@/lib/queries';
 import type { ViewMode } from '@/lib/pane';
+import { SimpleRow } from './simple-row';
 
 /**
  * Grouped Area → Goal, newest first inside each group.
@@ -25,7 +26,6 @@ export function ArchiveListPane({
   viewMode: ViewMode;
   paneWidth: number;
 }) {
-  const compact = viewMode === 'compact';
   const rows = showDropped ? projects : projects.filter((p) => p.status === 'completed');
   const droppedCount = projects.filter((p) => p.status === 'dropped').length;
 
@@ -97,7 +97,7 @@ export function ArchiveListPane({
                       project={p}
                       selected={p.id === selectedId}
                       showDropped={showDropped}
-                      compact={compact}
+                      mode={viewMode}
                     />
                   ))}
                 </div>
@@ -119,17 +119,29 @@ function ArchiveRow({
   project,
   selected,
   showDropped,
-  compact,
+  mode,
 }: {
   project: ArchivedProjectRow;
   selected: boolean;
   showDropped: boolean;
-  compact: boolean;
+  mode: ViewMode;
 }) {
   const href = `/archive?${showDropped ? 'dropped=1&' : ''}project=${project.id}`;
   const finished = project.completedAt ? dateFormat.format(project.completedAt) : '—';
 
-  if (compact) {
+  if (mode === 'simple') {
+    return (
+      <SimpleRow
+        href={href}
+        title={project.title}
+        selected={selected}
+        muted={project.status === 'dropped'}
+        grip={false}
+      />
+    );
+  }
+
+  if (mode === 'compact') {
     return (
       <Link
         href={href}

@@ -11,13 +11,9 @@ export type {
 } from './pane';
 export {
   DEFAULT_PANE_WIDTH,
-  DEFAULT_PREVIEW_WIDTH,
   MAX_PANE_WIDTH,
-  MAX_PREVIEW_WIDTH,
   MIN_PANE_WIDTH,
-  MIN_PREVIEW_WIDTH,
   paneWidth,
-  previewWidth,
 } from './pane';
 
 /**
@@ -33,9 +29,11 @@ export async function getPreferences(): Promise<Preferences> {
     .limit(1);
 
   return {
-    viewMode: row?.viewMode === 'compact' ? 'compact' : 'comfortable',
+    viewMode:
+      row?.viewMode === 'compact' || row?.viewMode === 'simple'
+        ? row.viewMode
+        : 'comfortable',
     listPaneWidth: row?.listPaneWidth ?? null,
-    previewPaneWidth: row?.previewPaneWidth ?? null,
     theme: row?.theme === 'dark' ? 'dark' : row?.theme === 'light' ? 'light' : null,
   };
 }

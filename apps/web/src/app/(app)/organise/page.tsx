@@ -22,7 +22,6 @@ export default async function OrganisePage(props: PageProps<'/organise'>) {
     getPreferences(),
   ]);
   const viewMode = prefs.viewMode;
-  const compact = viewMode === 'compact';
 
   // Unfiled actions are the ones this view exists to clear, so they lead.
   const all = [...next, ...waiting];
@@ -40,7 +39,7 @@ export default async function OrganisePage(props: PageProps<'/organise'>) {
       >
         <SortableProjectList
           projects={projects.map((p) => ({ ...p, href: `/projects/${p.id}` }))}
-          compact={compact}
+          mode={viewMode}
         />
       </ListPane>
 
@@ -69,7 +68,7 @@ export default async function OrganisePage(props: PageProps<'/organise'>) {
         <UnfileTarget />
         <SortableActionList
           actions={rows.map((a) => ({ ...a, href: `/now?action=${a.id}` }))}
-          compact={compact}
+          mode={viewMode}
           emptyState={
             <EmptyList
               message={

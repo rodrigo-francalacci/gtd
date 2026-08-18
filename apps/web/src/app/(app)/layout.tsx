@@ -3,7 +3,7 @@ import { FilePreviewProvider } from '@/components/file-preview';
 import { SidebarNav } from '@/components/sidebar';
 import { requireSession } from '@/lib/auth/session';
 import { getLists, getSidebarCounts } from '@/lib/queries';
-import { getPreferences, previewWidth } from '@/lib/view-mode';
+import { getPreferences } from '@/lib/view-mode';
 
 /**
  * The signed-in shell.
@@ -24,13 +24,20 @@ export default async function AppLayout({ children }: { children: React.ReactNod
 
   return (
     /* Pane 1 of 3. Panes 2 and 3 come from each section's own page. The file
-       preview adds a fourth on the right, but only while something is open. */
-    <FilePreviewProvider initialWidth={previewWidth(prefs)}>
+       preview adds a fourth on the right, but only while something is open,
+       and it takes the space rather than a width of its own. */
+    <FilePreviewProvider>
       {/* Renders nothing; listens for `c` so a thought can be captured from
           wherever you happen to be when it arrives. */}
       <CaptureHotkey />
       <SidebarNav counts={counts} lists={lists} theme={prefs.theme} />
-      <main className="flex min-w-0 flex-1">{children}</main>
+      {/* Panes 2 and 3 live in here, so this is what has to stop growing when
+          the preview opens — otherwise the pane inside it caps itself and the
+          space it gave up stays trapped in this wrapper. `0 1 auto`: as wide
+          as the two panes it holds, and shrinkable if the window is narrow. */}
+      <main className="flex min-w-0 flex-1 group-data-[preview=open]/shell:flex-[0_1_auto]">
+        {children}
+      </main>
     </FilePreviewProvider>
   );
 }

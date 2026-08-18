@@ -56,7 +56,7 @@ export async function ProjectListPane({
             href: `/projects/${p.id}${stalledOnly ? '?filter=stalled' : ''}`,
           }))}
           selectedId={selectedId}
-          compact={viewMode === 'compact'}
+          mode={viewMode}
         />
       )}
     </ListPane>

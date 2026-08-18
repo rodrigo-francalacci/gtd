@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { captureInboxItem } from '@/lib/actions';
 import { uploadCaptureFiles } from '@/lib/capture-upload';
+import { captureLabel } from '@/lib/queries.shared';
 import { MAX_DIRECT_UPLOAD_MB } from '@/lib/upload';
 import { AudioRecorder } from './audio-recorder';
 import { IconAudio, IconCamera, IconImage, IconPaperclip, IconStop } from './icons';
@@ -367,13 +368,11 @@ export function MobileCapture({
               >
                 <span className="min-w-0 flex-1 truncate">
                   {/* First line only — the note below it would otherwise be
-                      what you see, having pushed the title out of view. */}
-                  {item.rawText?.split('\n')[0].trim() ||
-                    (item.rawType === 'photo'
-                      ? 'Photo'
-                      : item.rawType === 'audio'
-                        ? 'Voice note'
-                        : 'Untitled')}
+                      what you see, having pushed the title out of view. The
+                      desktop inbox reads a row the same way, so the rule lives
+                      in one place now rather than two that disagreed about
+                      what an empty capture is called. */}
+                  {captureLabel(item)}
                 </span>
                 {item.attachmentCount > 0 ? (
                   <span className="shrink-0 text-grey-400">

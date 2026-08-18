@@ -4,8 +4,10 @@ import Link from 'next/link';
 import { useState, useTransition } from 'react';
 import { moveActionToProject } from '@/lib/actions';
 import { PROJECT_COLUMNS } from '@/lib/columns';
+import type { ViewMode } from '@/lib/pane';
 import { isStalled, type ProjectRow as Row } from '@/lib/queries.shared';
 import { DRAG_ACTION, DragGrip, dragPayload, hasDragType } from './sortable';
+import { SimpleRow } from './simple-row';
 
 /**
  * A project row. Doubles as a drop target: dragging an action onto it files
@@ -17,14 +19,14 @@ export function ProjectRow({
   selected,
   isDragging = false,
   acceptsActions = true,
-  compact = false,
+  mode = 'comfortable',
 }: {
   project: Row;
   href: string;
   selected: boolean;
   isDragging?: boolean;
   acceptsActions?: boolean;
-  compact?: boolean;
+  mode?: ViewMode;
 }) {
   const [over, setOver] = useState(false);
   const [pending, startTransition] = useTransition();
@@ -52,7 +54,20 @@ export function ProjectRow({
     },
   };
 
-  if (compact) {
+  if (mode === 'simple') {
+    return (
+      <SimpleRow
+        {...dropHandlers}
+        href={href}
+        title={project.title}
+        selected={selected}
+        faded={isDragging || pending}
+        highlight={over}
+      />
+    );
+  }
+
+  if (mode === 'compact') {
     return (
       <div
         {...dropHandlers}

@@ -12,7 +12,10 @@ import {
   getProjectOptions,
 } from '@/lib/queries';
 import { IconNote, IconPaperclip } from '@/components/icons';
+import { SimpleRow } from '@/components/simple-row';
 import { INBOX_COLUMNS } from '@/lib/columns';
+import { captureHasNote, captureLabel } from '@/lib/queries.shared';
+import type { InboxRow } from '@/lib/queries';
 import { getPreferences, paneWidth } from '@/lib/view-mode';
 
 const stamp = new Intl.DateTimeFormat('en-GB', {
@@ -22,29 +25,71 @@ const stamp = new Intl.DateTimeFormat('en-GB', {
   minute: '2-digit',
 });
 
+/** The heading over a day's captures: "18 August 2026". */
+const dayName = new Intl.DateTimeFormat('en-GB', {
+  day: 'numeric',
+  month: 'long',
+  year: 'numeric',
+});
+
+/** Within the last week the weekday is more use than the date. */
+const weekday = new Intl.DateTimeFormat('en-GB', { weekday: 'long' });
+
+/** Sortable, comparable day key — the same calendar day means the same string. */
+const dayKey = new Intl.DateTimeFormat('en-CA');
+
 /**
- * What the row says: the first line and nothing else.
+ * Captures split into days, newest day first.
  *
- * The note lives below it in the same `raw_text`, and letting it spill into the
- * list turned a queue you scan into a wall of prose — the whole point of the
- * list is telling twenty captures apart at a glance. The note is a click away,
- * flagged by an icon so you know it is there.
+ * Only the simple view groups: the other two show a timestamp on every row, so
+ * a heading would be repeating what the rows already say. Here the rows say
+ * nothing but the title, and a bare list of forty of those has lost the one
+ * thing that makes a capture make sense again — when you had the thought.
  *
- * A photo or a voice note is a complete capture on its own, so there is often
- * no text at all; "Photo" beside a timestamp is enough to know which one it is
- * until it's clarified.
+ * Days are cut in the server's timezone, which is the same one every other
+ * date in this app is formatted in. That keeps a heading and the timestamps
+ * under it telling the same story; it does mean neither is the *user's*
+ * timezone when the server is elsewhere, which is one app-wide fix rather
+ * than something to work around here.
  */
-function label(item: { rawText: string | null; rawType: string }): string {
-  const first = item.rawText?.split('\n')[0].trim();
-  if (first) return first;
-  if (item.rawType === 'photo') return 'Photo';
-  if (item.rawType === 'audio') return 'Voice note';
-  return 'Untitled capture';
+function byDay(items: InboxRow[]): { key: string; label: string; items: InboxRow[] }[] {
+  const now = new Date();
+  const today = dayKey.format(now);
+  const yesterday = dayKey.format(new Date(now.getTime() - 86_400_000));
+  const aWeekAgo = new Date(now.getTime() - 6 * 86_400_000);
+
+  const days = new Map<string, InboxRow[]>();
+  for (const item of items) {
+    const key = dayKey.format(item.createdAt);
+    days.set(key, [...(days.get(key) ?? []), item]);
+  }
+
+  return [...days.entries()]
+    // The key is ISO-ordered, so a string sort is a date sort.
+    .sort(([a], [b]) => b.localeCompare(a))
+    .map(([key, rows]) => ({
+      key,
+      label:
+        key === today
+          ? 'Today'
+          : key === yesterday
+            ? 'Yesterday'
+            : rows[0].createdAt >= aWeekAgo
+              ? weekday.format(rows[0].createdAt)
+              : dayName.format(rows[0].createdAt),
+      items: rows,
+    }));
 }
 
-/** Whether anything follows the first line — i.e. the capture carries a note. */
-function hasNote(item: { rawText: string | null }): boolean {
-  return (item.rawText ?? '').split('\n').slice(1).join('\n').trim().length > 0;
+/** The centred date chip, as every messaging app has trained everyone to read. */
+function DayHeading({ label }: { label: string }) {
+  return (
+    <div className="sticky top-0 z-20 flex justify-center bg-grey-50 py-2">
+      <span className="rounded-full bg-grey-200 px-2.5 py-0.5 text-[10px] font-medium uppercase tracking-wider text-grey-600">
+        {label}
+      </span>
+    </div>
+  );
 }
 
 /**
@@ -56,15 +101,22 @@ export default async function InboxPage(props: PageProps<'/inbox'>) {
   const selectedId = typeof searchParams.item === 'string' ? searchParams.item : null;
 
   const [items, prefs] = await Promise.all([getInboxItems(), getPreferences()]);
-  const compact = prefs.viewMode === 'compact';
+  const simple = prefs.viewMode === 'simple';
+
+  // The queue is oldest-first, which is the right way to *process* an inbox.
+  // Grouped by day it reads the other way round — the most recent day belongs
+  // at the top, where a day-grouped list is always read from.
+  const ordered = simple ? [...items].reverse() : items;
 
   // `items` is pending-only, so an id that isn't in it has just been clarified.
-  // Falling back to the head of the queue makes processing advance by itself:
-  // clarify one, and the next capture is already in front of you.
+  // Falling back to the head of the list makes processing advance by itself:
+  // clarify one, and the next capture is already in front of you. The head of
+  // the *displayed* list, so the selection is never the row furthest from the
+  // one you just dealt with.
   const targetId =
     selectedId && items.some((i) => i.id === selectedId)
       ? selectedId
-      : (items[0]?.id ?? null);
+      : (ordered[0]?.id ?? null);
 
   const [selected, files, projects, horizons, listOptions, contextGroups] =
     await Promise.all([
@@ -86,16 +138,49 @@ export default async function InboxPage(props: PageProps<'/inbox'>) {
         subtitle={
           items.length === 0
             ? 'Empty — nothing waiting to be clarified'
-            : `${items.length} to clarify · oldest first`
+            : `${items.length} to clarify · ${simple ? 'newest first' : 'oldest first'}`
         }
       >
         <InboxCapture />
 
         {items.length === 0 ? (
           <EmptyList message="Nothing here. Capture anything above — you can decide what it is later." />
+        ) : simple ? (
+          byDay(ordered).map((day) => (
+            <section key={day.key}>
+              <DayHeading label={day.label} />
+              {day.items.map((item) => (
+                <SimpleRow
+                  key={item.id}
+                  href={`/inbox?item=${item.id}`}
+                  selected={item.id === targetId}
+                  grip={false}
+                  after={
+                    <>
+                      {item.attachmentCount > 0 ? (
+                        <span className="shrink-0 text-grey-400">
+                          <IconPaperclip />
+                        </span>
+                      ) : null}
+                      {captureHasNote(item) ? (
+                        <span className="shrink-0 text-grey-400" title="Has a note">
+                          <IconNote />
+                        </span>
+                      ) : null}
+                    </>
+                  }
+                  title={
+                    <span className={item.rawText ? '' : 'italic text-grey-500'}>
+                      {captureLabel(item)}
+                    </span>
+                  }
+                />
+              ))}
+            </section>
+          ))
         ) : (
-          items.map((item) =>
-            compact ? (
+          ordered.map((item) =>
+            prefs.viewMode === 'compact' ? (
               <Link
                 key={item.id}
                 href={`/inbox?item=${item.id}`}
@@ -121,12 +206,12 @@ export default async function InboxPage(props: PageProps<'/inbox'>) {
                       <IconPaperclip />
                     </span>
                   ) : null}
-                  {hasNote(item) ? (
+                  {captureHasNote(item) ? (
                     <span className="shrink-0 text-grey-400" title="Has a note">
                       <IconNote />
                     </span>
                   ) : null}
-                  <span className="truncate">{label(item)}</span>
+                  <span className="truncate">{captureLabel(item)}</span>
                 </span>
                 <span className="truncate text-grey-500">
                   {item.aiSuggestion?.projectId ? 'suggestion' : '—'}
@@ -156,7 +241,7 @@ export default async function InboxPage(props: PageProps<'/inbox'>) {
                     item.rawText ? '' : 'italic text-grey-500',
                   ].join(' ')}
                 >
-                  {label(item)}
+                  {captureLabel(item)}
                 </span>
                 <span className="mt-1 flex items-center gap-2 text-[11px] text-grey-500">
                   {stamp.format(item.createdAt)}
@@ -166,7 +251,7 @@ export default async function InboxPage(props: PageProps<'/inbox'>) {
                       <span className="tabular-nums">{item.attachmentCount}</span>
                     </span>
                   ) : null}
-                  {hasNote(item) ? (
+                  {captureHasNote(item) ? (
                     <span className="flex items-center gap-1 text-grey-400" title="Has a note">
                       <IconNote />
                     </span>

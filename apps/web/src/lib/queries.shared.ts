@@ -181,3 +181,35 @@ export type AttachmentRow = {
   driveFileId: string | null;
   createdAt: Date;
 };
+
+// ---------------------------------------------------------------------------
+// Captures
+// ---------------------------------------------------------------------------
+
+/** The parts of an inbox row a list needs. Kept structural so both the desktop
+ *  queue and the phone's "just captured" list satisfy it. */
+export type CaptureLike = { rawText: string | null; rawType: string };
+
+/**
+ * What a capture's row says: the first line and nothing else.
+ *
+ * The note lives below it in the same `raw_text`, and letting it spill into a
+ * list turns a queue you scan into a wall of prose. A photo or a voice note is
+ * a complete capture on its own, so there is often no text at all — "Photo"
+ * beside a timestamp is enough to tell which one it is until it's clarified.
+ *
+ * Here rather than in either list because it was written twice already, and
+ * the two copies disagreed about what an empty capture is called.
+ */
+export function captureLabel(item: CaptureLike): string {
+  const first = item.rawText?.split('\n')[0].trim();
+  if (first) return first;
+  if (item.rawType === 'photo') return 'Photo';
+  if (item.rawType === 'audio') return 'Voice note';
+  return 'Untitled capture';
+}
+
+/** Whether anything follows the first line — i.e. the capture carries a note. */
+export function captureHasNote(item: Pick<CaptureLike, 'rawText'>): boolean {
+  return (item.rawText ?? '').split('\n').slice(1).join('\n').trim().length > 0;
+}

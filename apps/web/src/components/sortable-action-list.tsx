@@ -1,6 +1,7 @@
 'use client';
 
 import { moveActionBetween } from '@/lib/actions';
+import type { ViewMode } from '@/lib/pane';
 import type { ActionRow } from '@/lib/queries.shared';
 import { ActionItem } from './action-item';
 import { DRAG_ACTION, SortableList } from './sortable';
@@ -20,14 +21,14 @@ export function SortableActionList({
   actions,
   selectedId,
   showProject = true,
-  compact = false,
+  mode = 'comfortable',
   variant = 'default',
   emptyState,
 }: {
   actions: ActionListItem[];
   selectedId?: string | null;
   showProject?: boolean;
-  compact?: boolean;
+  mode?: ViewMode;
   variant?: 'default' | 'waiting';
   emptyState?: React.ReactNode;
 }) {
@@ -44,7 +45,7 @@ export function SortableActionList({
           selected={action.id === selectedId}
           showProject={showProject}
           isDragging={isDragging}
-          compact={compact}
+          mode={mode}
           variant={variant}
         />
       )}

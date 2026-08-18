@@ -5,7 +5,7 @@ import { setListPaneWidth } from '@/lib/actions';
 import { MAX_PANE_WIDTH, MIN_PANE_WIDTH } from '@/lib/pane';
 
 /**
- * A pane with one draggable vertical edge.
+ * The list pane, with one draggable vertical edge.
  *
  * Pointer events rather than HTML5 drag-and-drop: this is a continuous gesture
  * that needs the pane to follow the cursor, not a drop with a payload. Pointer
@@ -14,17 +14,16 @@ import { MAX_PANE_WIDTH, MIN_PANE_WIDTH } from '@/lib/pane';
  *
  * The width is local state during the drag and written to the database once,
  * on release — persisting every pointermove would be a request per pixel.
+ *
+ * It once took an `edge`, a `min`/`max`, a commit handler and a class name,
+ * because the preview pane was the second caller. The preview now takes
+ * whatever is left over, so all of that had exactly one value each and has
+ * gone rather than sitting here looking configurable.
  */
 export function ResizablePane({
   initialWidth,
   defaultWidth,
   children,
-  edge = 'right',
-  min = MIN_PANE_WIDTH,
-  max = MAX_PANE_WIDTH,
-  label = 'Resize list pane',
-  onCommit = setListPaneWidth,
-  className = 'border-r border-grey-200 bg-grey-50',
 }: {
   initialWidth: number;
   /**
@@ -34,17 +33,6 @@ export function ResizablePane({
    */
   defaultWidth?: number;
   children: ReactNode;
-  /**
-   * Which side the handle sits on. A pane at the right of the window grows as
-   * the cursor moves *left*, so the delta is signed by this rather than by the
-   * caller remembering to negate it.
-   */
-  edge?: 'left' | 'right';
-  min?: number;
-  max?: number;
-  label?: string;
-  onCommit?: (width: number) => void | Promise<unknown>;
-  className?: string;
 }) {
   const [width, setWidth] = useState(initialWidth);
   const [dragging, setDragging] = useState(false);
@@ -58,13 +46,12 @@ export function ResizablePane({
   }, [initialWidth, dragging]);
 
   const clamp = useCallback(
-    (n: number) => Math.min(max, Math.max(min, n)),
-    [min, max],
+    (n: number) => Math.min(MAX_PANE_WIDTH, Math.max(MIN_PANE_WIDTH, n)),
+    [],
   );
 
-  const direction = edge === 'right' ? 1 : -1;
   const widthAt = (clientX: number) =>
-    clamp(startWidth.current + direction * (clientX - startX.current));
+    clamp(startWidth.current + (clientX - startX.current));
 
   const onPointerDown = (e: React.PointerEvent) => {
     e.preventDefault();
@@ -84,7 +71,7 @@ export function ResizablePane({
     e.currentTarget.releasePointerCapture?.(e.pointerId);
     setDragging(false);
     const final = widthAt(e.clientX);
-    if (final !== startWidth.current) void onCommit(final);
+    if (final !== startWidth.current) void setListPaneWidth(final);
   };
 
   // Keep the whole window showing a resize cursor and stop text selecting
@@ -103,17 +90,17 @@ export function ResizablePane({
   return (
     <div
       style={{ width }}
-      className={['relative flex shrink-0 flex-col', className].join(' ')}
+      className="relative flex shrink-0 flex-col border-r border-grey-200 bg-grey-50"
     >
       {children}
 
       <div
         role="separator"
         aria-orientation="vertical"
-        aria-label={label}
+        aria-label="Resize list pane"
         aria-valuenow={width}
-        aria-valuemin={min}
-        aria-valuemax={max}
+        aria-valuemin={MIN_PANE_WIDTH}
+        aria-valuemax={MAX_PANE_WIDTH}
         tabIndex={0}
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}
@@ -122,19 +109,18 @@ export function ResizablePane({
         onDoubleClick={() => {
           const reset = clamp(defaultWidth ?? initialWidth);
           setWidth(reset);
-          void onCommit(reset);
+          void setListPaneWidth(reset);
         }}
         onKeyDown={(e) => {
           if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
           e.preventDefault();
-          const step = (e.shiftKey ? 40 : 10) * direction;
+          const step = e.shiftKey ? 40 : 10;
           const next = clamp(width + (e.key === 'ArrowRight' ? step : -step));
           setWidth(next);
-          void onCommit(next);
+          void setListPaneWidth(next);
         }}
         className={[
-          'absolute inset-y-0 z-30 w-1.5 cursor-col-resize',
-          edge === 'right' ? '-right-0.5' : '-left-0.5',
+          'absolute inset-y-0 -right-0.5 z-30 w-1.5 cursor-col-resize',
           dragging ? 'bg-selected' : 'hover:bg-grey-300',
         ].join(' ')}
       />

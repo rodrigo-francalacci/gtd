@@ -47,7 +47,7 @@ export default async function NowPage(props: PageProps<'/now'>) {
         <SortableActionList
           actions={rows.map((a) => ({ ...a, href: qs(a.id) }))}
           selectedId={selectedId}
-          compact={viewMode === 'compact'}
+          mode={viewMode}
           emptyState={
             <EmptyList
               message={
