@@ -6,6 +6,12 @@ import {
   actions,
   areasOfFocus,
   attachments,
+  boxCategories,
+  boxItemLinks,
+  boxItemTags,
+  boxItems,
+  boxTags,
+  boxes,
   contexts,
   db,
   goals,
@@ -35,6 +41,7 @@ import {
   removeAttachment,
 } from './google/attachments';
 import { enqueueSync } from './google/queue';
+import { requeueBoxItem, requeueUnreadDocuments } from './box/queue';
 import { docFromText, extractText } from './tiptap';
 
 /**
@@ -1136,4 +1143,389 @@ export async function detachAttachment(attachmentId: string) {
   await requireSession();
   await removeAttachment(attachmentId);
   revalidateShell();
+}
+
+// ---------------------------------------------------------------------------
+// The Big Box
+// ---------------------------------------------------------------------------
+
+/**
+ * Set the Big Box up: one default box called Feed.
+ *
+ * Deliberately a button rather than something that happens on first render.
+ * It creates a folder in someone's Drive, and the app's standing rule is that
+ * it doesn't do that quietly — the same reason `backfillProjectLinks` is a
+ * button on the connections page.
+ */
+export async function createDefaultBox() {
+  await requireSession();
+
+  const [existing] = await db
+    .select({ id: boxes.id })
+    .from(boxes)
+    .where(eq(boxes.isDefault, true))
+    .limit(1);
+
+  if (existing) return existing.id;
+
+  const [row] = await db
+    .insert(boxes)
+    .values({
+      name: 'Feed',
+      isDefault: true,
+      instruction:
+        'Documents of every kind from one person’s life — letters, bills, ' +
+        'notices, contracts, manuals. Read the document and tag it with ' +
+        'whichever of the categories below genuinely apply.',
+    })
+    .returning({ id: boxes.id });
+
+  revalidateShell();
+  return row.id;
+}
+
+export async function createBox(name: string, instruction: string) {
+  await requireSession();
+  const trimmed = name.trim();
+  if (!trimmed) return null;
+
+  const [row] = await db
+    .insert(boxes)
+    .values({ name: trimmed, instruction: instruction.trim() })
+    .returning({ id: boxes.id });
+
+  revalidateShell();
+  return row.id;
+}
+
+/**
+ * Renaming writes one row and stops.
+ *
+ * The Drive folder is renamed to match by `ensureBoxFolder`, the next time a
+ * document is filed here — a rename must not sit waiting on Google, and there
+ * is no sensible queue for it: `sync_jobs` is keyed on a project.
+ */
+export async function updateBox(boxId: string, name: string, instruction: string) {
+  await requireSession();
+  const trimmed = name.trim();
+  if (!trimmed) return;
+
+  await db
+    .update(boxes)
+    .set({ name: trimmed, instruction: instruction.trim(), updatedAt: new Date() })
+    .where(eq(boxes.id, boxId));
+
+  revalidateShell();
+}
+
+/**
+ * Delete a box and refile everything in it into the default one.
+ *
+ * The documents are the point; the box is only how they were grouped. Losing a
+ * year of receipts because a category turned out to be a bad idea would be the
+ * app deciding something it has no business deciding — so the box goes, its
+ * categories and tags go with it (which drops those tags off the documents,
+ * hence the usage count in the UI), and every document lands in the Feed.
+ *
+ * The default box itself can't be deleted: it is where everything else falls
+ * back to, and a Big Box with no big box is not a state worth having.
+ */
+export async function deleteBox(boxId: string) {
+  await requireSession();
+
+  const [box] = await db
+    .select({ isDefault: boxes.isDefault })
+    .from(boxes)
+    .where(eq(boxes.id, boxId))
+    .limit(1);
+
+  if (!box || box.isDefault) return;
+
+  const [fallback] = await db
+    .select({ id: boxes.id })
+    .from(boxes)
+    .where(eq(boxes.isDefault, true))
+    .limit(1);
+
+  if (!fallback) return;
+
+  await db.transaction(async (tx) => {
+    await tx
+      .update(boxItems)
+      .set({ boxId: fallback.id, updatedAt: new Date() })
+      .where(eq(boxItems.boxId, boxId));
+
+    // Categories and tags cascade, and `box_item_tags` with them. The
+    // documents keep everything that was theirs — name, summary, date, file.
+    await tx.delete(boxes).where(eq(boxes.id, boxId));
+  });
+
+  revalidateShell();
+}
+
+export async function createBoxCategory(
+  boxId: string,
+  name: string,
+  allowNewTags: boolean,
+) {
+  await requireSession();
+  const trimmed = name.trim();
+  if (!trimmed) return;
+
+  await db.insert(boxCategories).values({ boxId, name: trimmed, allowNewTags });
+  revalidateShell();
+}
+
+export async function updateBoxCategory(
+  categoryId: string,
+  name: string,
+  allowNewTags: boolean,
+) {
+  await requireSession();
+  const trimmed = name.trim();
+  if (!trimmed) return;
+
+  await db
+    .update(boxCategories)
+    .set({ name: trimmed, allowNewTags })
+    .where(eq(boxCategories.id, categoryId));
+
+  revalidateShell();
+}
+
+export async function deleteBoxCategory(categoryId: string) {
+  await requireSession();
+  await db.delete(boxCategories).where(eq(boxCategories.id, categoryId));
+  revalidateShell();
+}
+
+/**
+ * Add an allowed tag.
+ *
+ * Quietly reuses an existing one that differs only in case: the unique index
+ * would refuse it anyway, and "Tesco already exists" is not a useful thing to
+ * say to someone who just typed "tesco" meaning the same shop.
+ */
+export async function createBoxTag(categoryId: string, name: string) {
+  await requireSession();
+  const trimmed = name.trim();
+  if (!trimmed) return;
+
+  await db
+    .insert(boxTags)
+    .values({ categoryId, name: trimmed })
+    .onConflictDoNothing();
+
+  revalidateShell();
+}
+
+export async function renameBoxTag(tagId: string, name: string) {
+  await requireSession();
+  const trimmed = name.trim();
+  if (!trimmed) return;
+
+  await db.update(boxTags).set({ name: trimmed }).where(eq(boxTags.id, tagId));
+  revalidateShell();
+}
+
+/**
+ * Deleting a tag removes it from every document that carried it —
+ * `box_item_tags` cascades — which is why the editor shows the usage count
+ * before offering it.
+ */
+export async function deleteBoxTag(tagId: string) {
+  await requireSession();
+  await db.delete(boxTags).where(eq(boxTags.id, tagId));
+  revalidateShell();
+}
+
+/** Add or remove a tag by hand. The model proposes; you decide. */
+export async function toggleDocumentTag(itemId: string, tagId: string) {
+  await requireSession();
+
+  const existing = await db
+    .select({ itemId: boxItemTags.itemId })
+    .from(boxItemTags)
+    .where(and(eq(boxItemTags.itemId, itemId), eq(boxItemTags.tagId, tagId)))
+    .limit(1);
+
+  if (existing.length > 0) {
+    await db
+      .delete(boxItemTags)
+      .where(and(eq(boxItemTags.itemId, itemId), eq(boxItemTags.tagId, tagId)));
+  } else {
+    await db.insert(boxItemTags).values({ itemId, tagId }).onConflictDoNothing();
+  }
+
+  revalidateShell();
+}
+
+/**
+ * Correct what the model wrote.
+ *
+ * The transcription underneath is left alone: it is what the document says,
+ * not what we think of it. Only the title and summary are editable, and
+ * `search_text` is rewritten alongside because the vector is generated from it.
+ */
+export async function updateDocument(
+  itemId: string,
+  title: string,
+  description: string,
+) {
+  await requireSession();
+
+  const [row] = await db
+    .select({ text: boxItems.text })
+    .from(boxItems)
+    .where(eq(boxItems.id, itemId))
+    .limit(1);
+
+  await db
+    .update(boxItems)
+    .set({
+      title: title.trim() || null,
+      description: description.trim() || null,
+      searchText: [description.trim(), row?.text ?? '']
+        .filter(Boolean)
+        .join('\n')
+        .slice(0, 100_000),
+      updatedAt: new Date(),
+    })
+    .where(eq(boxItems.id, itemId));
+
+  revalidateShell();
+}
+
+/** Move a document to another box. Its tags don't come with it — they belong
+ *  to the box it left, so it is queued to be read again under the new one. */
+export async function moveDocument(itemId: string, boxId: string) {
+  await requireSession();
+
+  await db.transaction(async (tx) => {
+    await tx
+      .update(boxItems)
+      .set({ boxId, updatedAt: new Date() })
+      .where(eq(boxItems.id, itemId));
+
+    await tx.delete(boxItemTags).where(eq(boxItemTags.itemId, itemId));
+  });
+
+  await requeueBoxItem(itemId);
+  revalidateShell();
+}
+
+/** Read a document again — after adding a key, or fixing a tag list. */
+export async function rereadDocument(itemId: string) {
+  await requireSession();
+  await requeueBoxItem(itemId);
+  revalidateShell();
+}
+
+export async function rereadUnreadDocuments() {
+  await requireSession();
+  const n = await requeueUnreadDocuments();
+  revalidateShell();
+  return n;
+}
+
+/**
+ * Cite a document from a project, action or list item.
+ *
+ * A link, not a copy and not an attachment: the file stays in its box, and
+ * unlinking later touches nothing in Drive. That is the whole of keeping the
+ * two systems independent — a parking notice can be a project's evidence
+ * without ceasing to be a document that arrived in August.
+ */
+export async function linkDocument(
+  itemId: string,
+  parentType: AttachmentParentType,
+  parentId: string,
+) {
+  await requireSession();
+
+  await db
+    .insert(boxItemLinks)
+    .values({ itemId, parentType, parentId })
+    .onConflictDoNothing();
+
+  revalidateShell();
+}
+
+export async function unlinkDocument(
+  itemId: string,
+  parentType: AttachmentParentType,
+  parentId: string,
+) {
+  await requireSession();
+
+  await db
+    .delete(boxItemLinks)
+    .where(
+      and(
+        eq(boxItemLinks.itemId, itemId),
+        eq(boxItemLinks.parentType, parentType),
+        eq(boxItemLinks.parentId, parentId),
+      ),
+    );
+
+  revalidateShell();
+}
+
+/**
+ * Start work from a document.
+ *
+ * The document is usually what tells you there is something to do — a penalty
+ * notice, a renewal, a letter that needs answering — so the thing it becomes
+ * is linked back to it rather than merely inspired by it. The title comes from
+ * the document unless you give a better one, and the file stays where it is.
+ */
+export async function startFromDocument(
+  itemId: string,
+  kind: 'action' | 'project',
+  title: string,
+): Promise<{ id: string } | null> {
+  await requireSession();
+
+  const [item] = await db
+    .select({ title: boxItems.title, name: boxItems.name })
+    .from(boxItems)
+    .where(eq(boxItems.id, itemId))
+    .limit(1);
+
+  if (!item) return null;
+
+  const heading =
+    title.trim() ||
+    item.title?.trim() ||
+    item.name.replace(/^\d{4}-\d{2}-\d{2}[ _-]*/, '').trim() ||
+    'Untitled';
+
+  if (kind === 'project') {
+    const [project] = await db
+      .insert(projects)
+      .values({ title: heading, status: 'active' })
+      .returning({ id: projects.id });
+
+    await enqueueSync('create_project_links', project.id);
+    await db
+      .insert(boxItemLinks)
+      .values({ itemId, parentType: 'project', parentId: project.id })
+      .onConflictDoNothing();
+
+    revalidateShell();
+    return project;
+  }
+
+  const [action] = await db
+    .insert(actions)
+    .values({ title: heading, status: 'next' })
+    .returning({ id: actions.id });
+
+  await db
+    .insert(boxItemLinks)
+    .values({ itemId, parentType: 'action', parentId: action.id })
+    .onConflictDoNothing();
+
+  revalidateShell();
+  return action;
 }

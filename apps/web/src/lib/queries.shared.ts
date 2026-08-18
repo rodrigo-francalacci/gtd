@@ -1,4 +1,10 @@
-import type { ActionStatus, AttachmentKind, ProjectStatus } from '@gtd/db';
+import type {
+  ActionStatus,
+  AttachmentKind,
+  AttachmentParentType,
+  BoxItemStatus,
+  ProjectStatus,
+} from '@gtd/db';
 
 /**
  * Types and pure helpers shared by server queries and client components.
@@ -212,4 +218,90 @@ export function captureLabel(item: CaptureLike): string {
 /** Whether anything follows the first line — i.e. the capture carries a note. */
 export function captureHasNote(item: Pick<CaptureLike, 'rawText'>): boolean {
   return (item.rawText ?? '').split('\n').slice(1).join('\n').trim().length > 0;
+}
+
+// ---------------------------------------------------------------------------
+// The Big Box
+// ---------------------------------------------------------------------------
+
+export type BoxRow = {
+  id: string;
+  name: string;
+  instruction: string;
+  isDefault: boolean;
+  driveFolderId: string | null;
+  position: number | null;
+  itemCount: number;
+  /** Documents that haven't been read yet. */
+  pendingCount: number;
+};
+
+export type BoxTagRow = { id: string; name: string; usageCount: number };
+
+export type BoxCategoryRow = {
+  id: string;
+  name: string;
+  allowNewTags: boolean;
+  tags: BoxTagRow[];
+};
+
+/** A tag as it hangs off a document: enough to render, not enough to edit. */
+export type AppliedTag = { id: string; name: string; category: string };
+
+export type BoxItemRow = {
+  id: string;
+  boxId: string;
+  driveFileId: string;
+  name: string;
+  mimeType: string | null;
+  sizeBytes: number | null;
+  title: string | null;
+  description: string | null;
+  docDate: string | null;
+  status: BoxItemStatus;
+  capturedAt: Date;
+  tags: AppliedTag[];
+  linkCount: number;
+};
+
+export type BoxLinkRow = {
+  parentType: AttachmentParentType;
+  parentId: string;
+  title: string | null;
+};
+
+export type BoxItemDetail = BoxItemRow & {
+  boxName: string;
+  text: string | null;
+  lastError: string | null;
+  links: BoxLinkRow[];
+};
+
+export type LinkedDocumentRow = {
+  id: string;
+  boxId: string;
+  boxName: string;
+  name: string;
+  title: string | null;
+  mimeType: string | null;
+  sizeBytes: number | null;
+  driveFileId: string;
+  capturedAt: Date;
+};
+
+/**
+ * What a document is called on screen.
+ *
+ * The Drive name carries a date prefix so the folder sorts usefully when
+ * opened in Drive itself, and that prefix is filing machinery rather than
+ * something to read. Until the model has read the document there is no title,
+ * and the filename — minus the prefix — is the best we have.
+ */
+export function documentLabel(item: {
+  title: string | null;
+  name: string;
+}): string {
+  const title = item.title?.trim();
+  if (title) return title;
+  return item.name.replace(/^\d{4}-\d{2}-\d{2}[ _-]*/, '') || item.name;
 }

@@ -1,5 +1,6 @@
 import { sql } from 'drizzle-orm';
 import {
+  boolean,
   customType,
   date,
   doublePrecision,
@@ -11,6 +12,7 @@ import {
   primaryKey,
   text,
   timestamp,
+  uniqueIndex,
   uuid,
 } from 'drizzle-orm/pg-core';
 
@@ -582,6 +584,243 @@ export const enrichmentJobs = pgTable(
 );
 
 // ---------------------------------------------------------------------------
+// The Big Box — documents, filed by arriving
+// ---------------------------------------------------------------------------
+
+/**
+ * A box: a Drive folder whose contents are read, named, described and tagged.
+ *
+ * Named for the box of letters and documents this is copied from — everything
+ * important went in, newest on top, and you found things by remembering
+ * roughly when they arrived. That is the whole filing system, and it is a good
+ * one: it costs nothing at the moment of filing, which is the moment you will
+ * not spend effort.
+ *
+ * Deliberately separate from the GTD side. A document is not a commitment and
+ * filing one is not clarifying — the inbox exists to be emptied, and a box
+ * exists to be kept. They meet only at `box_item_links`, where a document
+ * becomes a project's resource without leaving the box.
+ *
+ * One box is the default (`is_default`), the Big Box itself. The others are
+ * for things that never overlap with it — receipts, fuel, a journal — and
+ * deleting one refiles its documents into the default rather than losing them.
+ */
+export const boxes = pgTable(
+  'boxes',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    name: text('name').notNull(),
+    /**
+     * The Drive folder documents are uploaded into. Created by this app, which
+     * is what makes `drive.file` enough to read them afterwards — a folder the
+     * app merely knows the id of is a folder it cannot open.
+     */
+    driveFolderId: text('drive_folder_id'),
+    /**
+     * What this box is for, in a sentence, handed to the model before the
+     * categories. "Fuel receipts for a tax return" tells it more about which
+     * tags to reach for than the tag names ever will.
+     */
+    instruction: text('instruction').notNull().default(''),
+    isDefault: boolean('is_default').notNull().default(false),
+    position: doublePrecision('position'),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index('boxes_default_idx').on(t.isDefault)],
+);
+
+/**
+ * A dimension of tags within one box: "Issued By", "Type of Document".
+ *
+ * Per box rather than global, because the axes that matter for a bill are not
+ * the ones that matter for a fuel receipt, and offering all of them everywhere
+ * is how a model ends up tagging a supermarket receipt with "HMRC".
+ */
+export const boxCategories = pgTable(
+  'box_categories',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    boxId: uuid('box_id')
+      .notNull()
+      .references(() => boxes.id, { onDelete: 'cascade' }),
+    name: text('name').notNull(),
+    /**
+     * Whether the model may propose a value that isn't on the list yet.
+     *
+     * Off by default and scoped to the one category that needs it — a city, on
+     * fuel receipts, where the list can't be written in advance. Left on
+     * everywhere it wasn't needed, it turns a controlled vocabulary into
+     * free text one plausible-looking tag at a time.
+     */
+    allowNewTags: boolean('allow_new_tags').notNull().default(false),
+    position: doublePrecision('position'),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index('box_categories_box_idx').on(t.boxId)],
+);
+
+/**
+ * An allowed tag. The vocabulary is user data, managed in the app.
+ *
+ * The model may only *use* these, never add to them: what comes back is
+ * matched against this table and anything else is dropped. That check is code,
+ * not a line in the prompt, because a prompt is a request and this is a rule —
+ * ask a model for one of five values often enough and eventually you get a
+ * sixth, and by then it is in your data.
+ */
+export const boxTags = pgTable(
+  'box_tags',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    categoryId: uuid('category_id')
+      .notNull()
+      .references(() => boxCategories.id, { onDelete: 'cascade' }),
+    name: text('name').notNull(),
+    position: doublePrecision('position'),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    index('box_tags_category_idx').on(t.categoryId),
+    // Case-insensitive, so "Tesco" and "tesco" can't both exist and split a
+    // year of receipts across two tags that look identical in the UI.
+    uniqueIndex('box_tags_unique_idx').on(t.categoryId, sql`lower(${t.name})`),
+  ],
+);
+
+/** Whether a document has been read yet. */
+export const boxItemStatus = pgEnum('box_item_status', [
+  'pending',
+  'ready',
+  'failed',
+]);
+
+/**
+ * One document in a box.
+ *
+ * `captured_at` is the permanent mark of when it arrived and is what the feed
+ * is ordered and grouped by. `doc_date` is the date printed *on* the document,
+ * which the model reads out and which is frequently not the same — a bill that
+ * arrives in August is dated July, and both facts are worth keeping.
+ *
+ * `name` is the Drive filename, which carries a date prefix so the folder
+ * sorts usefully when opened in Drive itself. The app shows `title` instead:
+ * the prefix is a filing artefact, not something to read.
+ */
+export const boxItems = pgTable(
+  'box_items',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    // Restrict rather than cascade: deleting a box must refile its documents,
+    // never destroy them. If that ever gets forgotten the delete fails loudly
+    // instead of quietly taking a year of receipts with it.
+    boxId: uuid('box_id')
+      .notNull()
+      .references(() => boxes.id, { onDelete: 'restrict' }),
+    driveFileId: text('drive_file_id').notNull(),
+    name: text('name').notNull(),
+    mimeType: text('mime_type'),
+    sizeBytes: integer('size_bytes'),
+    /** Everything below is the model's, written once the file has been read. */
+    title: text('title'),
+    description: text('description'),
+    docDate: date('doc_date'),
+    /** The full transcription, so search can reach inside the document. */
+    text: text('text'),
+    status: boxItemStatus('status').notNull().default('pending'),
+    /**
+     * Description, transcription and tag names flattened together. Same
+     * arrangement as `list_items`: the vector is generated from a column the
+     * app maintains, so anything that writes one must write the other.
+     */
+    searchText: text('search_text'),
+    searchVector: searchVector('title', 'search_text'),
+    capturedAt: timestamp('captured_at', { withTimezone: true }).notNull().defaultNow(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    index('box_items_box_idx').on(t.boxId, t.capturedAt),
+    index('box_items_drive_idx').on(t.driveFileId),
+    index('box_items_search_idx').using('gin', t.searchVector),
+  ],
+);
+
+export const boxItemTags = pgTable(
+  'box_item_tags',
+  {
+    itemId: uuid('item_id')
+      .notNull()
+      .references(() => boxItems.id, { onDelete: 'cascade' }),
+    tagId: uuid('tag_id')
+      .notNull()
+      .references(() => boxTags.id, { onDelete: 'cascade' }),
+  },
+  (t) => [
+    primaryKey({ columns: [t.itemId, t.tagId] }),
+    index('box_item_tags_tag_idx').on(t.tagId),
+  ],
+);
+
+/**
+ * A document, cited by something on the GTD side.
+ *
+ * A link rather than an `attachments` row pointing at the same Drive file:
+ * detaching an attachment trashes the file it points at, which for a document
+ * that lives in a box would mean tidying a project's resources quietly gutted
+ * the archive. Linking and unlinking here touch nothing in Drive.
+ *
+ * Reuses `attachment_parent_type` because it is already the list of things a
+ * file can hang off, and a second enum saying the same thing is a second enum
+ * to keep in step.
+ */
+export const boxItemLinks = pgTable(
+  'box_item_links',
+  {
+    itemId: uuid('item_id')
+      .notNull()
+      .references(() => boxItems.id, { onDelete: 'cascade' }),
+    parentType: attachmentParentType('parent_type').notNull(),
+    parentId: uuid('parent_id').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.itemId, t.parentType, t.parentId] }),
+    index('box_item_links_parent_idx').on(t.parentType, t.parentId),
+  ],
+);
+
+/**
+ * Reading and classifying a document.
+ *
+ * A third queue, for the reason the second one exists: `sync_jobs` is keyed on
+ * a project and pushes out to Google, `enrichment_jobs` is keyed on an
+ * attachment and pulls text in, and this is keyed on a box item and does
+ * something neither does — it returns a name, a summary, a date and a set of
+ * tags drawn from a vocabulary that belongs to the box. One cron tick drains
+ * all three.
+ */
+export const boxJobs = pgTable(
+  'box_jobs',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    itemId: uuid('item_id')
+      .notNull()
+      .references(() => boxItems.id, { onDelete: 'cascade' }),
+    status: syncJobStatus('status').notNull().default('pending'),
+    attempts: integer('attempts').notNull().default(0),
+    lastError: text('last_error'),
+    runAfter: timestamp('run_after', { withTimezone: true }).notNull().defaultNow(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    completedAt: timestamp('completed_at', { withTimezone: true }),
+  },
+  (t) => [
+    index('box_jobs_status_idx').on(t.status, t.runAfter),
+    index('box_jobs_item_idx').on(t.itemId),
+  ],
+);
+
+// ---------------------------------------------------------------------------
 // Preferences
 // ---------------------------------------------------------------------------
 
@@ -638,3 +877,10 @@ export type ActionStatus = (typeof actionStatus.enumValues)[number];
 export type ContextDimension = (typeof contextDimension.enumValues)[number];
 export type AttachmentKind = (typeof attachmentKind.enumValues)[number];
 export type AttachmentParentType = (typeof attachmentParentType.enumValues)[number];
+
+export type Box = typeof boxes.$inferSelect;
+export type NewBox = typeof boxes.$inferInsert;
+export type BoxCategory = typeof boxCategories.$inferSelect;
+export type BoxTag = typeof boxTags.$inferSelect;
+export type BoxItem = typeof boxItems.$inferSelect;
+export type BoxItemStatus = (typeof boxItemStatus.enumValues)[number];

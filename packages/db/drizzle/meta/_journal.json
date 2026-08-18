@@ -134,6 +134,13 @@
       "when": 1786718791181,
       "tag": "0018_special_blazing_skull",
       "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1787064560114,
+      "tag": "0019_tense_ghost_rider",
+      "breakpoints": true
     }
   ]
 }

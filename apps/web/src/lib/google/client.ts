@@ -109,6 +109,14 @@ export async function getFile(fileId: string): Promise<DriveFile | null> {
   }
 }
 
+/** Rename a folder the app made, so its Drive name follows the app's. */
+export async function renameFolder(folderId: string, name: string): Promise<void> {
+  await call(`${DRIVE}/files/${folderId}?fields=id`, {
+    method: 'PATCH',
+    body: JSON.stringify({ name }),
+  });
+}
+
 /** Move a file by swapping its parents — Drive has no "move" verb. */
 export async function moveFile(fileId: string, newParentId: string): Promise<void> {
   const file = await getFile(fileId);
@@ -145,7 +153,14 @@ export async function createResumableSession(
   name: string,
   mimeType: string,
   parentId: string,
-  origin: string,
+  /**
+   * Null when whatever will send the bytes is not a browser — the Apps Script
+   * that feeds the Big Box, for one. The binding below is enforced by CORS,
+   * which is a browser mechanism, so a server-to-server PUT carrying no Origin
+   * is accepted whatever the session was opened with. Checked against the real
+   * API before this parameter was allowed to be null.
+   */
+  origin: string | null,
 ): Promise<string> {
   const token = await getAccessToken();
 
@@ -168,7 +183,7 @@ export async function createResumableSession(
          * a spike that worked, because the spike opened the session from the
          * browser and inherited the right origin by accident.
          */
-        Origin: origin,
+        ...(origin ? { Origin: origin } : {}),
       },
       body: JSON.stringify({ name, parents: [parentId] }),
     },

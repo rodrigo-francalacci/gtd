@@ -5,6 +5,13 @@ import {
   actions,
   areasOfFocus,
   attachments,
+  boxCategories,
+  boxItemLinks,
+  boxItemTags,
+  boxItems,
+  boxJobs,
+  boxTags,
+  boxes,
   contexts,
   db,
   goals,
@@ -30,6 +37,12 @@ import { alias } from 'drizzle-orm/pg-core';
 import type {
   ActionRow,
   AttachmentRow,
+  BoxCategoryRow,
+  BoxItemDetail,
+  BoxItemRow,
+  BoxLinkRow,
+  BoxRow,
+  LinkedDocumentRow,
   ListItemRow,
   ListRow,
   ProjectRow,
@@ -40,6 +53,14 @@ import { isStalled, stageOf } from './queries.shared';
 export type {
   ActionRow,
   AttachmentRow,
+  AppliedTag,
+  BoxCategoryRow,
+  BoxItemDetail,
+  BoxItemRow,
+  BoxLinkRow,
+  BoxRow,
+  BoxTagRow,
+  LinkedDocumentRow,
   ListItemRow,
   ListRow,
   ProjectRow,
@@ -805,4 +826,329 @@ export async function getAttachments(
       ),
     )
     .orderBy(asc(attachments.createdAt));
+}
+
+// ---------------------------------------------------------------------------
+// The Big Box
+// ---------------------------------------------------------------------------
+
+/**
+ * Every box, with how full it is.
+ *
+ * `pendingCount` is how many documents are still waiting to be read — the one
+ * number worth a badge, because until a document is read it has no title and
+ * can be found only by when it arrived.
+ */
+export async function getBoxes(): Promise<BoxRow[]> {
+  const counts = db
+    .select({
+      boxId: boxItems.boxId,
+      total: sql<number>`count(*)::int`.as('box_total'),
+      pending:
+        sql<number>`count(*) filter (where ${boxItems.status} = 'pending')::int`.as(
+          'box_pending',
+        ),
+    })
+    .from(boxItems)
+    .groupBy(boxItems.boxId)
+    .as('box_counts');
+
+  const rows = await db
+    .select({
+      id: boxes.id,
+      name: boxes.name,
+      instruction: boxes.instruction,
+      isDefault: boxes.isDefault,
+      driveFolderId: boxes.driveFolderId,
+      position: boxes.position,
+      itemCount: sql<number>`coalesce(${counts.total}, 0)`,
+      pendingCount: sql<number>`coalesce(${counts.pending}, 0)`,
+    })
+    .from(boxes)
+    .leftJoin(counts, eq(counts.boxId, boxes.id))
+    // The default box leads: it is the one you file into without thinking.
+    .orderBy(desc(boxes.isDefault), asc(boxes.position), asc(boxes.name));
+
+  return rows as BoxRow[];
+}
+
+export async function getBox(id: string): Promise<BoxRow | null> {
+  const all = await getBoxes();
+  return all.find((b) => b.id === id) ?? null;
+}
+
+export async function getDefaultBox(): Promise<BoxRow | null> {
+  const all = await getBoxes();
+  return all.find((b) => b.isDefault) ?? null;
+}
+
+/**
+ * A box's tag vocabulary, grouped by category.
+ *
+ * One query rather than one per category: the classifier, the filter bar and
+ * the tag editor all want the whole shape, and the usage count is what the
+ * editor needs before it will offer to delete anything.
+ */
+export async function getBoxCategories(boxId: string): Promise<BoxCategoryRow[]> {
+  const rows = await db
+    .select({
+      categoryId: boxCategories.id,
+      categoryName: boxCategories.name,
+      allowNewTags: boxCategories.allowNewTags,
+      tagId: boxTags.id,
+      tagName: boxTags.name,
+      usageCount: sql<number>`(
+        select count(*)::int from ${boxItemTags} it where it.tag_id = ${boxTags.id}
+      )`,
+    })
+    .from(boxCategories)
+    .leftJoin(boxTags, eq(boxTags.categoryId, boxCategories.id))
+    .where(eq(boxCategories.boxId, boxId))
+    .orderBy(
+      asc(boxCategories.position),
+      asc(boxCategories.name),
+      asc(boxTags.position),
+      asc(boxTags.name),
+    );
+
+  const byCategory = new Map<string, BoxCategoryRow>();
+
+  for (const row of rows) {
+    const category = byCategory.get(row.categoryId) ?? {
+      id: row.categoryId,
+      name: row.categoryName,
+      allowNewTags: row.allowNewTags,
+      tags: [],
+    };
+
+    // The left join yields one null-tag row for a category with no tags yet.
+    if (row.tagId) {
+      category.tags.push({
+        id: row.tagId,
+        name: row.tagName!,
+        usageCount: row.usageCount,
+      });
+    }
+
+    byCategory.set(row.categoryId, category);
+  }
+
+  return [...byCategory.values()];
+}
+
+/** Every tag id in a box, for validating a filter that came from the URL. */
+export async function getBoxTagIds(boxId: string): Promise<Set<string>> {
+  const rows = await db
+    .select({ id: boxTags.id })
+    .from(boxTags)
+    .innerJoin(boxCategories, eq(boxCategories.id, boxTags.categoryId))
+    .where(eq(boxCategories.boxId, boxId));
+
+  return new Set(rows.map((r) => r.id));
+}
+
+/** The tags on a document, as one JSON aggregate — used by both item reads. */
+const itemTags = sql<
+  { id: string; name: string; category: string }[]
+>`coalesce((
+  select json_agg(json_build_object('id', t.id, 'name', t.name, 'category', c.name)
+                  order by c.position nulls last, c.name, t.name)
+  from box_item_tags it
+  join box_tags t on t.id = it.tag_id
+  join box_categories c on c.id = t.category_id
+  where it.item_id = box_items.id
+), '[]'::json)`;
+
+/**
+ * The documents in a box, newest first.
+ *
+ * Newest first with no choice about it — a box is read the way the pile on the
+ * table was read, from the top. `tagIds` narrows to documents carrying *all*
+ * of them, so Tesco plus Fuel means both: a filter that widens as you add to
+ * it is a filter you stop trusting.
+ */
+export async function getBoxItems(
+  boxId: string,
+  tagIds: string[] = [],
+): Promise<BoxItemRow[]> {
+  const rows = await db
+    .select({
+      id: boxItems.id,
+      boxId: boxItems.boxId,
+      driveFileId: boxItems.driveFileId,
+      name: boxItems.name,
+      mimeType: boxItems.mimeType,
+      sizeBytes: boxItems.sizeBytes,
+      title: boxItems.title,
+      description: boxItems.description,
+      docDate: boxItems.docDate,
+      status: boxItems.status,
+      capturedAt: boxItems.capturedAt,
+      tags: itemTags,
+      linkCount: sql<number>`(
+        select count(*)::int from ${boxItemLinks} l where l.item_id = ${boxItems.id}
+      )`,
+    })
+    .from(boxItems)
+    .where(
+      tagIds.length === 0
+        ? eq(boxItems.boxId, boxId)
+        : and(
+            eq(boxItems.boxId, boxId),
+            sql`(
+              select count(distinct it.tag_id) from ${boxItemTags} it
+              where it.item_id = ${boxItems.id}
+                and it.tag_id in ${tagIds}
+            ) = ${tagIds.length}`,
+          ),
+    )
+    .orderBy(desc(boxItems.capturedAt));
+
+  return rows as BoxItemRow[];
+}
+
+export async function getBoxItem(id: string): Promise<BoxItemDetail | null> {
+  const [row] = await db
+    .select({
+      id: boxItems.id,
+      boxId: boxItems.boxId,
+      boxName: boxes.name,
+      driveFileId: boxItems.driveFileId,
+      name: boxItems.name,
+      mimeType: boxItems.mimeType,
+      sizeBytes: boxItems.sizeBytes,
+      title: boxItems.title,
+      description: boxItems.description,
+      docDate: boxItems.docDate,
+      text: boxItems.text,
+      status: boxItems.status,
+      capturedAt: boxItems.capturedAt,
+      tags: itemTags,
+      /** The last thing that went wrong, so a failed read can say why. */
+      lastError: sql<string | null>`(
+        select j.last_error from ${boxJobs} j
+        where j.item_id = ${boxItems.id}
+        order by j.created_at desc limit 1
+      )`,
+    })
+    .from(boxItems)
+    .innerJoin(boxes, eq(boxes.id, boxItems.boxId))
+    .where(eq(boxItems.id, id))
+    .limit(1);
+
+  if (!row) return null;
+
+  return { ...row, links: await getBoxItemLinks(id) } as BoxItemDetail;
+}
+
+/** What a document has been cited by — one row per project, action or item. */
+export async function getBoxItemLinks(itemId: string): Promise<BoxLinkRow[]> {
+  const rows = await db
+    .select({
+      parentType: boxItemLinks.parentType,
+      parentId: boxItemLinks.parentId,
+      // The title lives in whichever table the link points at. Three left
+      // joins read better than a union here, and only one is ever non-null.
+      projectTitle: projects.title,
+      actionTitle: actions.title,
+      listItemTitle: listItems.title,
+    })
+    .from(boxItemLinks)
+    .leftJoin(projects, eq(projects.id, boxItemLinks.parentId))
+    .leftJoin(actions, eq(actions.id, boxItemLinks.parentId))
+    .leftJoin(listItems, eq(listItems.id, boxItemLinks.parentId))
+    .where(eq(boxItemLinks.itemId, itemId))
+    .orderBy(asc(boxItemLinks.createdAt));
+
+  return rows.map((r) => ({
+    parentType: r.parentType,
+    parentId: r.parentId,
+    title:
+      r.parentType === 'project'
+        ? r.projectTitle
+        : r.parentType === 'action'
+          ? r.actionTitle
+          : r.listItemTitle,
+  }));
+}
+
+/**
+ * Documents cited by one project, action or list item.
+ *
+ * Shaped deliberately like `getAttachments`: a detail pane renders one list of
+ * files, and it shouldn't have to care that some of them live in a box and are
+ * only borrowed.
+ */
+export async function getLinkedDocuments(
+  parentType: AttachmentParentType,
+  parentId: string,
+): Promise<LinkedDocumentRow[]> {
+  const rows = await db
+    .select({
+      id: boxItems.id,
+      boxId: boxItems.boxId,
+      boxName: boxes.name,
+      name: boxItems.name,
+      title: boxItems.title,
+      mimeType: boxItems.mimeType,
+      sizeBytes: boxItems.sizeBytes,
+      driveFileId: boxItems.driveFileId,
+      capturedAt: boxItems.capturedAt,
+    })
+    .from(boxItemLinks)
+    .innerJoin(boxItems, eq(boxItems.id, boxItemLinks.itemId))
+    .innerJoin(boxes, eq(boxes.id, boxItems.boxId))
+    .where(
+      and(
+        eq(boxItemLinks.parentType, parentType),
+        eq(boxItemLinks.parentId, parentId),
+      ),
+    )
+    .orderBy(asc(boxItemLinks.createdAt));
+
+  return rows as LinkedDocumentRow[];
+}
+
+/** Documents not yet cited by this thing, for the "link a document" picker. */
+export async function getLinkableDocuments(
+  parentType: AttachmentParentType,
+  parentId: string,
+  term: string,
+  limit = 20,
+): Promise<LinkedDocumentRow[]> {
+  const query = term.trim();
+
+  const rows = await db
+    .select({
+      id: boxItems.id,
+      boxId: boxItems.boxId,
+      boxName: boxes.name,
+      name: boxItems.name,
+      title: boxItems.title,
+      mimeType: boxItems.mimeType,
+      sizeBytes: boxItems.sizeBytes,
+      driveFileId: boxItems.driveFileId,
+      capturedAt: boxItems.capturedAt,
+    })
+    .from(boxItems)
+    .innerJoin(boxes, eq(boxes.id, boxItems.boxId))
+    .where(
+      and(
+        sql`not exists (
+          select 1 from ${boxItemLinks} l
+          where l.item_id = ${boxItems.id}
+            and l.parent_type = ${parentType}
+            and l.parent_id = ${parentId}
+        )`,
+        // Empty term lists the most recent documents, which is the right
+        // answer when you have just scanned the thing you are looking for.
+        query === ''
+          ? sql`true`
+          : sql`${boxItems.searchVector} @@ websearch_to_tsquery('english', ${query})`,
+      ),
+    )
+    .orderBy(desc(boxItems.capturedAt))
+    .limit(limit);
+
+  return rows as LinkedDocumentRow[];
 }

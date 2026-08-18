@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { timingSafeEqual } from 'node:crypto';
+import { drainBoxQueue } from '@/lib/box/queue';
 import { drainEnrichmentQueue } from '@/lib/enrich/queue';
 import { refreshGoogleNames } from '@/lib/google/attachments';
 import { drainSyncQueue } from '@/lib/google/queue';
@@ -37,13 +38,16 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: 'unauthorised' }, { status: 401 });
   }
 
-  // Both queues on one tick. They touch different tables and different APIs,
-  // and a second cron entry would be a second thing to forget to configure.
-  const [sync, enrich, renamed] = await Promise.all([
+  // All three queues on one tick. They touch different tables and different
+  // APIs — push to Google, read an attachment, read a document — and a second
+  // cron entry would be a second thing to forget to configure. Hobby accounts
+  // allow one daily schedule, so there is only one tick to put them in.
+  const [sync, enrich, box, renamed] = await Promise.all([
     drainSyncQueue(),
     drainEnrichmentQueue(),
+    drainBoxQueue(),
     refreshGoogleNames(),
   ]);
 
-  return NextResponse.json({ ok: true, sync, enrich, renamed });
+  return NextResponse.json({ ok: true, sync, enrich, box, renamed });
 }
