@@ -16,6 +16,13 @@ export type PreviewFile = {
   id: string;
   name: string;
   mimeType: string | null;
+  /**
+   * Where our own copy of the bytes is served from. Passed in rather than
+   * built from the id, because an attachment and a Big Box document are
+   * different rows in different tables behind different routes, and the pane
+   * has no business knowing which of them it is showing.
+   */
+  src: string;
   /** Needed for the Google editor embed, which addresses Drive directly. */
   driveFileId: string | null;
   driveUrl: string | null;
@@ -91,7 +98,7 @@ export function useFilePreview(): PreviewApi {
  */
 function PreviewPane({ file, onClose }: { file: PreviewFile; onClose: () => void }) {
   const [failed, setFailed] = useState(false);
-  const src = `/api/attachments/${file.id}/file`;
+  const src = file.src;
   const type = file.mimeType ?? '';
 
   return (

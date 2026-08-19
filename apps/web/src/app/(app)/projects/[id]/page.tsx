@@ -6,6 +6,8 @@ import { ProjectListPane } from '@/components/project-list-pane';
 import {
   getAreasAndGoals,
   getAttachments,
+  getLinkableDocuments,
+  getLinkedDocuments,
   getProject,
   getProjectActions,
 } from '@/lib/queries';
@@ -18,11 +20,14 @@ export default async function ProjectPage(props: PageProps<'/projects/[id]'>) {
   const project = await getProject(id);
   if (!project) notFound();
 
-  const [projectActions, horizons, files] = await Promise.all([
-    getProjectActions(id),
-    getAreasAndGoals(),
-    getAttachments('project', id),
-  ]);
+  const [projectActions, horizons, files, documents, documentOptions] =
+    await Promise.all([
+      getProjectActions(id),
+      getAreasAndGoals(),
+      getAttachments('project', id),
+      getLinkedDocuments('project', id),
+      getLinkableDocuments('project', id, ''),
+    ]);
   const stalled =
     project.status === 'active' && !projectActions.some((a) => a.status === 'next');
 
@@ -38,6 +43,8 @@ export default async function ProjectPage(props: PageProps<'/projects/[id]'>) {
           key={project.id}
           project={project}
           attachments={files}
+          documents={documents}
+          documentOptions={documentOptions}
           stalled={stalled}
           horizons={horizons}
         />

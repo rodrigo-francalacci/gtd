@@ -16,8 +16,12 @@ import {
   gmailLabelUrl,
   projectLabelName,
 } from '@/lib/google/sync';
-import type { AttachmentRow } from '@/lib/queries.shared';
+import type {
+  AttachmentRow,
+  LinkedDocumentRow,
+} from '@/lib/queries.shared';
 import { Attachments } from './attachments';
+import { LinkedDocuments } from './linked-documents';
 import { NoteEditor } from './note-editor';
 
 type ProjectDetailData = {
@@ -50,11 +54,15 @@ const STATUSES: { value: ProjectStatus; label: string }[] = [
 export function ProjectDetail({
   project,
   attachments,
+  documents,
+  documentOptions,
   stalled,
   horizons,
 }: {
   project: ProjectDetailData;
   attachments: AttachmentRow[];
+  documents: LinkedDocumentRow[];
+  documentOptions: LinkedDocumentRow[];
   stalled: boolean;
   horizons: HorizonOptions;
 }) {
@@ -245,6 +253,13 @@ export function ProjectDetail({
         parentType="project"
         parentId={project.id}
         rows={attachments}
+      />
+
+      <LinkedDocuments
+        parentType="project"
+        parentId={project.id}
+        rows={documents}
+        candidates={documentOptions}
       />
 
       <footer className="mt-8 space-y-2 border-t border-grey-150 pt-3">

@@ -225,37 +225,41 @@ async function runJob(model: Classifier, itemId: string) {
     .map((t) => t.name)
     .concat(checked.create.map((c) => c.name));
 
-  await db.transaction(async (tx) => {
-    await tx
-      .update(boxItems)
-      .set({
-        title: result.title || null,
-        description: result.description || null,
-        docDate: result.date,
-        text: result.text || null,
-        // The vector is generated from this column, so anything that writes
-        // one has to write the other. Tag names go in too: searching "Tesco"
-        // should find the receipt whether or not the word survived the scan.
-        searchText: [result.description, result.text, tagNames.join(' ')]
-          .filter(Boolean)
-          .join('\n')
-          .slice(0, 100_000),
-        status: 'ready',
-        updatedAt: new Date(),
-      })
-      .where(eq(boxItems.id, itemId));
+  // Not a transaction: the neon-http driver has none, which is why nothing
+  // else in this app uses one either. The order is what makes that safe —
+  // tags first, then the row, with `status: 'ready'` written last. A failure
+  // anywhere in the middle leaves the document pending, and the retry rewrites
+  // all of it from scratch.
 
-    // Re-read from scratch: a re-run must not accumulate tags from a previous
-    // pass that the model has since changed its mind about.
-    await tx.delete(boxItemTags).where(eq(boxItemTags.itemId, itemId));
+  // From scratch, so a re-run doesn't accumulate tags from an earlier pass
+  // that the model has since changed its mind about.
+  await db.delete(boxItemTags).where(eq(boxItemTags.itemId, itemId));
 
-    if (tagIds.length > 0) {
-      await tx
-        .insert(boxItemTags)
-        .values(tagIds.map((tagId) => ({ itemId, tagId })))
-        .onConflictDoNothing();
-    }
-  });
+  if (tagIds.length > 0) {
+    await db
+      .insert(boxItemTags)
+      .values(tagIds.map((tagId) => ({ itemId, tagId })))
+      .onConflictDoNothing();
+  }
+
+  await db
+    .update(boxItems)
+    .set({
+      title: result.title || null,
+      description: result.description || null,
+      docDate: result.date,
+      text: result.text || null,
+      // The vector is generated from this column, so anything that writes one
+      // has to write the other. Tag names go in too: searching "Tesco" should
+      // find the receipt whether or not the word survived the scan.
+      searchText: [result.description, result.text, tagNames.join(' ')]
+        .filter(Boolean)
+        .join('\n')
+        .slice(0, 100_000),
+      status: 'ready',
+      updatedAt: new Date(),
+    })
+    .where(eq(boxItems.id, itemId));
 }
 
 /** Queue health, for the connections page. */

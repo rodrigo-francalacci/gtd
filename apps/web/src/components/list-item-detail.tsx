@@ -19,18 +19,24 @@ import {
   type PurchaseImpact,
   type PurchaseWhere,
   type AttachmentRow,
+  type LinkedDocumentRow,
 } from '@/lib/queries.shared';
 import { Attachments } from './attachments';
+import { LinkedDocuments } from './linked-documents';
 import { NoteEditor } from './note-editor';
 
 export function ListItemDetail({
   item,
   attachments,
+  documents,
+  documentOptions,
   isPurchases,
   projectOptions,
 }: {
   item: Row;
   attachments: AttachmentRow[];
+  documents: LinkedDocumentRow[];
+  documentOptions: LinkedDocumentRow[];
   isPurchases: boolean;
   projectOptions: { id: string; title: string }[];
 }) {
@@ -186,6 +192,13 @@ export function ListItemDetail({
         parentId={item.id}
         rows={attachments}
         label="Photos & files"
+      />
+
+      <LinkedDocuments
+        parentType="list_item"
+        parentId={item.id}
+        rows={documents}
+        candidates={documentOptions}
       />
 
       <footer className="mt-8 border-t border-grey-150 pt-3">

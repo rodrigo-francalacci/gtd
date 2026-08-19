@@ -60,6 +60,7 @@ export function Attachments({
       preview.open({
         id: row.id,
         name: row.name,
+        src: `/api/attachments/${row.id}/file`,
         mimeType,
         driveFileId: row.driveFileId,
         driveUrl: driveFileUrl(row.driveFileId),
@@ -224,6 +225,7 @@ export function Attachments({
                     preview.open({
                       id: row.id,
                       name: row.name,
+                      src: `/api/attachments/${row.id}/file`,
                       mimeType: row.mimeType,
                       driveFileId: row.driveFileId,
                       driveUrl: row.driveFileId

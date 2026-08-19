@@ -190,6 +190,23 @@ export const IconViewCompact = (p: IconProps) => (
   </Glyph>
 );
 
+/** The Big Box — a box, seen from slightly above, with its flaps open. */
+export const IconBox = (p: IconProps) => (
+  <Glyph {...p}>
+    <path d="M2 6.2h12V13H2z" />
+    <path d="M2 6.2 3.6 3h8.8L14 6.2" />
+    <path d="M8 3v3.2" />
+  </Glyph>
+);
+
+/** A link between two things that stay separate. */
+export const IconLink = (p: IconProps) => (
+  <Glyph {...p}>
+    <path d="M6.6 9.4a2.6 2.6 0 0 0 3.9.3l2-2a2.6 2.6 0 0 0-3.7-3.7l-1.1 1.1" />
+    <path d="M9.4 6.6a2.6 2.6 0 0 0-3.9-.3l-2 2a2.6 2.6 0 0 0 3.7 3.7l1.1-1.1" />
+  </Glyph>
+);
+
 /** Simple view — titles and nothing else, so: lines. */
 export const IconViewSimple = (p: IconProps) => (
   <Glyph {...p}>

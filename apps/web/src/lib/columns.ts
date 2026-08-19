@@ -70,6 +70,16 @@ export const INBOX_COLUMNS: ColumnSet = {
   leading: 'none',
 };
 
+/**
+ * A box's rows carry no controls either — the date column is the *printed*
+ * date, since the arrival date is already the heading above the group.
+ */
+export const BOX_COLUMNS: ColumnSet = {
+  template: 'minmax(0,1fr) 9rem 5.5rem',
+  headers: ['Document', 'Tags', 'Dated'],
+  leading: 'none',
+};
+
 export const ARCHIVE_COLUMNS: ColumnSet = {
   template: 'minmax(0,1fr) 8rem 6rem',
   headers: ['Project', 'Goal', 'Finished'],

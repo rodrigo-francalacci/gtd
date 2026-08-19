@@ -11,8 +11,14 @@ import {
   updateActionNotes,
   updateActionTitle,
 } from '@/lib/actions';
-import { daysSince, isStale, type AttachmentRow } from '@/lib/queries.shared';
+import {
+  daysSince,
+  isStale,
+  type AttachmentRow,
+  type LinkedDocumentRow,
+} from '@/lib/queries.shared';
 import { Attachments } from './attachments';
+import { LinkedDocuments } from './linked-documents';
 import { NoteEditor } from './note-editor';
 import { TurnIntoNextAction } from './turn-into-next';
 import { WaitingOnField } from './waiting-on-field';
@@ -32,11 +38,15 @@ type ActionDetailData = {
 export function ActionDetail({
   action,
   attachments,
+  documents,
+  documentOptions,
   contextGroups,
   parties,
 }: {
   action: ActionDetailData;
   attachments: AttachmentRow[];
+  documents: LinkedDocumentRow[];
+  documentOptions: LinkedDocumentRow[];
   /** Existing waiting-on names, offered as suggestions. */
   parties: string[];
   contextGroups: {
@@ -214,6 +224,13 @@ export function ActionDetail({
         parentType="action"
         parentId={action.id}
         rows={attachments}
+      />
+
+      <LinkedDocuments
+        parentType="action"
+        parentId={action.id}
+        rows={documents}
+        candidates={documentOptions}
       />
 
       <footer className="mt-8 border-t border-grey-150 pt-3">

@@ -10,6 +10,7 @@ import {
   ensureFolder,
   getFile,
   renameFolder,
+  trashFile,
 } from './client';
 import { ROOT, safeName } from './sync';
 
@@ -85,6 +86,19 @@ export async function startBoxUpload(
   boxId: string,
   name: string,
   mimeType: string,
+  /**
+   * The origin that will send the bytes, or null for a server-to-server
+   * caller like the Apps Script.
+   *
+   * Drive binds the session to whichever origin opened it and enforces that
+   * with CORS — so a browser PUT to a session opened with no origin is
+   * refused, while a script's PUT carrying no Origin at all is fine whatever
+   * the session was opened with. Both are real callers here: the script feeds
+   * the boxes, and the app itself needs to be able to put a document straight
+   * in. Passing null for a browser cost me a "Failed to fetch" that looked
+   * exactly like a bug in the upload and was in fact this.
+   */
+  origin: string | null,
 ): Promise<string> {
   await requireDrive();
 
@@ -94,7 +108,7 @@ export async function startBoxUpload(
     safeName(name) || 'Document',
     mimeType || 'application/octet-stream',
     folderId,
-    null,
+    origin,
   );
 }
 
@@ -146,4 +160,30 @@ export async function completeBoxUpload(
   await enqueueBoxJob(row.id);
 
   return row;
+}
+
+/**
+ * Remove a document, and send its file to Drive's bin.
+ *
+ * A box is meant to keep things, so this is not the main path — but a blank
+ * page, a duplicate scan or a photograph of the desk are all real, and a box
+ * you cannot take rubbish out of stops being one you trust. Trashed rather
+ * than deleted, and only ever a file this app uploaded: Drive holds it for 30
+ * days, which is the difference between a mistake and a loss.
+ */
+export async function deleteBoxItem(itemId: string): Promise<void> {
+  const [row] = await db
+    .delete(boxItems)
+    .where(eq(boxItems.id, itemId))
+    .returning({ driveFileId: boxItems.driveFileId });
+
+  if (!row?.driveFileId) return;
+
+  try {
+    await trashFile(row.driveFileId);
+  } catch {
+    // The row is already gone and the file is recoverable from Drive's bin.
+    // Failing here would leave you unable to tidy the box because of a
+    // problem at Google's end.
+  }
 }

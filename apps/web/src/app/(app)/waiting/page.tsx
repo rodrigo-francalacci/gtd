@@ -6,6 +6,8 @@ import {
   WAITING_STALE_DAYS,
   getAction,
   getAttachments,
+  getLinkableDocuments,
+  getLinkedDocuments,
   getContextsByDimension,
   getWaitingActions,
   isStale,
@@ -59,6 +61,8 @@ export default async function WaitingPage(props: PageProps<'/waiting'>) {
             key={selected.id}
             action={selected}
             attachments={await getAttachments('action', selected.id)}
+            documents={await getLinkedDocuments('action', selected.id)}
+            documentOptions={await getLinkableDocuments('action', selected.id, '')}
             contextGroups={groups}
             parties={groups.person.map((p) => p.name)}
           />

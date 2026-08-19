@@ -2,7 +2,7 @@ import { CaptureHotkey } from '@/components/capture-hotkey';
 import { FilePreviewProvider } from '@/components/file-preview';
 import { SidebarNav } from '@/components/sidebar';
 import { requireSession } from '@/lib/auth/session';
-import { getLists, getSidebarCounts } from '@/lib/queries';
+import { getBoxes, getLists, getSidebarCounts } from '@/lib/queries';
 import { getPreferences } from '@/lib/view-mode';
 
 /**
@@ -16,9 +16,10 @@ import { getPreferences } from '@/lib/view-mode';
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   await requireSession();
 
-  const [counts, lists, prefs] = await Promise.all([
+  const [counts, lists, boxes, prefs] = await Promise.all([
     getSidebarCounts(),
     getLists(),
+    getBoxes(),
     getPreferences(),
   ]);
 
@@ -30,7 +31,12 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       {/* Renders nothing; listens for `c` so a thought can be captured from
           wherever you happen to be when it arrives. */}
       <CaptureHotkey />
-      <SidebarNav counts={counts} lists={lists} theme={prefs.theme} />
+      <SidebarNav
+        counts={counts}
+        lists={lists}
+        boxes={boxes}
+        theme={prefs.theme}
+      />
       {/* Panes 2 and 3 live in here, so this is what has to stop growing when
           the preview opens — otherwise the pane inside it caps itself and the
           space it gave up stays trapped in this wrapper. `0 1 auto`: as wide

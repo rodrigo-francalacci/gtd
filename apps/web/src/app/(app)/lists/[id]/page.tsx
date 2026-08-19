@@ -8,6 +8,8 @@ import { LIST_ITEM_COLUMNS, PURCHASE_COLUMNS } from '@/lib/columns';
 import {
   formatMoney,
   getAttachments,
+  getLinkableDocuments,
+  getLinkedDocuments,
   getList,
   getListItem,
   getListItems,
@@ -100,6 +102,8 @@ export default async function ListPage(props: PageProps<'/lists/[id]'>) {
             key={selected.id}
             item={selected}
             attachments={await getAttachments('list_item', selected.id)}
+            documents={await getLinkedDocuments('list_item', selected.id)}
+            documentOptions={await getLinkableDocuments('list_item', selected.id, '')}
             isPurchases={isPurchases}
             projectOptions={projectOptions}
           />

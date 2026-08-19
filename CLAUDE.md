@@ -454,6 +454,76 @@ Attachments **are** in the union now that the enrichment queue fills
 `<parent_type>:<uuid>` in `meta` and clicks through to the project, action or
 list item it hangs off. The alias is `att`, not `at` — `AT` is a SQL keyword.
 
+## The Big Box
+
+A box of documents, filed by arriving — named for the box of letters it copies,
+where everything important went in, newest on top, and you found things by
+remembering roughly when they turned up. Filing costs nothing at the moment you
+would not spend effort, which is the whole reason it works.
+
+**It is not the inbox and must not become it.** A document is not a commitment
+and filing one is not clarifying: the inbox exists to be emptied, a box exists
+to be kept. They meet at `box_item_links` and nowhere else.
+
+- **A link, never an attachment.** Detaching an attachment trashes the file it
+  points at, so citing a document as a project's resource *that* way would mean
+  tidying a project could gut the archive. Linking and unlinking touch nothing
+  in Drive. `box_item_links` reuses `attachment_parent_type` because that is
+  already the list of things a file can hang off.
+- **Ingest goes through an Apps Script, and the scope is why.** `drive.file`
+  sees only files the app created, so the app cannot look inside the folder the
+  Drive scanner saves to; `drive.readonly` could, and can also read every file
+  in the account, and needs Google's verification. The script re-uploads each
+  scan through the app's own credentials, which makes the document app-created.
+  Narrow scope kept, scanner kept — and the scanner's crop-and-deshadow is what
+  makes a photographed letter readable at all. Script and setup in `scripts/`.
+- **The bytes never pass through us:** session, PUT straight to Drive,
+  complete — the same three steps as an attachment upload, so Vercel's 4.5 MB
+  body cap never applies. `POST /api/box/ingest` does steps one and three;
+  `BOX_INGEST_SECRET` authorises the script, a session authorises a browser.
+- **The upload session binds to whoever will send the bytes.** Drive enforces
+  that with CORS, which is a browser mechanism: a browser PUT to a session
+  opened with no origin is refused, and a script's PUT carrying no `Origin` at
+  all is accepted whatever the session was opened with. So the route passes the
+  browser's origin for a session-authorised call and null for a secret-
+  authorised one. Verified against the real API in both directions before it
+  was written, and then again when passing null for a browser produced a
+  "Failed to fetch" indistinguishable from a broken upload.
+- **The model proposes tags; code disposes.** What comes back is matched
+  against that box's own vocabulary and anything invented is dropped, unless
+  the category is explicitly allowed to grow — a city on a fuel receipt. The
+  rule is in code and not the prompt because a prompt is a request: ask for one
+  of five values often enough and you get a sixth, and by then it is in the
+  database and the filter has two tags meaning the same thing. Matching ignores
+  case and space, so "tesco" reuses "Tesco" (the `resolveParty` reasoning).
+- **`captured_at` and `doc_date` are different facts.** A bill that arrives in
+  August is dated July. The feed orders and groups by arrival; the printed date
+  is shown beside it. The ingest endpoint accepts the original file's date so a
+  backlog files under the days it actually arrived.
+- **A box's feed always groups by day**, in every density — unlike the inbox,
+  where grouping is the simple view's answer to having no timestamps. Here the
+  arrival date *is* the filing system, so it can't be a preference. Both use
+  `groupByDay` in `lib/days.ts`.
+- **The Drive folder is reconciled at ingest, not at rename.** Renaming a box
+  writes one row; `ensureBoxFolder` creates or renames `GTD/Box/<name>` the
+  next time a document is filed there. That keeps "never call Google inside a
+  request" intact without inventing a queue keyed on a box — the ingest request
+  is already carrying a file, so one more Google call there costs nothing.
+- **Deleting a box refiles its documents into the default one.** The documents
+  are the point; the box is only how they were grouped, and a category turning
+  out to be a bad idea should not cost a year of receipts. The `restrict`
+  foreign key makes the destructive order impossible rather than merely unwise.
+  The default box cannot be deleted at all.
+- **No transactions anywhere — the `neon-http` driver has none.** Nothing else
+  in the app used one, which is why this only surfaced when the classifier
+  first tried to write. Ordering does the work instead: tags are rewritten
+  before the row, and `status: 'ready'` is written last, so a failure part-way
+  leaves the document pending and the retry redoes all of it.
+- **Throwing a document away trashes the Drive file, never deletes it.** Rare
+  on purpose — a box is for keeping things — but a blank page or a duplicate
+  scan is real, and a box you cannot take rubbish out of stops being one you
+  trust.
+
 ## Enrichment
 
 Attachments are read in the background so search can reach inside them.

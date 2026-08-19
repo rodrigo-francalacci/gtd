@@ -12,10 +12,11 @@ import {
   getProjectOptions,
 } from '@/lib/queries';
 import { IconNote, IconPaperclip } from '@/components/icons';
+import { DayHeading } from '@/components/day-heading';
 import { SimpleRow } from '@/components/simple-row';
 import { INBOX_COLUMNS } from '@/lib/columns';
+import { groupByDay } from '@/lib/days';
 import { captureHasNote, captureLabel } from '@/lib/queries.shared';
-import type { InboxRow } from '@/lib/queries';
 import { getPreferences, paneWidth } from '@/lib/view-mode';
 
 const stamp = new Intl.DateTimeFormat('en-GB', {
@@ -24,73 +25,6 @@ const stamp = new Intl.DateTimeFormat('en-GB', {
   hour: '2-digit',
   minute: '2-digit',
 });
-
-/** The heading over a day's captures: "18 August 2026". */
-const dayName = new Intl.DateTimeFormat('en-GB', {
-  day: 'numeric',
-  month: 'long',
-  year: 'numeric',
-});
-
-/** Within the last week the weekday is more use than the date. */
-const weekday = new Intl.DateTimeFormat('en-GB', { weekday: 'long' });
-
-/** Sortable, comparable day key — the same calendar day means the same string. */
-const dayKey = new Intl.DateTimeFormat('en-CA');
-
-/**
- * Captures split into days, newest day first.
- *
- * Only the simple view groups: the other two show a timestamp on every row, so
- * a heading would be repeating what the rows already say. Here the rows say
- * nothing but the title, and a bare list of forty of those has lost the one
- * thing that makes a capture make sense again — when you had the thought.
- *
- * Days are cut in the server's timezone, which is the same one every other
- * date in this app is formatted in. That keeps a heading and the timestamps
- * under it telling the same story; it does mean neither is the *user's*
- * timezone when the server is elsewhere, which is one app-wide fix rather
- * than something to work around here.
- */
-function byDay(items: InboxRow[]): { key: string; label: string; items: InboxRow[] }[] {
-  const now = new Date();
-  const today = dayKey.format(now);
-  const yesterday = dayKey.format(new Date(now.getTime() - 86_400_000));
-  const aWeekAgo = new Date(now.getTime() - 6 * 86_400_000);
-
-  const days = new Map<string, InboxRow[]>();
-  for (const item of items) {
-    const key = dayKey.format(item.createdAt);
-    days.set(key, [...(days.get(key) ?? []), item]);
-  }
-
-  return [...days.entries()]
-    // The key is ISO-ordered, so a string sort is a date sort.
-    .sort(([a], [b]) => b.localeCompare(a))
-    .map(([key, rows]) => ({
-      key,
-      label:
-        key === today
-          ? 'Today'
-          : key === yesterday
-            ? 'Yesterday'
-            : rows[0].createdAt >= aWeekAgo
-              ? weekday.format(rows[0].createdAt)
-              : dayName.format(rows[0].createdAt),
-      items: rows,
-    }));
-}
-
-/** The centred date chip, as every messaging app has trained everyone to read. */
-function DayHeading({ label }: { label: string }) {
-  return (
-    <div className="sticky top-0 z-20 flex justify-center bg-grey-50 py-2">
-      <span className="rounded-full bg-grey-200 px-2.5 py-0.5 text-[10px] font-medium uppercase tracking-wider text-grey-600">
-        {label}
-      </span>
-    </div>
-  );
-}
 
 /**
  * Capture and clarify — the front of the GTD loop. Everything else in the app
@@ -146,7 +80,7 @@ export default async function InboxPage(props: PageProps<'/inbox'>) {
         {items.length === 0 ? (
           <EmptyList message="Nothing here. Capture anything above — you can decide what it is later." />
         ) : simple ? (
-          byDay(ordered).map((day) => (
+          groupByDay(ordered, (i) => i.createdAt).map((day) => (
             <section key={day.key}>
               <DayHeading label={day.label} />
               {day.items.map((item) => (

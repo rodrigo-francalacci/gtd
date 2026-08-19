@@ -71,9 +71,11 @@ async function resolveBox(hint: string | undefined) {
 }
 
 export async function POST(request: Request) {
-  // A signed-in session works too, so the endpoint can be exercised from the
-  // browser while setting the script up.
-  if (!authorised(request) && !(await getSession())) {
+  // A signed-in session works too: it lets the endpoint be exercised while
+  // setting the script up, and it is how the app itself will file a document
+  // without going round through Drive.
+  const bySecret = authorised(request);
+  if (!bySecret && !(await getSession())) {
     return NextResponse.json({ error: 'unauthorised' }, { status: 401 });
   }
 
@@ -113,7 +115,25 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'No filename.' }, { status: 400 });
     }
 
-    const uploadUrl = await startBoxUpload(box.id, body.name, body.mimeType ?? '');
+    /**
+     * Who is about to send the bytes.
+     *
+     * Drive binds the upload session to the origin that opened it: a browser's
+     * PUT is refused unless the session carries its origin, and a script's PUT
+     * carries no Origin at all and is accepted regardless. The secret means the
+     * script; a session means a browser, whose origin is taken from the request
+     * so localhost, previews and production are all right for free.
+     */
+    const origin = bySecret
+      ? null
+      : (request.headers.get('origin') ?? new URL(request.url).origin);
+
+    const uploadUrl = await startBoxUpload(
+      box.id,
+      body.name,
+      body.mimeType ?? '',
+      origin,
+    );
     return NextResponse.json({ ok: true, uploadUrl, box: box.name, boxId: box.id });
   } catch (error) {
     if (error instanceof BoxError) {

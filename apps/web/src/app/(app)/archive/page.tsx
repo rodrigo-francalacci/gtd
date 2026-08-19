@@ -6,6 +6,8 @@ import {
   getAreasAndGoals,
   getArchivedProjects,
   getAttachments,
+  getLinkableDocuments,
+  getLinkedDocuments,
   getProject,
   getProjectActions,
 } from '@/lib/queries';
@@ -63,6 +65,8 @@ export default async function ArchivePage(props: PageProps<'/archive'>) {
             key={selected.id}
             project={selected}
             attachments={await getAttachments('project', selected.id)}
+            documents={await getLinkedDocuments('project', selected.id)}
+            documentOptions={await getLinkableDocuments('project', selected.id, '')}
             stalled={false}
             horizons={horizons}
           />

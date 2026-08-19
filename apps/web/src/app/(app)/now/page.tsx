@@ -9,6 +9,8 @@ import {
   getAttachments,
   getContextsByDimension,
   getNowActions,
+  getLinkableDocuments,
+  getLinkedDocuments,
 } from '@/lib/queries';
 import { getPreferences, paneWidth } from '@/lib/view-mode';
 
@@ -67,6 +69,8 @@ export default async function NowPage(props: PageProps<'/now'>) {
             key={selected.id}
             action={selected}
             attachments={await getAttachments('action', selected.id)}
+            documents={await getLinkedDocuments('action', selected.id)}
+            documentOptions={await getLinkableDocuments('action', selected.id, '')}
             contextGroups={groups}
             parties={groups.person.map((p) => p.name)}
           />

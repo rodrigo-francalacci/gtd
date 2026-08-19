@@ -5,6 +5,7 @@ import { usePathname, useSearchParams } from 'next/navigation';
 import type { ComponentType, SVGProps } from 'react';
 import {
   IconAreas,
+  IconBox,
   IconConnections,
   IconContexts,
   IconInbox,
@@ -43,6 +44,7 @@ type Item = {
 export function SidebarNav({
   counts,
   lists,
+  boxes,
   theme,
 }: {
   /** Passed through to the toggle so it can offer the opposite. */
@@ -57,6 +59,8 @@ export function SidebarNav({
     inbox: number;
   };
   lists: Pick<ListRow, 'id' | 'name' | 'type' | 'candidateCount'>[];
+  /** Empty until the Big Box is set up, which hides the whole group. */
+  boxes: { id: string; name: string; pendingCount: number }[];
 }) {
   const pathname = usePathname();
   const params = useSearchParams();
@@ -124,6 +128,20 @@ export function SidebarNav({
           count: counts.archived,
         },
         { href: '/connections', label: 'Google', icon: IconConnections },
+      ],
+    },
+    {
+      heading: 'Documents',
+      items: [
+        // Counts show what hasn't been read yet — the only number here that
+        // means anything is pending, since an unread document has no title.
+        ...boxes.map((b) => ({
+          href: `/box/${b.id}`,
+          label: b.name,
+          icon: IconBox as Icon,
+          count: b.pendingCount,
+        })),
+        { href: '/box', label: 'Manage boxes', icon: IconBox, exact: true },
       ],
     },
     {

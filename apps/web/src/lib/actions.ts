@@ -40,6 +40,7 @@ import {
   createGoogleDocument,
   removeAttachment,
 } from './google/attachments';
+import { deleteBoxItem } from './google/boxes';
 import { enqueueSync } from './google/queue';
 import { requeueBoxItem, requeueUnreadDocuments } from './box/queue';
 import { docFromText, extractText } from './tiptap';
@@ -1249,16 +1250,18 @@ export async function deleteBox(boxId: string) {
 
   if (!fallback) return;
 
-  await db.transaction(async (tx) => {
-    await tx
-      .update(boxItems)
-      .set({ boxId: fallback.id, updatedAt: new Date() })
-      .where(eq(boxItems.boxId, boxId));
+  // Two statements rather than a transaction — the neon-http driver has none.
+  // The order is the safeguard: the documents move first, so a failure before
+  // the second leaves an empty box you can delete again, and the `restrict`
+  // foreign key makes the reverse order impossible rather than merely unwise.
+  await db
+    .update(boxItems)
+    .set({ boxId: fallback.id, updatedAt: new Date() })
+    .where(eq(boxItems.boxId, boxId));
 
-    // Categories and tags cascade, and `box_item_tags` with them. The
-    // documents keep everything that was theirs — name, summary, date, file.
-    await tx.delete(boxes).where(eq(boxes.id, boxId));
-  });
+  // Categories and tags cascade, and `box_item_tags` with them. The documents
+  // keep everything that was theirs — name, summary, date, file.
+  await db.delete(boxes).where(eq(boxes.id, boxId));
 
   revalidateShell();
 }
@@ -1401,16 +1404,30 @@ export async function updateDocument(
 export async function moveDocument(itemId: string, boxId: string) {
   await requireSession();
 
-  await db.transaction(async (tx) => {
-    await tx
-      .update(boxItems)
-      .set({ boxId, updatedAt: new Date() })
-      .where(eq(boxItems.id, itemId));
+  // Tags go first: they belong to the box being left, and a document arriving
+  // in the new box still wearing the old one's tags would be showing labels
+  // that box has never heard of. A failure between the two leaves it where it
+  // was, untagged, which the re-read below puts right.
+  await db.delete(boxItemTags).where(eq(boxItemTags.itemId, itemId));
 
-    await tx.delete(boxItemTags).where(eq(boxItemTags.itemId, itemId));
-  });
+  await db
+    .update(boxItems)
+    .set({ boxId, updatedAt: new Date() })
+    .where(eq(boxItems.id, itemId));
 
   await requeueBoxItem(itemId);
+  revalidateShell();
+}
+
+/**
+ * Throw a document away. The Drive file goes to the bin, not the void.
+ *
+ * Its links go with it, so a project that cited it stops citing something
+ * that no longer exists.
+ */
+export async function deleteDocument(itemId: string) {
+  await requireSession();
+  await deleteBoxItem(itemId);
   revalidateShell();
 }
 
