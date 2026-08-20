@@ -626,6 +626,22 @@ to be kept. They meet at `box_item_links` and nowhere else.
   through every category and judges by what the document *is* rather than the
   words it contains. The failure that phrasing guarded against — an invented
   tag — was never possible: `validateTags` is the gate.
+- **A document too big to read is filed, not failed.** `MAX_CLASSIFY_BYTES`
+  (12 MB, about a hundred scanned pages) is a *cost* rail, not a platform one:
+  Drive's allowance is fifteen gigabytes and OpenAI's own limit is 50 MB per
+  request, but a PDF bills as its extracted text *and* an image of every page,
+  so a book costs a book. Checked against `size_bytes` before the file is
+  fetched, and again against the bytes that arrive — a Google Doc has no size
+  until it is exported. Over it, `fileWithoutReading` writes `ready` with the
+  filename as the title and a summary saying it wasn't read. Not `failed`:
+  nothing went wrong, the file is in Drive and findable by name, and a red row
+  implies a retry would help.
+- **`max_output_tokens` is set, and a truncated reply is `UnreadableDocument`.**
+  `text` asks for a transcription, so the *reply* grows with the document too.
+  Without the recognition, a cut-short answer is unparseable JSON, an ordinary
+  error, and the same answer bought four more times. The prompt asks for the
+  first few pages verbatim and a summary of the rest — the field exists so a
+  document can be found again, not so it can be reproduced.
 - **The gallery is a preference, not a fourth density.** Densities trade
   metadata for rows and apply everywhere; `box_view` only means anything where
   the things listed have a picture, and a scan is recognised by its shape long
