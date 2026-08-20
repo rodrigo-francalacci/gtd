@@ -14,6 +14,8 @@ import { GoogleApiError, downloadFile, exportFile } from '@/lib/google/client';
 import { exportTypeFor, isGoogleNative } from '@/lib/google/sync';
 import { getBoxCategories } from '@/lib/queries';
 import {
+  MAX_CLASSIFY_BYTES,
+  MAX_TEXT_CHARS,
   UnreadableDocument,
   canClassify,
   classifier,
@@ -164,6 +166,7 @@ async function runJob(model: Classifier | null, itemId: string) {
       driveFileId: boxItems.driveFileId,
       name: boxItems.name,
       mimeType: boxItems.mimeType,
+      sizeBytes: boxItems.sizeBytes,
       url: boxItems.url,
     })
     .from(boxItems)
@@ -187,6 +190,12 @@ async function runJob(model: Classifier | null, itemId: string) {
     throw new UnreadableDocument(
       `Nothing here can read ${item.mimeType ?? 'a file with no type'}.`,
     );
+  }
+
+  // Checked before the download, so an enormous file costs nothing at all —
+  // not a Drive transfer, and certainly not a model call.
+  if (item.sizeBytes !== null && item.sizeBytes > MAX_CLASSIFY_BYTES) {
+    return fileWithoutReading(item, item.sizeBytes);
   }
 
   const [box] = await db
@@ -215,8 +224,17 @@ async function runJob(model: Classifier | null, itemId: string) {
     );
   }
 
+  const bytes = await upstream.arrayBuffer();
+
+  // The row's size can be null — a Google Doc has no bytes until it is
+  // exported, and an old ingest may never have recorded one — so the same
+  // ceiling is applied again to what actually arrived.
+  if (bytes.byteLength > MAX_CLASSIFY_BYTES) {
+    return fileWithoutReading(item, bytes.byteLength);
+  }
+
   const result = await model.classify(
-    { name: item.name, mimeType: asType, bytes: await upstream.arrayBuffer() },
+    { name: item.name, mimeType: asType, bytes },
     { instruction: box?.instruction ?? '', rules: box?.rules ?? '' },
     categories,
   );
@@ -280,18 +298,58 @@ async function runJob(model: Classifier | null, itemId: string) {
       title: result.title || null,
       description: result.description || null,
       docDate: result.date,
-      text: result.text || null,
+      text: result.text ? result.text.slice(0, MAX_TEXT_CHARS) : null,
       // The vector is generated from this column, so anything that writes one
       // has to write the other. Tag names go in too: searching "Tesco" should
       // find the receipt whether or not the word survived the scan.
       searchText: [result.description, result.text, tagNames.join(' ')]
         .filter(Boolean)
         .join('\n')
-        .slice(0, 100_000),
+        .slice(0, MAX_TEXT_CHARS),
       status: 'ready',
       updatedAt: new Date(),
     })
     .where(eq(boxItems.id, itemId));
+}
+
+/**
+ * Too big to read, so filed on what is already known about it.
+ *
+ * `ready`, deliberately, not `failed`. Nothing has gone wrong: the file is in
+ * Drive, the row is in the box, the entry previews and downloads like any
+ * other, and searching its name finds it. The only thing it lacks is a
+ * summary, and the honest way to show that is an entry that says so rather
+ * than a red one implying something is broken and might be retried.
+ *
+ * The title comes from the filename, which for a big document is usually the
+ * best name anyone has — a book arrives called what it is.
+ */
+async function fileWithoutReading(
+  item: { id: string; name: string },
+  size: number,
+): Promise<void> {
+  const mb = (size / (1024 * 1024)).toFixed(1);
+  const title = titleFromFilename(item.name);
+  const description = `Filed without being read — ${mb} MB is beyond the size this app will send to be summarised. The file itself is here in full.`;
+
+  await db
+    .update(boxItems)
+    .set({
+      title,
+      description,
+      // Name and note only. There is no transcription, and `search_text` must
+      // say exactly as much as is actually known.
+      searchText: [title, description].join('\n'),
+      status: 'ready',
+      updatedAt: new Date(),
+    })
+    .where(eq(boxItems.id, item.id));
+}
+
+/** A filename as something to read: no extension, no separators. */
+function titleFromFilename(name: string): string | null {
+  const stem = name.replace(/\.[a-z0-9]{1,8}$/i, '').replace(/[_-]+/g, ' ').trim();
+  return stem || null;
 }
 
 /**
@@ -397,7 +455,7 @@ async function runLinkJob(model: Classifier | null, itemId: string) {
       searchText: [description, resolved.text, tagNames.join(' ')]
         .filter(Boolean)
         .join('\n')
-        .slice(0, 100_000),
+        .slice(0, MAX_TEXT_CHARS),
       status: 'ready',
       updatedAt: new Date(),
     })

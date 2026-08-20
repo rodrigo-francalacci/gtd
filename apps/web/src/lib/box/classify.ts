@@ -42,6 +42,40 @@ const IMAGE_TYPES = new Set(['image/jpeg', 'image/png', 'image/gif', 'image/webp
 /** Roughly the first few pages. Past that, a summary stops improving. */
 const MAX_CHARS = 20_000;
 
+/**
+ * The largest file this app will hand to a model, and why there is a limit.
+ *
+ * Not Drive's problem: a box of scans is measured in megabytes and the free
+ * Drive allowance is fifteen gigabytes, so the disk is not what runs out.
+ * OpenAI's own ceiling is 50 MB per request, which is also not what bites
+ * first. The cost is. A PDF is billed as its extracted text *and* a rendered
+ * image of every page, so the price of reading a document rises with its page
+ * count whether or not there is anything on those pages worth knowing — and a
+ * book is a thousand pages of prose nobody is going to search for by phrase.
+ *
+ * Twelve megabytes is about a hundred scanned pages, which is comfortably more
+ * than any receipt, bill, letter or manual that belongs in a box and
+ * comfortably less than a book. Over it, the file is still uploaded, still
+ * filed, still previewable and still findable by its name — it simply isn't
+ * read. That is a better answer than either of the two this app gave before:
+ * pay for it silently, or fail the row and leave a red entry behind.
+ */
+export const MAX_CLASSIFY_BYTES = 12 * 1024 * 1024;
+
+/**
+ * A ceiling on the reply, in tokens.
+ *
+ * `text` asks for a verbatim transcription, so the output grows with the
+ * document exactly as the input does — and output tokens are the dear ones.
+ * Without this a long document could bill for a reply nobody would ever read
+ * to the end of. The prompt asks for the same restraint in words; this is what
+ * makes it true.
+ */
+const MAX_OUTPUT_TOKENS = 8_000;
+
+/** Stored transcriptions stop here, a little above what the model may return. */
+export const MAX_TEXT_CHARS = 60_000;
+
 export function canClassify(mimeType: string | null): boolean {
   if (!mimeType) return false;
   return (
@@ -174,7 +208,13 @@ function buildPrompt(
     '- title: a short descriptive title, 10-15 words at most, suitable for a filename.',
     '- description: about four lines of prose saying what this is. Do not begin with "This document".',
     '- date: the most relevant date printed on the document, as YYYY-MM-DD. Null if there is no date on it — do not guess one from context.',
-    '- text: every word you can read, verbatim, in reading order. If there is no text, describe what is shown in one sentence instead.',
+    // The transcription is what makes a scan searchable, and it is also the
+    // only field whose length is set by the document rather than by the ask.
+    // A receipt is a paragraph; twenty pages of terms and conditions is not
+    // something anyone will ever read here, and paying to reproduce it in full
+    // buys nothing that a summary of the back half doesn't.
+    '- text: every word you can read, verbatim, in reading order. If the document runs to more than a few pages, transcribe the first few in full and then summarise the rest — this field exists so the document can be found again, not so it can be reproduced.',
+    '  If there is no text at all, describe what is shown in one sentence instead.',
     '- tags: {category, tag} pairs from the lists below.',
   ];
 
@@ -254,6 +294,7 @@ export class OpenAiClassifier implements Classifier {
       },
       body: JSON.stringify({
         model: this.model,
+        max_output_tokens: MAX_OUTPUT_TOKENS,
         input: [
           {
             role: 'user',
@@ -284,8 +325,23 @@ export class OpenAiClassifier implements Classifier {
     }
 
     const body = (await response.json()) as {
+      status?: string;
+      incomplete_details?: { reason?: string };
       output?: { content?: { type: string; text?: string }[] }[];
     };
+
+    /**
+     * A reply that ran out of room is truncated JSON, and truncated JSON does
+     * not parse. Left to the generic path that would be an ordinary error and
+     * the worker would buy the same truncated answer four more times, so it is
+     * caught here and called what it is: this document is too long to read,
+     * which no amount of retrying will change.
+     */
+    if (body.status === 'incomplete') {
+      throw new UnreadableDocument(
+        `The reply was cut short (${body.incomplete_details?.reason ?? 'no reason given'}). This document is too long to read in one pass.`,
+      );
+    }
 
     const text = (body.output ?? [])
       .flatMap((o) => o.content ?? [])
