@@ -23,7 +23,7 @@ import {
   type BoxRow,
 } from '@/lib/queries.shared';
 import { useFilePreview } from './file-preview';
-import { IconDocument, IconLink, IconPlace } from './icons';
+import { IconAudio, IconDocument, IconLink, IconPlace } from './icons';
 
 const arrived = new Intl.DateTimeFormat('en-GB', {
   day: 'numeric',
@@ -139,6 +139,14 @@ export function DocumentDetail({
   const file = item.driveFileId;
   const isDocument = item.kind === 'document';
 
+  /**
+   * Nothing here transcribes speech, so a recording is filed and played, never
+   * read. Offering "read it now" on one is offering a button that can only
+   * fail — which is what it did, until the queue started refusing the job.
+   */
+  const isAudio = item.mimeType?.startsWith('audio/') ?? false;
+  const readable = isDocument && !isAudio;
+
   const open = () => {
     if (!file) return;
     preview.open({
@@ -203,7 +211,7 @@ export function DocumentDetail({
             : 'border-grey-200 text-grey-700 hover:bg-grey-100',
         ].join(' ')}
       >
-        <IconDocument />
+        {isAudio ? <IconAudio /> : <IconDocument />}
         <span className="min-w-0 flex-1 truncate">{item.name}</span>
         {item.sizeBytes ? (
           <span className="shrink-0 text-[11px] text-grey-400">
@@ -213,7 +221,7 @@ export function DocumentDetail({
       </a>
       ) : null}
 
-      {isDocument && item.status !== 'ready' ? (
+      {readable && item.status !== 'ready' ? (
         <div className="rounded-sm border border-grey-200 bg-grey-50 px-3 py-2 text-[12px] text-grey-600">
           <p>
             {item.status === 'pending'
@@ -240,13 +248,19 @@ export function DocumentDetail({
 
       <section className="flex flex-col gap-1">
         <label className="text-[10px] uppercase tracking-wider text-grey-500">
-          {isDocument ? 'What this is' : 'Note'}
+          {isAudio ? 'About this recording' : isDocument ? 'What this is' : 'Note'}
         </label>
         <textarea
           value={description}
           onChange={(e) => edit({ description: e.target.value })}
           rows={4}
-          placeholder={isDocument ? 'Not summarised yet.' : 'Write something.'}
+          placeholder={
+            isAudio
+              ? 'Not transcribed — nothing here reads speech yet. Write what it was about and search will find it.'
+              : isDocument
+                ? 'Not summarised yet.'
+                : 'Write something.'
+          }
           className="w-full resize-y rounded-sm border border-grey-200 bg-paper px-2 py-1.5 text-[13px] leading-relaxed text-grey-800 placeholder:text-grey-400 focus:border-grey-400 focus:outline-none"
         />
 
@@ -498,7 +512,7 @@ export function DocumentDetail({
           </label>
         ) : null}
 
-        {isDocument && item.status === 'ready' ? (
+        {readable && item.status === 'ready' ? (
           <button
             type="button"
             disabled={reading}

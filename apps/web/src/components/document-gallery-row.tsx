@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useState } from 'react';
 import { documentLabel, mapUrl, type BoxItemRow } from '@/lib/queries.shared';
-import { IconDocument, IconLink, IconPlace } from './icons';
+import { IconAudio, IconDocument, IconLink, IconPlace } from './icons';
 
 const printed = new Intl.DateTimeFormat('en-GB', {
   day: 'numeric',
@@ -59,7 +59,14 @@ export function DocumentGalleryRow({
             <span className="text-grey-400">
               <IconPlace />
             </span>
-          ) : audio || failed ? (
+          ) : audio ? (
+            // A microphone, not the generic page. The page is also what a
+            // failed render falls back to, so using it here made a perfectly
+            // good recording look like something that had gone wrong.
+            <span className="text-grey-500">
+              <IconAudio />
+            </span>
+          ) : failed ? (
             <span className="text-grey-400">
               <IconDocument />
             </span>

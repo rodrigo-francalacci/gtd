@@ -556,9 +556,14 @@ to be kept. They meet at `box_item_links` and nowhere else.
   an interpretation that goes stale. Geolocation is asked for per entry, never
   watched: an app holding a live position because you once pressed a pin is not
   a trade anyone agreed to.
-- **Audio is filed, never queued.** Nothing here transcribes speech, so
-  `completeBoxUpload` writes an unreadable type straight to `ready` instead of
-  queueing a job that can only fail. It plays inline in the feed, because a
+- **Audio is filed, never queued — and the rule lives in `requeueBoxItem`.**
+  Nothing here transcribes speech, so an unreadable type is written straight to
+  `ready` instead of queueing a job that can only fail. Putting that only in
+  `completeBoxUpload` wasn't enough: the composer asks for every upload to be
+  read the moment it lands, which put recordings back in the queue and failed
+  them as unreadable. One funnel, one rule, and an already-failed row heals
+  when it passes through. The pane offers no read controls for audio either —
+  a button that can only fail is worse than no button. It plays inline in the feed, because a
   recording has no title and no summary and is the one entry you cannot judge
   without hearing it — making you open a pane for that is the difference
   between a journal you speak into and one you don't.
@@ -597,6 +602,13 @@ to be kept. They meet at `box_item_links` and nowhere else.
   the things listed have a picture, and a scan is recognised by its shape long
   before its title is read. Day headings survive it — arrival is the filing
   system, and a wall of thumbnails with no sense of when is a folder.
+- **The filter offers only what would still find something.** Once Tesco is
+  selected, a tag on none of the remaining receipts leads to an empty list, and
+  a bar full of dead ends is a bar you stop reading. Counts come from the rows
+  already fetched — filtering is AND, so every tag worth offering next is by
+  definition on the results, and a second query would ask the database what it
+  has just answered. A selected tag always stays listed, whatever its count, or
+  there'd be no way to unselect it.
 - **One entry per row, thumbnail left.** It was a grid of tiles first, and two
   entries side by side halve the width available to the summary — which is the
   part that tells you whether this is the document you want. The thumbnail only

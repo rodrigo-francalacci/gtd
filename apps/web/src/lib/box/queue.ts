@@ -310,8 +310,37 @@ export async function getBoxQueueStatus() {
   };
 }
 
-/** Read one document again — after a key is added, or a tag list is fixed. */
+/**
+ * Read one document again — after a key is added, or a tag list is fixed.
+ *
+ * Refuses to queue what nothing can read, and that guard has to live *here*
+ * rather than at the call sites. `completeBoxUpload` already exempts audio,
+ * and the composer then undid it by asking for every upload to be read the
+ * moment it landed: the request put the recording back in the queue and the
+ * worker duly failed it as unreadable. One funnel, one rule.
+ *
+ * An unreadable item is set `ready` instead, which is the honest state —
+ * nothing is pending, there is simply nothing to read — and it heals anything
+ * already marked failed by the older behaviour.
+ */
 export async function requeueBoxItem(itemId: string): Promise<void> {
+  const [item] = await db
+    .select({ kind: boxItems.kind, mimeType: boxItems.mimeType })
+    .from(boxItems)
+    .where(eq(boxItems.id, itemId))
+    .limit(1);
+
+  if (!item) return;
+
+  if (item.kind !== 'document' || !canClassify(item.mimeType)) {
+    await db.delete(boxJobs).where(eq(boxJobs.itemId, itemId));
+    await db
+      .update(boxItems)
+      .set({ status: 'ready', updatedAt: new Date() })
+      .where(eq(boxItems.id, itemId));
+    return;
+  }
+
   await db
     .update(boxItems)
     .set({ status: 'pending', updatedAt: new Date() })

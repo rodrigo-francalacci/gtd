@@ -40,6 +40,7 @@ export function BoxComposer({ boxId }: { boxId: string }) {
    */
   const [useFileDate, setUseFileDate] = useState(false);
   const [recording, setRecording] = useState(false);
+  const [over, setOver] = useState(false);
 
   const post = () => {
     const body = text.trim();
@@ -181,7 +182,42 @@ export function BoxComposer({ boxId }: { boxId: string }) {
         e.preventDefault();
         void upload(files);
       }}
-      className="border-b border-grey-200 bg-grey-50 px-3 py-2"
+      /**
+       * Dropping a file here uploads it.
+       *
+       * The placeholder said so before any of this existed, which made the
+       * composer quietly lie: a dropped file was handed to the browser, which
+       * navigated away from the app to display it. `preventDefault` on
+       * *dragover* is what stops that — without it the drop event never
+       * belongs to us at all, and the handler below is never reached.
+       *
+       * Only file drags are claimed. The app drags rows between lists with its
+       * own MIME types, and those must go on bubbling to whatever they were
+       * aimed at.
+       */
+      onDragOver={(e) => {
+        if (!e.dataTransfer.types.includes('Files')) return;
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'copy';
+        setOver(true);
+      }}
+      onDragLeave={(e) => {
+        // Moving between children fires dragleave too; only a real exit counts,
+        // or the highlight flickers the whole way across.
+        if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setOver(false);
+      }}
+      onDrop={(e) => {
+        if (!e.dataTransfer.types.includes('Files')) return;
+        e.preventDefault();
+        setOver(false);
+        void upload(e.dataTransfer.files);
+      }}
+      className={[
+        'border-b px-3 py-2',
+        over
+          ? 'border-selected bg-selected-bg ring-1 ring-inset ring-selected'
+          : 'border-grey-200 bg-grey-50',
+      ].join(' ')}
     >
       {/* Recorded, not uploaded — but it leaves here as a file and goes up the
           same path, so nothing downstream knows the difference. */}

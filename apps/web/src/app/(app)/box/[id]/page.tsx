@@ -62,6 +62,21 @@ export default async function BoxPage(props: PageProps<'/box/[id]'>) {
     getProjectOptions(),
   ]);
 
+  /**
+   * How many of the *currently showing* entries carry each tag.
+   *
+   * Derived from the rows already fetched rather than queried: filtering is
+   * AND across the selected tags, so every tag worth offering next is by
+   * definition one of the tags on the results. A second query would ask the
+   * database a question it has just answered.
+   */
+  const tagCounts: Record<string, number> = {};
+  for (const item of items) {
+    for (const tag of item.tags) {
+      tagCounts[tag.id] = (tagCounts[tag.id] ?? 0) + 1;
+    }
+  }
+
   const href = (docId: string) => {
     const params = new URLSearchParams();
     tagIds.forEach((t) => params.append('tag', t));
@@ -89,7 +104,12 @@ export default async function BoxPage(props: PageProps<'/box/[id]'>) {
           </>
         }
         subtitle={
-          <TagFilter boxId={id} categories={categories} selected={tagIds} />
+          <TagFilter
+            boxId={id}
+            categories={categories}
+            selected={tagIds}
+            counts={tagCounts}
+          />
         }
       >
         <BoxComposer boxId={id} />
