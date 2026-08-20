@@ -20,6 +20,7 @@ import {
   validateTags,
   type Classifier,
 } from './classify';
+import { UnreachableLink, resolveLink } from './link';
 
 const MAX_ATTEMPTS = 4;
 
@@ -67,8 +68,9 @@ export async function drainBoxQueue(
    */
   itemId?: string,
 ): Promise<BoxDrainResult> {
+  // No early return for a missing key any more: a link is read by fetching it,
+  // so those jobs run regardless and only document jobs wait for a key.
   const model = classifier();
-  if (!model) return { claimed: 0, done: 0, failed: 0, retrying: 0, skipped: true };
 
   const claimed = await db
     .update(boxJobs)
@@ -76,8 +78,12 @@ export async function drainBoxQueue(
     .where(
       sql`${boxJobs.id} in (
         select j.id from ${boxJobs} j
+        join ${boxItems} i on i.id = j.item_id
         where j.status = 'pending'
           and j.run_after <= now()
+          -- A link is read by fetching it, not by a model, so it is claimable
+          -- whether or not a key is configured. Only documents need one.
+          and (${model !== null} or i.kind = 'link')
           and (${itemId ?? null}::uuid is null or j.item_id = ${itemId ?? null}::uuid)
         order by j.created_at
         limit ${limit}
@@ -95,6 +101,7 @@ export async function drainBoxQueue(
     done: 0,
     failed: 0,
     retrying: 0,
+    skipped: model === null,
   };
 
   for (const job of claimed) {
@@ -112,6 +119,7 @@ export async function drainBoxQueue(
 
       const permanent =
         error instanceof UnreadableDocument ||
+        error instanceof UnreachableLink ||
         error instanceof GoogleAuthError ||
         (error instanceof GoogleApiError && !error.retryable);
 
@@ -147,7 +155,7 @@ export async function drainBoxQueue(
   return result;
 }
 
-async function runJob(model: Classifier, itemId: string) {
+async function runJob(model: Classifier | null, itemId: string) {
   const [item] = await db
     .select({
       id: boxItems.id,
@@ -156,6 +164,7 @@ async function runJob(model: Classifier, itemId: string) {
       driveFileId: boxItems.driveFileId,
       name: boxItems.name,
       mimeType: boxItems.mimeType,
+      url: boxItems.url,
     })
     .from(boxItems)
     .where(eq(boxItems.id, itemId))
@@ -164,10 +173,15 @@ async function runJob(model: Classifier, itemId: string) {
   // Deleted before the worker got to it. Not an error — the job is moot.
   if (!item) return;
 
+  if (item.kind === 'link') return runLinkJob(model, item.id);
+
   // A note or a place has no file and is already in its final form. Nothing
   // should have queued one, but a kind can change under a queued job, and
   // failing it would be inventing a problem.
   if (item.kind !== 'document' || !item.driveFileId) return;
+
+  // Only a document needs a model, and the claim above guarantees one.
+  if (!model) return;
 
   if (!canClassify(item.mimeType)) {
     throw new UnreadableDocument(
@@ -280,6 +294,116 @@ async function runJob(model: Classifier, itemId: string) {
     .where(eq(boxItems.id, itemId));
 }
 
+/**
+ * Read a link: follow it, and see what it turns out to be.
+ *
+ * A Maps address becomes a place — the coordinates are in the URL once the
+ * shortener has been followed, so the entry changes kind. That looks odd
+ * written down and is honest in practice: nobody knew what the address was
+ * until somebody looked, and a place filed as a link is a place you won't find
+ * on a map.
+ *
+ * Anything else is a page. Its own metadata gives the title, the sentence and
+ * the picture for free and without a model, which is why links work with no
+ * API key at all. With a key, the page's text goes through the same classifier
+ * as a document, so an article can carry the box's tags — and its summary
+ * replaces the marketing line a site puts in `og:description`.
+ */
+async function runLinkJob(model: Classifier | null, itemId: string) {
+  const [item] = await db
+    .select({ id: boxItems.id, boxId: boxItems.boxId, url: boxItems.url })
+    .from(boxItems)
+    .where(eq(boxItems.id, itemId))
+    .limit(1);
+
+  if (!item?.url) return;
+
+  const resolved = await resolveLink(item.url);
+
+  if (resolved.lat !== undefined && resolved.lng !== undefined) {
+    await db
+      .update(boxItems)
+      .set({
+        kind: 'location',
+        lat: resolved.lat,
+        lng: resolved.lng,
+        url: resolved.url,
+        title: resolved.title,
+        searchText: resolved.title,
+        status: 'ready',
+        updatedAt: new Date(),
+      })
+      .where(eq(boxItems.id, itemId));
+    return;
+  }
+
+  let title = resolved.title;
+  let description = resolved.description;
+  let tagIds: string[] = [];
+  let tagNames: string[] = [];
+
+  if (model && resolved.text && resolved.text.length > 200) {
+    const [box] = await db
+      .select({ instruction: boxes.instruction, rules: boxes.rules })
+      .from(boxes)
+      .where(eq(boxes.id, item.boxId))
+      .limit(1);
+
+    const categories = await getBoxCategories(item.boxId);
+
+    try {
+      const read = await model.classify(
+        {
+          name: title ?? resolved.url,
+          mimeType: 'text/plain',
+          bytes: new TextEncoder().encode(resolved.text).buffer as ArrayBuffer,
+        },
+        { instruction: box?.instruction ?? '', rules: box?.rules ?? '' },
+        categories,
+      );
+
+      title = read.title || title;
+      description = read.description || description;
+
+      const checked = validateTags(categories, read.tags);
+      tagIds = checked.tagIds;
+      tagNames = categories
+        .flatMap((c) => c.tags)
+        .filter((t) => tagIds.includes(t.id))
+        .map((t) => t.name);
+    } catch {
+      // The page was fetched and that is the part that matters. A model that
+      // refused it costs the tags, not the entry.
+    }
+  }
+
+  await db.delete(boxItemTags).where(eq(boxItemTags.itemId, itemId));
+
+  if (tagIds.length > 0) {
+    await db
+      .insert(boxItemTags)
+      .values(tagIds.map((tagId) => ({ itemId, tagId })))
+      .onConflictDoNothing();
+  }
+
+  await db
+    .update(boxItems)
+    .set({
+      url: resolved.url,
+      title,
+      description,
+      imageUrl: resolved.imageUrl,
+      text: resolved.text,
+      searchText: [description, resolved.text, tagNames.join(' ')]
+        .filter(Boolean)
+        .join('\n')
+        .slice(0, 100_000),
+      status: 'ready',
+      updatedAt: new Date(),
+    })
+    .where(eq(boxItems.id, itemId));
+}
+
 /** Queue health, for the connections page. */
 export async function getBoxQueueStatus() {
   const rows = await db
@@ -332,7 +456,13 @@ export async function requeueBoxItem(itemId: string): Promise<void> {
 
   if (!item) return;
 
-  if (item.kind !== 'document' || !canClassify(item.mimeType)) {
+  if (item.kind === 'location' || item.kind === 'note') {
+    // Already in final form: nothing to read.
+    await db.delete(boxJobs).where(eq(boxJobs.itemId, itemId));
+    return;
+  }
+
+  if (item.kind === 'document' && !canClassify(item.mimeType)) {
     await db.delete(boxJobs).where(eq(boxJobs.itemId, itemId));
     await db
       .update(boxItems)

@@ -260,6 +260,9 @@ export type BoxItemRow = {
   name: string;
   lat: number | null;
   lng: number | null;
+  /** Where a `link` points, and the picture the page advertises. */
+  url: string | null;
+  imageUrl: string | null;
   mimeType: string | null;
   sizeBytes: number | null;
   title: string | null;
@@ -310,6 +313,7 @@ export function documentLabel(item: {
   name: string;
   kind?: BoxItemKind;
   description?: string | null;
+  url?: string | null;
 }): string {
   const title = item.title?.trim();
   if (title) return title;
@@ -319,7 +323,9 @@ export function documentLabel(item: {
   if (item.kind && item.kind !== 'document') {
     const first = (item.description ?? '').split('\n')[0].trim();
     if (first) return first;
-    return item.kind === 'location' ? 'A place' : 'A note';
+    if (item.kind === 'location') return 'A place';
+    if (item.kind === 'link') return item.url ?? 'A link';
+    return 'A note';
   }
 
   return item.name.replace(/^\d{4}-\d{2}-\d{2}[ _-]*/, '') || item.name;

@@ -5,6 +5,7 @@ import { BOX_COLUMNS } from '@/lib/columns';
 import type { ViewMode } from '@/lib/pane';
 import { documentLabel, mapUrl, type BoxItemRow } from '@/lib/queries.shared';
 import { IconLink, IconPlace } from './icons';
+import { Linkified } from './linkified';
 import { SimpleRow } from './simple-row';
 
 const printed = new Intl.DateTimeFormat('en-GB', {
@@ -94,17 +95,19 @@ export function DocumentRow({
     );
   }
 
+  // A container with the navigation link stretched over it, not an anchor
+  // wrapping everything — see `DocumentGalleryRow` for why.
   return (
-    <Link
-      href={href}
+    <div
       className={[
-        'block px-4 py-2.5',
+        'relative px-4 py-2.5',
         selected ? 'bg-selected-bg' : 'hover:bg-grey-100',
       ].join(' ')}
     >
+      <Link href={href} aria-label={label} className="absolute inset-0" />
       <span
         className={[
-          'block text-[13px]',
+          'relative block text-[13px]',
           // A note is read, not scanned: it wraps to a few lines the way a
           // message does, where a filename is one line and truncates.
           item.kind === 'note' ? 'line-clamp-4 whitespace-pre-wrap' : 'truncate',
@@ -115,19 +118,36 @@ export function DocumentRow({
               : 'text-grey-800',
         ].join(' ')}
       >
-        {item.kind === 'note' ? item.description : label}
+        {item.kind === 'note' ? (
+          <Linkified text={item.description ?? ''} />
+        ) : (
+          label
+        )}
       </span>
 
       {audio ? (
         // Not a link: clicking the transport must not also select the row and
         // scroll the pane out from under the thing you are listening to.
-        <div className="mt-1.5" onClick={(e) => e.preventDefault()}>
+        <div className="relative mt-1.5">
           <audio src={audio} controls preload="none" className="h-8 w-full max-w-sm" />
         </div>
       ) : null}
 
+      {item.kind === 'link' && item.url ? (
+        <a
+          href={item.url}
+          target="_blank"
+          rel="noopener noreferrer nofollow"
+          onClick={(e) => e.stopPropagation()}
+          className="relative mt-1 flex items-center gap-1 truncate text-[11px] text-selected underline underline-offset-2"
+        >
+          <IconLink />
+          {item.url}
+        </a>
+      ) : null}
+
       {item.kind === 'location' && item.lat !== null && item.lng !== null ? (
-        <span className="mt-1 flex items-center gap-1 text-[11px] text-grey-500">
+        <span className="relative mt-1 flex items-center gap-1 text-[11px] text-grey-500">
           <IconPlace />
           <a
             href={mapUrl(item.lat, item.lng)}
@@ -141,7 +161,7 @@ export function DocumentRow({
         </span>
       ) : null}
 
-      <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px]">
+      <div className="relative mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px]">
         {unread && item.status === 'pending' ? (
           <span className="text-grey-400">waiting to be read</span>
         ) : item.status === 'failed' && item.kind === 'document' ? (
@@ -171,6 +191,6 @@ export function DocumentRow({
           </span>
         ) : null}
       </div>
-    </Link>
+    </div>
   );
 }

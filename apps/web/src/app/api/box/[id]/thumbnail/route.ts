@@ -2,6 +2,7 @@ import { boxItems, db } from '@gtd/db';
 import { eq } from 'drizzle-orm';
 import { NextResponse } from 'next/server';
 import { requireSession } from '@/lib/auth/session';
+import { isFetchableUrl } from '@/lib/box/link';
 import { getFile } from '@/lib/google/client';
 
 export const dynamic = 'force-dynamic';
@@ -36,10 +37,41 @@ export async function GET(
     : 400;
 
   const [row] = await db
-    .select({ driveFileId: boxItems.driveFileId })
+    .select({ driveFileId: boxItems.driveFileId, imageUrl: boxItems.imageUrl })
     .from(boxItems)
     .where(eq(boxItems.id, id))
     .limit(1);
+
+  /**
+   * A link's preview comes from the page, and still comes through us.
+   *
+   * Pointing the browser straight at the remote image would tell that host who
+   * is reading, and when, every time the feed is scrolled — and it would leak
+   * through a page that is otherwise entirely first-party. Proxying costs a
+   * round trip and buys that back.
+   */
+  if (row?.imageUrl) {
+    if (!isFetchableUrl(row.imageUrl)) {
+      return NextResponse.json({ error: 'No thumbnail.' }, { status: 404 });
+    }
+
+    const remote = await fetch(row.imageUrl, {
+      signal: AbortSignal.timeout(10_000),
+    }).catch(() => null);
+
+    if (!remote?.ok || !(remote.headers.get('content-type') ?? '').startsWith('image/')) {
+      return NextResponse.json({ error: 'No thumbnail.' }, { status: 404 });
+    }
+
+    const bytes = await remote.arrayBuffer();
+    return new NextResponse(bytes, {
+      headers: {
+        'Content-Type': remote.headers.get('content-type') ?? 'image/jpeg',
+        'Content-Length': String(bytes.byteLength),
+        'Cache-Control': 'private, max-age=86400',
+      },
+    });
+  }
 
   if (!row?.driveFileId) {
     return NextResponse.json({ error: 'No such document.' }, { status: 404 });

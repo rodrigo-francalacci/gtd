@@ -47,7 +47,7 @@ import {
 } from './google/attachments';
 import { deleteBoxItem } from './google/boxes';
 import { enqueueSync } from './google/queue';
-import { requeueBoxItem } from './box/queue';
+import { enqueueBoxJob, requeueBoxItem } from './box/queue';
 import { docFromText, extractText } from './tiptap';
 
 /**
@@ -1504,6 +1504,43 @@ export async function postBoxNote(boxId: string, body: string) {
       status: 'ready',
     })
     .returning({ id: boxItems.id });
+
+  revalidateShell();
+  return row.id;
+}
+
+/**
+ * Keep a link — a page you liked, or one someone sent you.
+ *
+ * Written immediately with nothing but the address, and read afterwards by the
+ * worker: following a link means waiting on a server that is nobody's
+ * responsibility, and the entry should be in the box the moment you press
+ * Post. Whether it is a page or a place is not decided here either. That needs
+ * the shortener followed, which is the same wait.
+ */
+export async function postBoxLink(boxId: string, url: string, body: string) {
+  await requireSession();
+
+  const address = url.trim();
+  if (!address) return null;
+
+  const text = body.trim();
+
+  const [row] = await db
+    .insert(boxItems)
+    .values({
+      boxId,
+      kind: 'link',
+      url: address,
+      // Until it has been read, the address is the only thing there is to
+      // show — better than an untitled row you cannot identify.
+      description: text || null,
+      searchText: [text, address].filter(Boolean).join(' '),
+      status: 'pending',
+    })
+    .returning({ id: boxItems.id });
+
+  await enqueueBoxJob(row.id);
 
   revalidateShell();
   return row.id;

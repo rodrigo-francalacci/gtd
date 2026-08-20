@@ -145,7 +145,7 @@ export function DocumentDetail({
    * fail — which is what it did, until the queue started refusing the job.
    */
   const isAudio = item.mimeType?.startsWith('audio/') ?? false;
-  const readable = isDocument && !isAudio;
+  const readable = (isDocument && !isAudio) || item.kind === 'link';
 
   const open = () => {
     if (!file) return;
@@ -173,6 +173,19 @@ export function DocumentDetail({
           className="w-full border-0 border-b border-transparent bg-transparent pb-1 text-[17px] font-medium text-grey-900 placeholder:text-grey-400 focus:border-grey-300 focus:outline-none"
         />
       </header>
+
+      {item.kind === 'link' && item.url ? (
+        <a
+          href={item.url}
+          target="_blank"
+          rel="noopener noreferrer nofollow"
+          className="flex items-center gap-2 rounded-sm border border-grey-200 px-3 py-2 text-[12px] text-grey-700 hover:bg-grey-100"
+        >
+          <IconLink />
+          <span className="min-w-0 flex-1 truncate">{item.url}</span>
+          <span className="shrink-0 text-[11px] text-grey-400">Open ↗</span>
+        </a>
+      ) : null}
 
       {/* Where you were, for a place. Google Maps takes a bare coordinate
           pair, so this needs no geocoding service and no key. */}
@@ -225,7 +238,9 @@ export function DocumentDetail({
         <div className="rounded-sm border border-grey-200 bg-grey-50 px-3 py-2 text-[12px] text-grey-600">
           <p>
             {item.status === 'pending'
-              ? 'Not read yet. It will be named, summarised and tagged on the next run.'
+              ? item.kind === 'link'
+                ? 'Not read yet. The page will be fetched for its title, summary and picture on the next run.'
+                : 'Not read yet. It will be named, summarised and tagged on the next run.'
               : 'This one could not be read.'}
           </p>
           {item.lastError ? (
@@ -248,7 +263,13 @@ export function DocumentDetail({
 
       <section className="flex flex-col gap-1">
         <label className="text-[10px] uppercase tracking-wider text-grey-500">
-          {isAudio ? 'About this recording' : isDocument ? 'What this is' : 'Note'}
+          {isAudio
+            ? 'About this recording'
+            : item.kind === 'link'
+              ? 'What this page is'
+              : isDocument
+                ? 'What this is'
+                : 'Note'}
         </label>
         <textarea
           value={description}

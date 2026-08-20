@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useState } from 'react';
 import { documentLabel, mapUrl, type BoxItemRow } from '@/lib/queries.shared';
 import { IconAudio, IconDocument, IconLink, IconPlace } from './icons';
+import { Linkified } from './linkified';
 
 const printed = new Intl.DateTimeFormat('en-GB', {
   day: 'numeric',
@@ -42,22 +43,38 @@ export function DocumentGalleryRow({
       : `${Math.max(1, Math.round(item.sizeBytes / 1024))} KB`
     : null;
 
+  /**
+   * The row is a container with the navigation link stretched across it, not
+   * an anchor wrapping everything.
+   *
+   * An entry can hold real links of its own — the page it points at, a map,
+   * an address inside a note — and an `<a>` inside an `<a>` is invalid HTML.
+   * React says so and then hydration fails, because the browser silently
+   * re-parents the inner one and the tree it built stops matching the server's.
+   *
+   * So: one absolutely-positioned link for the click target, and the content
+   * above it. Anything interactive needs `relative` to sit over the overlay.
+   */
   return (
-    <Link
-      href={href}
+    <div
       className={[
-        'flex gap-3 border-b border-grey-150 px-3 py-2.5',
+        'relative flex gap-3 border-b border-grey-150 px-3 py-2.5',
         selected ? 'bg-selected-bg' : 'hover:bg-grey-100',
       ].join(' ')}
     >
+      <Link href={href} aria-label={label} className="absolute inset-0" />
       {/* Fixed square, so every row starts its text at the same place — a
           ragged left edge down a column of entries is the thing that makes a
           list tiring to scan. A note has no picture and gets none. */}
       {item.kind !== 'note' ? (
-        <span className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-sm bg-grey-100">
+        <span className="relative flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-sm bg-grey-100">
           {item.kind === 'location' ? (
             <span className="text-grey-400">
               <IconPlace />
+            </span>
+          ) : item.kind === 'link' && !item.imageUrl ? (
+            <span className="text-grey-400">
+              <IconLink />
             </span>
           ) : audio ? (
             // A microphone, not the generic page. The page is also what a
@@ -89,7 +106,7 @@ export function DocumentGalleryRow({
         </span>
       ) : null}
 
-      <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+      <span className="relative flex min-w-0 flex-1 flex-col gap-0.5">
         <span
           className={[
             'text-[13px] leading-snug',
@@ -101,7 +118,11 @@ export function DocumentGalleryRow({
                 : 'text-grey-800',
           ].join(' ')}
         >
-          {item.kind === 'note' ? item.description : label}
+          {item.kind === 'note' ? (
+            <Linkified text={item.description ?? ''} />
+          ) : (
+            label
+          )}
         </span>
 
         {item.description && item.kind !== 'note' ? (
@@ -115,17 +136,24 @@ export function DocumentGalleryRow({
         ) : null}
 
         {audio ? (
-          <span
-            className="mt-1 block"
-            onClick={(e) => {
-              // The transport must not also select the row and scroll the pane
-              // out from under what you are listening to.
-              e.preventDefault();
-              e.stopPropagation();
-            }}
-          >
+          // `relative` puts the transport above the stretched link, so pressing
+          // play doesn't also select the row and scroll the pane out from under
+          // what you are listening to.
+          <span className="relative mt-1 block">
             <audio src={audio} controls preload="none" className="h-8 w-full max-w-sm" />
           </span>
+        ) : null}
+
+        {item.kind === 'link' && item.url ? (
+          <a
+            href={item.url}
+            target="_blank"
+            rel="noopener noreferrer nofollow"
+            onClick={(e) => e.stopPropagation()}
+            className="truncate text-[11px] text-selected underline underline-offset-2"
+          >
+            {hostOf(item.url)}
+          </a>
         ) : null}
 
         <span className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-[10px] text-grey-400">
@@ -166,6 +194,15 @@ export function DocumentGalleryRow({
           ) : null}
         </span>
       </span>
-    </Link>
+    </div>
   );
+}
+
+/** The site, which is what you actually recognise a link by. */
+function hostOf(url: string): string {
+  try {
+    return new URL(url).hostname.replace(/^www\./, '');
+  } catch {
+    return url;
+  }
 }

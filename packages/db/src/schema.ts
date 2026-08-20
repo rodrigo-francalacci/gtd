@@ -723,6 +723,7 @@ export const boxItemKind = pgEnum('box_item_kind', [
   'document',
   'note',
   'location',
+  'link',
 ]);
 
 /**
@@ -768,6 +769,18 @@ export const boxItems = pgTable(
      */
     lat: doublePrecision('lat'),
     lng: doublePrecision('lng'),
+    /** The address a `link` entry points at, and what gets read to fill it in. */
+    url: text('url'),
+    /**
+     * A link's picture, as the address the page itself advertises.
+     *
+     * Kept as a URL and proxied rather than copied into Drive: a preview image
+     * is the page's, not ours, and the failure mode of a stale one is a
+     * missing thumbnail rather than a broken entry. It is never rendered
+     * directly — see the thumbnail route — because pointing the browser at a
+     * third-party host would tell that host who is reading, and every time.
+     */
+    imageUrl: text('image_url'),
     docDate: date('doc_date'),
     /** The full transcription, so search can reach inside the document. */
     text: text('text'),

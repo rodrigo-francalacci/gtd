@@ -2,7 +2,7 @@
 
 import { useRouter } from 'next/navigation';
 import { useRef, useState, useTransition } from 'react';
-import { postBoxLocation, postBoxNote } from '@/lib/actions';
+import { postBoxLink, postBoxLocation, postBoxNote } from '@/lib/actions';
 import { AudioRecorder } from './audio-recorder';
 import { IconAudio, IconCamera, IconPaperclip, IconPlace } from './icons';
 
@@ -51,8 +51,20 @@ export function BoxComposer({ boxId }: { boxId: string }) {
     setText('');
     setError(null);
 
+    /**
+     * A message that is only an address is a link, and gets read as one.
+     *
+     * No separate button, because a link arrives the same way a thought does —
+     * pasted. Anything with words around it stays a note: adding a sentence is
+     * how you say "this is what I thought", and swallowing that into a page's
+     * own summary would be the app deciding your remark was the less
+     * interesting half.
+     */
+    const url = soleUrl(body);
+
     startTransition(async () => {
-      await postBoxNote(boxId, body);
+      if (url) await postBoxLink(boxId, url, '');
+      else await postBoxNote(boxId, body);
       router.refresh();
     });
   };
@@ -338,4 +350,22 @@ export function BoxComposer({ boxId }: { boxId: string }) {
       />
     </div>
   );
+}
+
+/**
+ * The message, if the whole of it is one web address.
+ *
+ * Deliberately strict — the entire message, one token, http or https. "look at
+ * https://…" is a thought that happens to contain a link, and treating it as a
+ * bare link would throw the thought away.
+ */
+function soleUrl(text: string): string | null {
+  if (/\s/.test(text)) return null;
+
+  try {
+    const url = new URL(text);
+    return url.protocol === 'http:' || url.protocol === 'https:' ? text : null;
+  } catch {
+    return null;
+  }
 }

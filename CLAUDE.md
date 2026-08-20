@@ -550,6 +550,35 @@ to be kept. They meet at `box_item_links` and nowhere else.
   a journal you stop keeping. Files go up the same session/PUT/complete path
   the bridge uses, so the browser can put a book in a box without meeting
   Vercel's body cap, and are read immediately rather than waiting for the cron.
+- **A pasted address is looked at before it is filed.** A message that is
+  *only* a URL becomes a `link`, written immediately with nothing but the
+  address and read by the worker — following a link means waiting on a server
+  that is nobody's responsibility, and the entry should be in the box the
+  moment you press Post. A Maps address resolves to coordinates and the entry
+  changes kind to `location`: nobody knew what it was until somebody looked,
+  and a place filed as a link is a place you can't find on a map. Prefer the
+  `!3d…!4d…` pair over `@lat,lng` — the first is the *place*, the second is
+  wherever the camera was, and on a real link those were 250m apart.
+- **A link is read by fetching it, so links work with no API key.** The page's
+  own metadata gives the title, sentence and picture; with a key its text goes
+  through the same classifier as a document so it can carry the box's tags.
+  That's why `drainBoxQueue` no longer returns early when there's no key — it
+  claims link jobs regardless and only document jobs wait.
+- **Fetching a user-supplied URL is done carefully.** http/https only, literal
+  private and loopback hosts refused before *and* after the redirect chain, a
+  timeout, and a size cap. This app fetches from a server that sits inside a
+  network with its own private addresses, a cloud metadata endpoint among them.
+- **A link's preview image is proxied like everything else.** Pointing the
+  browser at the remote image would tell that host who is reading and when,
+  every time the feed scrolls, through a page that is otherwise entirely
+  first-party. Stored as a URL rather than copied into Drive: the picture is
+  the page's, and a stale one costs a thumbnail rather than the entry.
+- **A row is a container with a stretched link, not an anchor wrapping
+  everything.** Entries hold real links of their own — the page, a map, an
+  address inside a note — and an `<a>` inside an `<a>` is invalid HTML: the
+  browser re-parents it, the tree stops matching the server's, and hydration
+  fails. One absolutely-positioned `Link` for the click target, and anything
+  interactive gets `relative` to sit above it.
 - **A place is two numbers.** Turning them into a street name would mean a
   geocoding service, a key and a per-request cost, for something a map link
   answers by itself — and the coordinate is the fact, where the street name is
