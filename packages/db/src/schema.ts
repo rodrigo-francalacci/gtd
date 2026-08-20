@@ -707,6 +707,25 @@ export const boxItemStatus = pgEnum('box_item_status', [
 ]);
 
 /**
+ * What an entry in a box is.
+ *
+ * A box began as somewhere documents land, and it turns out that is half of
+ * it: the reason the original box of letters worked is that it held everything
+ * you might want to find later, in the order it arrived. A thought about a
+ * document belongs next to the document, not in a separate system — so the
+ * feed takes messages and places as well as files, and reads the way a chat
+ * does, which is the only interface anyone has ever needed teaching for.
+ *
+ * `document` is the only kind with a file, and so the only kind the model
+ * reads. A note is already in its final form.
+ */
+export const boxItemKind = pgEnum('box_item_kind', [
+  'document',
+  'note',
+  'location',
+]);
+
+/**
  * One document in a box.
  *
  * `captured_at` is the permanent mark of when it arrived and is what the feed
@@ -728,13 +747,27 @@ export const boxItems = pgTable(
     boxId: uuid('box_id')
       .notNull()
       .references(() => boxes.id, { onDelete: 'restrict' }),
-    driveFileId: text('drive_file_id').notNull(),
-    name: text('name').notNull(),
+    kind: boxItemKind('kind').notNull().default('document'),
+    /** Null for anything with no file — a note, a place. */
+    driveFileId: text('drive_file_id'),
+    /** The Drive filename. Empty for entries that aren't files. */
+    name: text('name').notNull().default(''),
     mimeType: text('mime_type'),
     sizeBytes: integer('size_bytes'),
-    /** Everything below is the model's, written once the file has been read. */
+    /**
+     * For a document these are the model's, written once the file is read. For
+     * a note, `description` is the message you typed and `title` stays null —
+     * a note is not a summary of anything, it is the thing itself.
+     */
     title: text('title'),
     description: text('description'),
+    /**
+     * Where you were, for a `location` entry. Two columns rather than a blob
+     * because a coordinate is two numbers and will one day be worth querying
+     * on; a label, if there is one, goes in `description` like any other note.
+     */
+    lat: doublePrecision('lat'),
+    lng: doublePrecision('lng'),
     docDate: date('doc_date'),
     /** The full transcription, so search can reach inside the document. */
     text: text('text'),
@@ -905,3 +938,4 @@ export type BoxCategory = typeof boxCategories.$inferSelect;
 export type BoxTag = typeof boxTags.$inferSelect;
 export type BoxItem = typeof boxItems.$inferSelect;
 export type BoxItemStatus = (typeof boxItemStatus.enumValues)[number];
+export type BoxItemKind = (typeof boxItemKind.enumValues)[number];

@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { DayHeading } from '@/components/day-heading';
 import { DocumentDetail } from '@/components/document-detail';
+import { BoxComposer } from '@/components/box-composer';
 import { BoxViewToggle } from '@/components/box-view-toggle';
 import { DocumentCard } from '@/components/document-card';
 import { DocumentRow } from '@/components/document-row';
@@ -91,13 +92,15 @@ export default async function BoxPage(props: PageProps<'/box/[id]'>) {
           <TagFilter boxId={id} categories={categories} selected={tagIds} />
         }
       >
+        <BoxComposer boxId={id} />
+
         {items.length === 0 ? (
           <EmptyList
             message={
               tagIds.length > 0
                 ? 'Nothing in this box carries all of those tags.'
                 : box.itemCount === 0
-                  ? 'Nothing filed here yet. Scan something into the folder this box watches and it will appear.'
+                  ? 'Nothing here yet. Write something above, drop a file in, or scan into the folder this box watches.'
                   : 'Nothing to show.'
             }
           />

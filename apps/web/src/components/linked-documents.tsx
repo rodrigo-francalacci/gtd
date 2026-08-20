@@ -69,32 +69,43 @@ export function LinkedDocuments({
               </span>
 
               {/* Plain click previews; a modified click opens Drive, the way
-                  every other link on the machine behaves. */}
-              <a
-                href={driveFileUrl(row.driveFileId)}
-                target="_blank"
-                rel="noreferrer"
-                onClick={(e) => {
-                  if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
-                  e.preventDefault();
-                  preview.open({
-                    id: row.id,
-                    name: documentLabel(row),
-                    src: `/api/box/${row.id}/file`,
-                    mimeType: row.mimeType,
-                    driveFileId: row.driveFileId,
-                    driveUrl: driveFileUrl(row.driveFileId),
-                  });
-                }}
-                className={[
-                  'min-w-0 flex-1 truncate hover:underline',
-                  preview.openId === row.id
-                    ? 'font-medium text-grey-900'
-                    : 'text-grey-700',
-                ].join(' ')}
-              >
-                {documentLabel(row)}
-              </a>
+                  every other link on the machine behaves. An entry with no
+                  file — a note, a place — has nothing to preview, so it is a
+                  plain link back to where it sits in its box. */}
+              {row.driveFileId ? (
+                <a
+                  href={driveFileUrl(row.driveFileId)}
+                  target="_blank"
+                  rel="noreferrer"
+                  onClick={(e) => {
+                    if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+                    e.preventDefault();
+                    preview.open({
+                      id: row.id,
+                      name: documentLabel(row),
+                      src: `/api/box/${row.id}/file`,
+                      mimeType: row.mimeType,
+                      driveFileId: row.driveFileId,
+                      driveUrl: driveFileUrl(row.driveFileId!),
+                    });
+                  }}
+                  className={[
+                    'min-w-0 flex-1 truncate hover:underline',
+                    preview.openId === row.id
+                      ? 'font-medium text-grey-900'
+                      : 'text-grey-700',
+                  ].join(' ')}
+                >
+                  {documentLabel(row)}
+                </a>
+              ) : (
+                <Link
+                  href={`/box/${row.boxId}?doc=${row.id}`}
+                  className="min-w-0 flex-1 truncate text-grey-700 hover:underline"
+                >
+                  {documentLabel(row)}
+                </Link>
+              )}
 
               <Link
                 href={`/box/${row.boxId}?doc=${row.id}`}

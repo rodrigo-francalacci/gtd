@@ -228,6 +228,14 @@ export const IconViewGallery = (p: IconProps) => (
   </Glyph>
 );
 
+/** A place — a map pin. */
+export const IconPlace = (p: IconProps) => (
+  <Glyph {...p}>
+    <path d="M8 14s4.6-4.2 4.6-7.6a4.6 4.6 0 1 0-9.2 0C3.4 9.8 8 14 8 14z" />
+    <circle cx="8" cy="6.3" r="1.7" />
+  </Glyph>
+);
+
 /** An attached document — a page with a folded corner. */
 export const IconDocument = (p: IconProps) => (
   <Glyph {...p}>

@@ -2,8 +2,8 @@
 
 import Link from 'next/link';
 import { useState } from 'react';
-import { documentLabel, type BoxItemRow } from '@/lib/queries.shared';
-import { IconDocument, IconLink } from './icons';
+import { documentLabel, mapUrl, type BoxItemRow } from '@/lib/queries.shared';
+import { IconDocument, IconLink, IconPlace } from './icons';
 
 const printed = new Intl.DateTimeFormat('en-GB', {
   day: 'numeric',
@@ -33,7 +33,8 @@ export function DocumentCard({
 }) {
   const [failed, setFailed] = useState(false);
   const label = documentLabel(item);
-  const unread = item.status !== 'ready';
+  const unread = item.kind === 'document' && item.status !== 'ready';
+  const audio = item.mimeType?.startsWith('audio/') ? `/api/box/${item.id}/file` : null;
 
   return (
     <Link
@@ -45,8 +46,20 @@ export function DocumentCard({
           : 'border-grey-200 bg-paper hover:border-grey-300',
       ].join(' ')}
     >
+      {/* A note has no picture and shouldn't pretend to: forcing it into the
+          same tall frame as a scan leaves most of the card empty, and a
+          message is as long as it is. The text below carries it instead. */}
+      {item.kind === 'note' ? null : (
       <div className="flex aspect-[3/4] items-center justify-center overflow-hidden bg-grey-100">
-        {failed ? (
+        {item.kind === 'location' ? (
+          <span className="text-grey-400">
+            <IconPlace />
+          </span>
+        ) : audio ? (
+          <span className="text-grey-400">
+            <IconDocument />
+          </span>
+        ) : failed ? (
           <span className="text-grey-300">
             <IconDocument />
           </span>
@@ -63,22 +76,35 @@ export function DocumentCard({
           />
         )}
       </div>
+      )}
 
       <div className="flex min-w-0 flex-col gap-1 p-2">
-        <span
-          className={[
-            'line-clamp-2 text-[12px] leading-snug',
-            unread
-              ? 'italic text-grey-500'
-              : selected
-                ? 'font-medium text-grey-900'
-                : 'text-grey-800',
-          ].join(' ')}
-        >
-          {label}
-        </span>
+        {audio ? (
+          <div onClick={(e) => e.preventDefault()}>
+            <audio src={audio} controls preload="none" className="h-7 w-full" />
+          </div>
+        ) : null}
 
-        {item.description ? (
+        {item.kind === 'note' ? (
+          <span className="line-clamp-[10] whitespace-pre-wrap text-[12px] leading-relaxed text-grey-800">
+            {item.description}
+          </span>
+        ) : (
+          <span
+            className={[
+              'line-clamp-2 text-[12px] leading-snug',
+              unread
+                ? 'italic text-grey-500'
+                : selected
+                  ? 'font-medium text-grey-900'
+                  : 'text-grey-800',
+            ].join(' ')}
+          >
+            {label}
+          </span>
+        )}
+
+        {item.description && item.kind !== 'note' ? (
           <span className="line-clamp-3 text-[11px] leading-relaxed text-grey-500">
             {item.description}
           </span>
@@ -91,6 +117,18 @@ export function DocumentCard({
             <span className="tabular-nums text-grey-500">
               {printed.format(new Date(item.docDate))}
             </span>
+          ) : null}
+
+          {item.kind === 'location' && item.lat !== null && item.lng !== null ? (
+            <a
+              href={mapUrl(item.lat, item.lng)}
+              target="_blank"
+              rel="noreferrer"
+              onClick={(e) => e.stopPropagation()}
+              className="tabular-nums text-grey-500 underline underline-offset-2"
+            >
+              {item.lat.toFixed(3)}, {item.lng.toFixed(3)}
+            </a>
           ) : null}
 
           {item.tags.slice(0, 3).map((tag) => (

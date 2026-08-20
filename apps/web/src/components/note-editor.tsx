@@ -60,8 +60,26 @@ export function NoteEditor({
         // Link ships inside StarterKit v3 — configured, not added, or the
         // duplicate extension name throws.
         link: {
-          openOnClick: false, // clicking in the editor should place the cursor
+          /**
+           * A click follows the link.
+           *
+           * This was false, on the reasoning that a click inside an editor
+           * should place the cursor — true of a text editor, wrong here. These
+           * notes are read far more often than they are edited, and a link you
+           * cannot click is not really a link; you end up copying the address
+           * out by hand, which is what a link exists to save you.
+           *
+           * The cursor is still reachable: click just past the link, or arrow
+           * into it. Editing an existing link is the toolbar's job either way —
+           * `extendMarkRange` means the cursor need only be somewhere in it.
+           * And `target="_blank"` means a mis-click opens a tab rather than
+           * navigating away from an unsaved note.
+           */
+          openOnClick: true,
           autolink: true,
+          // The protocol list is what makes a clickable link safe: a
+          // `javascript:` href in a note would otherwise be a script that runs
+          // when clicked, and notes hold whatever gets pasted into them.
           defaultProtocol: 'https',
           protocols: ['http', 'https', 'mailto'],
           HTMLAttributes: {

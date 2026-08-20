@@ -4,6 +4,7 @@ import { boxItems, boxes, db } from '@gtd/db';
 import { eq } from 'drizzle-orm';
 import { hasSyncScopes } from '@/lib/auth/google';
 import { getGrant } from '@/lib/auth/token';
+import { canClassify } from '@/lib/box/classify';
 import { enqueueBoxJob } from '@/lib/box/queue';
 import {
   createResumableSession,
@@ -145,19 +146,31 @@ export async function completeBoxUpload(
 
   if (existing) return existing;
 
+  /**
+   * A voice note is filed, not read.
+   *
+   * There is no speech provider wired up, so queueing audio would manufacture
+   * a failure for a file that is perfectly fine — the same call the enrichment
+   * queue makes. It goes in as `ready` with its filename, which is honest:
+   * nothing is pending, there is simply nothing to read. Play it in the feed.
+   */
+  const readable = canClassify(mimeType);
+
   const [row] = await db
     .insert(boxItems)
     .values({
       boxId,
+      kind: 'document',
       driveFileId: file.id,
       name: file.name,
       mimeType,
       sizeBytes: Number.isFinite(size) ? size : null,
+      status: readable ? 'pending' : 'ready',
       ...(capturedAt ? { capturedAt } : {}),
     })
     .returning({ id: boxItems.id, name: boxItems.name });
 
-  await enqueueBoxJob(row.id);
+  if (readable) await enqueueBoxJob(row.id);
 
   return row;
 }

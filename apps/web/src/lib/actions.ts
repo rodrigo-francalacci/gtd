@@ -1443,6 +1443,79 @@ export async function moveDocument(itemId: string, boxId: string) {
 }
 
 /**
+ * Write something in a box.
+ *
+ * The boxes started as somewhere documents land, and that turned out to be
+ * half of it: a thought about a document belongs beside the document, in the
+ * order it occurred, not in a separate system you have to remember to look in.
+ * So a box takes messages too, and reads like a chat — which is the one
+ * interface nobody has ever needed teaching.
+ *
+ * Written straight to `ready`: a note is not a summary of anything, it is the
+ * thing itself, and there is nothing for a model to do to it. `search_text` is
+ * written here for the same reason it is everywhere else — the vector is
+ * generated from that column, and a note without it is a note you can't find.
+ */
+export async function postBoxNote(boxId: string, body: string) {
+  await requireSession();
+
+  const text = body.trim();
+  if (!text) return null;
+
+  const [row] = await db
+    .insert(boxItems)
+    .values({
+      boxId,
+      kind: 'note',
+      description: text,
+      searchText: text,
+      status: 'ready',
+    })
+    .returning({ id: boxItems.id });
+
+  revalidateShell();
+  return row.id;
+}
+
+/**
+ * Record where you are, with an optional line about it.
+ *
+ * Coordinates only. Turning them into "the chemist on Fleet Street" would mean
+ * a geocoding service, a key and a per-request cost, for something a map link
+ * answers by itself — and the coordinate is the fact, while the street name is
+ * an interpretation that can go stale.
+ */
+export async function postBoxLocation(
+  boxId: string,
+  lat: number,
+  lng: number,
+  body: string,
+) {
+  await requireSession();
+
+  if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+  if (Math.abs(lat) > 90 || Math.abs(lng) > 180) return null;
+
+  const text = body.trim();
+
+  const [row] = await db
+    .insert(boxItems)
+    .values({
+      boxId,
+      kind: 'location',
+      lat,
+      lng,
+      description: text || null,
+      searchText: text || null,
+      status: 'ready',
+    })
+    .returning({ id: boxItems.id });
+
+  revalidateShell();
+  return row.id;
+}
+
+/**
  * Throw a document away. The Drive file goes to the bin, not the void.
  *
  * Its links go with it, so a project that cited it stops citing something

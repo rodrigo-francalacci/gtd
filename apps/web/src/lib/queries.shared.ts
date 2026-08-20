@@ -2,6 +2,7 @@ import type {
   ActionStatus,
   AttachmentKind,
   AttachmentParentType,
+  BoxItemKind,
   BoxItemStatus,
   ProjectStatus,
 } from '@gtd/db';
@@ -253,8 +254,12 @@ export type AppliedTag = { id: string; name: string; category: string };
 export type BoxItemRow = {
   id: string;
   boxId: string;
-  driveFileId: string;
+  kind: BoxItemKind;
+  /** Null for a note or a place — there is no file. */
+  driveFileId: string | null;
   name: string;
+  lat: number | null;
+  lng: number | null;
   mimeType: string | null;
   sizeBytes: number | null;
   title: string | null;
@@ -285,9 +290,10 @@ export type LinkedDocumentRow = {
   boxName: string;
   name: string;
   title: string | null;
+  description: string | null;
   mimeType: string | null;
   sizeBytes: number | null;
-  driveFileId: string;
+  driveFileId: string | null;
   capturedAt: Date;
 };
 
@@ -302,8 +308,24 @@ export type LinkedDocumentRow = {
 export function documentLabel(item: {
   title: string | null;
   name: string;
+  kind?: BoxItemKind;
+  description?: string | null;
 }): string {
   const title = item.title?.trim();
   if (title) return title;
+
+  // A note has no title and no filename: it is its own first line, the way a
+  // message in a chat is. Titling it would be inventing something.
+  if (item.kind && item.kind !== 'document') {
+    const first = (item.description ?? '').split('\n')[0].trim();
+    if (first) return first;
+    return item.kind === 'location' ? 'A place' : 'A note';
+  }
+
   return item.name.replace(/^\d{4}-\d{2}-\d{2}[ _-]*/, '') || item.name;
+}
+
+/** Where a place points. Google Maps takes a bare coordinate pair. */
+export function mapUrl(lat: number, lng: number): string {
+  return `https://www.google.com/maps/search/?api=1&query=${lat},${lng}`;
 }

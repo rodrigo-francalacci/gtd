@@ -152,6 +152,7 @@ async function runJob(model: Classifier, itemId: string) {
     .select({
       id: boxItems.id,
       boxId: boxItems.boxId,
+      kind: boxItems.kind,
       driveFileId: boxItems.driveFileId,
       name: boxItems.name,
       mimeType: boxItems.mimeType,
@@ -162,6 +163,11 @@ async function runJob(model: Classifier, itemId: string) {
 
   // Deleted before the worker got to it. Not an error — the job is moot.
   if (!item) return;
+
+  // A note or a place has no file and is already in its final form. Nothing
+  // should have queued one, but a kind can change under a queued job, and
+  // failing it would be inventing a problem.
+  if (item.kind !== 'document' || !item.driveFileId) return;
 
   if (!canClassify(item.mimeType)) {
     throw new UnreadableDocument(

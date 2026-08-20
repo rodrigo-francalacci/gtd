@@ -401,6 +401,14 @@ Turbopack is the default; `middleware` is now `proxy`.
   derived from that column plus the action's status — they are mutually
   exclusive by construction, which is what stops spend double-counting. Don't
   add a fourth source of truth for "is this ordered".
+- **A link in a note follows on click.** `openOnClick` was false, on the
+  reasoning that a click inside an editor places the cursor — true of a text
+  editor and wrong here: these notes are read far more often than edited, and
+  a link you can't click isn't one. The cursor is still reachable by clicking
+  past the link or arrowing into it, and the toolbar edits an existing link
+  from anywhere inside it. The `protocols` list is what makes this safe: a
+  `javascript:` href in a note would otherwise be a script that runs when
+  clicked, and notes hold whatever gets pasted into them.
 - **Notes are ProseMirror JSON**, not HTML. Writing notes must also write
   `search_text` (via `extractText`) — the `search_vector` generated column
   builds from it, so skipping it silently removes the row from search.
@@ -519,6 +527,28 @@ to be kept. They meet at `box_item_links` and nowhere else.
   first tried to write. Ordering does the work instead: tags are rewritten
   before the row, and `status: 'ready'` is written last, so a failure part-way
   leaves the document pending and the retry redoes all of it.
+- **A box is a timeline, not only a filing cabinet.** `box_items.kind` is
+  `document | note | location`: a thought about a document belongs beside the
+  document, in the order it occurred, not in a separate system you have to
+  remember to look in. Only a `document` has a file, and so only a document is
+  read by the model — a note is already in its final form and is written
+  straight to `ready`. `drive_file_id` is nullable for exactly this reason.
+- **The composer posts; Enter sends.** A journal that needs a form filled in is
+  a journal you stop keeping. Files go up the same session/PUT/complete path
+  the bridge uses, so the browser can put a book in a box without meeting
+  Vercel's body cap, and are read immediately rather than waiting for the cron.
+- **A place is two numbers.** Turning them into a street name would mean a
+  geocoding service, a key and a per-request cost, for something a map link
+  answers by itself — and the coordinate is the fact, where the street name is
+  an interpretation that goes stale. Geolocation is asked for per entry, never
+  watched: an app holding a live position because you once pressed a pin is not
+  a trade anyone agreed to.
+- **Audio is filed, never queued.** Nothing here transcribes speech, so
+  `completeBoxUpload` writes an unreadable type straight to `ready` instead of
+  queueing a job that can only fail. It plays inline in the feed, because a
+  recording has no title and no summary and is the one entry you cannot judge
+  without hearing it — making you open a pane for that is the difference
+  between a journal you speak into and one you don't.
 - **Throwing a document away trashes the Drive file, never deletes it.** Rare
   on purpose — a box is for keeping things — but a blank page or a duplicate
   scan is real, and a box you cannot take rubbish out of stops being one you

@@ -16,12 +16,13 @@ import { readDocument } from '@/lib/read-document';
 import { driveFileUrl } from '@/lib/google/sync';
 import {
   documentLabel,
+  mapUrl,
   type BoxCategoryRow,
   type BoxItemDetail,
   type BoxRow,
 } from '@/lib/queries.shared';
 import { useFilePreview } from './file-preview';
-import { IconDocument, IconLink } from './icons';
+import { IconDocument, IconLink, IconPlace } from './icons';
 
 const arrived = new Intl.DateTimeFormat('en-GB', {
   day: 'numeric',
@@ -119,15 +120,22 @@ export function DocumentDetail({
 
   const applied = new Set(item.tags.map((t) => t.id));
 
-  const open = () =>
+  // Only a document has a file, and so only a document has anything to read,
+  // preview, or open in Drive. A note is already in its final form.
+  const file = item.driveFileId;
+  const isDocument = item.kind === 'document';
+
+  const open = () => {
+    if (!file) return;
     preview.open({
       id: item.id,
       name: documentLabel(item),
       src: `/api/box/${item.id}/file`,
       mimeType: item.mimeType,
-      driveFileId: item.driveFileId,
-      driveUrl: driveFileUrl(item.driveFileId),
+      driveFileId: file,
+      driveUrl: driveFileUrl(file),
     });
+  };
 
   return (
     <div className="flex flex-col gap-5">
@@ -144,11 +152,29 @@ export function DocumentDetail({
         />
       </header>
 
+      {/* Where you were, for a place. Google Maps takes a bare coordinate
+          pair, so this needs no geocoding service and no key. */}
+      {item.kind === 'location' && item.lat !== null && item.lng !== null ? (
+        <a
+          href={mapUrl(item.lat, item.lng)}
+          target="_blank"
+          rel="noreferrer"
+          className="flex items-center gap-2 rounded-sm border border-grey-200 px-3 py-2 text-[12px] text-grey-700 hover:bg-grey-100"
+        >
+          <IconPlace />
+          <span className="min-w-0 flex-1 truncate tabular-nums">
+            {item.lat.toFixed(5)}, {item.lng.toFixed(5)}
+          </span>
+          <span className="shrink-0 text-[11px] text-grey-400">Map ↗</span>
+        </a>
+      ) : null}
+
       {/* The file itself, first: it is the thing, and everything else is a
           description of it. A plain click previews; a modified click opens
           Drive, the way every other link on the machine behaves. */}
+      {file ? (
       <a
-        href={driveFileUrl(item.driveFileId)}
+        href={driveFileUrl(file)}
         target="_blank"
         rel="noreferrer"
         onClick={(e) => {
@@ -171,8 +197,9 @@ export function DocumentDetail({
           </span>
         ) : null}
       </a>
+      ) : null}
 
-      {item.status !== 'ready' ? (
+      {isDocument && item.status !== 'ready' ? (
         <div className="rounded-sm border border-grey-200 bg-grey-50 px-3 py-2 text-[12px] text-grey-600">
           <p>
             {item.status === 'pending'
@@ -199,13 +226,13 @@ export function DocumentDetail({
 
       <section className="flex flex-col gap-1">
         <label className="text-[10px] uppercase tracking-wider text-grey-500">
-          What this is
+          {isDocument ? 'What this is' : 'Note'}
         </label>
         <textarea
           value={description}
           onChange={(e) => edit({ description: e.target.value })}
           rows={4}
-          placeholder="Not summarised yet."
+          placeholder={isDocument ? 'Not summarised yet.' : 'Write something.'}
           className="w-full resize-y rounded-sm border border-grey-200 bg-paper px-2 py-1.5 text-[13px] leading-relaxed text-grey-800 placeholder:text-grey-400 focus:border-grey-400 focus:outline-none"
         />
 
@@ -238,7 +265,8 @@ export function DocumentDetail({
       </section>
 
       {/* Dates, plural and deliberately so: a bill that arrives in August is
-          dated July, and both facts are worth keeping. */}
+          dated July, and both facts are worth keeping. A note has only the one
+          date, which is the moment you wrote it. */}
       <section className="flex flex-wrap gap-x-6 gap-y-1 text-[12px]">
         <span className="text-grey-500">
           Arrived{' '}
@@ -440,7 +468,7 @@ export function DocumentDetail({
           </label>
         ) : null}
 
-        {item.status === 'ready' ? (
+        {isDocument && item.status === 'ready' ? (
           <button
             type="button"
             disabled={reading}

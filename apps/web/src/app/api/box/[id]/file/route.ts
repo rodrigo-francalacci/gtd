@@ -33,5 +33,5 @@ export async function GET(
     return NextResponse.json({ error: 'No such document.' }, { status: 404 });
   }
 
-  return serveDriveFile(row, request);
+  return serveDriveFile({ ...row, driveFileId: row.driveFileId }, request);
 }
