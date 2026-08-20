@@ -172,7 +172,7 @@ function buildPrompt(box: { instruction: string }, categories: BoxCategoryRow[])
     '- description: about four lines of prose saying what this is. Do not begin with "This document". If it is a receipt, include what was bought and the final total.',
     '- date: the most relevant date printed on the document, as YYYY-MM-DD. Null if there is no date on it — do not guess one from context.',
     '- text: every word you can read, verbatim, in reading order. If there is no text, describe what is shown in one sentence instead.',
-    '- tags: zero or more {category, tag} pairs from the lists below.',
+    '- tags: {category, tag} pairs from the lists below.',
   ];
 
   if (categories.length > 0) {
@@ -188,9 +188,22 @@ function buildPrompt(box: { instruction: string }, categories: BoxCategoryRow[])
       );
     }
 
+    /**
+     * Work through every category, and judge by what the document *is*.
+     *
+     * The first version of this said only "omit a category rather than forcing
+     * a match", and the model took the hint: a Shell fuel receipt came back
+     * tagged Shell and Swindon but not Receipt, with Receipt sitting right
+     * there in a category of its own. Omission was written as the safe
+     * default when it should be the exception — and the failure it guards
+     * against, an invented tag, is already impossible, because every tag is
+     * checked against this list in code before anything is stored.
+     */
     lines.push(
       '',
-      'If nothing in a category fits, omit that category rather than forcing a match. Spell tags exactly as above, with no leading "#".',
+      `Go through all ${categories.length} categories in turn and apply every tag that genuinely fits. A document usually belongs in most of them.`,
+      'Judge by what the document is, not by the words it happens to contain: a fuel receipt is a Receipt whether or not it prints that word, and a letter from a council is from that council whether or not it says so in the body.',
+      'Omit a category only when none of its tags really applies. Spell tags exactly as above, with no leading "#".',
     );
   }
 

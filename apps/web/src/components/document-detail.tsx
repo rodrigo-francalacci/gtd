@@ -60,8 +60,31 @@ export function DocumentDetail({
   const preview = useFilePreview();
   const [pending, startTransition] = useTransition();
 
-  const [title, setTitle] = useState(item.title ?? '');
-  const [description, setDescription] = useState(item.description ?? '');
+  /**
+   * The edit in progress, or null while there isn't one.
+   *
+   * Not two `useState`s seeded from the row, which is what this was and which
+   * was quietly destructive. Reading a document changes the row *under* a
+   * mounted pane — the header and the list update from the new props, but a
+   * seeded `useState` keeps whatever it was initialised with, because
+   * initialisers only run on mount. The pane then compared its stale empty
+   * string against the model's new title, decided that was an unsaved edit,
+   * offered Save, and wrote the empty string over the title.
+   *
+   * Holding the draft as one nullable value fixes it by construction: with
+   * nothing typed there is no copy to go stale, so the fields always show the
+   * current row, and Save cannot appear — let alone write — until you have
+   * actually edited something.
+   */
+  const [draft, setDraft] = useState<{ title: string; description: string } | null>(
+    null,
+  );
+
+  const title = draft?.title ?? item.title ?? '';
+  const description = draft?.description ?? item.description ?? '';
+
+  const edit = (patch: Partial<{ title: string; description: string }>) =>
+    setDraft({ title, description, ...patch });
   const [showText, setShowText] = useState(false);
   const [linking, setLinking] = useState(false);
   const [confirming, setConfirming] = useState(false);
@@ -91,7 +114,8 @@ export function DocumentDetail({
   };
 
   const dirty =
-    title !== (item.title ?? '') || description !== (item.description ?? '');
+    draft !== null &&
+    (title !== (item.title ?? '') || description !== (item.description ?? ''));
 
   const applied = new Set(item.tags.map((t) => t.id));
 
@@ -114,7 +138,7 @@ export function DocumentDetail({
 
         <input
           value={title}
-          onChange={(e) => setTitle(e.target.value)}
+          onChange={(e) => edit({ title: e.target.value })}
           placeholder={documentLabel(item)}
           className="w-full border-0 border-b border-transparent bg-transparent pb-1 text-[17px] font-medium text-grey-900 placeholder:text-grey-400 focus:border-grey-300 focus:outline-none"
         />
@@ -179,7 +203,7 @@ export function DocumentDetail({
         </label>
         <textarea
           value={description}
-          onChange={(e) => setDescription(e.target.value)}
+          onChange={(e) => edit({ description: e.target.value })}
           rows={4}
           placeholder="Not summarised yet."
           className="w-full resize-y rounded-sm border border-grey-200 bg-paper px-2 py-1.5 text-[13px] leading-relaxed text-grey-800 placeholder:text-grey-400 focus:border-grey-400 focus:outline-none"
@@ -193,6 +217,8 @@ export function DocumentDetail({
               onClick={() =>
                 startTransition(async () => {
                   await updateDocument(item.id, title, description);
+                  // Back to showing the row itself, which is now what we sent.
+                  setDraft(null);
                   router.refresh();
                 })
               }
@@ -202,10 +228,7 @@ export function DocumentDetail({
             </button>
             <button
               type="button"
-              onClick={() => {
-                setTitle(item.title ?? '');
-                setDescription(item.description ?? '');
-              }}
+              onClick={() => setDraft(null)}
               className="text-[11px] text-grey-500 underline underline-offset-2"
             >
               Discard
