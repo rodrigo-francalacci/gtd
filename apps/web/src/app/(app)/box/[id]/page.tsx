@@ -3,6 +3,7 @@ import { notFound } from 'next/navigation';
 import { DayHeading } from '@/components/day-heading';
 import { DocumentDetail } from '@/components/document-detail';
 import { DocumentRow } from '@/components/document-row';
+import { ReadWaiting } from '@/components/read-waiting';
 import { TagFilter } from '@/components/tag-filter';
 import { DetailPane, EmptyDetail, EmptyList, ListPane } from '@/components/panes';
 import { BOX_COLUMNS } from '@/lib/columns';
@@ -73,12 +74,15 @@ export default async function BoxPage(props: PageProps<'/box/[id]'>) {
         paneWidth={paneWidth(prefs)}
         columns={BOX_COLUMNS}
         actions={
-          <Link
-            href={`/box?box=${id}`}
-            className="text-[11px] text-grey-500 underline underline-offset-2 hover:text-grey-800"
-          >
-            Tags
-          </Link>
+          <>
+            <ReadWaiting waiting={box.pendingCount} />
+            <Link
+              href={`/box?box=${id}`}
+              className="text-[11px] text-grey-500 underline underline-offset-2 hover:text-grey-800"
+            >
+              Tags
+            </Link>
+          </>
         }
         subtitle={
           <TagFilter boxId={id} categories={categories} selected={tagIds} />

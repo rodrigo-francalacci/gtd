@@ -56,7 +56,17 @@ export type BoxDrainResult = {
  * having — the title, the summary, the tags — is the model's, so with no key
  * we claim nothing and the documents wait.
  */
-export async function drainBoxQueue(limit = 5): Promise<BoxDrainResult> {
+export async function drainBoxQueue(
+  limit = 5,
+  /**
+   * Read this one document rather than whatever is next.
+   *
+   * The cron takes the oldest and doesn't care which; a person pressing "read
+   * it now" means *this* one, and would be badly served by the queue going off
+   * to read something else and reporting success.
+   */
+  itemId?: string,
+): Promise<BoxDrainResult> {
   const model = classifier();
   if (!model) return { claimed: 0, done: 0, failed: 0, retrying: 0, skipped: true };
 
@@ -66,7 +76,9 @@ export async function drainBoxQueue(limit = 5): Promise<BoxDrainResult> {
     .where(
       sql`${boxJobs.id} in (
         select j.id from ${boxJobs} j
-        where j.status = 'pending' and j.run_after <= now()
+        where j.status = 'pending'
+          and j.run_after <= now()
+          and (${itemId ?? null}::uuid is null or j.item_id = ${itemId ?? null}::uuid)
         order by j.created_at
         limit ${limit}
         for update skip locked
@@ -303,24 +315,12 @@ export async function requeueBoxItem(itemId: string): Promise<void> {
   await enqueueBoxJob(itemId);
 }
 
-/**
- * Re-queue everything that gave up or was never read.
- *
- * The obvious use is the day an API key appears: every document filed until
- * then is sitting there with an arrival date and nothing else, and this is
- * what turns them into things you can search for.
- */
-export async function requeueUnreadDocuments(): Promise<number> {
-  const rows = await db
-    .select({ id: boxItems.id })
-    .from(boxItems)
-    .where(
-      sql`${boxItems.status} <> 'ready' and not exists (
-        select 1 from ${boxJobs} j
-        where j.item_id = ${boxItems.id} and j.status = 'pending'
-      )`,
-    );
+/** How many documents are still waiting to be read. */
+export async function countWaitingDocuments(): Promise<number> {
+  const [row] = await db
+    .select({ n: sql<number>`count(*)::int` })
+    .from(boxJobs)
+    .where(sql`${boxJobs.status} = 'pending'`);
 
-  for (const row of rows) await requeueBoxItem(row.id);
-  return rows.length;
+  return row?.n ?? 0;
 }

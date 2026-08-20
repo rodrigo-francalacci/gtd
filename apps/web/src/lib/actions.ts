@@ -42,7 +42,7 @@ import {
 } from './google/attachments';
 import { deleteBoxItem } from './google/boxes';
 import { enqueueSync } from './google/queue';
-import { requeueBoxItem, requeueUnreadDocuments } from './box/queue';
+import { requeueBoxItem } from './box/queue';
 import { docFromText, extractText } from './tiptap';
 
 /**
@@ -1429,20 +1429,6 @@ export async function deleteDocument(itemId: string) {
   await requireSession();
   await deleteBoxItem(itemId);
   revalidateShell();
-}
-
-/** Read a document again — after adding a key, or fixing a tag list. */
-export async function rereadDocument(itemId: string) {
-  await requireSession();
-  await requeueBoxItem(itemId);
-  revalidateShell();
-}
-
-export async function rereadUnreadDocuments() {
-  await requireSession();
-  const n = await requeueUnreadDocuments();
-  revalidateShell();
-  return n;
 }
 
 /**

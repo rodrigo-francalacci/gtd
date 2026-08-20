@@ -7,12 +7,12 @@ import {
   deleteDocument,
   linkDocument,
   moveDocument,
-  rereadDocument,
   startFromDocument,
   toggleDocumentTag,
   unlinkDocument,
   updateDocument,
 } from '@/lib/actions';
+import { readDocument } from '@/lib/read-document';
 import { driveFileUrl } from '@/lib/google/sync';
 import {
   documentLabel,
@@ -65,6 +65,30 @@ export function DocumentDetail({
   const [showText, setShowText] = useState(false);
   const [linking, setLinking] = useState(false);
   const [confirming, setConfirming] = useState(false);
+  const [reading, setReading] = useState(false);
+  const [readError, setReadError] = useState<string | null>(null);
+
+  /**
+   * Read it, here and now.
+   *
+   * The queue's real driver is the cron, which on a Hobby account runs daily —
+   * so queueing and hoping made a button labelled "now" mean "tomorrow". This
+   * waits for the answer and says what happened.
+   */
+  const readNow = async () => {
+    setReading(true);
+    setReadError(null);
+
+    try {
+      const result = await readDocument(item.id);
+      if (result.error) setReadError(result.error);
+      router.refresh();
+    } catch {
+      setReadError('Could not reach the app to read it.');
+    } finally {
+      setReading(false);
+    }
+  };
 
   const dirty =
     title !== (item.title ?? '') || description !== (item.description ?? '');
@@ -136,17 +160,16 @@ export function DocumentDetail({
           ) : null}
           <button
             type="button"
-            disabled={pending}
-            onClick={() =>
-              startTransition(async () => {
-                await rereadDocument(item.id);
-                router.refresh();
-              })
-            }
+            disabled={reading}
+            onClick={readNow}
             className="mt-2 rounded-sm bg-grey-800 px-2 py-1 text-[11px] text-paper disabled:opacity-50"
           >
-            Read it now
+            {reading ? 'Reading…' : 'Read it now'}
           </button>
+
+          {readError ? (
+            <p className="mt-1.5 text-[11px] text-stale">{readError}</p>
+          ) : null}
         </div>
       ) : null}
 
@@ -397,16 +420,11 @@ export function DocumentDetail({
         {item.status === 'ready' ? (
           <button
             type="button"
-            disabled={pending}
-            onClick={() =>
-              startTransition(async () => {
-                await rereadDocument(item.id);
-                router.refresh();
-              })
-            }
+            disabled={reading}
+            onClick={readNow}
             className="text-grey-500 underline underline-offset-2 hover:text-grey-800 disabled:opacity-50"
           >
-            Read it again
+            {reading ? 'Reading…' : 'Read it again'}
           </button>
         ) : null}
 
