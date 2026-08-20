@@ -510,6 +510,13 @@ export function DocumentDetail({
       </section>
 
       <section className="flex flex-wrap items-center gap-3 border-t border-grey-200 pt-4 text-[11px]">
+        {/* Always shown, even with nowhere to move to.
+            
+            This used to render only when a second box existed, which is
+            logical and hides the fact that moving is possible at all — you
+            cannot look for a control that isn't there, and the answer to
+            "can I move this?" became "apparently not". With one box it says
+            where the entry lives and how to get somewhere to move it. */}
         {boxes.length > 1 ? (
           <label className="flex items-center gap-2 text-grey-500">
             Box
@@ -531,7 +538,17 @@ export function DocumentDetail({
               ))}
             </select>
           </label>
-        ) : null}
+        ) : (
+          <span className="flex items-center gap-2 text-grey-500">
+            Box <span className="text-grey-700">{item.boxName}</span>
+            <Link
+              href="/box"
+              className="underline underline-offset-2 hover:text-grey-800"
+            >
+              Add another to move things between
+            </Link>
+          </span>
+        )}
 
         {readable && item.status === 'ready' ? (
           <button
