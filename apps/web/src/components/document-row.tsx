@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { BOX_COLUMNS } from '@/lib/columns';
 import type { ViewMode } from '@/lib/pane';
 import { documentLabel, mapUrl, type BoxItemRow } from '@/lib/queries.shared';
+import { EntryTypeIcon } from './entry-type-icon';
 import { IconLink, IconPlace } from './icons';
 import { Linkified } from './linkified';
 import { SimpleRow } from './simple-row';
@@ -52,6 +53,10 @@ export function DocumentRow({
         title={<span className={unread ? 'italic text-grey-500' : ''}>{label}</span>}
         selected={selected}
         grip={false}
+        // In the `control` slot rather than before the title, because it is on
+        // every row: a mark that some rows have and others don't is what makes
+        // a column of titles ragged, and one that every row has does not.
+        control={<EntryTypeIcon item={item} />}
         after={
           item.linkCount > 0 ? (
             <span className="shrink-0 text-grey-400" title="Linked to something">
@@ -75,7 +80,7 @@ export function DocumentRow({
       >
         <span
           className={[
-            'truncate',
+            'flex items-center gap-1.5 truncate',
             unread
               ? 'italic text-grey-500'
               : selected
@@ -83,7 +88,8 @@ export function DocumentRow({
                 : 'text-grey-800',
           ].join(' ')}
         >
-          {label}
+          <EntryTypeIcon item={item} />
+          <span className="truncate">{label}</span>
         </span>
         <span className="truncate text-grey-500">
           {item.tags.map((t) => t.name).join(', ') || '—'}
@@ -107,7 +113,7 @@ export function DocumentRow({
       <Link href={href} aria-label={label} className="absolute inset-0" />
       <span
         className={[
-          'relative block text-[13px]',
+          'block text-[13px]',
           // A note is read, not scanned: it wraps to a few lines the way a
           // message does, where a filename is one line and truncates.
           item.kind === 'note' ? 'line-clamp-4 whitespace-pre-wrap' : 'truncate',
@@ -128,7 +134,7 @@ export function DocumentRow({
       {audio ? (
         // Not a link: clicking the transport must not also select the row and
         // scroll the pane out from under the thing you are listening to.
-        <div className="relative mt-1.5">
+        <div className="relative z-10 mt-1.5">
           <audio src={audio} controls preload="none" className="h-8 w-full max-w-sm" />
         </div>
       ) : null}
@@ -139,7 +145,7 @@ export function DocumentRow({
           target="_blank"
           rel="noopener noreferrer nofollow"
           onClick={(e) => e.stopPropagation()}
-          className="relative mt-1 flex items-center gap-1 truncate text-[11px] text-selected underline underline-offset-2"
+          className="relative z-10 mt-1 flex items-center gap-1 truncate text-[11px] text-selected underline underline-offset-2"
         >
           <IconLink />
           {item.url}
@@ -147,21 +153,21 @@ export function DocumentRow({
       ) : null}
 
       {item.kind === 'location' && item.lat !== null && item.lng !== null ? (
-        <span className="relative mt-1 flex items-center gap-1 text-[11px] text-grey-500">
+        <span className="mt-1 flex items-center gap-1 text-[11px] text-grey-500">
           <IconPlace />
           <a
             href={mapUrl(item.lat, item.lng)}
             target="_blank"
             rel="noreferrer"
             onClick={(e) => e.stopPropagation()}
-            className="tabular-nums underline underline-offset-2 hover:text-grey-800"
+            className="relative z-10 tabular-nums underline underline-offset-2 hover:text-grey-800"
           >
             {item.lat.toFixed(4)}, {item.lng.toFixed(4)}
           </a>
         </span>
       ) : null}
 
-      <div className="relative mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px]">
+      <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px]">
         {unread && item.status === 'pending' ? (
           <span className="text-grey-400">waiting to be read</span>
         ) : item.status === 'failed' && item.kind === 'document' ? (

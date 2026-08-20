@@ -238,6 +238,31 @@ export const IconPlace = (p: IconProps) => (
   </Glyph>
 );
 
+/** Video — a frame with a play triangle. */
+export const IconVideo = (p: IconProps) => (
+  <Glyph {...p}>
+    <rect x="2.2" y="3.6" width="11.6" height="8.8" rx="1" />
+    <path d="M6.6 6.4 10.4 8l-3.8 1.6z" />
+  </Glyph>
+);
+
+/** A spreadsheet — a grid. */
+export const IconSheet = (p: IconProps) => (
+  <Glyph {...p}>
+    <rect x="2.4" y="3" width="11.2" height="10" rx="1" />
+    <path d="M2.4 6.4h11.2M2.4 9.7h11.2M6.6 3v10" />
+  </Glyph>
+);
+
+/** An archive — a lidded crate with a catch. */
+export const IconArchive2 = (p: IconProps) => (
+  <Glyph {...p}>
+    <rect x="2.2" y="4.4" width="11.6" height="8.6" rx="1" />
+    <path d="M1.8 2.6h12.4v1.8H1.8z" />
+    <path d="M7.2 7h1.6M7.2 9.2h1.6" />
+  </Glyph>
+);
+
 /** An attached document — a page with a folded corner. */
 export const IconDocument = (p: IconProps) => (
   <Glyph {...p}>

@@ -53,7 +53,14 @@ export function DocumentGalleryRow({
    * re-parents the inner one and the tree it built stops matching the server's.
    *
    * So: one absolutely-positioned link for the click target, and the content
-   * above it. Anything interactive needs `relative` to sit over the overlay.
+   * left *unpositioned* beneath it. That ordering is the whole trick and it is
+   * easy to get backwards — I did: giving the content `relative` made it
+   * positioned too, and two positioned siblings paint in DOM order, so the
+   * content covered the link and swallowed every click. Only the padding
+   * between the blocks still selected the row.
+   *
+   * Interactive children are the exception and need `relative z-10` to come
+   * back above the overlay.
    */
   return (
     <div
@@ -67,7 +74,7 @@ export function DocumentGalleryRow({
           ragged left edge down a column of entries is the thing that makes a
           list tiring to scan. A note has no picture and gets none. */}
       {item.kind !== 'note' ? (
-        <span className="relative flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-sm bg-grey-100">
+        <span className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-sm bg-grey-100">
           {item.kind === 'location' ? (
             <span className="text-grey-400">
               <IconPlace />
@@ -106,7 +113,7 @@ export function DocumentGalleryRow({
         </span>
       ) : null}
 
-      <span className="relative flex min-w-0 flex-1 flex-col gap-0.5">
+      <span className="flex min-w-0 flex-1 flex-col gap-0.5">
         <span
           className={[
             'text-[13px] leading-snug',
@@ -136,10 +143,9 @@ export function DocumentGalleryRow({
         ) : null}
 
         {audio ? (
-          // `relative` puts the transport above the stretched link, so pressing
-          // play doesn't also select the row and scroll the pane out from under
-          // what you are listening to.
-          <span className="relative mt-1 block">
+          // Above the overlay, so pressing play doesn't also select the row
+          // and scroll the pane out from under what you are listening to.
+          <span className="relative z-10 mt-1 block">
             <audio src={audio} controls preload="none" className="h-8 w-full max-w-sm" />
           </span>
         ) : null}
@@ -150,7 +156,7 @@ export function DocumentGalleryRow({
             target="_blank"
             rel="noopener noreferrer nofollow"
             onClick={(e) => e.stopPropagation()}
-            className="truncate text-[11px] text-selected underline underline-offset-2"
+            className="relative z-10 truncate text-[11px] text-selected underline underline-offset-2"
           >
             {hostOf(item.url)}
           </a>
@@ -171,7 +177,7 @@ export function DocumentGalleryRow({
               target="_blank"
               rel="noreferrer"
               onClick={(e) => e.stopPropagation()}
-              className="tabular-nums underline underline-offset-2 hover:text-grey-700"
+              className="relative z-10 tabular-nums underline underline-offset-2 hover:text-grey-700"
             >
               {item.lat.toFixed(4)}, {item.lng.toFixed(4)}
             </a>
