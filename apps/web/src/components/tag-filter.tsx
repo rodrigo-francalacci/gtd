@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
 import type { BoxCategoryRow } from '@/lib/queries.shared';
 
 /**
@@ -31,6 +32,8 @@ export function TagFilter({
   /** How many of the entries currently showing carry each tag. */
   counts: Record<string, number>;
 }) {
+  const searchParams = useSearchParams();
+
   const withTags = categories
     .map((category) => ({
       ...category,
@@ -50,10 +53,15 @@ export function TagFilter({
       ? selected.filter((t) => t !== tagId)
       : [...selected, tagId];
 
-    const params = new URLSearchParams();
+    // Built from the current URL so the date range survives — the two filters
+    // are meant to combine, and rebuilding from scratch would silently drop
+    // whichever one you weren't touching.
+    const params = new URLSearchParams(searchParams);
+    params.delete('tag');
     next.forEach((t) => params.append('tag', t));
-    const query = params.toString();
+    params.delete('doc');
 
+    const query = params.toString();
     return query ? `/box/${boxId}?${query}` : `/box/${boxId}`;
   };
 
@@ -91,12 +99,21 @@ export function TagFilter({
 
       {selected.length > 0 ? (
         <Link
-          href={`/box/${boxId}`}
+          href={clearedHref(boxId, searchParams)}
           className="self-start text-[11px] text-grey-500 underline underline-offset-2"
         >
-          Clear filter
+          Clear tags
         </Link>
       ) : null}
     </div>
   );
+}
+
+/** Drop the tags and keep everything else, the dates included. */
+function clearedHref(boxId: string, params: URLSearchParams): string {
+  const next = new URLSearchParams(params);
+  next.delete('tag');
+  next.delete('doc');
+  const query = next.toString();
+  return query ? `/box/${boxId}?${query}` : `/box/${boxId}`;
 }

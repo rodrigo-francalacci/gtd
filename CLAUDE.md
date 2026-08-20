@@ -631,6 +631,41 @@ to be kept. They meet at `box_item_links` and nowhere else.
   the things listed have a picture, and a scan is recognised by its shape long
   before its title is read. Day headings survive it — arrival is the filing
   system, and a wall of thumbnails with no sense of when is a folder.
+- **Three filters, and they combine.** Tags are AND (all of them), types are
+  OR (nothing is both audio and a place, so requiring both would always return
+  nothing), and the date range narrows both. Each facet's counts are taken with
+  the *other* filters applied but not its own — otherwise picking Audio would
+  leave Audio as the only type on offer and there'd be no way back. Every
+  filter link is built from the current URL rather than from scratch, or the
+  one you weren't touching would silently vanish.
+- **The type filter runs in memory, not in SQL.** `entryTypeOf` turns a kind
+  and a mime type into one of a dozen words; expressing that again as a pile of
+  `like` clauses would be two definitions to keep in agreement — the trap
+  `canClassify` and `READABLE` carry a warning about. A box holds tens or
+  hundreds of rows, so the filtering costs less than the duplication would.
+- **The range control's ends come from the whole box, never the filtered rows.**
+  Otherwise the track shrinks under your hand: narrow it once and the ends
+  close in, and you can never widen it again. Its handles are local state so
+  they follow the cursor, re-seeded by a `key` on the call site rather than an
+  effect syncing two sources of truth, and written to the URL on release —
+  per-pixel commits would be the pane-resize mistake again.
+- **Days are counted from the box's first day, not from the epoch.**
+  Epoch-days looked simpler and were wrong: local midnight in a timezone ahead
+  of UTC is the previous day in UTC, so dividing by 86,400,000 floors to the
+  day before and the label ended up a day behind the URL. `setDate` lets the
+  calendar do it, daylight saving included.
+- **Moving a document keeps the tags both boxes know.** Matched on the category
+  as well as the tag — "Vendor: Shell", not "Shell", or a vendor could land in
+  a category about places — and resolved to the *destination's* own rows, since
+  the same word in two boxes is two rows. No re-read afterwards: a move is not
+  a request to spend money and overwrite what you corrected by hand.
+- **A link's picture falls a long way back.** `og:image` is the polite answer
+  and plenty of real pages don't give one — an older hand-written page has
+  never heard of it, and a modern one can render the tag with an empty
+  `content` and mean the same thing. So: the social tags, then
+  `apple-touch-icon`, then the first real image on the page (a masthead or a
+  logo, which is what makes a site recognisable), then the favicon. Both links
+  in the first real test had no `og:image` and both now have a picture.
 - **The filter offers only what would still find something.** Once Tesco is
   selected, a tag on none of the remaining receipts leads to an empty list, and
   a bar full of dead ends is a bar you stop reading. Counts come from the rows

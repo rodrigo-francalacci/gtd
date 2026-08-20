@@ -4,10 +4,12 @@ import { DayHeading } from '@/components/day-heading';
 import { DocumentDetail } from '@/components/document-detail';
 import { BoxComposer } from '@/components/box-composer';
 import { BoxViewToggle } from '@/components/box-view-toggle';
+import { DateRange } from '@/components/date-range';
 import { DocumentGalleryRow } from '@/components/document-gallery-row';
 import { DocumentRow } from '@/components/document-row';
 import { ReadWaiting } from '@/components/read-waiting';
 import { TagFilter } from '@/components/tag-filter';
+import { TypeFilter } from '@/components/type-filter';
 import { DetailPane, EmptyDetail, EmptyList, ListPane } from '@/components/panes';
 import { BOX_COLUMNS } from '@/lib/columns';
 import { groupByDay } from '@/lib/days';
@@ -16,10 +18,12 @@ import {
   getBoxCategories,
   getBoxItem,
   getBoxItems,
+  getBoxRange,
   getBoxTagIds,
   getBoxes,
   getProjectOptions,
 } from '@/lib/queries';
+import { ENTRY_TYPE_ORDER, entryTypeOf, type EntryType } from '@/lib/queries.shared';
 import { getPreferences, paneWidth } from '@/lib/view-mode';
 
 /**
@@ -45,41 +49,88 @@ export default async function BoxPage(props: PageProps<'/box/[id]'>) {
   const known = await getBoxTagIds(id);
   const tagIds = requested.filter((t) => known.has(t));
 
-  const [items, categories, prefs, boxList] = await Promise.all([
-    getBoxItems(id, tagIds),
+  /**
+   * A day from the URL, or nothing. An unparseable one is ignored rather than
+   * refused: a filter you cannot see is better than a page that won't load.
+   */
+  const day = (value: unknown): Date | undefined => {
+    if (typeof value !== 'string') return undefined;
+    const date = new Date(`${value}T00:00:00`);
+    return Number.isNaN(date.getTime()) ? undefined : date;
+  };
+
+  const range = { from: day(searchParams.from), to: day(searchParams.to) };
+
+  const [items, categories, prefs, boxList, span] = await Promise.all([
+    getBoxItems(id, tagIds, range),
     getBoxCategories(id),
     getPreferences(),
     getBoxes(),
+    getBoxRange(id),
   ]);
 
+  /**
+   * The type filter is applied here rather than in SQL.
+   *
+   * `entryTypeOf` turns a kind and a mime type into one of a dozen words, and
+   * expressing that twice — once in TypeScript, once as a pile of `like`
+   * clauses — would be two definitions to keep in agreement, which is exactly
+   * the trap `canClassify` and `READABLE` had to be warned about. A box holds
+   * tens or hundreds of rows, so filtering them in memory costs nothing worth
+   * the duplication.
+   *
+   * Types are OR-ed, unlike the tags: nothing is both audio and a place, so
+   * requiring all of them would always return nothing.
+   */
+  const requestedTypes = (
+    typeof searchParams.type === 'string'
+      ? [searchParams.type]
+      : Array.isArray(searchParams.type)
+        ? searchParams.type
+        : []
+  ).filter((t): t is EntryType => (ENTRY_TYPE_ORDER as string[]).includes(t));
+
+  const shown =
+    requestedTypes.length === 0
+      ? items
+      : items.filter((item) => requestedTypes.includes(entryTypeOf(item)));
+
+  /**
+   * Counts for each facet are taken with the *other* filters applied but not
+   * its own — otherwise picking Audio would leave Audio as the only type on
+   * offer, and there would be no way to see what else was there.
+   */
+  const typeCounts: Record<string, number> = {};
+  for (const item of items) {
+    const type = entryTypeOf(item);
+    typeCounts[type] = (typeCounts[type] ?? 0) + 1;
+  }
+
+  const tagCounts: Record<string, number> = {};
+  for (const item of shown) {
+    for (const tag of item.tags) {
+      tagCounts[tag.id] = (tagCounts[tag.id] ?? 0) + 1;
+    }
+  }
+
   const targetId =
-    selectedId && items.some((i) => i.id === selectedId)
+    selectedId && shown.some((i) => i.id === selectedId)
       ? selectedId
-      : (items[0]?.id ?? null);
+      : (shown[0]?.id ?? null);
 
   const [selected, projectOptions] = await Promise.all([
     targetId ? getBoxItem(targetId) : Promise.resolve(null),
     getProjectOptions(),
   ]);
 
-  /**
-   * How many of the *currently showing* entries carry each tag.
-   *
-   * Derived from the rows already fetched rather than queried: filtering is
-   * AND across the selected tags, so every tag worth offering next is by
-   * definition one of the tags on the results. A second query would ask the
-   * database a question it has just answered.
-   */
-  const tagCounts: Record<string, number> = {};
-  for (const item of items) {
-    for (const tag of item.tags) {
-      tagCounts[tag.id] = (tagCounts[tag.id] ?? 0) + 1;
-    }
-  }
-
   const href = (docId: string) => {
     const params = new URLSearchParams();
     tagIds.forEach((t) => params.append('tag', t));
+    // The filters have to survive selecting a row, or clicking a result would
+    // throw away the search that found it.
+    requestedTypes.forEach((t) => params.append('type', t));
+    if (typeof searchParams.from === 'string') params.set('from', searchParams.from);
+    if (typeof searchParams.to === 'string') params.set('to', searchParams.to);
     params.set('doc', docId);
     return `/box/${id}?${params}`;
   };
@@ -104,28 +155,45 @@ export default async function BoxPage(props: PageProps<'/box/[id]'>) {
           </>
         }
         subtitle={
-          <TagFilter
-            boxId={id}
-            categories={categories}
-            selected={tagIds}
-            counts={tagCounts}
-          />
+          <div className="flex flex-col gap-2">
+            {span ? (
+              /* key: the handles are local state so they can follow the
+                 cursor, and this is how they re-seed when the URL changes for
+                 another reason — a remount rather than an effect syncing two
+                 sources of truth. */
+              <DateRange
+                key={`${searchParams.from ?? ''}|${searchParams.to ?? ''}`}
+                boxId={id}
+                earliest={span.from}
+                latest={span.to}
+                from={typeof searchParams.from === 'string' ? searchParams.from : undefined}
+                to={typeof searchParams.to === 'string' ? searchParams.to : undefined}
+              />
+            ) : null}
+            <TypeFilter boxId={id} counts={typeCounts} selected={requestedTypes} />
+            <TagFilter
+              boxId={id}
+              categories={categories}
+              selected={tagIds}
+              counts={tagCounts}
+            />
+          </div>
         }
       >
         <BoxComposer boxId={id} />
 
-        {items.length === 0 ? (
+        {shown.length === 0 ? (
           <EmptyList
             message={
-              tagIds.length > 0
-                ? 'Nothing in this box carries all of those tags.'
+              tagIds.length > 0 || requestedTypes.length > 0 || range.from || range.to
+                ? 'Nothing here matches that. Widen the dates, or drop a tag.'
                 : box.itemCount === 0
                   ? 'Nothing here yet. Write something above, drop a file in, or scan into the folder this box watches.'
                   : 'Nothing to show.'
             }
           />
         ) : (
-          groupByDay(items, (i) => i.capturedAt).map((day) => (
+          groupByDay(shown, (i) => i.capturedAt).map((day) => (
             <section key={day.key}>
               <DayHeading label={day.label} />
 

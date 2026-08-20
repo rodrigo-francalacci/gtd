@@ -47,7 +47,7 @@ import {
 } from './google/attachments';
 import { deleteBoxItem } from './google/boxes';
 import { enqueueSync } from './google/queue';
-import { enqueueBoxJob, requeueBoxItem } from './box/queue';
+import { enqueueBoxJob } from './box/queue';
 import { docFromText, extractText } from './tiptap';
 
 /**
@@ -1459,18 +1459,60 @@ export async function setDocumentArrivedAt(itemId: string, iso: string) {
 export async function moveDocument(itemId: string, boxId: string) {
   await requireSession();
 
-  // Tags go first: they belong to the box being left, and a document arriving
-  // in the new box still wearing the old one's tags would be showing labels
-  // that box has never heard of. A failure between the two leaves it where it
-  // was, untagged, which the re-read below puts right.
+  /**
+   * Tags that mean the same thing in both boxes travel with the document.
+   *
+   * A tag belongs to the box that defines it, so the ones the destination has
+   * never heard of cannot come — but throwing them all away, which this used
+   * to do, loses work for no reason when both boxes know what a Shell receipt
+   * is. The match is on the *category* as well as the tag: a tag is
+   * "Vendor: Shell", not "Shell", and dropping the first half would let a
+   * vendor land in a category about places.
+   *
+   * The ids have to be the destination's own rows. The same word in two boxes
+   * is two rows, because the vocabulary is per box — carrying the old ids
+   * across would leave the document wearing another box's tags.
+   *
+   * Case- and space-insensitive, the same rule the classifier's gate uses, so
+   * "tesco" on one side finds "Tesco" on the other.
+   */
+  const kept = await db
+    .select({ id: boxTags.id })
+    .from(boxTags)
+    .innerJoin(boxCategories, eq(boxCategories.id, boxTags.categoryId))
+    .where(
+      sql`${boxCategories.boxId} = ${boxId} and exists (
+        select 1
+        from ${boxItemTags} it
+        join ${boxTags} ot on ot.id = it.tag_id
+        join ${boxCategories} oc on oc.id = ot.category_id
+        where it.item_id = ${itemId}
+          and lower(btrim(oc.name)) = lower(btrim(${boxCategories.name}))
+          and lower(btrim(ot.name)) = lower(btrim(${boxTags.name}))
+      )`,
+    );
+
+  // Ordered so a failure part-way leaves the document where it was rather than
+  // in the new box wearing the old box's labels.
   await db.delete(boxItemTags).where(eq(boxItemTags.itemId, itemId));
+
+  if (kept.length > 0) {
+    await db
+      .insert(boxItemTags)
+      .values(kept.map((tag) => ({ itemId, tagId: tag.id })))
+      .onConflictDoNothing();
+  }
 
   await db
     .update(boxItems)
     .set({ boxId, updatedAt: new Date() })
     .where(eq(boxItems.id, itemId));
 
-  await requeueBoxItem(itemId);
+  /**
+   * No re-read. The destination's vocabulary may well suggest more tags, but a
+   * move is not a request to spend money and overwrite what you have corrected
+   * by hand — "Read it again" is right there when it is what you meant.
+   */
   revalidateShell();
 }
 

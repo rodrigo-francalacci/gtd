@@ -301,6 +301,100 @@ export type LinkedDocumentRow = {
 };
 
 /**
+ * What sort of thing an entry is, for filtering.
+ *
+ * Coarser than a mime type on purpose. "application/vnd.openxmlformats-
+ * officedocument.wordprocessingml.document" is not a thing anyone wants to
+ * pick off a list; "a document" is. The kinds that aren't files — a note, a
+ * place, a link — sit in the same list, because from the point of view of
+ * finding something they are the same question: what am I looking for?
+ */
+export type EntryType =
+  | 'note'
+  | 'link'
+  | 'location'
+  | 'image'
+  | 'audio'
+  | 'video'
+  | 'pdf'
+  | 'document'
+  | 'sheet'
+  | 'text'
+  | 'archive'
+  | 'other';
+
+export const ENTRY_TYPE_LABELS: Record<EntryType, string> = {
+  note: 'Notes',
+  link: 'Links',
+  location: 'Places',
+  image: 'Images',
+  audio: 'Audio',
+  video: 'Video',
+  pdf: 'PDFs',
+  document: 'Documents',
+  sheet: 'Spreadsheets',
+  text: 'Text',
+  archive: 'Archives',
+  other: 'Other',
+};
+
+/** The order they read in: what you made, then what you were sent. */
+export const ENTRY_TYPE_ORDER: EntryType[] = [
+  'note',
+  'link',
+  'location',
+  'pdf',
+  'image',
+  'audio',
+  'video',
+  'document',
+  'sheet',
+  'text',
+  'archive',
+  'other',
+];
+
+export function entryTypeOf(item: {
+  kind: BoxItemKind;
+  mimeType: string | null;
+}): EntryType {
+  if (item.kind !== 'document') return item.kind;
+
+  const mime = item.mimeType ?? '';
+
+  if (mime.startsWith('image/')) return 'image';
+  if (mime.startsWith('audio/')) return 'audio';
+  if (mime.startsWith('video/')) return 'video';
+  if (mime === 'application/pdf') return 'pdf';
+
+  if (
+    mime === 'application/vnd.google-apps.spreadsheet' ||
+    mime.includes('spreadsheet') ||
+    mime === 'text/csv' ||
+    mime === 'application/vnd.ms-excel'
+  ) {
+    return 'sheet';
+  }
+
+  if (
+    mime === 'application/vnd.google-apps.document' ||
+    mime.includes('wordprocessing') ||
+    mime === 'application/msword' ||
+    mime === 'application/rtf'
+  ) {
+    return 'document';
+  }
+
+  if (mime.startsWith('text/') || mime === 'application/json' || mime === 'application/xml') {
+    return 'text';
+  }
+
+  if (/zip|tar|gzip|rar|7z-compressed/.test(mime)) return 'archive';
+
+  return 'other';
+}
+
+/**
  * What a document is called on screen.
  *
  * The Drive name carries a date prefix so the folder sorts usefully when

@@ -178,9 +178,78 @@ export async function resolveLink(raw: string): Promise<ResolvedLink> {
     url: finalUrl,
     title: meta(html, 'og:title') ?? titleTag(html),
     description: meta(html, 'og:description') ?? meta(html, 'description'),
-    imageUrl: absolute(meta(html, 'og:image') ?? meta(html, 'twitter:image'), finalUrl),
+    imageUrl: pictureFor(html, finalUrl),
     text: readable(html),
   };
+}
+
+/**
+ * A picture for the page, falling a long way back.
+ *
+ * `og:image` is the polite answer and plenty of real pages don't give one: an
+ * older hand-written page has never heard of it, and a modern one can render
+ * the tag with an empty `content` and mean the same thing. Stopping there left
+ * most links with a blank square, which is the one thing a picture was for.
+ *
+ * So, in order of how much the page meant it: what it advertises to social
+ * sites, then the icon it advertises to phones, then the first real image on
+ * the page — usually a masthead or a logo, which is exactly what makes a site
+ * recognisable — and finally its favicon. Small, but a favicon at 56px still
+ * says which site this is at a glance, which is the whole job.
+ */
+function pictureFor(html: string, base: string): string | null {
+  const candidates = [
+    meta(html, 'og:image'),
+    meta(html, 'og:image:url'),
+    meta(html, 'twitter:image'),
+    meta(html, 'twitter:image:src'),
+    linkRel(html, 'apple-touch-icon'),
+    firstImage(html),
+    linkRel(html, 'icon'),
+    linkRel(html, 'shortcut icon'),
+  ];
+
+  for (const candidate of candidates) {
+    const url = absolute(candidate, base);
+    if (url) return url;
+  }
+
+  return null;
+}
+
+/** The href of a `<link rel="…">`, matching the rel as a whole word. */
+function linkRel(html: string, rel: string): string | null {
+  // The callers pass fixed words, so there is nothing here to escape — and a
+  // `rel` list is space-separated, hence matching the word rather than the
+  // whole attribute: `rel="shortcut icon"` has to be found by either half.
+  const pattern = new RegExp(
+    `<link[^>]+rel=["'][^"']*\\b${rel}\\b[^"']*["'][^>]*>`,
+    'i',
+  );
+
+  const tag = pattern.exec(html)?.[0];
+  if (!tag) return null;
+
+  const href = /href=["']([^"']+)["']/i.exec(tag)?.[1];
+  return href?.trim() || null;
+}
+
+/**
+ * The first image on the page that looks like a picture rather than plumbing.
+ *
+ * Spacers, tracking pixels and inline data are all `<img>` too, and any of
+ * them would fill the square with nothing. The names are a heuristic and will
+ * occasionally pick a logo — which for recognising a site is not a failure.
+ */
+function firstImage(html: string): string | null {
+  const junk = /(^data:|spacer|pixel|blank|clear|1x1|\dpx|tracking|beacon)/i;
+
+  for (const match of html.matchAll(/<img[^>]+src=["']([^"']+)["']/gi)) {
+    const src = match[1].trim();
+    if (src && !junk.test(src)) return src;
+  }
+
+  return null;
 }
 
 /**

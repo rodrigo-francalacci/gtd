@@ -937,6 +937,13 @@ export async function getBoxCategories(boxId: string): Promise<BoxCategoryRow[]>
   return [...byCategory.values()];
 }
 
+/** Midnight after the given day, in the server's timezone. */
+function endOfDay(date: Date): Date {
+  const end = new Date(date);
+  end.setHours(24, 0, 0, 0);
+  return end;
+}
+
 /** Every tag id in a box, for validating a filter that came from the URL. */
 export async function getBoxTagIds(boxId: string): Promise<Set<string>> {
   const rows = await db
@@ -968,9 +975,33 @@ const itemTags = sql<
  * of them, so Tesco plus Fuel means both: a filter that widens as you add to
  * it is a filter you stop trusting.
  */
+/**
+ * The span a box actually covers, ignoring every filter.
+ *
+ * The range control's ends have to stay put while you drag them. Taking them
+ * from the filtered rows would shrink the track under your hand — narrow the
+ * range once and the ends close in, so you could never widen it again.
+ */
+export async function getBoxRange(
+  boxId: string,
+): Promise<{ from: Date; to: Date } | null> {
+  const [row] = await db
+    .select({
+      from: sql<Date | null>`min(${boxItems.capturedAt})`,
+      to: sql<Date | null>`max(${boxItems.capturedAt})`,
+    })
+    .from(boxItems)
+    .where(eq(boxItems.boxId, boxId));
+
+  if (!row?.from || !row?.to) return null;
+  return { from: new Date(row.from), to: new Date(row.to) };
+}
+
 export async function getBoxItems(
   boxId: string,
   tagIds: string[] = [],
+  /** Inclusive bounds on arrival, as whole days in the server's timezone. */
+  range?: { from?: Date; to?: Date },
 ): Promise<BoxItemRow[]> {
   const rows = await db
     .select({
@@ -997,16 +1028,20 @@ export async function getBoxItems(
     })
     .from(boxItems)
     .where(
-      tagIds.length === 0
-        ? eq(boxItems.boxId, boxId)
-        : and(
-            eq(boxItems.boxId, boxId),
-            sql`(
+      and(
+        eq(boxItems.boxId, boxId),
+        tagIds.length === 0
+          ? undefined
+          : sql`(
               select count(distinct it.tag_id) from ${boxItemTags} it
               where it.item_id = ${boxItems.id}
                 and it.tag_id in ${tagIds}
             ) = ${tagIds.length}`,
-          ),
+        range?.from ? sql`${boxItems.capturedAt} >= ${range.from}` : undefined,
+        // The far end is a whole day: a range ending on the 14th has to
+        // include everything filed *during* the 14th, not stop at midnight.
+        range?.to ? sql`${boxItems.capturedAt} < ${endOfDay(range.to)}` : undefined,
+      ),
     )
     .orderBy(desc(boxItems.capturedAt));
 
