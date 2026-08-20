@@ -1,8 +1,8 @@
 import { NextResponse } from 'next/server';
-import { timingSafeEqual } from 'node:crypto';
 import { boxes, db } from '@gtd/db';
 import { eq, sql } from 'drizzle-orm';
 import { getSession } from '@/lib/auth/session';
+import { WHY, authoriseSecret } from '@/lib/box/auth';
 import { BoxError, completeBoxUpload, startBoxUpload } from '@/lib/google/boxes';
 
 export const dynamic = 'force-dynamic';
@@ -26,48 +26,6 @@ export const maxDuration = 60;
  * scope keeps working and the scanner keeps its crop-and-deshadow, which is
  * the thing that makes a photographed letter readable at all.
  */
-/**
- * Why the caller isn't authorised, which is not the same question as whether.
- *
- * A bare "unauthorised" is true and useless: a missing environment variable on
- * this end and a mistyped secret on the other look identical from the script,
- * and the first is by far the more likely — Vercel only applies a new variable
- * to deployments made *after* it was added, so adding it and not redeploying
- * leaves the app running without it. Saying which of the two it is costs
- * nothing worth protecting: that a secret is configured is not the secret.
- */
-type AuthFailure = 'unconfigured' | 'missing-header' | 'mismatch';
-
-function authorise(request: Request): AuthFailure | null {
-  // Trimmed on both sides. A secret pasted into Vercel or into Script
-  // Properties with a trailing newline is invisible in every UI that shows it
-  // and fails the length check before the comparison even runs.
-  const secret = process.env.BOX_INGEST_SECRET?.trim();
-  if (!secret) return 'unconfigured';
-
-  const header = (request.headers.get('authorization') ?? '').trim();
-  if (!header) return 'missing-header';
-
-  const expected = `Bearer ${secret}`;
-
-  const a = Buffer.from(header);
-  const b = Buffer.from(expected);
-  return a.length === b.length && timingSafeEqual(a, b) ? null : 'mismatch';
-}
-
-const WHY: Record<AuthFailure, string> = {
-  unconfigured:
-    'This app has no BOX_INGEST_SECRET set. Add it in Vercel (Settings → ' +
-    'Environment Variables) and redeploy — a variable added after a build is ' +
-    'not visible to that build.',
-  'missing-header':
-    'No Authorization header arrived. The script sends it as ' +
-    '`Authorization: Bearer <secret>`.',
-  mismatch:
-    'That secret does not match this app’s BOX_INGEST_SECRET. Check for a ' +
-    'stray space or newline at either end, and that the value was set for the ' +
-    'environment you are calling.',
-};
 
 /**
  * Which box, by name or id.
@@ -105,7 +63,7 @@ export async function POST(request: Request) {
   // A signed-in session works too: it lets the endpoint be exercised while
   // setting the script up, and it is how the app itself will file a document
   // without going round through Drive.
-  const failure = authorise(request);
+  const failure = authoriseSecret(request);
   const bySecret = failure === null;
 
   if (!bySecret && !(await getSession())) {

@@ -2,6 +2,8 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { DayHeading } from '@/components/day-heading';
 import { DocumentDetail } from '@/components/document-detail';
+import { BoxViewToggle } from '@/components/box-view-toggle';
+import { DocumentCard } from '@/components/document-card';
 import { DocumentRow } from '@/components/document-row';
 import { ReadWaiting } from '@/components/read-waiting';
 import { TagFilter } from '@/components/tag-filter';
@@ -72,10 +74,11 @@ export default async function BoxPage(props: PageProps<'/box/[id]'>) {
         title={box.name}
         viewMode={prefs.viewMode}
         paneWidth={paneWidth(prefs)}
-        columns={BOX_COLUMNS}
+        columns={prefs.boxView === 'gallery' ? undefined : BOX_COLUMNS}
         actions={
           <>
             <ReadWaiting waiting={box.pendingCount} />
+            <BoxViewToggle view={prefs.boxView} />
             <Link
               href={`/box?box=${id}`}
               className="text-[11px] text-grey-500 underline underline-offset-2 hover:text-grey-800"
@@ -102,15 +105,32 @@ export default async function BoxPage(props: PageProps<'/box/[id]'>) {
           groupByDay(items, (i) => i.capturedAt).map((day) => (
             <section key={day.key}>
               <DayHeading label={day.label} />
-              {day.items.map((item) => (
-                <DocumentRow
-                  key={item.id}
-                  item={item}
-                  href={href(item.id)}
-                  selected={item.id === targetId}
-                  mode={prefs.viewMode}
-                />
-              ))}
+
+              {/* The day headings survive the gallery: arrival is the filing
+                  system here, and a wall of thumbnails with no sense of when
+                  is a folder, not a box. */}
+              {prefs.boxView === 'gallery' ? (
+                <div className="grid grid-cols-[repeat(auto-fill,minmax(9rem,1fr))] gap-2 px-3 pb-3">
+                  {day.items.map((item) => (
+                    <DocumentCard
+                      key={item.id}
+                      item={item}
+                      href={href(item.id)}
+                      selected={item.id === targetId}
+                    />
+                  ))}
+                </div>
+              ) : (
+                day.items.map((item) => (
+                  <DocumentRow
+                    key={item.id}
+                    item={item}
+                    href={href(item.id)}
+                    selected={item.id === targetId}
+                    mode={prefs.viewMode}
+                  />
+                ))
+              )}
             </section>
           ))
         )}

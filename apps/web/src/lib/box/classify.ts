@@ -32,7 +32,7 @@ export class UnreadableDocument extends Error {}
 export interface Classifier {
   classify(
     file: { name: string; mimeType: string; bytes: ArrayBuffer },
-    box: { instruction: string },
+    box: { instruction: string; rules: string },
     categories: BoxCategoryRow[],
   ): Promise<Classification>;
 }
@@ -160,7 +160,10 @@ const SCHEMA = {
   },
 } as const;
 
-function buildPrompt(box: { instruction: string }, categories: BoxCategoryRow[]): string {
+function buildPrompt(
+  box: { instruction: string; rules: string },
+  categories: BoxCategoryRow[],
+): string {
   const lines = [
     'Read this document and describe it for a personal filing system.',
     '',
@@ -169,11 +172,18 @@ function buildPrompt(box: { instruction: string }, categories: BoxCategoryRow[])
     '',
     'Return:',
     '- title: a short descriptive title, 10-15 words at most, suitable for a filename.',
-    '- description: about four lines of prose saying what this is. Do not begin with "This document". If it is a receipt, include what was bought and the final total.',
+    '- description: about four lines of prose saying what this is. Do not begin with "This document".',
     '- date: the most relevant date printed on the document, as YYYY-MM-DD. Null if there is no date on it — do not guess one from context.',
     '- text: every word you can read, verbatim, in reading order. If there is no text, describe what is shown in one sentence instead.',
     '- tags: {category, tag} pairs from the lists below.',
   ];
+
+  // The box's own rules for the title and summary, next to the bullets they
+  // change. What belongs here is particular — "include the items bought and
+  // the final total" is right for receipts and meaningless for letters — which
+  // is exactly why it is per box and written by hand rather than guessed at.
+  const rules = box.rules.trim();
+  if (rules) lines.push('', 'For this box in particular:', rules);
 
   if (categories.length > 0) {
     lines.push('', 'Categories and their allowed tags:');
@@ -230,7 +240,7 @@ export class OpenAiClassifier implements Classifier {
 
   async classify(
     file: { name: string; mimeType: string; bytes: ArrayBuffer },
-    box: { instruction: string },
+    box: { instruction: string; rules: string },
     categories: BoxCategoryRow[],
   ): Promise<Classification> {
     const prompt = buildPrompt(box, categories);

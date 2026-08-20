@@ -141,6 +141,13 @@
       "when": 1787064560114,
       "tag": "0019_tense_ghost_rider",
       "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1787245838639,
+      "tag": "0020_stiff_dakota_north",
+      "breakpoints": true
     }
   ]
 }

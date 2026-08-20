@@ -51,6 +51,14 @@ export type DriveFile = {
   /** Strings: Drive returns 64-bit sizes as decimal strings, not numbers. */
   size?: string;
   mimeType?: string;
+  /**
+   * A short-lived signed URL to Drive's own rendering of the file — including
+   * the first page of a PDF, which is what makes a scan recognisable in a
+   * gallery. Expires within hours, so it is fetched fresh and proxied rather
+   * than stored.
+   */
+  thumbnailLink?: string;
+  hasThumbnail?: boolean;
 };
 
 const FOLDER_MIME = 'application/vnd.google-apps.folder';
@@ -101,7 +109,7 @@ export async function ensureFolder(
 export async function getFile(fileId: string): Promise<DriveFile | null> {
   try {
     return await call<DriveFile>(
-      `${DRIVE}/files/${fileId}?fields=id,name,parents,trashed,size,mimeType`,
+      `${DRIVE}/files/${fileId}?fields=id,name,parents,trashed,size,mimeType,thumbnailLink,hasThumbnail`,
     );
   } catch (error) {
     if (error instanceof GoogleApiError && error.status === 404) return null;

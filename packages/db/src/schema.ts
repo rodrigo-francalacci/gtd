@@ -622,6 +622,17 @@ export const boxes = pgTable(
      * tags to reach for than the tag names ever will.
      */
     instruction: text('instruction').notNull().default(''),
+    /**
+     * How to write the title and summary for documents filed here.
+     *
+     * A second field rather than more prose in the first, because the two land
+     * in different places in the prompt and answer different questions: the
+     * instruction says what these documents *are*, which is what tagging turns
+     * on, and this says what a good description of one looks like — "include
+     * the items bought and the final total" only makes sense for a box full of
+     * receipts, and would be noise in the paragraph that guides the tags.
+     */
+    rules: text('rules').notNull().default(''),
     isDefault: boolean('is_default').notNull().default(false),
     position: doublePrecision('position'),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
@@ -845,6 +856,16 @@ export const preferences = pgTable('preferences', {
   previewPaneWidth: integer('preview_pane_width'),
   /** 'comfortable' | 'compact' | 'simple' */
   viewMode: text('view_mode'),
+  /**
+   * 'list' | 'gallery' — how a box is laid out.
+   *
+   * Its own preference rather than a fourth density, because it answers a
+   * different question. The densities trade metadata for rows and apply
+   * everywhere; this one only means anything where the things listed have a
+   * picture, and a scanned document is recognised by its shape long before
+   * its title is read.
+   */
+  boxView: text('box_view'),
   /** 'light' | 'dark'. Null means "whatever the operating system says". */
   theme: text('theme'),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),

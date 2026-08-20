@@ -32,7 +32,12 @@ import type { PurchaseFields } from './queries.shared';
 import { and, eq, inArray, isNull, sql } from 'drizzle-orm';
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
-import { MAX_PANE_WIDTH, MIN_PANE_WIDTH, type ViewMode } from './pane';
+import {
+  MAX_PANE_WIDTH,
+  MIN_PANE_WIDTH,
+  type BoxView,
+  type ViewMode,
+} from './pane';
 import { suggester } from './ai/suggest';
 import { requireSession } from './auth/session';
 import type { ReviewStep } from './review';
@@ -792,6 +797,7 @@ export async function setProjectParent(
 /** Upsert onto the single preferences row. */
 async function savePreference(patch: {
   viewMode?: ViewMode;
+  boxView?: BoxView;
   listPaneWidth?: number;
   theme?: 'light' | 'dark' | null;
 }) {
@@ -802,6 +808,13 @@ async function savePreference(patch: {
       target: preferences.id,
       set: { ...patch, updatedAt: new Date() },
     });
+}
+
+/** List or gallery, for every box. One choice, like the density. */
+export async function setBoxView(view: BoxView) {
+  await requireSession();
+  await savePreference({ boxView: view });
+  revalidateShell();
 }
 
 export async function setViewMode(mode: ViewMode) {
@@ -1206,14 +1219,24 @@ export async function createBox(name: string, instruction: string) {
  * document is filed here — a rename must not sit waiting on Google, and there
  * is no sensible queue for it: `sync_jobs` is keyed on a project.
  */
-export async function updateBox(boxId: string, name: string, instruction: string) {
+export async function updateBox(
+  boxId: string,
+  name: string,
+  instruction: string,
+  rules: string,
+) {
   await requireSession();
   const trimmed = name.trim();
   if (!trimmed) return;
 
   await db
     .update(boxes)
-    .set({ name: trimmed, instruction: instruction.trim(), updatedAt: new Date() })
+    .set({
+      name: trimmed,
+      instruction: instruction.trim(),
+      rules: rules.trim(),
+      updatedAt: new Date(),
+    })
     .where(eq(boxes.id, boxId));
 
   revalidateShell();

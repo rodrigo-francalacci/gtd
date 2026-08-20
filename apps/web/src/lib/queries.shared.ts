@@ -228,6 +228,8 @@ export type BoxRow = {
   id: string;
   name: string;
   instruction: string;
+  /** How to write a title and summary for documents filed here. */
+  rules: string;
   isDefault: boolean;
   driveFolderId: string | null;
   position: number | null;

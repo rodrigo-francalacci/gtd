@@ -32,8 +32,18 @@ export const DEFAULT_PANE_WIDTH: Record<ViewMode, number> = {
   simple: 380,
 };
 
+/**
+ * How a box lays its documents out.
+ *
+ * Its own preference rather than a fourth density: the densities trade
+ * metadata for rows and apply everywhere, while this only means anything where
+ * the things listed have a picture.
+ */
+export type BoxView = 'list' | 'gallery';
+
 export type Preferences = {
   viewMode: ViewMode;
+  boxView: BoxView;
   /** Null means "no explicit choice yet" — fall back to the per-mode default. */
   listPaneWidth: number | null;
   theme: Theme;

@@ -63,9 +63,26 @@ const AFTER_INGEST = 'move';
 /** Apps Script tops out at 50 MB per request; Drive scans are far below this. */
 const MAX_BYTES = 45 * 1024 * 1024;
 
+/**
+ * Ask the app to read each document as it is filed, rather than leaving it for
+ * the cron.
+ *
+ * The reading itself stays in the app — the tag vocabulary, the prompt and the
+ * validation live where they can be edited, and a second copy here would drift
+ * the first time a tag is added. This only asks.
+ *
+ * Bounded by time, not by count. A trigger gets six minutes total and a scan
+ * takes the better part of ten seconds to read, so a backlog would be cut off
+ * mid-run. Past the budget, files are still filed and simply left queued —
+ * the cron takes them, or "Read the N waiting" does.
+ */
+const READ_ON_INGEST = true;
+const READ_BUDGET_MS = 3 * 60 * 1000;
+
 // --- MAIN -------------------------------------------------------------------
 
 function processFeedFolders() {
+  const startedAt = Date.now();
   const props = PropertiesService.getScriptProperties();
   const origin = (props.getProperty('APP_ORIGIN') || '').replace(/\/+$/, '');
   const secret = props.getProperty('BOX_INGEST_SECRET');
@@ -93,7 +110,7 @@ function processFeedFolders() {
       const file = files.next();
 
       try {
-        if (ingestFile(origin, secret, config.box, file, config.folderId)) sent++;
+        if (ingestFile(origin, secret, config.box, file, config.folderId, startedAt)) sent++;
       } catch (e) {
         // Left where it is, so the next run tries again. A failure here is
         // usually the app being redeployed mid-run.
@@ -105,7 +122,7 @@ function processFeedFolders() {
   });
 }
 
-function ingestFile(origin, secret, box, file, sourceFolderId) {
+function ingestFile(origin, secret, box, file, sourceFolderId, startedAt) {
   const name = file.getName();
 
   if (file.getSize() > MAX_BYTES) {
@@ -161,6 +178,20 @@ function ingestFile(origin, secret, box, file, sourceFolderId) {
   if (!done.ok) throw new Error('complete failed: ' + JSON.stringify(done));
 
   Logger.log('  filed ' + name);
+
+  // Filed first, read second, and never the other way round: the document is
+  // safe the moment `complete` returns, and a model that is slow or down must
+  // not cost us the file. A failure here leaves it queued, which is exactly
+  // where it would have been anyway.
+  if (READ_ON_INGEST && Date.now() - startedAt < READ_BUDGET_MS) {
+    try {
+      post(origin, secret, { step: 'read', itemId: done.id });
+      Logger.log('    read');
+    } catch (e) {
+      Logger.log('    queued for later: ' + e);
+    }
+  }
+
   archive(file);
   return true;
 }
@@ -182,7 +213,11 @@ function archive(file) {
 }
 
 function post(origin, secret, payload) {
-  const response = UrlFetchApp.fetch(origin + '/api/box/ingest', {
+  // The read endpoint is its own route because it needs a longer time limit
+  // than an ingest step does.
+  const path = payload.step === 'read' ? '/api/box/read' : '/api/box/ingest';
+
+  const response = UrlFetchApp.fetch(origin + path, {
     method: 'post',
     contentType: 'application/json',
     headers: { Authorization: 'Bearer ' + secret },

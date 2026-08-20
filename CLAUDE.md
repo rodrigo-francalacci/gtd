@@ -523,6 +523,42 @@ to be kept. They meet at `box_item_links` and nowhere else.
   on purpose — a box is for keeping things — but a blank page or a duplicate
   scan is real, and a box you cannot take rubbish out of stops being one you
   trust.
+- **Reading is driven by the cron, and the cron may only run daily.** So both
+  the script and the pane ask for it explicitly: the bridge calls
+  `POST /api/box/read` as it files each document, and the pane's "read it now"
+  does the same for one. That route exists rather than a Server Action because
+  `maxDuration` is a route-segment setting and a scan is a Drive download plus
+  a model call. It batches — a few per request, `remaining` in the reply, the
+  caller loops — because one long request dies at the function limit halfway
+  through with no way to know how far it got. The script's loop is bounded by
+  elapsed time, not count: a trigger gets six minutes and a backlog would
+  otherwise be cut off mid-file.
+- **The script asks the app to read; it never reads.** Moving classification
+  back into Apps Script would mean the tag vocabulary, the prompt, the
+  validation and a database credential living there too — which is what was
+  taken out of it, and the reason the vocabulary is editable at all. Two copies
+  drift the first time a tag is added.
+- **A box has two prose fields and they are not the same.** `instruction` says
+  what these documents *are*, which is what the tagging turns on; `rules` says
+  what a good title and summary look like — "include the items bought and the
+  final total" is right for receipts and noise anywhere else. They land in
+  different places in the prompt.
+- **The tag prompt must not make omission the default.** It once said only
+  "omit a category rather than forcing a match", and a fuel receipt came back
+  without the Receipt tag that sat in a category of its own. It now works
+  through every category and judges by what the document *is* rather than the
+  words it contains. The failure that phrasing guarded against — an invented
+  tag — was never possible: `validateTags` is the gate.
+- **The gallery is a preference, not a fourth density.** Densities trade
+  metadata for rows and apply everywhere; `box_view` only means anything where
+  the things listed have a picture, and a scan is recognised by its shape long
+  before its title is read. Day headings survive it — arrival is the filing
+  system, and a wall of thumbnails with no sense of when is a folder.
+- **Thumbnails come from Drive and are proxied, never linked.** Drive renders
+  the first page of a PDF, which this app could not do without a PDF engine it
+  has no other use for. `thumbnailLink` is a signed URL that expires within
+  hours, so it is fetched fresh per request and the bytes come through us —
+  storing one would produce a gallery that works for an afternoon.
 
 ## Enrichment
 

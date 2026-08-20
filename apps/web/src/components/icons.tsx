@@ -218,6 +218,16 @@ export const IconViewSimple = (p: IconProps) => (
   </Glyph>
 );
 
+/** Gallery — tiles, because that is what it lays out. */
+export const IconViewGallery = (p: IconProps) => (
+  <Glyph {...p}>
+    <path d="M2.4 2.8h4.6v4.6H2.4z" />
+    <path d="M9 2.8h4.6v4.6H9z" />
+    <path d="M2.4 8.6h4.6v4.6H2.4z" />
+    <path d="M9 8.6h4.6v4.6H9z" />
+  </Glyph>
+);
+
 /** An attached document — a page with a folded corner. */
 export const IconDocument = (p: IconProps) => (
   <Glyph {...p}>

@@ -5,6 +5,7 @@ import { eq } from 'drizzle-orm';
 import type { Preferences } from './pane';
 
 export type {
+  BoxView,
   Preferences,
   Theme,
   ViewMode,
@@ -33,6 +34,7 @@ export async function getPreferences(): Promise<Preferences> {
       row?.viewMode === 'compact' || row?.viewMode === 'simple'
         ? row.viewMode
         : 'comfortable',
+    boxView: row?.boxView === 'gallery' ? 'gallery' : 'list',
     listPaneWidth: row?.listPaneWidth ?? null,
     theme: row?.theme === 'dark' ? 'dark' : row?.theme === 'light' ? 'light' : null,
   };

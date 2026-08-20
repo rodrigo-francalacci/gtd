@@ -36,9 +36,13 @@ export function BoxManager({
 
   const [name, setName] = useState(box.name);
   const [instruction, setInstruction] = useState(box.instruction);
+  const [rules, setRules] = useState(box.rules);
   const [confirming, setConfirming] = useState(false);
 
-  const dirty = name !== box.name || instruction !== box.instruction;
+  const dirty =
+    name !== box.name ||
+    instruction !== box.instruction ||
+    rules !== box.rules;
   const documents = box.itemCount;
 
   return (
@@ -83,6 +87,25 @@ export function BoxManager({
         <p className="text-[11px] text-grey-500">
           Read by the model before it tags anything filed here.
         </p>
+      </section>
+
+      <section className="flex flex-col gap-1">
+        <label className="text-[10px] uppercase tracking-wider text-grey-500">
+          How to name and describe
+        </label>
+        <textarea
+          value={rules}
+          onChange={(e) => setRules(e.target.value)}
+          rows={3}
+          placeholder="e.g. Include the items bought and the final total. Put the vendor first in the title."
+          className="w-full resize-y rounded-sm border border-grey-200 bg-paper px-2 py-1.5 text-[13px] leading-relaxed text-grey-800 placeholder:text-grey-400 focus:border-grey-400 focus:outline-none"
+        />
+        <p className="text-[11px] leading-relaxed text-grey-500">
+          Rules for the title and summary of documents in this box. Separate
+          from the box’s description above because it answers a different
+          question — that one says what these documents are, which is what the
+          tagging turns on; this says what a good summary of one looks like.
+        </p>
 
         {dirty ? (
           <button
@@ -90,7 +113,7 @@ export function BoxManager({
             disabled={pending}
             onClick={() =>
               startTransition(async () => {
-                await updateBox(box.id, name, instruction);
+                await updateBox(box.id, name, instruction, rules);
                 router.refresh();
               })
             }

@@ -170,7 +170,7 @@ async function runJob(model: Classifier, itemId: string) {
   }
 
   const [box] = await db
-    .select({ instruction: boxes.instruction })
+    .select({ instruction: boxes.instruction, rules: boxes.rules })
     .from(boxes)
     .where(eq(boxes.id, item.boxId))
     .limit(1);
@@ -197,7 +197,7 @@ async function runJob(model: Classifier, itemId: string) {
 
   const result = await model.classify(
     { name: item.name, mimeType: asType, bytes: await upstream.arrayBuffer() },
-    { instruction: box?.instruction ?? '' },
+    { instruction: box?.instruction ?? '', rules: box?.rules ?? '' },
     categories,
   );
 

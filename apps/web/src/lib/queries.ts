@@ -858,6 +858,7 @@ export async function getBoxes(): Promise<BoxRow[]> {
       id: boxes.id,
       name: boxes.name,
       instruction: boxes.instruction,
+      rules: boxes.rules,
       isDefault: boxes.isDefault,
       driveFolderId: boxes.driveFolderId,
       position: boxes.position,

@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
-import { apiSession } from '@/lib/auth/session';
+import { getSession } from '@/lib/auth/session';
+import { WHY, authoriseSecret } from '@/lib/box/auth';
 import {
   countWaitingDocuments,
   drainBoxQueue,
@@ -30,8 +31,15 @@ export const maxDuration = 60;
 const BATCH = 3;
 
 export async function POST(request: Request) {
-  const denied = await apiSession();
-  if (denied) return denied;
+  // A session, or the bridge script's secret: the script asks for each
+  // document to be read the moment it files it, so it has to get in here too.
+  const failure = authoriseSecret(request);
+  if (failure !== null && !(await getSession())) {
+    return NextResponse.json(
+      { error: 'unauthorised', why: WHY[failure] },
+      { status: 401 },
+    );
+  }
 
   const { itemId } = (await request.json().catch(() => ({}))) as {
     itemId?: string;
