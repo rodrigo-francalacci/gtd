@@ -6,6 +6,7 @@ import { useState, useTransition } from 'react';
 import {
   deleteDocument,
   linkDocument,
+  setDocumentArrivedAt,
   moveDocument,
   startFromDocument,
   toggleDocumentTag,
@@ -37,6 +38,19 @@ const printed = new Intl.DateTimeFormat('en-GB', {
   month: 'long',
   year: 'numeric',
 });
+
+/**
+ * What `datetime-local` wants: `YYYY-MM-DDTHH:mm`, in local time and with no
+ * zone. `toISOString` is UTC and would shift the value every time the pane
+ * rendered, so the parts are read off the date itself.
+ */
+function localInput(date: Date): string {
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return (
+    `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}` +
+    `T${pad(date.getHours())}:${pad(date.getMinutes())}`
+  );
+}
 
 /**
  * One document, and everything the app knows about it.
@@ -267,11 +281,27 @@ export function DocumentDetail({
       {/* Dates, plural and deliberately so: a bill that arrives in August is
           dated July, and both facts are worth keeping. A note has only the one
           date, which is the moment you wrote it. */}
-      <section className="flex flex-wrap gap-x-6 gap-y-1 text-[12px]">
-        <span className="text-grey-500">
-          Arrived{' '}
-          <span className="text-grey-700">{arrived.format(item.capturedAt)}</span>
-        </span>
+      <section className="flex flex-wrap items-center gap-x-6 gap-y-1 text-[12px]">
+        {/* Editable, because this is what decides where the entry sits in the
+            feed, and it can be wrong in ordinary ways — a backlog imported
+            under today, a scan made on Friday and filed on Monday. */}
+        <label className="flex items-center gap-2 text-grey-500">
+          Arrived
+          <input
+            type="datetime-local"
+            defaultValue={localInput(item.capturedAt)}
+            disabled={pending}
+            onChange={(e) => {
+              const value = e.target.value;
+              if (!value) return;
+              startTransition(async () => {
+                await setDocumentArrivedAt(item.id, new Date(value).toISOString());
+                router.refresh();
+              });
+            }}
+            className="rounded-sm border border-transparent bg-transparent px-1 py-0.5 text-[12px] text-grey-700 hover:border-grey-300 focus:border-grey-400 focus:outline-none"
+          />
+        </label>
         {item.docDate ? (
           <span className="text-grey-500">
             Dated{' '}

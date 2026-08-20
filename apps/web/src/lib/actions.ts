@@ -1422,6 +1422,38 @@ export async function updateDocument(
   revalidateShell();
 }
 
+/**
+ * Correct when something arrived.
+ *
+ * The feed is ordered and grouped by this, so it is the one field that decides
+ * where an entry *is* — and it can be wrong in ordinary ways: a backlog
+ * imported under today, a scan made on the Friday and filed on the Monday, a
+ * note written up after the fact. Somewhere out of order is somewhere you will
+ * not find it again, which is the whole promise of a box.
+ *
+ * The document's own printed date is left alone: that is what the paper says,
+ * and it is not ours to edit.
+ */
+export async function setDocumentArrivedAt(itemId: string, iso: string) {
+  await requireSession();
+
+  const when = new Date(iso);
+  if (Number.isNaN(when.getTime())) return;
+
+  // The same rails the ingest endpoint uses. A year typed as 202 rather than
+  // 2025 would otherwise bury the entry at the bottom of the box forever.
+  const tooOld = when.getTime() < Date.UTC(1900, 0, 1);
+  const inFuture = when.getTime() > Date.now() + 365 * 24 * 60 * 60 * 1000;
+  if (tooOld || inFuture) return;
+
+  await db
+    .update(boxItems)
+    .set({ capturedAt: when, updatedAt: new Date() })
+    .where(eq(boxItems.id, itemId));
+
+  revalidateShell();
+}
+
 /** Move a document to another box. Its tags don't come with it — they belong
  *  to the box it left, so it is queued to be read again under the new one. */
 export async function moveDocument(itemId: string, boxId: string) {

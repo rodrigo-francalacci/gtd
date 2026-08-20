@@ -4,7 +4,7 @@ import { DayHeading } from '@/components/day-heading';
 import { DocumentDetail } from '@/components/document-detail';
 import { BoxComposer } from '@/components/box-composer';
 import { BoxViewToggle } from '@/components/box-view-toggle';
-import { DocumentCard } from '@/components/document-card';
+import { DocumentGalleryRow } from '@/components/document-gallery-row';
 import { DocumentRow } from '@/components/document-row';
 import { ReadWaiting } from '@/components/read-waiting';
 import { TagFilter } from '@/components/tag-filter';
@@ -113,16 +113,14 @@ export default async function BoxPage(props: PageProps<'/box/[id]'>) {
                   system here, and a wall of thumbnails with no sense of when
                   is a folder, not a box. */}
               {prefs.boxView === 'gallery' ? (
-                <div className="grid grid-cols-[repeat(auto-fill,minmax(9rem,1fr))] gap-2 px-3 pb-3">
-                  {day.items.map((item) => (
-                    <DocumentCard
-                      key={item.id}
-                      item={item}
-                      href={href(item.id)}
-                      selected={item.id === targetId}
-                    />
-                  ))}
-                </div>
+                day.items.map((item) => (
+                  <DocumentGalleryRow
+                    key={item.id}
+                    item={item}
+                    href={href(item.id)}
+                    selected={item.id === targetId}
+                  />
+                ))
               ) : (
                 day.items.map((item) => (
                   <DocumentRow

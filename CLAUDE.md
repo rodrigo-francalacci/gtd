@@ -584,6 +584,21 @@ to be kept. They meet at `box_item_links` and nowhere else.
   the things listed have a picture, and a scan is recognised by its shape long
   before its title is read. Day headings survive it — arrival is the filing
   system, and a wall of thumbnails with no sense of when is a folder.
+- **One entry per row, thumbnail left.** It was a grid of tiles first, and two
+  entries side by side halve the width available to the summary — which is the
+  part that tells you whether this is the document you want. The thumbnail only
+  has to be big enough to recognise a shape, so it stays a fixed 56px square
+  and the text takes the rest of the line. Fixed, so every row's text starts at
+  the same place: a ragged left edge down a column is what makes a list tiring.
+  Ask Drive for a larger image than the box renders (`size=320`), because it
+  fits the *longest* edge — a till receipt comes back 80px wide at 200.
+- **Arriving is what the arrival date means.** An upload is dated now unless
+  the composer's box is ticked, and only then by the file's own date, which a
+  browser reports as its *modified* time. It is editable afterwards on the
+  pane, because the feed is ordered and grouped by it, so it is the one field
+  that decides where an entry *is* — and a backlog imported under today, or a
+  scan made on Friday and filed on Monday, is somewhere you won't find again.
+  The document's printed date is never touched: that is what the paper says.
 - **Thumbnails come from Drive and are proxied, never linked.** Drive renders
   the first page of a PDF, which this app could not do without a PDF engine it
   has no other use for. `thumbnailLink` is a signed URL that expires within

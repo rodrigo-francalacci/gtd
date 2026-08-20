@@ -27,6 +27,18 @@ export function BoxComposer({ boxId }: { boxId: string }) {
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
+  /**
+   * Whether an upload is dated by the file or by the moment it arrives.
+   *
+   * Arriving is the default, because that is what actually happened: you put
+   * it in the box now, and the feed is the order things reached you. The
+   * file's own date is the right answer for a backlog — a scan made in April
+   * belongs under April — but it is the exception, and a browser only knows
+   * the file's *modified* time anyway, which for anything edited or re-saved
+   * is not when it was made.
+   */
+  const [useFileDate, setUseFileDate] = useState(false);
+
   const post = () => {
     const body = text.trim();
     if (!body) return;
@@ -86,11 +98,11 @@ export function BoxComposer({ boxId }: { boxId: string }) {
             step: 'complete',
             box: boxId,
             driveFileId: uploaded.id,
-            // The file's own date where the browser knows it, so filing an old
-            // scan puts it under the day it was made rather than today.
-            capturedAt: file.lastModified
-              ? new Date(file.lastModified).toISOString()
-              : undefined,
+            // Omitted unless asked for, and the row then defaults to now.
+            capturedAt:
+              useFileDate && file.lastModified
+                ? new Date(file.lastModified).toISOString()
+                : undefined,
           }),
         });
 
@@ -212,6 +224,18 @@ export function BoxComposer({ boxId }: { boxId: string }) {
         >
           <IconPlace />
         </button>
+
+        <label
+          className="flex shrink-0 items-center gap-1 text-[11px] text-grey-500"
+          title="Otherwise it is dated now, when you added it"
+        >
+          <input
+            type="checkbox"
+            checked={useFileDate}
+            onChange={(e) => setUseFileDate(e.target.checked)}
+          />
+          date from the file
+        </label>
 
         <span className="min-w-0 flex-1 truncate text-[11px] text-grey-500">
           {error ? <span className="text-stale">{error}</span> : busy ? `${busy}…` : ''}

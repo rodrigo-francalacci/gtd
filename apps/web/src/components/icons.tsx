@@ -218,13 +218,15 @@ export const IconViewSimple = (p: IconProps) => (
   </Glyph>
 );
 
-/** Gallery — tiles, because that is what it lays out. */
+/** With pictures — a thumbnail beside its lines, which is the layout. */
 export const IconViewGallery = (p: IconProps) => (
   <Glyph {...p}>
-    <path d="M2.4 2.8h4.6v4.6H2.4z" />
-    <path d="M9 2.8h4.6v4.6H9z" />
-    <path d="M2.4 8.6h4.6v4.6H2.4z" />
-    <path d="M9 8.6h4.6v4.6H9z" />
+    <path d="M2.2 3h4.4v4.4H2.2z" />
+    <path d="M2.2 9.4h4.4v3.6H2.2z" />
+    <path d="M8.4 3.8h5.4" />
+    <path d="M8.4 6.4h5.4" />
+    <path d="M8.4 10.2h5.4" />
+    <path d="M8.4 12.6h3.2" />
   </Glyph>
 );
 

@@ -16,7 +16,7 @@ export function BoxViewToggle({ view }: { view: BoxView }) {
 
   const options: { value: BoxView; label: string; Icon: typeof IconViewSimple }[] = [
     { value: 'list', label: 'List', Icon: IconViewSimple },
-    { value: 'gallery', label: 'Gallery', Icon: IconViewGallery },
+    { value: 'gallery', label: 'With pictures', Icon: IconViewGallery },
   ];
 
   return (
