@@ -93,7 +93,7 @@ function processFeedFolders() {
       const file = files.next();
 
       try {
-        if (ingestFile(origin, secret, config.box, file)) sent++;
+        if (ingestFile(origin, secret, config.box, file, config.folderId)) sent++;
       } catch (e) {
         // Left where it is, so the next run tries again. A failure here is
         // usually the app being redeployed mid-run.
@@ -105,7 +105,7 @@ function processFeedFolders() {
   });
 }
 
-function ingestFile(origin, secret, box, file) {
+function ingestFile(origin, secret, box, file, sourceFolderId) {
   const name = file.getName();
 
   if (file.getSize() > MAX_BYTES) {
@@ -125,6 +125,11 @@ function ingestFile(origin, secret, box, file) {
     box: box,
     name: name,
     mimeType: file.getMimeType(),
+    // The folder this came from. The app refuses it if it is a folder the app
+    // files *into* — watching one of those is a loop that copies every
+    // document back into itself on every run, filling a Drive rather than
+    // failing. FOLDERS must list the folders you scan into.
+    sourceFolderId: sourceFolderId,
   });
 
   if (!open.uploadUrl) throw new Error('no upload session: ' + JSON.stringify(open));
@@ -203,7 +208,14 @@ function post(origin, secret, payload) {
 function testConnection() {
   const props = PropertiesService.getScriptProperties();
   const origin = (props.getProperty('APP_ORIGIN') || '').replace(/\/+$/, '');
-  const secret = props.getProperty('BOX_INGEST_SECRET');
+  const secret = (props.getProperty('BOX_INGEST_SECRET') || '').trim();
+
+  if (!origin) return Logger.log('APP_ORIGIN is not set in Script Properties.');
+  if (!secret) return Logger.log('BOX_INGEST_SECRET is not set in Script Properties.');
+
+  // The length, never the value: enough to spot a truncated paste or a stray
+  // newline, and safe to leave in a log you might screenshot.
+  Logger.log('Calling ' + origin + '/api/box/ingest with a ' + secret.length + '-character secret');
 
   const response = UrlFetchApp.fetch(origin + '/api/box/ingest', {
     method: 'post',
@@ -213,7 +225,12 @@ function testConnection() {
     muteHttpExceptions: true,
   });
 
-  // 400 "No filename" is the good answer here: it means the request was
-  // authenticated and understood, and only the payload was deliberately empty.
-  Logger.log(response.getResponseCode() + ': ' + response.getContentText());
+  const code = response.getResponseCode();
+  Logger.log(code + ': ' + response.getContentText());
+
+  // 400 "No filename" is the good answer: the request was authenticated and
+  // understood, and only the payload was deliberately empty.
+  if (code === 400) Logger.log('Connected. The 400 above is expected — nothing was sent to file.');
+  if (code === 401) Logger.log('Not authorised. The "why" in the response above says which end is wrong.');
+  if (code === 404) Logger.log('No such route. Check APP_ORIGIN, and that the app has been deployed since the Big Box was added.');
 }
