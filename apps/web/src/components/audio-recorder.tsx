@@ -3,17 +3,73 @@
 import { useEffect, useRef, useState } from 'react';
 
 /**
- * Record a voice note in the browser and hand it back as a file.
+ * Record in the browser and hand the result back as a file.
  *
  * `MediaRecorder` writes chunks as they arrive and produces a blob at the end,
  * so nothing is uploaded until you stop — a recording that is still running
- * has nothing to send. The blob then goes up the ordinary attachment path,
- * which means no new infrastructure: it is a file like any other.
+ * has nothing to send. The blob then goes up the ordinary upload path, which
+ * means no new infrastructure: it is a file like any other.
  *
  * There is no transcription provider wired up yet, so a recording is stored
- * and playable but not searchable. The `transcribe` job kind and the
- * `transcription` column are already there for when one is.
+ * and playable but not searchable.
  */
+
+/**
+ * Ask for the microphone *raw*.
+ *
+ * `{ audio: true }` accepts the browser's defaults, and the defaults are a
+ * voice-call processing chain: echo cancellation, noise suppression and
+ * automatic gain. That chain is why messaging-app voice notes sound the way
+ * they do — it high-passes the bottom out, gates the quiet detail at the top,
+ * and rides the level up and down. Fine for a phone call, wrong for anything
+ * you might want to keep or listen to twice.
+ *
+ * Plain values rather than `exact`, so a device that can't honour one degrades
+ * instead of throwing `OverconstrainedError` and leaving you with no recording
+ * at all. `channelCount` is deliberately unconstrained: a built-in mic is mono
+ * and an interface is stereo, and taking what the hardware actually offers is
+ * more faithful than insisting on either.
+ */
+const RAW_AUDIO: MediaTrackConstraints = {
+  echoCancellation: false,
+  noiseSuppression: false,
+  autoGainControl: false,
+  sampleRate: 48_000,
+};
+
+/**
+ * The best container this browser will actually encode.
+ *
+ * Opus first: at a sane bitrate it is transparent for speech and good enough
+ * for a hummed idea, which the alternatives at this size are not. Safari
+ * doesn't do WebM and gives AAC in an MP4 instead. An empty string tells
+ * `MediaRecorder` to choose, which is the last resort rather than the default.
+ */
+function bestMimeType(): string {
+  const candidates = [
+    'audio/webm;codecs=opus',
+    'audio/ogg;codecs=opus',
+    'audio/mp4;codecs=mp4a.40.2',
+    'audio/mp4',
+    'audio/webm',
+  ];
+
+  return (
+    candidates.find(
+      (type) =>
+        typeof MediaRecorder !== 'undefined' && MediaRecorder.isTypeSupported(type),
+    ) ?? ''
+  );
+}
+
+/**
+ * 128 kbps, against a messaging app's 16–32.
+ *
+ * Uploads go straight to Drive, so the ceiling is not ours to worry about: this
+ * is roughly a megabyte a minute, and the difference between a recording you
+ * keep and one you tolerate.
+ */
+const BITRATE = 128_000;
 export function AudioRecorder({
   onDone,
   onCancel,
@@ -38,10 +94,18 @@ export function AudioRecorder({
    * The effect runs once; this keeps it calling the current callback.
    */
   const deliver = useRef(onDone);
-  deliver.current = onDone;
+
+  // Assigned after commit rather than during render: writing a ref while
+  // rendering is unsafe under concurrent rendering, and this one is only ever
+  // read from `onstop`, long after either way.
+  useEffect(() => {
+    deliver.current = onDone;
+  });
 
   const [seconds, setSeconds] = useState(0);
   const [error, setError] = useState<string | null>(null);
+  /** What the microphone actually gave us, shown so the setting is checkable. */
+  const [quality, setQuality] = useState<string | null>(null);
 
   useEffect(() => {
     let ticker: ReturnType<typeof setInterval> | null = null;
@@ -54,7 +118,7 @@ export function AudioRecorder({
       // different sentences: being refused the microphone is something you fix
       // in the browser, and a recorder that won't start is not.
       try {
-        media = await navigator.mediaDevices.getUserMedia({ audio: true });
+        media = await navigator.mediaDevices.getUserMedia({ audio: RAW_AUDIO });
       } catch {
         setError(
           'No microphone available, or permission was refused. Check the site permissions in your browser.',
@@ -71,7 +135,26 @@ export function AudioRecorder({
         }
 
         stream.current = media;
-        const mr = new MediaRecorder(media);
+
+        // What was asked for and what was granted are different questions, and
+        // only the second one is audible. Showing it means a device quietly
+        // ignoring the constraints is visible rather than a mystery.
+        const settings = media.getAudioTracks()[0]?.getSettings() ?? {};
+        setQuality(
+          [
+            settings.sampleRate ? `${Math.round(settings.sampleRate / 1000)} kHz` : null,
+            settings.channelCount === 2 ? 'stereo' : 'mono',
+            settings.noiseSuppression || settings.echoCancellation ? 'processed' : 'raw',
+          ]
+            .filter(Boolean)
+            .join(' · '),
+        );
+
+        const mimeType = bestMimeType();
+        const mr = new MediaRecorder(media, {
+          ...(mimeType ? { mimeType } : {}),
+          audioBitsPerSecond: BITRATE,
+        });
         recorder.current = mr;
 
         mr.ondataavailable = (event) => {
@@ -161,6 +244,7 @@ export function AudioRecorder({
       <span className="flex items-center gap-2 text-[11px] text-grey-700">
         <span className="h-2 w-2 shrink-0 animate-pulse rounded-full bg-waiting" />
         Recording · <span className="tabular-nums">{clock(seconds)}</span>
+        {quality ? <span className="text-grey-500">{quality}</span> : null}
         {nearLimit ? (
           <span className="text-grey-500">— still recording</span>
         ) : null}

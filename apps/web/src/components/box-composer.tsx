@@ -3,7 +3,8 @@
 import { useRouter } from 'next/navigation';
 import { useRef, useState, useTransition } from 'react';
 import { postBoxLocation, postBoxNote } from '@/lib/actions';
-import { IconCamera, IconPaperclip, IconPlace } from './icons';
+import { AudioRecorder } from './audio-recorder';
+import { IconAudio, IconCamera, IconPaperclip, IconPlace } from './icons';
 
 /**
  * Writing into a box.
@@ -38,6 +39,7 @@ export function BoxComposer({ boxId }: { boxId: string }) {
    * is not when it was made.
    */
   const [useFileDate, setUseFileDate] = useState(false);
+  const [recording, setRecording] = useState(false);
 
   const post = () => {
     const body = text.trim();
@@ -99,8 +101,11 @@ export function BoxComposer({ boxId }: { boxId: string }) {
             box: boxId,
             driveFileId: uploaded.id,
             // Omitted unless asked for, and the row then defaults to now.
+            // A recording is exempt: it was made a moment ago, and its
+            // `lastModified` is that same moment, so the checkbox would be
+            // deciding nothing while looking like it decided something.
             capturedAt:
-              useFileDate && file.lastModified
+              useFileDate && file.lastModified && !file.type.startsWith('audio/')
                 ? new Date(file.lastModified).toISOString()
                 : undefined,
           }),
@@ -178,6 +183,18 @@ export function BoxComposer({ boxId }: { boxId: string }) {
       }}
       className="border-b border-grey-200 bg-grey-50 px-3 py-2"
     >
+      {/* Recorded, not uploaded — but it leaves here as a file and goes up the
+          same path, so nothing downstream knows the difference. */}
+      {recording ? (
+        <AudioRecorder
+          onDone={(file) => {
+            setRecording(false);
+            void upload([file]);
+          }}
+          onCancel={() => setRecording(false)}
+        />
+      ) : null}
+
       <textarea
         value={text}
         onChange={(e) => setText(e.target.value)}
@@ -213,6 +230,17 @@ export function BoxComposer({ boxId }: { boxId: string }) {
           className="rounded-sm p-1 text-grey-400 hover:text-grey-700"
         >
           <IconCamera />
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setRecording(true)}
+          disabled={recording}
+          title="Record audio"
+          aria-label="Record audio"
+          className="rounded-sm p-1 text-grey-400 hover:text-grey-700 disabled:opacity-40"
+        >
+          <IconAudio />
         </button>
 
         <button

@@ -361,6 +361,19 @@ Turbopack is the default; `middleware` is now `proxy`.
   still no speech provider, so `MediaRecorder` output goes up the ordinary
   attachment path and stops there. `enqueueEnrichment` won't queue it, which is
   deliberate: a job nothing can run is a manufactured failure.
+- **The microphone is asked for raw.** `{ audio: true }` accepts the browser's
+  defaults, and the defaults are a voice-call processing chain — echo
+  cancellation, noise suppression, automatic gain. That chain is why messaging
+  apps' voice notes sound the way they do: it high-passes the bottom out, gates
+  the quiet detail at the top and rides the level. All three are turned off, at
+  48 kHz, and the bitrate is set explicitly (128 kbps against a messaging app's
+  16–32) because `MediaRecorder`'s default is neither documented nor generous.
+  Constraints are plain values, never `exact`: a device that can't honour one
+  should degrade, not throw `OverconstrainedError` and leave you with nothing.
+  `channelCount` is unconstrained on purpose — a built-in mic is mono, an
+  interface is stereo, and taking what the hardware offers is more faithful
+  than insisting. The recorder shows the settings it was actually granted, so a
+  device ignoring them is visible rather than a mystery.
 - **`/capture` is the phone, and sits outside `(app)`.** That route group *is*
   the three-pane desktop shell, and none of it belongs on a phone held in one
   hand — so this is a sibling of `/signin`, gating on `requireSession()` itself
