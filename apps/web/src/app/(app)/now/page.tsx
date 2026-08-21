@@ -5,6 +5,7 @@ import { DetailPane, EmptyDetail, EmptyList, ListPane } from '@/components/panes
 import { QuickAddAction } from '@/components/quick-add';
 import { ACTION_COLUMNS } from '@/lib/columns';
 import { attachmentsFor, documentsFor } from '@/lib/file-lists';
+import { getProjectOptions } from '@/lib/queries';
 import {
   getAction,
   getContextsByDimension,
@@ -38,6 +39,7 @@ export default async function NowPage(props: PageProps<'/now'>) {
   // Read once, above the JSX. Each of these is a query plus a
   // preference lookup, and calling them inline would run both twice —
   // once for the rows and again for the order they are in.
+  const projectOptions = await getProjectOptions();
   const files = selected ? await attachmentsFor('action', selected.id) : null;
   const docs = selected ? await documentsFor('action', selected.id) : null;
 
@@ -80,6 +82,7 @@ export default async function NowPage(props: PageProps<'/now'>) {
             documentOptions={await getLinkableDocuments('action', selected.id, '')}
             contextGroups={groups}
             parties={groups.person.map((p) => p.name)}
+            projects={projectOptions}
           />
         </DetailPane>
       ) : (

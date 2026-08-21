@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 import { useState, useTransition } from 'react';
 import {
   deleteAction,
+  moveActionToProject,
   nudgeWaiting,
   setActionStatus,
   toggleActionContext,
@@ -19,6 +20,7 @@ import {
   type LinkedDocumentRow,
 } from '@/lib/queries.shared';
 import { Attachments } from './attachments';
+import { MoveTo } from './move-to';
 import { LinkedDocuments } from './linked-documents';
 import { NoteEditor } from './note-editor';
 import { TurnIntoNextAction } from './turn-into-next';
@@ -45,8 +47,11 @@ export function ActionDetail({
   documentOptions,
   contextGroups,
   parties,
+  projects = [],
 }: {
   action: ActionDetailData;
+  /** Projects it could be filed under. Empty hides the control. */
+  projects?: { id: string; title: string }[];
   attachments: AttachmentRow[];
   documents: LinkedDocumentRow[];
   /** How each of the two file lists is ordered. Separate choices. */
@@ -102,11 +107,28 @@ export function ActionDetail({
         className="w-full border-none bg-transparent text-xl font-semibold text-grey-900 focus:outline-none"
       />
 
-      {action.projectTitle ? (
-        <p className="mt-1 text-[12px] text-grey-500">{action.projectTitle}</p>
-      ) : (
-        <p className="mt-1 text-[12px] text-grey-400">No project — standalone action</p>
-      )}
+      {/* Filing was a drag onto a project row, which touch cannot do at all —
+          so the project line is now also where you change it. Same Server
+          Action the drag calls. */}
+      <div className="mt-1 flex items-baseline justify-between gap-2">
+        {action.projectTitle ? (
+          <p className="text-[12px] text-grey-500">{action.projectTitle}</p>
+        ) : (
+          <p className="text-[12px] text-grey-400">No project — standalone action</p>
+        )}
+
+        {projects.length > 0 ? (
+          <MoveTo
+            label="File"
+            current={action.projectId}
+            options={[
+              { id: null, name: 'No project', hint: 'A standalone next action' },
+              ...projects.map((p) => ({ id: p.id, name: p.title })),
+            ]}
+            onMove={(projectId) => moveActionToProject(action.id, projectId)}
+          />
+        ) : null}
+      </div>
 
       <div className="mt-5 flex flex-wrap items-center gap-1.5">
         {statuses.map((s) => (

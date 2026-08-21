@@ -39,51 +39,82 @@ export function AppShell({
   const pathname = usePathname();
   const params = useSearchParams();
   const track = useRef<HTMLElement>(null);
+  /** Whether a history entry is standing in for the open preview pane. */
+  const pushed = useRef(false);
 
   /**
-   * What you tapped comes to you.
+   * Whether a *row* is chosen, as opposed to a list merely being open.
    *
-   * Side by side, selecting a row just fills the pane already on screen. One at
-   * a time, the detail pane is off to the right — so without this you would tap
-   * a project, watch nothing happen, and have to swipe to find out that it had.
-   * The panes are a carousel you can move by hand; they still have to move on
-   * their own when you have plainly asked for the next one.
-   *
-   * Keyed on what counts as a *selection*, not on any navigation. Choosing a
-   * context on the Now list or a tag in a box also rewrites the URL, and being
-   * thrown forward a pane for narrowing the list you are reading would be the
-   * opposite of helpful. A different path is a selection (`/projects/<id>`);
-   * so is one of the params that name a chosen row.
+   * `/projects` is a list to choose from; `/projects/<id>` is a choice. Some
+   * views say so with a search parameter instead, which is the same fact in a
+   * different place. Filters — a context, a tag, a date range — are neither:
+   * they narrow the list you are reading and must not count.
    */
-  const selection = [
-    pathname,
-    ...['item', 'doc', 'action', 'area', 'goal', 'event'].map(
-      (key) => params.get(key) ?? '',
-    ),
-  ].join('|');
-
-  const previous = useRef(selection);
-
-  useEffect(() => {
-    const changed = previous.current !== selection;
-    previous.current = selection;
-
-    // Not on first paint: arriving at a URL that already names a row should
-    // leave you at the list, which is the thing you can navigate from.
-    if (!changed) return;
-    scrollToPane(track.current, 1);
-  }, [selection]);
+  const chosen =
+    ['item', 'doc', 'action', 'area', 'goal', 'event'].some((key) =>
+      params.get(key),
+    ) || /^\/(projects|lists|box)\/[^/]+/.test(pathname);
 
   /**
-   * Opening a file moves to it; closing one comes back.
+   * Which pane the carousel should be showing.
    *
-   * The preview is the far end of the same carousel, so the gesture and the
-   * button agree — swipe left from the detail pane and you are looking at the
-   * file, close it and you are back where you opened it from.
+   * One derived number rather than an effect per event, because the previous
+   * shape had two effects reaching for the same scroll position and the one
+   * that ran on mount always won: it moved to pane 1 before anything had been
+   * chosen, so opening any list landed you on the empty detail pane — which,
+   * with only two panes, is the last one. Deriving the answer means there is
+   * no moment when nobody has decided.
+   *
+   *   0  the list — nothing chosen
+   *   1  the detail — a row is chosen
+   *   2  the file — a preview is open
+   *
+   * Correct on first paint too, which is what makes a link to a particular
+   * project open that project rather than the list it happens to be in.
+   */
+  const target = preview ? 2 : chosen ? 1 : 0;
+
+  useEffect(() => {
+    scrollToPane(track.current, target);
+  }, [target, pathname]);
+
+  /**
+   * Back closes the preview instead of leaving the app.
+   *
+   * Only the preview needs this, and it is worth being clear why: going from a
+   * list to a row *is* a navigation — the URL changes — so back already
+   * returns you to the list without anything here. Opening a file does not
+   * change the URL; the pane belongs to the window rather than to the row it
+   * was opened from. So it is the one step forward the browser cannot see, and
+   * on Android that means back would close the whole app from a file preview.
+   *
+   * One entry is pushed when the pane opens, and closing it always goes
+   * through history — the × button included. Otherwise the button would leave
+   * that entry behind and the next back press would do nothing visible, which
+   * is worse than the problem being fixed.
    */
   useEffect(() => {
-    scrollToPane(track.current, preview ? 2 : 1);
-  }, [preview]);
+    if (!preview) return;
+
+    // A marker, not a route: the URL is untouched, so nothing re-renders and a
+    // reload lands exactly where it would have anyway.
+    window.history.pushState({ gtdPreview: true }, '');
+    pushed.current = true;
+
+    const onPop = () => {
+      pushed.current = false;
+      close();
+    };
+
+    window.addEventListener('popstate', onPop);
+    return () => window.removeEventListener('popstate', onPop);
+  }, [preview, close]);
+
+  const closePreview = () => {
+    // Through history, so the button and the gesture end in the same place.
+    if (pushed.current) window.history.back();
+    else close();
+  };
 
   return (
     <div
@@ -125,7 +156,7 @@ export function AppShell({
 
       <main ref={track} className="pane-track min-h-0 flex-1">
         {children}
-        {preview ? <PreviewPane file={preview} onClose={close} /> : null}
+        {preview ? <PreviewPane file={preview} onClose={closePreview} /> : null}
       </main>
 
       <MobileBar onOpenMenu={() => setDrawerOpen(true)} menuIcon={<IconMenu />} />

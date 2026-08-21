@@ -386,3 +386,12 @@ export const IconMenu = (p: IconProps) => (
     <path d="M2.4 12h11.2" />
   </Glyph>
 );
+
+/** Move — an arrow leaving a bracket, which is what filing something is. */
+export const IconMove = (p: IconProps) => (
+  <Glyph {...p}>
+    <path d="M8.8 3.2H3.4v9.6h5.4" />
+    <path d="M6.8 8h6.8" />
+    <path d="M11.6 6 13.6 8l-2 2" />
+  </Glyph>
+);

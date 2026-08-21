@@ -18,10 +18,16 @@ import { IconBox, IconCalendar, IconInbox, IconNow } from './icons';
  * and what you are keeping.
  */
 const SHORTCUTS = [
-  { href: '/inbox', label: 'Capture', icon: IconInbox },
+  // `/m`, not `/inbox`: capture on a phone is its own screen — the whole
+  // display as the field, the camera and microphone as first-class buttons,
+  // and the destination chosen before you type. The inbox list is where you
+  // go to *process* captures, which is a different job and a slower one.
+  { href: '/m', label: 'Capture', icon: IconInbox },
   { href: '/now', label: 'Now', icon: IconNow },
   { href: '/calendar', label: 'Calendar', icon: IconCalendar },
-  { href: '/box', label: 'Boxes', icon: IconBox },
+  // `/m/boxes`, not `/box`: that is the manager, where vocabularies and Drive
+  // folders are set up. From a phone you want to open a box, not configure one.
+  { href: '/m/boxes', label: 'Boxes', icon: IconBox },
 ];
 
 export function MobileBar({

@@ -8,6 +8,7 @@ import {
   getAction,
   getLinkableDocuments,
   getContextsByDimension,
+  getProjectOptions,
   getWaitingActions,
   isStale,
 } from '@/lib/queries';
@@ -30,6 +31,7 @@ export default async function WaitingPage(props: PageProps<'/waiting'>) {
   // Read once, above the JSX. Each of these is a query plus a
   // preference lookup, and calling them inline would run both twice —
   // once for the rows and again for the order they are in.
+  const projectOptions = await getProjectOptions();
   const files = selected ? await attachmentsFor('action', selected.id) : null;
   const docs = selected ? await documentsFor('action', selected.id) : null;
 
@@ -72,6 +74,7 @@ export default async function WaitingPage(props: PageProps<'/waiting'>) {
             documentOptions={await getLinkableDocuments('action', selected.id, '')}
             contextGroups={groups}
             parties={groups.person.map((p) => p.name)}
+            projects={projectOptions}
           />
         </DetailPane>
       ) : (
