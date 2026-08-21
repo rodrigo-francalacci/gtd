@@ -14,7 +14,7 @@ than the behaviour, look there.
 - [The shape of the thing](#the-shape-of-the-thing)
 - [Capture](#capture) — getting a thought in
 - [Clarify](#clarify) — deciding what it was
-- [Engage](#engage) — Now, and Waiting for
+- [Engage](#engage) — Now, Waiting for, and the Calendar
 - [Organise](#organise) — projects, filing, horizons, contexts
 - [The weekly review](#the-weekly-review)
 - [Lists](#lists) — candidates, not commitments
@@ -166,6 +166,39 @@ with are the same people. Matching ignores case and spacing, so "neil" reuses
 The pane tells you how long it has been waiting, and says so plainly once it
 has gone stale. **Chased today** re-stamps the date when you have followed
 something up, which clears the staleness without pretending the thing arrived.
+
+### Calendar
+
+What is booked, grouped by day — today at the top and forward from there, and
+only days that actually hold something. Click an event for its details: when,
+where, who is coming and what they answered, any notes, and a link to join if
+it is a video call.
+
+**It is read-only, on purpose.** Google Calendar owns your appointments; this is
+a window onto them so that "what can I do now" can be answered against a real
+day. Every event ends in **Open in Google Calendar**, which is the only thing
+here that changes anything. Nothing is written, ever — the permission the app
+holds could not do it even if the code tried.
+
+**Choosing which calendars to show.** The control in the header lists every
+calendar on your Google account; tick the ones you want. What gets *stored* is
+the ones you turned **off**, which is why a calendar you create in Google next
+month simply appears — it was never hidden. A calendar deleted at Google stops
+being listed, and renaming one changes nothing here, because the link is by id.
+
+Until you touch that control, Google's own ticked state decides — so a calendar
+you unticked over there does not come back uninvited. Your first choice here
+takes over from it.
+
+Two things worth knowing:
+
+- **Nothing is cached.** The list is read from Google each time you open the
+  view, so it always agrees with your calendar. **Refresh** re-reads it
+- **Repeating events show as their individual dates**, not as the series. A
+  weekly meeting appears on each of its days
+
+It is granted separately from Drive and Gmail, and the app works perfectly well
+without it — see [Google](#google).
 
 ---
 
@@ -574,6 +607,11 @@ Everything lives under one root: `GTD/Projects/...`, `GTD/Archive/<year>/...`,
 - `drive.file` — only files this app created. It cannot read the rest of your
   Drive
 - `gmail.labels` — manages labels, cannot read a single message
+- `calendar.readonly` — optional, granted separately, and read-only. It can
+  list your calendars and read what is on them; it cannot create, change or
+  delete an event. The broader of the two calendar options was chosen
+  deliberately: the narrower one cannot list your calendars at all, so a
+  second or shared calendar would be missing with no way for the app to know
 
 **Sync is one-way.** The app is the source of truth and pushes; it never reads
 changes back. There is no reconciliation, because recreating something you
@@ -669,6 +707,11 @@ attach it again from the clarify pane.
 
 **A project has no Drive folder.** It predates the Google connection, or was
 made before Google was set up. Press **Create links for N projects**.
+
+**The calendar says the API is switched off.** Each Google API is enabled per
+project in the Google Cloud console, separately from granting permission. Drive
+and Gmail were done long ago; Calendar needs the same. The message links
+straight to the page that does it.
 
 **A document sits at "waiting to be read".** The cron runs daily. Press **Read
 the N waiting**, or the pane's own read button. If it never reads, check an API
