@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { apiSession } from '@/lib/auth/session';
 import { postBoxLink, postBoxLocation, postBoxNote } from '@/lib/actions';
+import { soleUrl } from '@/lib/sole-url';
 
 export const dynamic = 'force-dynamic';
 
@@ -80,20 +81,3 @@ export async function POST(request: Request) {
   }
 }
 
-/**
- * The message, if the whole of it is one web address.
- *
- * Deliberately strict — the entire message, one token, http or https. "look at
- * https://…" is a thought that happens to contain a link, and treating it as a
- * bare link would throw the thought away. Same rule as the app's composer.
- */
-function soleUrl(text: string): string | null {
-  if (!text || /\s/.test(text)) return null;
-
-  try {
-    const url = new URL(text);
-    return url.protocol === 'http:' || url.protocol === 'https:' ? text : null;
-  } catch {
-    return null;
-  }
-}

@@ -227,6 +227,15 @@ export function captureHasNote(item: Pick<CaptureLike, 'rawText'>): boolean {
 // The Big Box
 // ---------------------------------------------------------------------------
 
+/**
+ * The two fields anything choosing a box needs, and nothing else.
+ *
+ * A picker wants a name and an id; it has no business carrying the tagging
+ * instruction, the Drive folder or the unread count across the wire to render
+ * a chip.
+ */
+export type BoxOption = { id: string; name: string };
+
 export type BoxRow = {
   id: string;
   name: string;

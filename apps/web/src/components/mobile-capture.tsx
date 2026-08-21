@@ -2,9 +2,12 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { captureInboxItem } from '@/lib/actions';
+import { captureInboxItem, postBoxLink, postBoxNote } from '@/lib/actions';
+import { uploadToBox } from '@/lib/box-upload';
 import { uploadCaptureFiles } from '@/lib/capture-upload';
-import { captureLabel } from '@/lib/queries.shared';
+import { captureLabel, type BoxOption } from '@/lib/queries.shared';
+import { soleUrl } from '@/lib/sole-url';
+import { CaptureDestination } from './capture-destination';
 import { MAX_DIRECT_UPLOAD_MB } from '@/lib/upload';
 import { AudioRecorder } from './audio-recorder';
 import { IconAudio, IconCamera, IconImage, IconPaperclip, IconStop } from './icons';
@@ -38,12 +41,15 @@ export function MobileCapture({
   recent,
   initialText = '',
   initialUrl = '',
+  boxes = [],
 }: {
   recent: Recent[];
   /** Prefilled by the browser extension: the selection, or the page title. */
   initialText?: string;
   /** The page it came from, kept as the note so the title stays a title. */
   initialUrl?: string;
+  /** Offered as destinations beside the inbox. Empty hides the chooser. */
+  boxes?: BoxOption[];
 }) {
   const router = useRouter();
   const field = useRef<HTMLTextAreaElement>(null);
@@ -61,6 +67,12 @@ export function MobileCapture({
   const [detail, setDetail] = useState(initialUrl);
   const [noteOpen, setNoteOpen] = useState(Boolean(initialUrl));
   const [staged, setStaged] = useState<File[]>([]);
+  /**
+   * Where this one is going. Null is the inbox, and it resets to null after
+   * every capture rather than remembering — see `CaptureDestination` for why
+   * a sticky destination is the wrong kind of convenience.
+   */
+  const [boxId, setBoxId] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [recording, setRecording] = useState(false);
   const [errors, setErrors] = useState<string[]>([]);
@@ -143,6 +155,61 @@ export function MobileCapture({
     setDetail('');
     setNoteOpen(false);
 
+    /**
+     * A box is a different destination, not a different kind of capture.
+     *
+     * It writes through the same Server Actions the desktop composer uses and
+     * the same three-step upload, so nothing about the entry records that it
+     * arrived from a phone. The one real difference is that a box takes the
+     * message and the files as separate entries — there is no row for them to
+     * hang off, because a document in a box *is* the entry.
+     */
+    if (boxId) {
+      try {
+        if (note) {
+          const bare = soleUrl(note);
+          if (bare) await postBoxLink(boxId, bare, '');
+          else await postBoxNote(boxId, note);
+        }
+
+        if (files.length > 0) {
+          setProgress({ done: 0, total: files.length });
+          const failed: File[] = [];
+
+          for (const [index, file] of files.entries()) {
+            try {
+              await uploadToBox(boxId, file, { readNow: true });
+            } catch (e) {
+              failed.push(file);
+              setErrors((errs) => [
+                ...errs,
+                `${file.name}: ${e instanceof Error ? e.message : 'did not upload'}`,
+              ]);
+            }
+            setProgress({ done: index + 1, total: files.length });
+          }
+
+          setProgress(null);
+          setStaged(failed);
+        } else {
+          setStaged([]);
+        }
+
+        const box = boxes.find((b) => b.id === boxId);
+        setFlash(`Filed in ${box ? box.name : 'the box'}.`);
+        setBoxId(null);
+        router.refresh();
+        dismissIfPopup();
+      } catch {
+        setText(note);
+        setStaged(files);
+        setErrors((e) => [...e, 'That did not save. Check your connection.']);
+      } finally {
+        setBusy(false);
+      }
+      return;
+    }
+
     try {
       const body = new FormData();
       body.set('rawText', note);
@@ -206,7 +273,11 @@ export function MobileCapture({
   }, [flash]);
 
   return (
-    <div className="mx-auto flex min-h-[100dvh] w-full max-w-lg flex-col bg-paper px-4">
+    /* `min-h-full` rather than `min-h-[100dvh]`: inside the mobile shell this
+       sits in a scrolling area that has already been given the viewport
+       height, and asking for a second full screen inside it pushes the tab bar
+       off the bottom. */
+    <div className="mx-auto flex min-h-full w-full max-w-lg flex-col bg-paper px-4">
       <header className="flex shrink-0 items-baseline justify-between py-3">
         <h1 className="text-[15px] font-semibold text-grey-900">Capture</h1>
         <a
@@ -216,6 +287,16 @@ export function MobileCapture({
           Inbox
         </a>
       </header>
+
+      {/* Above the field, not below it: where this is going changes what you
+          are about to write, so it should be read before the typing rather
+          than discovered after it. */}
+      <CaptureDestination
+        boxes={boxes}
+        value={boxId}
+        onChange={setBoxId}
+        disabled={busy}
+      />
 
       {/* 16px minimum, or iOS Safari zooms the whole page in on focus. Left
           scalable otherwise — blocking pinch-zoom to avoid that is a bad

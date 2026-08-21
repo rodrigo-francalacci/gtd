@@ -3,6 +3,8 @@
 import { useRouter } from 'next/navigation';
 import { useRef, useState, useTransition } from 'react';
 import { postBoxLink, postBoxLocation, postBoxNote } from '@/lib/actions';
+import { uploadToBox } from '@/lib/box-upload';
+import { soleUrl } from '@/lib/sole-url';
 import { AudioRecorder } from './audio-recorder';
 import { IconAudio, IconCamera, IconPaperclip, IconPlace } from './icons';
 
@@ -83,57 +85,17 @@ export function BoxComposer({ boxId }: { boxId: string }) {
       setBusy(list.length > 1 ? `${file.name} (${index + 1}/${list.length})` : file.name);
 
       try {
-        const opened = await fetch('/api/box/ingest', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            step: 'open',
-            box: boxId,
-            name: file.name,
-            mimeType: file.type,
-          }),
+        await uploadToBox(boxId, file, {
+          // Omitted unless asked for, and the row then defaults to now. A
+          // recording is exempt: it was made a moment ago, and its
+          // `lastModified` is that same moment, so the checkbox would be
+          // deciding nothing while looking like it decided something.
+          capturedAt:
+            useFileDate && file.lastModified && !file.type.startsWith('audio/')
+              ? new Date(file.lastModified)
+              : undefined,
+          readNow: true,
         });
-
-        const session = (await opened.json()) as { uploadUrl?: string; error?: string };
-        if (!session.uploadUrl) throw new Error(session.error ?? 'No upload session.');
-
-        const put = await fetch(session.uploadUrl, {
-          method: 'PUT',
-          headers: { 'Content-Type': file.type || 'application/octet-stream' },
-          body: file,
-        });
-
-        if (!put.ok) throw new Error(`Drive refused the upload (${put.status}).`);
-        const uploaded = (await put.json()) as { id: string };
-
-        const done = await fetch('/api/box/ingest', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            step: 'complete',
-            box: boxId,
-            driveFileId: uploaded.id,
-            // Omitted unless asked for, and the row then defaults to now.
-            // A recording is exempt: it was made a moment ago, and its
-            // `lastModified` is that same moment, so the checkbox would be
-            // deciding nothing while looking like it decided something.
-            capturedAt:
-              useFileDate && file.lastModified && !file.type.startsWith('audio/')
-                ? new Date(file.lastModified).toISOString()
-                : undefined,
-          }),
-        });
-
-        const record = (await done.json()) as { id?: string; error?: string };
-        if (!record.id) throw new Error(record.error ?? 'Could not record it.');
-
-        // Read it straight away rather than waiting for the cron, which may
-        // only run daily. A failure here leaves it queued, which is fine.
-        void fetch('/api/box/read', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ itemId: record.id }),
-        }).then(() => router.refresh());
 
         router.refresh();
       } catch (e) {
@@ -352,20 +314,3 @@ export function BoxComposer({ boxId }: { boxId: string }) {
   );
 }
 
-/**
- * The message, if the whole of it is one web address.
- *
- * Deliberately strict — the entire message, one token, http or https. "look at
- * https://…" is a thought that happens to contain a link, and treating it as a
- * bare link would throw the thought away.
- */
-function soleUrl(text: string): string | null {
-  if (/\s/.test(text)) return null;
-
-  try {
-    const url = new URL(text);
-    return url.protocol === 'http:' || url.protocol === 'https:' ? text : null;
-  } catch {
-    return null;
-  }
-}

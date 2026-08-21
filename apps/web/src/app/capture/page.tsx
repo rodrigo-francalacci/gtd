@@ -1,48 +1,28 @@
-import type { Metadata, Viewport } from 'next';
-import { MobileCapture } from '@/components/mobile-capture';
-import { requireSession } from '@/lib/auth/session';
-import { getRecentCaptures } from '@/lib/queries';
-
-export const metadata: Metadata = {
-  title: 'Capture',
-  // Added to a home screen this becomes the app's name, so it says what the
-  // thing does rather than repeating the system's name.
-  appleWebApp: { capable: true, title: 'Capture', statusBarStyle: 'default' },
-};
-
-export const viewport: Viewport = {
-  width: 'device-width',
-  initialScale: 1,
-  // `resizes-content` keeps the Capture button above the on-screen keyboard
-  // instead of behind it. Pinch-zoom is left alone: disabling it to stop iOS
-  // zooming on focus is the wrong fix, and 16px text is the right one.
-  interactiveWidget: 'resizes-content',
-};
+import { redirect } from 'next/navigation';
 
 /**
- * Capture, for a phone and for the browser extension.
+ * The old capture URL, kept as a redirect.
  *
- * Outside the `(app)` route group on purpose: that group is the three-pane
- * desktop shell with a sidebar, and none of it belongs on a phone held in one
- * hand. This is a single screen with one job.
+ * Capture moved into the phone app at `/m`, where it is the home screen. This
+ * address stays because other things point at it and should not have to be
+ * changed in step: the browser extension's signed-out fallback opens
+ * `/capture?text=&url=`, a home-screen shortcut may be saved to it, and it has
+ * been the phone's address for long enough to be in someone's history.
  *
- * It still gates on the session, because the group's layout is not doing it
- * here. Signing in once leaves the cookie in place, so the link can go
- * straight to a home screen — and it is why the extension opens this page
- * rather than posting to an API: a navigation carries a `SameSite=Lax` cookie
- * and a cross-site fetch does not.
- *
- * `text` and `url` prefill it. They are the extension's whole payload: what
- * you selected, and where you were.
+ * The query is carried across rather than dropped — the whole reason the
+ * extension opens this URL is to hand over text a navigation can carry and a
+ * cross-site fetch cannot, and arriving at an empty field would lose exactly
+ * the thing it was protecting.
  */
-export default async function CapturePage(props: PageProps<'/capture'>) {
-  await requireSession();
-
+export default async function CaptureRedirect(props: PageProps<'/capture'>) {
   const searchParams = await props.searchParams;
-  const text = typeof searchParams.text === 'string' ? searchParams.text : '';
-  const url = typeof searchParams.url === 'string' ? searchParams.url : '';
 
-  const recent = await getRecentCaptures(5);
+  const params = new URLSearchParams();
+  for (const key of ['text', 'url', 'title'] as const) {
+    const value = searchParams[key];
+    if (typeof value === 'string' && value) params.set(key, value);
+  }
 
-  return <MobileCapture recent={recent} initialText={text} initialUrl={url} />;
+  const query = params.toString();
+  redirect(query ? `/m?${query}` : '/m');
 }
