@@ -68,10 +68,13 @@ Pick a box, then:
   composer uses — in one place, so the two cannot disagree.
 - **Add files**, drop them on the panel, or paste a screenshot. Same path as the
   inbox: straight to Drive, so the ceiling is Drive's.
-- **Record** a voice note. The microphone is asked for *raw* — echo
-  cancellation, noise suppression and automatic gain all off, 48 kHz, 128 kbps
-  — which is why these don't sound like messaging-app voice notes. The
-  recording is staged rather than sent, so you can write a line about it first.
+- **Record** a voice note. Echo cancellation and noise suppression are off,
+  because those change the *sound* — one takes the bottom out, the other gates
+  the quiet detail at the top, and between them they are why messaging-app
+  voice notes are unpleasant to hear twice. Automatic gain is on, because it
+  only changes the *level*: the recording arrives usable with its full
+  bandwidth intact. 48 kHz, 128 kbps. The recording is staged rather than sent,
+  so you can write a line about it first.
 - **Add where I am** files a place. Asked for per entry and never watched.
 - **Keep this page** files the page you're reading as a link.
 

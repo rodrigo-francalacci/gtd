@@ -15,14 +15,26 @@ import { useEffect, useRef, useState } from 'react';
  */
 
 /**
- * Ask for the microphone *raw*.
+ * Two of the three off, and the third deliberately on.
  *
- * `{ audio: true }` accepts the browser's defaults, and the defaults are a
- * voice-call processing chain: echo cancellation, noise suppression and
- * automatic gain. That chain is why messaging-app voice notes sound the way
- * they do — it high-passes the bottom out, gates the quiet detail at the top,
- * and rides the level up and down. Fine for a phone call, wrong for anything
- * you might want to keep or listen to twice.
+ * `{ audio: true }` accepts the browser's defaults, which are a voice-call
+ * processing chain: echo cancellation, noise suppression and automatic gain.
+ * It is worth being precise about which part of that chain is the problem,
+ * because they are not the same kind of thing.
+ *
+ * Echo cancellation and noise suppression change the *sound*. AEC brings a
+ * high-pass filter with it and takes the bottom out; suppression gates the
+ * quiet detail at the top and leaves speech sounding like it is coming down a
+ * phone line. Both are destructive and neither can be undone afterwards, so
+ * both stay off — that is what a messaging app does to a voice note and the
+ * reason those are unpleasant to listen to twice.
+ *
+ * Automatic gain only changes the *level*, and the frequency response is
+ * untouched either way. Off, a quiet microphone records quietly and there is
+ * nothing to be done about it after the fact short of re-encoding the file.
+ * On, the recording arrives at a usable level with its full bandwidth intact.
+ * That is a straightforwardly better trade for a voice note, and it is the one
+ * thing here that costs nothing to accept.
  *
  * Plain values rather than `exact`, so a device that can't honour one degrades
  * instead of throwing `OverconstrainedError` and leaving you with no recording
@@ -33,7 +45,7 @@ import { useEffect, useRef, useState } from 'react';
 const RAW_AUDIO: MediaTrackConstraints = {
   echoCancellation: false,
   noiseSuppression: false,
-  autoGainControl: false,
+  autoGainControl: true,
   sampleRate: 48_000,
 };
 
@@ -140,11 +152,25 @@ export function AudioRecorder({
         // only the second one is audible. Showing it means a device quietly
         // ignoring the constraints is visible rather than a mystery.
         const settings = media.getAudioTracks()[0]?.getSettings() ?? {};
+
+        /**
+         * Reports the frequency response, not the level.
+         *
+         * "raw" used to mean all three filters off, and now that automatic
+         * gain is deliberately on it would be a lie — but gain is not what the
+         * word was ever about. What matters here is whether the sound has been
+         * altered in a way nothing downstream can undo, which is echo
+         * cancellation and noise suppression and neither of the other two.
+         * "full range" says that and stays true whatever the level is doing.
+         */
+        const coloured = settings.noiseSuppression || settings.echoCancellation;
+
         setQuality(
           [
             settings.sampleRate ? `${Math.round(settings.sampleRate / 1000)} kHz` : null,
             settings.channelCount === 2 ? 'stereo' : 'mono',
-            settings.noiseSuppression || settings.echoCancellation ? 'processed' : 'raw',
+            coloured ? 'filtered' : 'full range',
+            settings.autoGainControl ? 'auto level' : null,
           ]
             .filter(Boolean)
             .join(' · '),

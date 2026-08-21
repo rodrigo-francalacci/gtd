@@ -372,13 +372,25 @@ Turbopack is the default; `middleware` is now `proxy`.
   still no speech provider, so `MediaRecorder` output goes up the ordinary
   attachment path and stops there. `enqueueEnrichment` won't queue it, which is
   deliberate: a job nothing can run is a manufactured failure.
-- **The microphone is asked for raw.** `{ audio: true }` accepts the browser's
-  defaults, and the defaults are a voice-call processing chain — echo
-  cancellation, noise suppression, automatic gain. That chain is why messaging
-  apps' voice notes sound the way they do: it high-passes the bottom out, gates
-  the quiet detail at the top and rides the level. All three are turned off, at
-  48 kHz, and the bitrate is set explicitly (128 kbps against a messaging app's
-  16–32) because `MediaRecorder`'s default is neither documented nor generous.
+- **Two of the microphone's three filters are off; automatic gain is on.**
+  `{ audio: true }` accepts the browser's defaults, a voice-call processing
+  chain — echo cancellation, noise suppression, automatic gain — and the three
+  are not the same kind of thing. The first two change the *sound*: AEC brings
+  a high-pass and takes the bottom out, suppression gates the quiet detail at
+  the top. Both are destructive and nothing downstream can undo them, so both
+  stay off; that is what makes messaging-app voice notes unpleasant to hear
+  twice. Automatic gain changes only the *level* and leaves the frequency
+  response alone, so it is on: without it a quiet mic simply records quietly,
+  and the only fix after the fact is decoding and re-encoding the whole file.
+  (True normalisation — one constant gain, computed once the clip ends — was
+  considered and dropped: it can't be worked out until you stop, so it forces a
+  re-encode, and browsers can't re-encode to Opus quickly. WAV output would
+  cost ~6× the size; a WebCodecs path would need a hand-written Ogg muxer.)
+  The readout says "full range" rather than "raw" for exactly this reason — it
+  reports the frequency response, which is what is worth knowing, not the
+  level. 48 kHz, and the bitrate is set explicitly (128 kbps against a
+  messaging app's 16–32) because `MediaRecorder`'s default is neither
+  documented nor generous.
   Constraints are plain values, never `exact`: a device that can't honour one
   should degrade, not throw `OverconstrainedError` and leave you with nothing.
   `channelCount` is unconstrained on purpose — a built-in mic is mono, an

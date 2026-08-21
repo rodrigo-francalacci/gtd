@@ -787,13 +787,17 @@ els.boxPlace.addEventListener('click', () => {
 // ---------------------------------------------------------------------------
 
 /**
- * The microphone, asked for raw.
+ * Two of the three off, and the third deliberately on — as the app does it.
  *
- * `{ audio: true }` accepts the browser's defaults, and the defaults are a
- * voice-call processing chain: echo cancellation, noise suppression and
- * automatic gain. That chain is why messaging-app voice notes sound the way
- * they do — it high-passes the bottom out, gates the quiet detail at the top
- * and rides the level. All three off, at 48 kHz, exactly as the app does it.
+ * `{ audio: true }` accepts the browser's defaults, which are a voice-call
+ * processing chain: echo cancellation, noise suppression and automatic gain.
+ * The first two change the *sound* and cannot be undone afterwards: AEC takes
+ * the bottom out and suppression gates the quiet detail at the top, which is
+ * what makes messaging-app voice notes unpleasant to hear twice. Both stay off.
+ *
+ * Automatic gain only changes the *level*, leaving the frequency response
+ * alone. Off, a quiet microphone simply records quietly and nothing can fix it
+ * after the fact. On, it arrives usable with its full bandwidth intact.
  *
  * Plain values rather than `exact`: a device that cannot honour one should
  * degrade, not throw and leave you with nothing.
@@ -801,7 +805,7 @@ els.boxPlace.addEventListener('click', () => {
 const RAW_AUDIO = {
   echoCancellation: false,
   noiseSuppression: false,
-  autoGainControl: false,
+  autoGainControl: true,
   sampleRate: 48000,
 };
 
