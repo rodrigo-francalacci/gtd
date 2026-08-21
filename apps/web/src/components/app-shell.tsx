@@ -45,15 +45,27 @@ export function AppShell({
   /**
    * Whether a *row* is chosen, as opposed to a list merely being open.
    *
-   * `/projects` is a list to choose from; `/projects/<id>` is a choice. Some
-   * views say so with a search parameter instead, which is the same fact in a
-   * different place. Filters — a context, a tag, a date range — are neither:
-   * they narrow the list you are reading and must not count.
+   * Every one of these names a chosen row, and the list is exhaustive on
+   * purpose — a missing one leaves that view unable to reach its own detail
+   * pane on a phone, which is silent and looks like the pane is broken.
+   *
+   * Filters are deliberately absent: `ctx`, `tag`, `type`, `from`, `to`,
+   * `impact`, `where`, `filter`, `show`, `step`, `q` and `dropped` all rewrite
+   * the URL to narrow the list you are reading, and being thrown forward a
+   * pane for that is the opposite of helpful.
    */
   const chosen =
-    ['item', 'doc', 'action', 'area', 'goal', 'event'].some((key) =>
-      params.get(key),
-    ) || /^\/(projects|lists|box)\/[^/]+/.test(pathname);
+    ['item', 'doc', 'action', 'area', 'goal', 'event', 'project', 'box'].some(
+      (key) => params.get(key),
+    ) ||
+    /**
+     * Only projects put the choice in the path. `/box/<id>` and `/lists/<id>`
+     * look like the same shape and are not: those are *lists* — a box's feed,
+     * a list's items — which say what is chosen with `doc` and `item`. Treating
+     * them as choices is what sent a tap on a box straight to the document
+     * pane, past the feed you were trying to look at.
+     */
+    /^\/projects\/[^/]+/.test(pathname);
 
   /**
    * Which pane the carousel should be showing.
@@ -77,6 +89,31 @@ export function AppShell({
   useEffect(() => {
     scrollToPane(track.current, target);
   }, [target, pathname]);
+
+  /**
+   * Leaving a section closes the file you had open in it.
+   *
+   * The preview deliberately survives moving between rows — flicking through a
+   * box's documents with one open is the point of it, and it is why the pane
+   * belongs to the window rather than to the row it was opened from. But it
+   * used to survive *everything*, and one screen at a time that is not a
+   * lingering pane, it is a hijacked one: tap Boxes, tap a box, and you land
+   * on a file from a project you left two taps ago, because the carousel
+   * dutifully went to the pane that was still open.
+   *
+   * Keyed on the first path segment, so `/projects/a` to `/projects/b` keeps
+   * it and `/projects/a` to `/box/x` does not. That is the same line the
+   * original reasoning drew; it was simply never enforced, because side by
+   * side a stale pane is merely beside you rather than in front of you.
+   */
+  const section = pathname.split('/')[1] ?? '';
+  const lastSection = useRef(section);
+
+  useEffect(() => {
+    if (lastSection.current === section) return;
+    lastSection.current = section;
+    close();
+  }, [section, close]);
 
   /**
    * Back closes the preview instead of leaving the app.

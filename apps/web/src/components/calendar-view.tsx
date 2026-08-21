@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { setHiddenCalendars } from '@/lib/actions';
 import type { CalendarEvent, CalendarSource } from '@/lib/google/calendar';
 import { groupByDay, upcomingDayLabel } from '@/lib/days';
@@ -76,8 +77,29 @@ export function CalendarView({
 }) {
   const [state, setState] = useState<Payload | null>(null);
   const [failed, setFailed] = useState<string | null>(null);
-  const [selectedId, setSelectedId] = useState<string | null>(null);
   const [refreshedAt, setRefreshedAt] = useState(0);
+
+  /**
+   * The chosen event lives in the URL after all.
+   *
+   * It was local state, on the reasoning that the server renders none of this
+   * and the ids are Google's, so a URL carrying one would point at nothing
+   * until the fetch finished. That reasoning still holds and stopped being
+   * the whole story: one pane at a time, the shell reads the URL to know
+   * whether a row has been chosen, and a selection it cannot see is a detail
+   * pane that never comes to you. Being invisible to the shell is a worse
+   * failure than being briefly unresolvable.
+   */
+  const router = useRouter();
+  const pathname = usePathname();
+  const params = useSearchParams();
+  const selectedId = params.get('event');
+
+  const choose = (id: string) => {
+    const next = new URLSearchParams(params);
+    next.set('event', id);
+    router.replace(`${pathname}?${next}`, { scroll: false });
+  };
 
   useEffect(() => {
     let live = true;
@@ -171,7 +193,7 @@ export function CalendarView({
                   key={`${event.calendarId}:${event.id}`}
                   event={event}
                   selected={event.id === selected?.id}
-                  onSelect={() => setSelectedId(event.id)}
+                  onSelect={() => choose(event.id)}
                 />
               ))}
             </section>

@@ -121,6 +121,24 @@ async function reasonFrom(response: Response): Promise<string> {
   return body?.error ?? GENERIC;
 }
 
+/**
+ * Whether this browser will render a PDF in a frame.
+ *
+ * Feature detection rather than asking what device this is. `pdfViewerEnabled`
+ * is the browser's own statement about whether it has a built-in viewer, which
+ * is the actual question — sniffing for Android would be guessing at the
+ * answer from something correlated with it, and would be wrong for a desktop
+ * browser with its viewer disabled and for whatever ships a viewer next year.
+ *
+ * Undefined in older browsers, which are treated as capable: that is what they
+ * were doing before this existed, and the worst case is the placeholder they
+ * would have shown anyway.
+ */
+function canRenderPdf(): boolean {
+  if (typeof navigator === 'undefined') return true;
+  return navigator.pdfViewerEnabled !== false;
+}
+
 export function PreviewPane({ file, onClose }: { file: PreviewFile; onClose: () => void }) {
   const [failed, setFailed] = useState<string | null>(null);
   const src = file.src;
@@ -176,6 +194,28 @@ export function PreviewPane({ file, onClose }: { file: PreviewFile; onClose: () 
           <MediaPlayer src={src} kind="video" />
         ) : isJson(type) ? (
           <JsonView src={src} onFail={() => void reasonFor(src).then(setFailed)} />
+        ) : type === 'application/pdf' && !canRenderPdf() && file.driveFileId ? (
+          /**
+           * A PDF where the browser has no PDF viewer — Android Chrome, most
+           * of the time.
+           *
+           * It does not fail loudly. The iframe loads and paints Chrome's own
+           * placeholder: a grey panel, the word "file", and an Open button
+           * that leaves for another app. Which looks exactly like a preview
+           * pane that is broken, and was.
+           *
+           * Drive renders the pages itself and serves them as images, so its
+           * embed works where a native viewer does not exist. Asked for only
+           * in that case, because our own proxy is otherwise better: it runs
+           * off this app's session rather than whichever Google account the
+           * browser happens to be signed into.
+           */
+          <iframe
+            src={`https://drive.google.com/file/d/${file.driveFileId}/preview`}
+            title={file.name}
+            allow="autoplay"
+            className="h-full w-full border-0 bg-paper"
+          />
         ) : type === 'application/pdf' || isBrowserText(type) ? (
           // A PDF or plain text on our own origin: the browser's own viewer
           // handles both, and does it better than anything worth writing here.
