@@ -1,10 +1,10 @@
 import Link from 'next/link';
+import { attachmentsFor } from '@/lib/file-lists';
 import { ClarifyPanel } from '@/components/clarify-panel';
 import { InboxCapture } from '@/components/inbox-capture';
 import { DetailPane, EmptyDetail, EmptyList, ListPane } from '@/components/panes';
 import {
   getAreasAndGoals,
-  getAttachments,
   getContextsByDimension,
   getInboxItem,
   getInboxItems,
@@ -55,7 +55,7 @@ export default async function InboxPage(props: PageProps<'/inbox'>) {
   const [selected, files, projects, horizons, listOptions, contextGroups] =
     await Promise.all([
       targetId ? getInboxItem(targetId) : Promise.resolve(null),
-      targetId ? getAttachments('inbox_item', targetId) : Promise.resolve([]),
+      targetId ? attachmentsFor('inbox_item', targetId) : Promise.resolve(null),
       getProjectOptions(),
       getAreasAndGoals(),
       getListOptions(),
@@ -211,7 +211,8 @@ export default async function InboxPage(props: PageProps<'/inbox'>) {
           <ClarifyPanel
             key={selected.id}
             item={selected}
-            attachments={files}
+            attachments={files?.rows ?? []}
+            fileOrder={files?.order}
             projects={projects}
             areas={horizons.areas}
             lists={listOptions}

@@ -2,12 +2,11 @@ import { ArchiveListPane } from '@/components/archive-list-pane';
 import { DetailPane, EmptyDetail } from '@/components/panes';
 import { ProjectActionsSection } from '@/components/project-actions-section';
 import { ProjectDetail } from '@/components/project-detail';
+import { attachmentsFor, documentsFor } from '@/lib/file-lists';
 import {
   getAreasAndGoals,
   getArchivedProjects,
-  getAttachments,
   getLinkableDocuments,
-  getLinkedDocuments,
   getProject,
   getProjectActions,
 } from '@/lib/queries';
@@ -40,6 +39,12 @@ export default async function ArchivePage(props: PageProps<'/archive'>) {
     ? await Promise.all([getProjectActions(selected.id), getAreasAndGoals()])
     : [[], { areas: [], goals: [] }];
 
+  // Read once, above the JSX. Each of these is a query plus a
+  // preference lookup, and calling them inline would run both twice —
+  // once for the rows and again for the order they are in.
+  const files = selected ? await attachmentsFor('project', selected.id) : null;
+  const docs = selected ? await documentsFor('project', selected.id) : null;
+
   return (
     <>
       <ArchiveListPane
@@ -64,8 +69,10 @@ export default async function ArchivePage(props: PageProps<'/archive'>) {
           <ProjectDetail
             key={selected.id}
             project={selected}
-            attachments={await getAttachments('project', selected.id)}
-            documents={await getLinkedDocuments('project', selected.id)}
+            attachments={files!.rows}
+            fileOrder={files!.order}
+            documents={docs!.rows}
+            docOrder={docs!.order}
             documentOptions={await getLinkableDocuments('project', selected.id, '')}
             stalled={false}
             horizons={horizons}

@@ -7,8 +7,12 @@ import type { AttachmentParentType } from '@gtd/db';
 import { linkDocument, unlinkDocument } from '@/lib/actions';
 import { driveFileUrl } from '@/lib/google/sync';
 import { documentLabel, type LinkedDocumentRow } from '@/lib/queries.shared';
+import type { SortChoice } from '@/lib/sort';
 import { useFilePreview } from './file-preview';
+import { FileMeta } from './file-meta';
+import { GroupHeading } from './group-heading';
 import { IconBox } from './icons';
+import { SortControl } from './sort-control';
 
 /**
  * Documents from the Big Box, cited here.
@@ -24,12 +28,27 @@ export function LinkedDocuments({
   parentId,
   rows,
   candidates,
+  sort,
+  sortKey,
+  groups,
 }: {
   parentType: AttachmentParentType;
   parentId: string;
   rows: LinkedDocumentRow[];
   /** Recent documents not yet linked here, for the picker. */
   candidates: LinkedDocumentRow[];
+  /**
+   * How this list is ordered. The rows arrive already sorted — that happens in
+   * SQL — so this is only here so the control can show what was chosen.
+   *
+   * Its own choice, separate from the attachments above it: these are two
+   * lists that happen to share a pane, and the one you borrowed from a box is
+   * not ordered by the same instinct as the one you uploaded here.
+   */
+  sort?: SortChoice;
+  sortKey?: string;
+  /** Ids per heading, when the list is cut into groups. See `Attachments`. */
+  groups?: { key: string; label: string; ids: string[] }[];
 }) {
   const router = useRouter();
   const preview = useFilePreview();
@@ -38,19 +57,37 @@ export function LinkedDocuments({
 
   if (rows.length === 0 && candidates.length === 0) return null;
 
+  // Headings threaded in as strings, exactly as the attachments list does it.
+  const ordered: (LinkedDocumentRow | string)[] = !groups
+    ? rows
+    : (() => {
+        const byId = new Map(rows.map((r) => [r.id, r]));
+        return groups.flatMap((group) => {
+          const found = group.ids
+            .map((id) => byId.get(id))
+            .filter((r): r is LinkedDocumentRow => r !== undefined);
+          return found.length > 0 ? [group.label, ...found] : [];
+        });
+      })();
+
   return (
     <section className="mt-6 flex flex-col gap-2">
       <div className="flex items-baseline justify-between">
         <span className="text-[10px] uppercase tracking-wider text-grey-500">
           Documents
         </span>
-        <button
-          type="button"
-          onClick={() => setAdding((v) => !v)}
-          className="text-[11px] text-grey-500 underline underline-offset-2 hover:text-grey-800"
-        >
-          {adding ? 'Cancel' : 'Link a document'}
-        </button>
+        <div className="flex shrink-0 items-center gap-3">
+          {sort && sortKey && rows.length > 1 ? (
+            <SortControl viewKey={sortKey} choice={sort} />
+          ) : null}
+          <button
+            type="button"
+            onClick={() => setAdding((v) => !v)}
+            className="text-[11px] text-grey-500 underline underline-offset-2 hover:text-grey-800"
+          >
+            {adding ? 'Cancel' : 'Link a document'}
+          </button>
+        </div>
       </div>
 
       {rows.length === 0 ? (
@@ -59,7 +96,10 @@ export function LinkedDocuments({
         </p>
       ) : (
         <ul className="flex flex-col">
-          {rows.map((row) => (
+          {ordered.map((row) =>
+            typeof row === 'string' ? (
+              <GroupHeading key={`h-${row}`} label={row} />
+            ) : (
             <li
               key={row.id}
               className="group flex items-center gap-2 border-b border-grey-150 py-1.5 text-[12px] last:border-0"
@@ -77,6 +117,10 @@ export function LinkedDocuments({
                   href={driveFileUrl(row.driveFileId)}
                   target="_blank"
                   rel="noreferrer"
+                  /* Counted on the way past by the shell's one listener. On
+                     the anchor rather than the row, so Unlink beside it does
+                     not register as having opened what it is about to drop. */
+                  data-use={`box_item:${row.id}`}
                   onClick={(e) => {
                     if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
                     e.preventDefault();
@@ -101,11 +145,27 @@ export function LinkedDocuments({
               ) : (
                 <Link
                   href={`/box/${row.boxId}?doc=${row.id}`}
+                  data-use={`box_item:${row.id}`}
                   className="min-w-0 flex-1 truncate text-grey-700 hover:underline"
                 >
                   {documentLabel(row)}
                 </Link>
               )}
+
+              {/* The count is editable; the date is not. A linked document
+                  is ordered by when it was cited here, which is a fact about
+                  the link rather than about the document — and the
+                  document's own arrival date is already editable in its box. */}
+              {sort ? (
+                <FileMeta
+                  type="box_item"
+                  id={row.id}
+                  sort={sort.sort}
+                  addedAt={row.capturedAt}
+                  useCount={row.useCount}
+                  editableDate={false}
+                />
+              ) : null}
 
               <Link
                 href={`/box/${row.boxId}?doc=${row.id}`}
@@ -128,7 +188,8 @@ export function LinkedDocuments({
                 Unlink
               </button>
             </li>
-          ))}
+            ),
+          )}
         </ul>
       )}
 

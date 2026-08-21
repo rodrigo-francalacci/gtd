@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from 'react';
 import { clarifyInboxItem, type ClarifyDecision } from '@/lib/actions';
+import type { ListOrder } from '@/lib/file-lists';
 import type { AttachmentRow } from '@/lib/queries.shared';
 import type { Context } from '@gtd/db';
 import { Attachments } from './attachments';
@@ -23,6 +24,7 @@ const NOT_ACTIONABLE: { kind: Kind; label: string; hint: string }[] = [
 export function ClarifyPanel({
   item,
   attachments,
+  fileOrder,
   projects,
   areas,
   lists,
@@ -39,6 +41,8 @@ export function ClarifyPanel({
     } | null;
   };
   attachments: AttachmentRow[];
+  /** How the captured-files list is ordered. */
+  fileOrder?: ListOrder;
   projects: { id: string; title: string }[];
   areas: { id: string; name: string }[];
   lists: { id: string; name: string; type: string }[];
@@ -396,6 +400,9 @@ export function ClarifyPanel({
         parentId={item.id}
         rows={attachments}
         label="Captured files"
+        sort={fileOrder?.sort}
+        sortKey={fileOrder?.viewKey}
+        groups={fileOrder?.groups}
       />
     </div>
   );

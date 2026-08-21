@@ -1,13 +1,12 @@
 import { notFound } from 'next/navigation';
+import { attachmentsFor, documentsFor } from '@/lib/file-lists';
 import { DetailPane } from '@/components/panes';
 import { ProjectActionsSection } from '@/components/project-actions-section';
 import { ProjectDetail } from '@/components/project-detail';
 import { ProjectListPane } from '@/components/project-list-pane';
 import {
   getAreasAndGoals,
-  getAttachments,
   getLinkableDocuments,
-  getLinkedDocuments,
   getProject,
   getProjectActions,
 } from '@/lib/queries';
@@ -20,14 +19,13 @@ export default async function ProjectPage(props: PageProps<'/projects/[id]'>) {
   const project = await getProject(id);
   if (!project) notFound();
 
-  const [projectActions, horizons, files, documents, documentOptions] =
-    await Promise.all([
-      getProjectActions(id),
-      getAreasAndGoals(),
-      getAttachments('project', id),
-      getLinkedDocuments('project', id),
-      getLinkableDocuments('project', id, ''),
-    ]);
+  const [projectActions, horizons, files, docs, documentOptions] = await Promise.all([
+    getProjectActions(id),
+    getAreasAndGoals(),
+    attachmentsFor('project', id),
+    documentsFor('project', id),
+    getLinkableDocuments('project', id, ''),
+  ]);
   const stalled =
     project.status === 'active' && !projectActions.some((a) => a.status === 'next');
 
@@ -42,8 +40,10 @@ export default async function ProjectPage(props: PageProps<'/projects/[id]'>) {
         <ProjectDetail
           key={project.id}
           project={project}
-          attachments={files}
-          documents={documents}
+          attachments={files.rows}
+          fileOrder={files.order}
+          documents={docs.rows}
+          docOrder={docs.order}
           documentOptions={documentOptions}
           stalled={stalled}
           horizons={horizons}

@@ -34,6 +34,8 @@ import {
   sql,
 } from 'drizzle-orm';
 import { alias } from 'drizzle-orm/pg-core';
+import { orderFor } from './order';
+import { DEFAULT_ATTACHMENT_SORT, type SortChoice } from './sort';
 import type {
   ActionRow,
   AttachmentRow,
@@ -807,6 +809,7 @@ export async function getSidebarCounts() {
 export async function getAttachments(
   parentType: AttachmentParentType,
   parentId: string,
+  sort: SortChoice = DEFAULT_ATTACHMENT_SORT,
 ): Promise<AttachmentRow[]> {
   return db
     .select({
@@ -816,6 +819,7 @@ export async function getAttachments(
       mimeType: attachments.mimeType,
       sizeBytes: attachments.sizeBytes,
       driveFileId: attachments.driveFileId,
+      useCount: attachments.useCount,
       createdAt: attachments.createdAt,
     })
     .from(attachments)
@@ -825,7 +829,24 @@ export async function getAttachments(
         eq(attachments.parentId, parentId),
       ),
     )
-    .orderBy(asc(attachments.createdAt));
+    /**
+     * There is no manual order here — an attachment row has no drag grip and
+     * never had a position — so the three that apply are arrival, name and
+     * use. Arrival ascending is the default, which is what this list did
+     * before it could be sorted at all.
+     *
+     * This is the list the usage counter was built for: on a project you have
+     * been running for a year, the file you actually open every few weeks
+     * rises to the top by itself, and the twenty you filed once sink.
+     */
+    .orderBy(
+      ...orderFor(sort, {
+        arrival: attachments.createdAt,
+        title: attachments.name,
+        useCount: attachments.useCount,
+        lastUsedAt: attachments.lastUsedAt,
+      }),
+    );
 }
 
 // ---------------------------------------------------------------------------
@@ -1128,6 +1149,7 @@ export async function getBoxItemLinks(itemId: string): Promise<BoxLinkRow[]> {
 export async function getLinkedDocuments(
   parentType: AttachmentParentType,
   parentId: string,
+  sort: SortChoice = DEFAULT_ATTACHMENT_SORT,
 ): Promise<LinkedDocumentRow[]> {
   const rows = await db
     .select({
@@ -1140,6 +1162,7 @@ export async function getLinkedDocuments(
       mimeType: boxItems.mimeType,
       sizeBytes: boxItems.sizeBytes,
       driveFileId: boxItems.driveFileId,
+      useCount: boxItems.useCount,
       capturedAt: boxItems.capturedAt,
     })
     .from(boxItemLinks)
@@ -1151,7 +1174,23 @@ export async function getLinkedDocuments(
         eq(boxItemLinks.parentId, parentId),
       ),
     )
-    .orderBy(asc(boxItemLinks.createdAt));
+    /**
+     * Arrival here is when the document was *linked*, not when it reached the
+     * box. The list answers "what did I attach to this project, and when" —
+     * a receipt filed last March and cited here yesterday belongs at the end
+     * of this list and near the top of its box, and both are right.
+     *
+     * The title falls back the way the box's own rows do: a note or a place
+     * has no title and its text is the description.
+     */
+    .orderBy(
+      ...orderFor(sort, {
+        arrival: boxItemLinks.createdAt,
+        title: sql`lower(coalesce(nullif(${boxItems.title}, ''), ${boxItems.description}, ${boxItems.name}, ''))`,
+        useCount: boxItems.useCount,
+        lastUsedAt: boxItems.lastUsedAt,
+      }),
+    );
 
   return rows as LinkedDocumentRow[];
 }

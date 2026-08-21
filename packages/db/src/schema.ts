@@ -42,6 +42,34 @@ const searchVector = (a: string, b?: string) =>
       : sql`to_tsvector('english', coalesce(${sql.raw(a)}, '') || ' ' || coalesce(${sql.raw(b)}, ''))`,
   );
 
+/**
+ * How often a file has actually been opened, and when it last was.
+ *
+ * The third way to order the files hanging off a project, action or list item,
+ * after when they arrived and what they are called. Those two are facts about
+ * the file; this is a record of what you have really been doing with it, and
+ * the only one that keeps itself honest as a year's worth of uploads piles up.
+ * The one you reach for every fortnight rises without anyone remembering to
+ * move it, and the one filed with great conviction in March sinks.
+ *
+ * Two columns rather than one because they answer different questions. The
+ * count is how much this has mattered over the file's whole life; the date is
+ * whether it still does. Sorting uses the count and breaks ties on the date, so
+ * twenty files opened once each come back in the order you last touched them
+ * rather than in whatever order Postgres felt like.
+ *
+ * On `attachments` and `box_items` only — the two things that are files. Rows
+ * you *navigate* (a project, an action) are passed through on the way to
+ * something else, so counting those would mostly record how the app is laid
+ * out. Denormalised rather than a usage table keyed on (type, id), which would
+ * put a join in the ORDER BY of a list that is only ever sorted, never queried,
+ * on this column.
+ */
+const usage = {
+  useCount: integer('use_count').notNull().default(0),
+  lastUsedAt: timestamp('last_used_at', { withTimezone: true }),
+};
+
 // ---------------------------------------------------------------------------
 // Enums
 // ---------------------------------------------------------------------------
@@ -358,9 +386,14 @@ export const attachments = pgTable(
     transcription: text('transcription'),
     ocrText: text('ocr_text'),
     searchVector: searchVector('transcription', 'ocr_text'),
+    // The row this was built for. Opening a file is the clearest "use" there
+    // is in the app — a deliberate click on a thing you wanted to look at,
+    // rather than a row you passed over on the way somewhere else.
+    ...usage,
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [
+    index('attachments_use_count_idx').on(t.useCount),
     index('attachments_parent_idx').on(t.parentType, t.parentId),
     index('attachments_search_idx').using('gin', t.searchVector),
   ],
@@ -792,11 +825,13 @@ export const boxItems = pgTable(
      */
     searchText: text('search_text'),
     searchVector: searchVector('title', 'search_text'),
+    ...usage,
     capturedAt: timestamp('captured_at', { withTimezone: true }).notNull().defaultNow(),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [
+    index('box_items_use_count_idx').on(t.useCount),
     index('box_items_box_idx').on(t.boxId, t.capturedAt),
     index('box_items_drive_idx').on(t.driveFileId),
     index('box_items_search_idx').using('gin', t.searchVector),
@@ -917,6 +952,41 @@ export const preferences = pgTable('preferences', {
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 });
 
+/**
+ * How one particular list is ordered, and whether it is cut into groups.
+ *
+ * Its own table rather than more columns on `preferences`, because unlike the
+ * density and the theme this is not one answer for the whole app. Projects
+ * read best alphabetically, an inbox reads oldest-first because that is the
+ * order you work through it, and a box reads newest-first because that is the
+ * order things arrived. A single setting would force one of those onto all
+ * three, which is the same mistake as having no setting at all.
+ *
+ * The key names a *view*, not a table: `projects`, `now`, `inbox`,
+ * `list:<uuid>`, `box:<uuid>`. Two views over the same rows are two different
+ * things to look at and get their own answer — Now and a project's own action
+ * list are the obvious pair.
+ *
+ * A missing row means the view's own default, which is whatever it did before
+ * any of this existed. Nothing is written until something is chosen, so an
+ * untouched app has an empty table and behaves exactly as it always did.
+ */
+export const viewPrefs = pgTable('view_prefs', {
+  key: text('key').primaryKey(),
+  /** 'manual' | 'arrival' | 'alpha' | 'usage'. */
+  sort: text('sort'),
+  /** Newest/Z-A/most-used first. Ignored by 'manual', which has no direction. */
+  descending: boolean('descending').notNull().default(false),
+  /**
+   * Whether to cut the list into headed groups. What the groups *are* follows
+   * from the sort — days for arrival, first letters for A–Z — because a
+   * grouping that disagrees with the ordering produces headings whose contents
+   * are scattered through the list.
+   */
+  grouped: boolean('grouped').notNull().default(false),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+});
+
 // ---------------------------------------------------------------------------
 // Inferred types
 // ---------------------------------------------------------------------------
@@ -952,3 +1022,4 @@ export type BoxTag = typeof boxTags.$inferSelect;
 export type BoxItem = typeof boxItems.$inferSelect;
 export type BoxItemStatus = (typeof boxItemStatus.enumValues)[number];
 export type BoxItemKind = (typeof boxItemKind.enumValues)[number];
+export type ViewPref = typeof viewPrefs.$inferSelect;

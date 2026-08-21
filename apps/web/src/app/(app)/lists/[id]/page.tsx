@@ -1,4 +1,5 @@
 import { notFound } from 'next/navigation';
+import { attachmentsFor, documentsFor } from '@/lib/file-lists';
 import { BudgetSummary } from '@/components/budget-summary';
 import { ListItemDetail } from '@/components/list-item-detail';
 import { DetailPane, EmptyDetail, EmptyList, ListPane } from '@/components/panes';
@@ -7,9 +8,7 @@ import { SortableListItems } from '@/components/sortable-list-items';
 import { LIST_ITEM_COLUMNS, PURCHASE_COLUMNS } from '@/lib/columns';
 import {
   formatMoney,
-  getAttachments,
   getLinkableDocuments,
-  getLinkedDocuments,
   getList,
   getListItem,
   getListItems,
@@ -58,6 +57,12 @@ export default async function ListPage(props: PageProps<'/lists/[id]'>) {
 
   const candidates = allItems.filter((i) => i.stage === 'candidate').length;
 
+  // Read once, above the JSX. Each of these is a query plus a
+  // preference lookup, and calling them inline would run both twice —
+  // once for the rows and again for the order they are in.
+  const files = selected ? await attachmentsFor('list_item', selected.id) : null;
+  const docs = selected ? await documentsFor('list_item', selected.id) : null;
+
   return (
     <>
       <ListPane
@@ -101,8 +106,10 @@ export default async function ListPage(props: PageProps<'/lists/[id]'>) {
           <ListItemDetail
             key={selected.id}
             item={selected}
-            attachments={await getAttachments('list_item', selected.id)}
-            documents={await getLinkedDocuments('list_item', selected.id)}
+            attachments={files!.rows}
+            fileOrder={files!.order}
+            documents={docs!.rows}
+            docOrder={docs!.order}
             documentOptions={await getLinkableDocuments('list_item', selected.id, '')}
             isPurchases={isPurchases}
             projectOptions={projectOptions}

@@ -4,13 +4,12 @@ import { ContextFilter } from '@/components/context-filter';
 import { DetailPane, EmptyDetail, EmptyList, ListPane } from '@/components/panes';
 import { QuickAddAction } from '@/components/quick-add';
 import { ACTION_COLUMNS } from '@/lib/columns';
+import { attachmentsFor, documentsFor } from '@/lib/file-lists';
 import {
   getAction,
-  getAttachments,
   getContextsByDimension,
   getNowActions,
   getLinkableDocuments,
-  getLinkedDocuments,
 } from '@/lib/queries';
 import { getPreferences, paneWidth } from '@/lib/view-mode';
 
@@ -35,6 +34,12 @@ export default async function NowPage(props: PageProps<'/now'>) {
     p.set('action', id);
     return `/now?${p}`;
   };
+
+  // Read once, above the JSX. Each of these is a query plus a
+  // preference lookup, and calling them inline would run both twice —
+  // once for the rows and again for the order they are in.
+  const files = selected ? await attachmentsFor('action', selected.id) : null;
+  const docs = selected ? await documentsFor('action', selected.id) : null;
 
   return (
     <>
@@ -68,8 +73,10 @@ export default async function NowPage(props: PageProps<'/now'>) {
           <ActionDetail
             key={selected.id}
             action={selected}
-            attachments={await getAttachments('action', selected.id)}
-            documents={await getLinkedDocuments('action', selected.id)}
+            attachments={files!.rows}
+            fileOrder={files!.order}
+            documents={docs!.rows}
+            docOrder={docs!.order}
             documentOptions={await getLinkableDocuments('action', selected.id, '')}
             contextGroups={groups}
             parties={groups.person.map((p) => p.name)}

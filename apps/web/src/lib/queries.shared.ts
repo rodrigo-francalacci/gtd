@@ -186,6 +186,8 @@ export type AttachmentRow = {
   mimeType: string | null;
   sizeBytes: number | null;
   driveFileId: string | null;
+  /** How many times this file has been opened. Shown when sorting by use. */
+  useCount: number;
   createdAt: Date;
 };
 
@@ -297,6 +299,8 @@ export type LinkedDocumentRow = {
   mimeType: string | null;
   sizeBytes: number | null;
   driveFileId: string | null;
+  /** How many times this document has been opened. Shown when sorting by use. */
+  useCount: number;
   capturedAt: Date;
 };
 

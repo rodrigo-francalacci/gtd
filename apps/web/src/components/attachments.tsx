@@ -7,8 +7,12 @@ import { createDocument, detachAttachment } from '@/lib/actions';
 import { UploadError, uploadToDrive } from '@/lib/drive-upload';
 import { GOOGLE_DOC, GOOGLE_SHEET, driveFileUrl } from '@/lib/google/sync';
 import type { AttachmentRow } from '@/lib/queries.shared';
+import type { SortChoice } from '@/lib/sort';
 import { useFilePreview } from './file-preview';
+import { FileMeta } from './file-meta';
+import { GroupHeading } from './group-heading';
 import { IconAudio, IconDocument, IconImage } from './icons';
+import { SortControl } from './sort-control';
 
 /**
  * Files attached to a project, action or list item.
@@ -24,11 +28,28 @@ export function Attachments({
   parentId,
   rows,
   label = 'Attachments',
+  sort,
+  sortKey,
+  groups,
 }: {
   parentType: AttachmentParentType;
   parentId: string;
   rows: AttachmentRow[];
   label?: string;
+  /**
+   * How this list is ordered. The rows arrive already sorted — that happens in
+   * SQL — so this is only here so the control can show what was chosen.
+   */
+  sort?: SortChoice;
+  sortKey?: string;
+  /**
+   * Ids per heading, when the list is cut into groups.
+   *
+   * Ids rather than rows, because the grouping is worked out on the server and
+   * a row would then exist twice — once here and once in `rows` — with
+   * nothing keeping the copies in step. This says only where the cuts go.
+   */
+  groups?: { key: string; label: string; ids: string[] }[];
 }) {
   const router = useRouter();
   const preview = useFilePreview();
@@ -110,6 +131,26 @@ export function Attachments({
     router.refresh();
   };
 
+  /**
+   * The rows, with heading strings threaded in where the groups start.
+   *
+   * One flat list rather than a `<ul>` per group: the rows are separated by
+   * `divide-y`, and nesting lists would restart that divider at every heading
+   * and put a rule above each one. A string in the stream is a heading; an
+   * object is a row.
+   */
+  const ordered: (AttachmentRow | string)[] = !groups
+    ? rows
+    : (() => {
+        const byId = new Map(rows.map((r) => [r.id, r]));
+        return groups.flatMap((group) => {
+          const found = group.ids
+            .map((id) => byId.get(id))
+            .filter((r): r is AttachmentRow => r !== undefined);
+          return found.length > 0 ? [group.label, ...found] : [];
+        });
+      })();
+
   return (
     <section className="mt-8 border-t border-grey-150 pt-5">
       <div className="mb-2 flex items-baseline justify-between gap-2">
@@ -120,6 +161,12 @@ export function Attachments({
           ) : null}
         </h2>
         <div className="flex shrink-0 items-center gap-3">
+          {sort && sortKey && rows.length > 1 ? (
+            // Only once there is an order to argue about. One file cannot be
+            // sorted, and a menu offering to is noise on every pane that has
+            // a single attachment.
+            <SortControl viewKey={sortKey} choice={sort} />
+          ) : null}
           <button
             type="button"
             disabled={creating}
@@ -203,7 +250,10 @@ export function Attachments({
           </p>
         ) : (
           <ul className="divide-y divide-grey-150">
-            {rows.map((row) => (
+            {ordered.map((row) =>
+              typeof row === 'string' ? (
+                <GroupHeading key={`h-${row}`} label={row} />
+              ) : (
               <li
                 key={row.id}
                 className="group flex items-center gap-2 px-3 py-1.5 text-[12px]"
@@ -219,6 +269,11 @@ export function Attachments({
                   href={row.driveFileId ? driveFileUrl(row.driveFileId) : undefined}
                   target="_blank"
                   rel="noreferrer"
+                  /* Counted on the way past by the shell's one listener. It
+                     sits on the anchor rather than the row, so the Remove
+                     button beside it doesn't register as having opened the
+                     thing it is about to throw away. */
+                  data-use={`attachment:${row.id}`}
                   onClick={(e) => {
                     if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
                     e.preventDefault();
@@ -243,6 +298,19 @@ export function Attachments({
                   {row.name}
                 </a>
 
+                {/* Whichever fact explains this row's position, and the
+                    place to correct it. Nothing under "By name" — the name is
+                    already the whole row. */}
+                {sort ? (
+                  <FileMeta
+                    type="attachment"
+                    id={row.id}
+                    sort={sort.sort}
+                    addedAt={row.createdAt}
+                    useCount={row.useCount}
+                  />
+                ) : null}
+
                 <span className="shrink-0 tabular-nums text-[11px] text-grey-400">
                   {formatSize(row.sizeBytes)}
                 </span>
@@ -263,7 +331,8 @@ export function Attachments({
                   Remove
                 </button>
               </li>
-            ))}
+              ),
+            )}
 
             {busy.map((name) => (
               <li

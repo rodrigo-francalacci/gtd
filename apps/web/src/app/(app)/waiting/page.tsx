@@ -1,13 +1,12 @@
 import { ActionDetail } from '@/components/action-detail';
+import { attachmentsFor, documentsFor } from '@/lib/file-lists';
 import { SortableActionList } from '@/components/sortable-action-list';
 import { DetailPane, EmptyDetail, EmptyList, ListPane } from '@/components/panes';
 import { WAITING_COLUMNS } from '@/lib/columns';
 import {
   WAITING_STALE_DAYS,
   getAction,
-  getAttachments,
   getLinkableDocuments,
-  getLinkedDocuments,
   getContextsByDimension,
   getWaitingActions,
   isStale,
@@ -27,6 +26,12 @@ export default async function WaitingPage(props: PageProps<'/waiting'>) {
   const viewMode = prefs.viewMode;
 
   const staleCount = rows.filter((r) => isStale(r.waitingSince)).length;
+
+  // Read once, above the JSX. Each of these is a query plus a
+  // preference lookup, and calling them inline would run both twice —
+  // once for the rows and again for the order they are in.
+  const files = selected ? await attachmentsFor('action', selected.id) : null;
+  const docs = selected ? await documentsFor('action', selected.id) : null;
 
   return (
     <>
@@ -60,8 +65,10 @@ export default async function WaitingPage(props: PageProps<'/waiting'>) {
           <ActionDetail
             key={selected.id}
             action={selected}
-            attachments={await getAttachments('action', selected.id)}
-            documents={await getLinkedDocuments('action', selected.id)}
+            attachments={files!.rows}
+            fileOrder={files!.order}
+            documents={docs!.rows}
+            docOrder={docs!.order}
             documentOptions={await getLinkableDocuments('action', selected.id, '')}
             contextGroups={groups}
             parties={groups.person.map((p) => p.name)}

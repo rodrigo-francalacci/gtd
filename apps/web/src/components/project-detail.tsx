@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 
+import type { ListOrder } from '@/lib/file-lists';
 import type { ProjectStatus } from '@gtd/db';
 import { useState, useTransition } from 'react';
 import {
@@ -54,7 +55,9 @@ const STATUSES: { value: ProjectStatus; label: string }[] = [
 export function ProjectDetail({
   project,
   attachments,
+  fileOrder,
   documents,
+  docOrder,
   documentOptions,
   stalled,
   horizons,
@@ -62,6 +65,9 @@ export function ProjectDetail({
   project: ProjectDetailData;
   attachments: AttachmentRow[];
   documents: LinkedDocumentRow[];
+  /** How each of the two file lists is ordered. Separate choices. */
+  fileOrder?: ListOrder;
+  docOrder?: ListOrder;
   documentOptions: LinkedDocumentRow[];
   stalled: boolean;
   horizons: HorizonOptions;
@@ -253,6 +259,9 @@ export function ProjectDetail({
         parentType="project"
         parentId={project.id}
         rows={attachments}
+        sort={fileOrder?.sort}
+        sortKey={fileOrder?.viewKey}
+        groups={fileOrder?.groups}
       />
 
       <LinkedDocuments
@@ -260,6 +269,9 @@ export function ProjectDetail({
         parentId={project.id}
         rows={documents}
         candidates={documentOptions}
+        sort={docOrder?.sort}
+        sortKey={docOrder?.viewKey}
+        groups={docOrder?.groups}
       />
 
       <footer className="mt-8 space-y-2 border-t border-grey-150 pt-3">

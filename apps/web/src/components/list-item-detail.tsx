@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { useState, useTransition } from 'react';
+import type { ListOrder } from '@/lib/file-lists';
 import {
   deleteListItem,
   promoteListItem,
@@ -28,7 +29,9 @@ import { NoteEditor } from './note-editor';
 export function ListItemDetail({
   item,
   attachments,
+  fileOrder,
   documents,
+  docOrder,
   documentOptions,
   isPurchases,
   projectOptions,
@@ -36,6 +39,9 @@ export function ListItemDetail({
   item: Row;
   attachments: AttachmentRow[];
   documents: LinkedDocumentRow[];
+  /** How each of the two file lists is ordered. Separate choices. */
+  fileOrder?: ListOrder;
+  docOrder?: ListOrder;
   documentOptions: LinkedDocumentRow[];
   isPurchases: boolean;
   projectOptions: { id: string; title: string }[];
@@ -192,6 +198,9 @@ export function ListItemDetail({
         parentId={item.id}
         rows={attachments}
         label="Photos & files"
+        sort={fileOrder?.sort}
+        sortKey={fileOrder?.viewKey}
+        groups={fileOrder?.groups}
       />
 
       <LinkedDocuments
@@ -199,6 +208,9 @@ export function ListItemDetail({
         parentId={item.id}
         rows={documents}
         candidates={documentOptions}
+        sort={docOrder?.sort}
+        sortKey={docOrder?.viewKey}
+        groups={docOrder?.groups}
       />
 
       <footer className="mt-8 border-t border-grey-150 pt-3">

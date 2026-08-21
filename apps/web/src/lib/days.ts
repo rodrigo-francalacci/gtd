@@ -42,13 +42,23 @@ export function dayLabel(date: Date, now = new Date()): string {
 }
 
 /**
- * Group into days, newest day first, preserving the order within each day.
+ * Group into days, preserving the order within each day.
  *
  * The caller sorts; this only cuts. A list that arrives newest-first stays
  * that way inside each heading, which is what "most recent on top" has to mean
  * all the way down or the ordering reverses halfway through a day.
+ *
+ * `newestFirst` defaults to true because that is what both original callers
+ * wanted: a feed and a day-grouped inbox are read from the top. It became a
+ * parameter once an attachments list could be asked for oldest-first — the
+ * days have to run the same way as the rows inside them, or the list counts
+ * forwards within each heading and backwards between them.
  */
-export function groupByDay<T>(items: T[], dateOf: (item: T) => Date): Day<T>[] {
+export function groupByDay<T>(
+  items: T[],
+  dateOf: (item: T) => Date,
+  newestFirst = true,
+): Day<T>[] {
   const now = new Date();
   const days = new Map<string, T[]>();
 
@@ -59,7 +69,7 @@ export function groupByDay<T>(items: T[], dateOf: (item: T) => Date): Day<T>[] {
 
   return [...days.entries()]
     // The key is ISO-ordered, so a string sort is a date sort.
-    .sort(([a], [b]) => b.localeCompare(a))
+    .sort(([a], [b]) => (newestFirst ? b.localeCompare(a) : a.localeCompare(b)))
     .map(([key, rows]) => ({
       key,
       label: dayLabel(dateOf(rows[0]), now),

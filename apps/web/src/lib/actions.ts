@@ -48,6 +48,9 @@ import {
 import { deleteBoxItem } from './google/boxes';
 import { enqueueSync } from './google/queue';
 import { enqueueBoxJob } from './box/queue';
+import { canGroup, type SortChoice } from './sort';
+import { setUsage, type UsableType } from './usage';
+import { setViewPref } from './view-prefs';
 import { docFromText, extractText } from './tiptap';
 
 /**
@@ -824,6 +827,42 @@ export async function setViewMode(mode: ViewMode) {
 }
 
 /**
+ * How one list is ordered.
+ *
+ * Per view rather than one setting for the app, because these lists are not
+ * asking the same question. Projects read best by name, an inbox reads
+ * oldest-first because that is the order you work through it, and a box reads
+ * newest-first because that is the order things arrived — a single setting
+ * would force one of those onto all three.
+ */
+export async function setViewSort(key: string, choice: SortChoice) {
+  await requireSession();
+
+  await setViewPref(key, {
+    sort: choice.sort,
+    descending: choice.descending,
+    // A grouping asked for under A–Z must not survive a switch to a sort that
+    // cannot produce headings, or the toggle stays lit over an ungrouped list.
+    grouped: choice.grouped && canGroup(choice.sort),
+  });
+
+  revalidateShell();
+}
+
+/**
+ * Correct a usage count by hand.
+ *
+ * The escape hatch that makes the automatic count safe to sort by. A file
+ * opened forty times during one bad week would otherwise sit at the top of a
+ * pane for a year, and "no, that was once" is the only way to say so.
+ */
+export async function correctUsage(type: UsableType, id: string, count: number) {
+  await requireSession();
+  await setUsage(type, id, count);
+  revalidateShell();
+}
+
+/**
  * Called once on pointer-up, not during the drag — the pane follows the cursor
  * locally, and only the final width is written.
  */
@@ -1450,6 +1489,37 @@ export async function setDocumentArrivedAt(itemId: string, iso: string) {
     .update(boxItems)
     .set({ capturedAt: when, updatedAt: new Date() })
     .where(eq(boxItems.id, itemId));
+
+  revalidateShell();
+}
+
+/**
+ * Correct when a file was added to this project, action or list item.
+ *
+ * The same reasoning as a document's arrival date, one list along: this is
+ * what "Added — oldest first" orders by, so it decides where the row *is*. A
+ * file uploaded today that actually belongs with last spring's paperwork sits
+ * at the wrong end of the list otherwise, and the list is how you find it.
+ *
+ * Deliberately not touching anything in Drive. This is our record of when the
+ * file joined this project, not a claim about the file itself.
+ */
+export async function setAttachmentAddedAt(attachmentId: string, iso: string) {
+  await requireSession();
+
+  const when = new Date(iso);
+  if (Number.isNaN(when.getTime())) return;
+
+  // The same rails as a document's arrival: a year typed as 202 rather than
+  // 2025 would otherwise bury the row at the bottom of the list forever.
+  const tooOld = when.getTime() < Date.UTC(1900, 0, 1);
+  const inFuture = when.getTime() > Date.now() + 365 * 24 * 60 * 60 * 1000;
+  if (tooOld || inFuture) return;
+
+  await db
+    .update(attachments)
+    .set({ createdAt: when })
+    .where(eq(attachments.id, attachmentId));
 
   revalidateShell();
 }

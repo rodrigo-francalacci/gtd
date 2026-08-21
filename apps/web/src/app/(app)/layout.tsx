@@ -1,6 +1,7 @@
 import { CaptureHotkey } from '@/components/capture-hotkey';
 import { FilePreviewProvider } from '@/components/file-preview';
 import { SidebarNav } from '@/components/sidebar';
+import { UsageTracker } from '@/components/usage-tracker';
 import { requireSession } from '@/lib/auth/session';
 import { getBoxes, getLists, getSidebarCounts } from '@/lib/queries';
 import { getPreferences } from '@/lib/view-mode';
@@ -31,6 +32,9 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       {/* Renders nothing; listens for `c` so a thought can be captured from
           wherever you happen to be when it arrives. */}
       <CaptureHotkey />
+      {/* Also renders nothing; counts what gets opened, so a list can be
+          sorted by what you actually use rather than only by what you filed. */}
+      <UsageTracker />
       <SidebarNav
         counts={counts}
         lists={lists}

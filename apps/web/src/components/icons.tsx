@@ -338,3 +338,25 @@ export const IconMoon = (p: IconProps) => (
     <path d="M13 9.6A5.6 5.6 0 0 1 6.4 3a5.7 5.7 0 1 0 6.6 6.6z" />
   </Glyph>
 );
+
+/** Sort — lines of decreasing length with an arrow, the universal mark. */
+export const IconSort = (p: IconProps) => (
+  <Glyph {...p}>
+    <path d="M2.4 4h7" />
+    <path d="M2.4 8h4.8" />
+    <path d="M2.4 12h2.6" />
+    <path d="M12 3.6v8.8" />
+    <path d="M10.2 10.6 12 12.4l1.8-1.8" />
+  </Glyph>
+);
+
+/** Grouped — two stacks, each under its own rule. */
+export const IconGroup = (p: IconProps) => (
+  <Glyph {...p}>
+    <path d="M2.4 3h11.2" />
+    <path d="M4.6 5.8h6.8" />
+    <path d="M4.6 8.2h6.8" />
+    <path d="M2.4 11h11.2" />
+    <path d="M4.6 13.4h6.8" />
+  </Glyph>
+);

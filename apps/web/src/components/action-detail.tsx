@@ -1,5 +1,6 @@
 'use client';
 
+import type { ListOrder } from '@/lib/file-lists';
 import type { Context } from '@gtd/db';
 import { useRouter } from 'next/navigation';
 import { useState, useTransition } from 'react';
@@ -38,7 +39,9 @@ type ActionDetailData = {
 export function ActionDetail({
   action,
   attachments,
+  fileOrder,
   documents,
+  docOrder,
   documentOptions,
   contextGroups,
   parties,
@@ -46,6 +49,9 @@ export function ActionDetail({
   action: ActionDetailData;
   attachments: AttachmentRow[];
   documents: LinkedDocumentRow[];
+  /** How each of the two file lists is ordered. Separate choices. */
+  fileOrder?: ListOrder;
+  docOrder?: ListOrder;
   documentOptions: LinkedDocumentRow[];
   /** Existing waiting-on names, offered as suggestions. */
   parties: string[];
@@ -224,6 +230,9 @@ export function ActionDetail({
         parentType="action"
         parentId={action.id}
         rows={attachments}
+        sort={fileOrder?.sort}
+        sortKey={fileOrder?.viewKey}
+        groups={fileOrder?.groups}
       />
 
       <LinkedDocuments
@@ -231,6 +240,9 @@ export function ActionDetail({
         parentId={action.id}
         rows={documents}
         candidates={documentOptions}
+        sort={docOrder?.sort}
+        sortKey={docOrder?.viewKey}
+        groups={docOrder?.groups}
       />
 
       <footer className="mt-8 border-t border-grey-150 pt-3">
