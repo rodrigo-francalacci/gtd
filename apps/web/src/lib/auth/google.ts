@@ -29,10 +29,38 @@ export const SYNC_SCOPES = [
   'https://www.googleapis.com/auth/gmail.labels',
 ];
 
+/**
+ * Reading the calendar, and nothing else.
+ *
+ * `calendar.readonly` rather than the narrower `calendar.events.readonly`,
+ * and the difference is not about events at all: the narrow one cannot
+ * enumerate calendars, so it can only read whichever calendar you name — in
+ * practice `primary`. Anything on a second, shared or subscribed calendar
+ * would be invisible, *and the app would have no way to know it was missing*.
+ * A day view that quietly omits a whole calendar is worse than one that shows
+ * too much, because you would trust it.
+ *
+ * Read-only either way. There is no create, edit or delete anywhere in this
+ * app's calendar code, and this scope could not perform one if there were —
+ * changes are made in Google Calendar, which is the one place that owns them.
+ *
+ * Granted separately from `SYNC_SCOPES` so the calendar stays optional: the
+ * app is entirely usable without it, and asking for a broader Google
+ * permission at first sign-in to power a view you may never open would be the
+ * wrong bargain.
+ */
+export const CALENDAR_SCOPES = ['https://www.googleapis.com/auth/calendar.readonly'];
+
 export function hasSyncScopes(granted: string | null | undefined): boolean {
   if (!granted) return false;
   const set = new Set(granted.split(/\s+/));
   return SYNC_SCOPES.every((scope) => set.has(scope));
+}
+
+export function hasCalendarScope(granted: string | null | undefined): boolean {
+  if (!granted) return false;
+  const set = new Set(granted.split(/\s+/));
+  return CALENDAR_SCOPES.every((scope) => set.has(scope));
 }
 
 export function googleConfig() {

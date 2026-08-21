@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import {
+  CALENDAR_SCOPES,
   IDENTITY_SCOPES,
   SYNC_SCOPES,
   authorizeUrl,
@@ -22,10 +23,24 @@ const TEN_MINUTES = 60 * 10;
 export async function GET(request: Request) {
   const { clientId } = googleConfig();
 
-  // `?scopes=sync` asks for Drive and Gmail on top of identity. Google's
-  // include_granted_scopes makes this incremental: the new grant keeps what
-  // was already approved, so signing in for sync doesn't drop identity.
-  const wantsSync = new URL(request.url).searchParams.get('scopes') === 'sync';
+  /**
+   * `?scopes=` asks for more than identity. Google's `include_granted_scopes`
+   * makes this incremental: the new grant keeps what was already approved, so
+   * signing in for sync doesn't drop identity and adding the calendar doesn't
+   * drop either of them.
+   *
+   *   sync      — Drive and Gmail, what the app needs to file things
+   *   calendar  — read-only calendar, which is optional and asked for on its
+   *               own so it is never bundled into first sign-in
+   */
+  const requested = new URL(request.url).searchParams.get('scopes');
+
+  const extra =
+    requested === 'sync'
+      ? SYNC_SCOPES
+      : requested === 'calendar'
+        ? CALENDAR_SCOPES
+        : [];
 
   const state = randomToken();
   const verifier = randomToken();
@@ -35,7 +50,7 @@ export async function GET(request: Request) {
     redirectUri: redirectUri(request),
     state,
     verifier,
-    scopes: wantsSync ? [...IDENTITY_SCOPES, ...SYNC_SCOPES] : IDENTITY_SCOPES,
+    scopes: [...IDENTITY_SCOPES, ...extra],
   });
 
   const response = NextResponse.redirect(url);

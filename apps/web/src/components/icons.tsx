@@ -367,3 +367,13 @@ export const IconPlay = (p: IconProps) => (
     <path d="M5.2 3.6 12.2 8l-7 4.4z" />
   </Glyph>
 );
+
+/** Calendar — a grid with a bound top edge, the way a wall calendar hangs. */
+export const IconCalendar = (p: IconProps) => (
+  <Glyph {...p}>
+    <rect x="2.2" y="3.4" width="11.6" height="10.4" rx="1.2" />
+    <path d="M2.2 6.6h11.6" />
+    <path d="M5.4 2.2v2.4" />
+    <path d="M10.6 2.2v2.4" />
+  </Glyph>
+);

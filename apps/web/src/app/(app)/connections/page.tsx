@@ -4,7 +4,7 @@ import {
   SyncControls,
   VerifyLinks,
 } from '@/components/connection-controls';
-import { SYNC_SCOPES, hasSyncScopes } from '@/lib/auth/google';
+import { SYNC_SCOPES, hasCalendarScope, hasSyncScopes } from '@/lib/auth/google';
 import { getGrant } from '@/lib/auth/token';
 import { getEnrichmentStatus } from '@/lib/enrich/queue';
 import { countUnlinkedProjects, getSyncQueueStatus } from '@/lib/google/queue';
@@ -13,6 +13,8 @@ const SCOPE_LABELS: Record<string, string> = {
   'https://www.googleapis.com/auth/drive.file':
     'Drive — only files this app creates',
   'https://www.googleapis.com/auth/gmail.labels': 'Gmail — labels only, no messages',
+  'https://www.googleapis.com/auth/calendar.readonly':
+    'Calendar — read only, never written to',
 };
 
 export default async function ConnectionsPage() {
@@ -24,6 +26,9 @@ export default async function ConnectionsPage() {
   ]);
   const connected = Boolean(grant?.refreshToken);
   const syncReady = connected && hasSyncScopes(grant?.scope);
+  // Granted separately, and genuinely optional: everything else works without
+  // it, so it is reported as its own state rather than folded into the rest.
+  const calendarReady = connected && hasCalendarScope(grant?.scope);
 
   return (
     <div className="min-w-0 flex-1 overflow-y-auto bg-paper">
@@ -93,6 +98,40 @@ export default async function ConnectionsPage() {
                 The narrowest scopes that do the job: this app can only touch
                 files it created itself, and can manage labels without reading a
                 single message.
+              </p>
+            </>
+          )}
+        </section>
+
+        <section className="mt-6">
+          <h2 className="text-[10px] font-semibold uppercase tracking-wider text-grey-500">
+            Calendar
+          </h2>
+          {calendarReady ? (
+            <>
+              <p className="mt-1 text-[13px] text-grey-700">
+                Connected, read only.
+              </p>
+              <p className="mt-1 max-w-prose text-[11px] leading-relaxed text-grey-500">
+                The Calendar view lists what is coming up. This app never
+                creates, changes or deletes an event — those happen in Google
+                Calendar, which owns them.
+              </p>
+            </>
+          ) : (
+            <>
+              <p className="mt-1 text-[13px] text-grey-700">Not connected.</p>
+              <a
+                href="/api/auth/signin?scopes=calendar"
+                className="mt-2 inline-block rounded-sm bg-grey-800 px-2.5 py-1 text-[12px] text-paper"
+              >
+                Connect Calendar
+              </a>
+              <p className="mt-2 max-w-prose text-[11px] leading-relaxed text-grey-500">
+                Read-only, and optional — the rest of the app works without it.
+                It reads which calendars you have and what is on them, so a
+                second or shared calendar is not silently missing; it cannot
+                write to any of them.
               </p>
             </>
           )}

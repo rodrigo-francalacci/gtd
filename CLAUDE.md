@@ -234,6 +234,40 @@ Turbopack is the default; `middleware` is now `proxy`.
 - **Scopes stay narrow:** `drive.file` (only files this app created) and
   `gmail.labels` (no message access). Widening either would drag the app into
   Google's restricted-scope verification, and neither is needed.
+- **The calendar is the one thing read *from* Google, and it is read-only.**
+  Google Calendar owns appointments outright — there is no create, edit or
+  delete anywhere in `lib/google/calendar.ts`, and the detail pane ends in a
+  link to Google because that is the only place that changes one. This does not
+  contradict one-way sync so much as sit outside it: nothing is being kept in
+  step, because nothing is stored. `calendar.readonly` rather than the narrower
+  `calendar.events.readonly`, and the difference is not about events: the narrow
+  scope cannot enumerate calendars, so it reads only whichever one you name
+  (`primary`) and a second or shared calendar would be invisible *with no way
+  for the app to know it was missing*. A day view that silently omits a calendar
+  is worse than one that shows too much. Granted separately from `SYNC_SCOPES`
+  via `?scopes=calendar`, so the calendar stays optional and first sign-in never
+  bundles it.
+- **`singleEvents=true` is not optional.** Without it a recurring event comes
+  back as the *rule* rather than its instances, so a weekly stand-up appears
+  once, dated whenever the series began — usually in the past. It is also what
+  makes `orderBy=startTime` legal; Google rejects that ordering otherwise.
+  Cancelled instances are dropped, and a calendar that fails to read is skipped
+  rather than failing the view: one bad subscribed calendar should cost you that
+  calendar, not your day.
+- **An all-day event is a date with no time, and must be parsed as local
+  midnight.** `new Date('2026-08-22')` is UTC by specification, which west of
+  Greenwich is the evening of the 21st — a birthday under the wrong heading, for
+  some readers and not others. `toDate` in `calendar-view.tsx` appends `T00:00:00`.
+  The same trap the date-range slider hit counting epoch days.
+- **The calendar is fetched by the client, never the page.** A request must not
+  wait on Google, so `/calendar` renders its panes immediately and asks
+  `/api/calendar` afterwards — an unreachable Google costs a list that is still
+  loading rather than a page that won't open. Nothing is cached or mirrored: a
+  stored copy is a second version that can disagree with the real one, and the
+  worker runs daily, so a day-stale answer to "what does today look like" is
+  worse than none. Selection is local state rather than a search param — the
+  only pane in the app where that is right, because the server renders none of
+  it and the ids are Google's.
 - **Google calls must be idempotent.** The worker retries, and Drive will
   happily create a second folder with the same name — `ensureFolder` and
   `ensureLabel` look before creating.

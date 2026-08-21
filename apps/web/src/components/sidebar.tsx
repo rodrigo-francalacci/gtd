@@ -6,6 +6,7 @@ import type { ComponentType, SVGProps } from 'react';
 import {
   IconAreas,
   IconBox,
+  IconCalendar,
   IconConnections,
   IconContexts,
   IconInbox,
@@ -94,6 +95,11 @@ export function SidebarNav({
           icon: IconWaiting,
           count: counts.waiting,
         },
+        // Engage rather than Organise: the calendar is not something you keep,
+        // it is the shape of the day you are deciding inside. No count —
+        // the events are read from Google when the view opens, and the shell
+        // must not wait on Google to render a number.
+        { href: '/calendar', label: 'Calendar', icon: IconCalendar },
       ],
     },
     {

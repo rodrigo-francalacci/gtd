@@ -41,6 +41,36 @@ export function dayLabel(date: Date, now = new Date()): string {
   return dayName.format(date);
 }
 
+/** Within the coming week the weekday carries the date with it. */
+const weekdayAndDate = new Intl.DateTimeFormat('en-GB', {
+  weekday: 'long',
+  day: 'numeric',
+  month: 'long',
+});
+
+/**
+ * The same idea pointing forwards.
+ *
+ * `dayLabel` reads into the past — Today, Yesterday, then the weekday for the
+ * last week — and cannot simply be reused here, because its "within the last
+ * six days" test is true of *every* future date. A meeting three weeks out
+ * would come back labelled "Wednesday", which is not a date at all.
+ *
+ * Beyond the coming week the weekday is kept alongside the date rather than
+ * dropped. Looking ahead, "Monday 14 September" is the useful form: the
+ * weekday is most of how anyone reasons about a future commitment, and the
+ * date is what stops it being ambiguous.
+ */
+export function upcomingDayLabel(date: Date, now = new Date()): string {
+  const key = dayKey.format(date);
+
+  if (key === dayKey.format(now)) return 'Today';
+  if (key === dayKey.format(new Date(now.getTime() + DAY_MS))) return 'Tomorrow';
+  if (date < new Date(now.getTime() + 7 * DAY_MS)) return weekday.format(date);
+
+  return weekdayAndDate.format(date);
+}
+
 /**
  * Group into days, preserving the order within each day.
  *
@@ -58,6 +88,8 @@ export function groupByDay<T>(
   items: T[],
   dateOf: (item: T) => Date,
   newestFirst = true,
+  /** How each heading reads. Forward-looking lists pass `upcomingDayLabel`. */
+  labelOf: (date: Date, now: Date) => string = dayLabel,
 ): Day<T>[] {
   const now = new Date();
   const days = new Map<string, T[]>();
@@ -72,7 +104,7 @@ export function groupByDay<T>(
     .sort(([a], [b]) => (newestFirst ? b.localeCompare(a) : a.localeCompare(b)))
     .map(([key, rows]) => ({
       key,
-      label: dayLabel(dateOf(rows[0]), now),
+      label: labelOf(dateOf(rows[0]), now),
       items: rows,
     }));
 }
