@@ -5,7 +5,12 @@ import { useRouter } from 'next/navigation';
 import type { AttachmentParentType } from '@gtd/db';
 import { createDocument, detachAttachment } from '@/lib/actions';
 import { UploadError, uploadToDrive } from '@/lib/drive-upload';
-import { GOOGLE_DOC, GOOGLE_SHEET, driveFileUrl } from '@/lib/google/sync';
+import {
+  GOOGLE_DOC,
+  GOOGLE_SHEET,
+  GOOGLE_SLIDES,
+  driveFileUrl,
+} from '@/lib/google/sync';
 import type { AttachmentRow } from '@/lib/queries.shared';
 import type { SortChoice } from '@/lib/sort';
 import { AudioRecorder } from './audio-recorder';
@@ -185,6 +190,14 @@ export function Attachments({
             className="text-[11px] text-grey-500 underline underline-offset-2 hover:text-grey-800 disabled:opacity-40"
           >
             New sheet
+          </button>
+          <button
+            type="button"
+            disabled={creating}
+            onClick={() => create(GOOGLE_SLIDES, 'Slides')}
+            className="text-[11px] text-grey-500 underline underline-offset-2 hover:text-grey-800 disabled:opacity-40"
+          >
+            New slides
           </button>
           <button
             type="button"
