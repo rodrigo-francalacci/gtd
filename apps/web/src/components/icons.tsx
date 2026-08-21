@@ -317,7 +317,7 @@ export const IconRecord = (p: IconProps) => (
   </Glyph>
 );
 
-/** Stop recording — a square. */
+/** Stop — a filled square. Ends a recording, and ends playback. */
 export const IconStop = (p: IconProps) => (
   <Glyph {...p}>
     <rect x="4.4" y="4.4" width="7.2" height="7.2" rx="1" fill="currentColor" stroke="none" />
@@ -358,5 +358,12 @@ export const IconGroup = (p: IconProps) => (
     <path d="M4.6 8.2h6.8" />
     <path d="M2.4 11h11.2" />
     <path d="M4.6 13.4h6.8" />
+  </Glyph>
+);
+
+/** Play — a filled triangle, because an outlined one reads as a cursor. */
+export const IconPlay = (p: IconProps) => (
+  <Glyph {...p} fill="currentColor" stroke="none">
+    <path d="M5.2 3.6 12.2 8l-7 4.4z" />
   </Glyph>
 );

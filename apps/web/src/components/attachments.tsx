@@ -8,10 +8,12 @@ import { UploadError, uploadToDrive } from '@/lib/drive-upload';
 import { GOOGLE_DOC, GOOGLE_SHEET, driveFileUrl } from '@/lib/google/sync';
 import type { AttachmentRow } from '@/lib/queries.shared';
 import type { SortChoice } from '@/lib/sort';
+import { AudioRecorder } from './audio-recorder';
+import { AudioPlay } from './audio-play';
 import { useFilePreview } from './file-preview';
 import { FileMeta } from './file-meta';
 import { GroupHeading } from './group-heading';
-import { IconAudio, IconDocument, IconImage } from './icons';
+import { IconDocument, IconImage } from './icons';
 import { SortControl } from './sort-control';
 
 /**
@@ -61,6 +63,7 @@ export function Attachments({
   const [progress, setProgress] = useState<Record<string, number>>({});
   const [errors, setErrors] = useState<string[]>([]);
   const [creating, setCreating] = useState(false);
+  const [recording, setRecording] = useState(false);
   const [, startTransition] = useTransition();
 
   /**
@@ -185,6 +188,14 @@ export function Attachments({
           </button>
           <button
             type="button"
+            onClick={() => setRecording(true)}
+            disabled={recording}
+            className="text-[11px] text-grey-500 underline underline-offset-2 hover:text-grey-800 disabled:opacity-40"
+          >
+            Record
+          </button>
+          <button
+            type="button"
             onClick={() => input.current?.click()}
             className="text-[11px] text-grey-500 underline underline-offset-2 hover:text-grey-800"
           >
@@ -192,6 +203,16 @@ export function Attachments({
           </button>
         </div>
       </div>
+
+      {recording ? (
+        <AudioRecorder
+          onDone={(file) => {
+            setRecording(false);
+            void upload([file]);
+          }}
+          onCancel={() => setRecording(false)}
+        />
+      ) : null}
 
       <input
         ref={input}
@@ -258,7 +279,7 @@ export function Attachments({
                 key={row.id}
                 className="group flex items-center gap-2 px-3 py-1.5 text-[12px]"
               >
-                <Glyph kind={row.kind} />
+                <Glyph row={row} />
 
                 {/* The href is the real Drive URL, so ctrl/cmd-click and
                     middle-click still open it in a tab exactly as a link
@@ -363,10 +384,21 @@ export function Attachments({
   );
 }
 
-function Glyph({ kind }: { kind: AttachmentRow['kind'] }) {
+/**
+ * The mark at the head of a row — and, for a recording, the way to hear it.
+ *
+ * A voice note is the one attachment you cannot judge from its filename, and
+ * the icon is already sitting there doing nothing. Making it the control costs
+ * the row no width at all, which is the whole reason not to put a player in it.
+ */
+function Glyph({ row }: { row: AttachmentRow }) {
   const className = 'shrink-0 text-grey-400';
-  if (kind === 'image') return <IconImage className={className} />;
-  if (kind === 'audio') return <IconAudio className={className} />;
+
+  if (row.kind === 'audio') {
+    return <AudioPlay src={`/api/attachments/${row.id}/file`} name={row.name} />;
+  }
+
+  if (row.kind === 'image') return <IconImage className={className} />;
   return <IconDocument className={className} />;
 }
 
