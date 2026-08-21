@@ -2,7 +2,10 @@
 
 A personal Getting Things Done system. Single user (Rod).
 
-See `gtd-app-brief.md` for the full product brief.
+- **[`MANUAL.md`](MANUAL.md)** — how to use it: every view, every workflow,
+  and what to do when something looks wrong
+- `gtd-app-brief.md` — the original product brief
+- `CLAUDE.md` — how it is built, and why each decision went the way it did
 
 ## Layout
 
