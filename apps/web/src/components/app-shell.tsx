@@ -172,9 +172,19 @@ export function AppShell({
  * which layout is in force — the layout is a fact about the element, and the
  * element already knows it.
  *
- * `smooth` because the movement is the explanation: it is what tells you the
- * pane you are now looking at came from the right, and that swiping back is
- * how you return. A jump would leave you somewhere new with no account of how.
+ * Instant, not smooth, and that is not a preference. `scroll-snap-type:
+ * mandatory` re-snaps whenever the track's contents change — and the moment
+ * this is called is exactly such a moment, because a pane has just been added
+ * or removed. The re-snap cancels an in-flight smooth scroll and returns to
+ * the pane it was already showing, so the call was made, the right offset was
+ * asked for, and nothing moved: tap a file and the preview opens off-screen
+ * with no sign it exists.
+ *
+ * The animation was worth having — it is what shows that the new pane came
+ * from the right and that swiping back returns — but not at the price of the
+ * navigation silently failing. Keeping both would mean turning snapping off
+ * around every programmatic scroll and putting it back afterwards, which is
+ * more machinery in the path of the thing that has to work.
  */
 function scrollToPane(track: HTMLElement | null, index: number): void {
   if (!track) return;
@@ -182,10 +192,5 @@ function scrollToPane(track: HTMLElement | null, index: number): void {
   const pane = track.children[index] as HTMLElement | undefined;
   if (!pane) return;
 
-  track.scrollTo({
-    left: pane.offsetLeft - track.offsetLeft,
-    behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches
-      ? 'auto'
-      : 'smooth',
-  });
+  track.scrollTo({ left: pane.offsetLeft - track.offsetLeft, behavior: 'auto' });
 }
