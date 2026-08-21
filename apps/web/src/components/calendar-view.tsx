@@ -1,12 +1,13 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import type { CalendarEvent } from '@/lib/google/calendar';
+import { useEffect, useRef, useState } from 'react';
+import { setHiddenCalendars } from '@/lib/actions';
+import type { CalendarEvent, CalendarSource } from '@/lib/google/calendar';
 import { groupByDay, upcomingDayLabel } from '@/lib/days';
 import type { ViewMode } from '@/lib/pane';
 import { DayHeading } from './day-heading';
 import { DetailPane, EmptyDetail, EmptyList, ListPane } from './panes';
-import { IconConnections, IconPlace, IconWaiting } from './icons';
+import { IconCalendar, IconConnections, IconPlace, IconWaiting } from './icons';
 
 /**
  * `start.date` is a calendar day with no time — an all-day event — and it must
@@ -45,6 +46,10 @@ type Payload = {
   connected: boolean;
   reconnect?: boolean;
   error?: string;
+  /** Set when the Calendar API is switched off for the Cloud project. */
+  enableUrl?: string | null;
+  /** Every calendar, including the hidden ones — the picker needs them all. */
+  calendars: CalendarSource[];
   events: CalendarEvent[];
 };
 
@@ -120,13 +125,21 @@ export function CalendarView({
         showToggle={false}
         actions={
           state?.connected ? (
-            <button
-              type="button"
-              onClick={() => setRefreshedAt(Date.now())}
-              className="text-[11px] text-grey-500 underline underline-offset-2 hover:text-grey-800"
-            >
-              Refresh
-            </button>
+            <>
+              {state.calendars.length > 1 ? (
+                <CalendarPicker
+                  calendars={state.calendars}
+                  onChange={() => setRefreshedAt(Date.now())}
+                />
+              ) : null}
+              <button
+                type="button"
+                onClick={() => setRefreshedAt(Date.now())}
+                className="text-[11px] text-grey-500 underline underline-offset-2 hover:text-grey-800"
+              >
+                Refresh
+              </button>
+            </>
           ) : null
         }
         subtitle={
@@ -134,15 +147,19 @@ export function CalendarView({
             ? 'Reading your calendar…'
             : !state.connected
               ? 'Not connected'
-              : events.length === 0
-                ? 'Nothing booked'
-                : `${events.length} coming up · read-only`
+              : failed
+                ? 'Cannot read the calendar'
+                : events.length === 0
+                  ? 'Nothing booked'
+                  : `${events.length} coming up · read-only`
         }
       >
         {state === null ? (
           <p className="px-4 py-6 text-[13px] text-grey-400">Reading your calendar…</p>
         ) : !state.connected ? (
           <Connect reconnect={state.reconnect} message={failed} />
+        ) : failed ? (
+          <Problem message={failed} enableUrl={state.enableUrl} />
         ) : events.length === 0 ? (
           <EmptyList message="Nothing in the next couple of months." />
         ) : (
@@ -172,6 +189,126 @@ export function CalendarView({
         />
       )}
     </>
+  );
+}
+
+/**
+ * Which calendars to show.
+ *
+ * Ticked means shown, which is the only way round a person reads a list of
+ * calendars — but what gets *stored* is the unticked ones. That asymmetry is
+ * deliberate and is what makes a calendar you add in Google next month appear
+ * here without being asked for: it is not in the hidden list, so it shows.
+ * Storing the ticked ones instead would leave it silently absent, which is the
+ * failure this whole feature was shaped to avoid.
+ *
+ * A calendar deleted at Google simply stops being listed. Its id may linger in
+ * the stored list, where it matches nothing and costs nothing.
+ */
+function CalendarPicker({
+  calendars,
+  onChange,
+}: {
+  calendars: CalendarSource[];
+  onChange: () => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const root = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+
+    const onDown = (e: MouseEvent) => {
+      if (!root.current?.contains(e.target as Node)) setOpen(false);
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setOpen(false);
+    };
+
+    document.addEventListener('mousedown', onDown);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('mousedown', onDown);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [open]);
+
+  const shown = calendars.filter((c) => !c.hidden).length;
+
+  const toggle = async (id: string) => {
+    const next = calendars
+      .filter((c) => (c.id === id ? !c.hidden : c.hidden))
+      .map((c) => c.id);
+
+    setSaving(true);
+    try {
+      await setHiddenCalendars(next);
+      // Refetch rather than filter what is already here: a calendar being
+      // shown again has events nobody has asked Google for yet.
+      onChange();
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div ref={root} className="relative">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        title="Which calendars to show"
+        aria-haspopup="menu"
+        aria-expanded={open}
+        className={[
+          'flex items-center gap-1 rounded-sm px-1 text-[11px]',
+          saving ? 'opacity-50' : '',
+          open ? 'text-grey-800' : 'text-grey-500 hover:text-grey-800',
+        ].join(' ')}
+      >
+        <IconCalendar />
+        <span className="tabular-nums">
+          {shown} of {calendars.length}
+        </span>
+      </button>
+
+      {open ? (
+        <div
+          role="menu"
+          className="absolute right-0 top-full z-20 mt-1 max-h-80 w-64 overflow-y-auto rounded-sm border border-grey-200 bg-paper py-1 shadow-lg"
+        >
+          {calendars.map((calendar) => (
+            <button
+              key={calendar.id}
+              type="button"
+              role="menuitemcheckbox"
+              aria-checked={!calendar.hidden}
+              disabled={saving}
+              onClick={() => void toggle(calendar.id)}
+              className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-[12px] text-grey-700 hover:bg-grey-100 disabled:opacity-50"
+            >
+              <input
+                type="checkbox"
+                checked={!calendar.hidden}
+                readOnly
+                tabIndex={-1}
+                className="pointer-events-none shrink-0"
+              />
+              <span className="min-w-0 flex-1 truncate">{calendar.name}</span>
+              {calendar.primary ? (
+                <span className="shrink-0 text-[10px] uppercase tracking-wider text-grey-400">
+                  main
+                </span>
+              ) : null}
+            </button>
+          ))}
+
+          <p className="border-t border-grey-200 px-3 pb-1 pt-2 text-[10px] leading-relaxed text-grey-500">
+            A calendar you add in Google later will appear here on its own.
+          </p>
+        </div>
+      ) : null}
+    </div>
   );
 }
 
@@ -344,6 +481,39 @@ const RESPONSE: Record<string, string> = {
   declined: 'No',
   tentative: 'Maybe',
 };
+
+/**
+ * Connected, and still refused.
+ *
+ * Distinct from the not-connected state and must not offer to connect again:
+ * the consent already succeeded, and sending you back round it would be the
+ * app blaming the one part that is working. Where Google names the fix — as it
+ * does for an API that is switched off — the link goes straight there.
+ */
+function Problem({
+  message,
+  enableUrl,
+}: {
+  message: string;
+  enableUrl?: string | null;
+}) {
+  return (
+    <div className="flex flex-col gap-3 px-4 py-6">
+      <p className="text-[13px] leading-relaxed text-stale">{message}</p>
+
+      {enableUrl ? (
+        <a
+          href={enableUrl}
+          target="_blank"
+          rel="noreferrer"
+          className="inline-block w-fit rounded-sm bg-grey-800 px-2.5 py-1 text-[12px] text-paper"
+        >
+          Open the Google console ↗
+        </a>
+      ) : null}
+    </div>
+  );
+}
 
 function Connect({ reconnect, message }: { reconnect?: boolean; message: string | null }) {
   return (

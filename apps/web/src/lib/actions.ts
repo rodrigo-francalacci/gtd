@@ -803,6 +803,7 @@ async function savePreference(patch: {
   boxView?: BoxView;
   listPaneWidth?: number;
   theme?: 'light' | 'dark' | null;
+  hiddenCalendars?: string[];
 }) {
   await db
     .insert(preferences)
@@ -823,6 +824,24 @@ export async function setBoxView(view: BoxView) {
 export async function setViewMode(mode: ViewMode) {
   await requireSession();
   await savePreference({ viewMode: mode });
+  revalidateShell();
+}
+
+/**
+ * Which Google calendars to leave out of the calendar view.
+ *
+ * Stored as what to *hide*, so a calendar added in Google later shows up
+ * rather than being silently absent — see the column comment for why that
+ * asymmetry is the right way round.
+ *
+ * Writing an empty array is meaningful and must not be confused with writing
+ * nothing: `[]` means "I have chosen, and I hide none of them", which stops
+ * Google's own ticked state from being consulted again. Only a `null` column
+ * defers to Google.
+ */
+export async function setHiddenCalendars(ids: string[]) {
+  await requireSession();
+  await savePreference({ hiddenCalendars: [...new Set(ids)] });
   revalidateShell();
 }
 

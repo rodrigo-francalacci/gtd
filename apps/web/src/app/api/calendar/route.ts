@@ -2,7 +2,8 @@ import { NextResponse } from 'next/server';
 import { apiSession } from '@/lib/auth/session';
 import { hasCalendarScope } from '@/lib/auth/google';
 import { GoogleAuthError, getGrant } from '@/lib/auth/token';
-import { getUpcomingEvents } from '@/lib/google/calendar';
+import { CalendarApiDisabled, getUpcomingEvents } from '@/lib/google/calendar';
+import { getPreferences } from '@/lib/view-mode';
 
 export const dynamic = 'force-dynamic';
 /** Several Google round trips — one per calendar — though all in parallel. */
@@ -32,12 +33,13 @@ export async function GET() {
    */
   const grant = await getGrant();
   if (!hasCalendarScope(grant?.scope)) {
-    return NextResponse.json({ connected: false, events: [] });
+    return NextResponse.json({ connected: false, calendars: [], events: [] });
   }
 
   try {
-    const events = await getUpcomingEvents();
-    return NextResponse.json({ connected: true, events });
+    const { hiddenCalendars } = await getPreferences();
+    const { calendars, events } = await getUpcomingEvents(hiddenCalendars);
+    return NextResponse.json({ connected: true, calendars, events });
   } catch (error) {
     // A withdrawn grant is not a broken calendar, and must not be reported as
     // one — the same distinction the file proxy had to learn.
@@ -47,15 +49,43 @@ export async function GET() {
           connected: false,
           reconnect: true,
           error: 'Google has disconnected. Reconnect it on the Google page.',
+          calendars: [],
           events: [],
         },
         { status: 401 },
       );
     }
 
+    /**
+     * Granted, valid, and still refused — because the API itself is switched
+     * off for the Cloud project. Worth its own message: everything about the
+     * connection is fine, so anything vaguer sends you to check the one part
+     * that is working.
+     */
+    if (error instanceof CalendarApiDisabled) {
+      return NextResponse.json(
+        {
+          connected: true,
+          enableUrl: error.activationUrl,
+          error:
+            'The Google Calendar API is switched off for this project. Enable ' +
+            'it in the Google Cloud console — the same step Drive and Gmail ' +
+            'needed — then refresh.',
+          calendars: [],
+          events: [],
+        },
+        { status: 503 },
+      );
+    }
+
     console.error('calendar read failed', error);
     return NextResponse.json(
-      { connected: true, error: 'Could not reach Google Calendar.', events: [] },
+      {
+        connected: true,
+        error: 'Could not reach Google Calendar.',
+        calendars: [],
+        events: [],
+      },
       { status: 502 },
     );
   }

@@ -176,6 +176,13 @@
       "when": 1787303181489,
       "tag": "0024_ambitious_rattler",
       "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1787335833808,
+      "tag": "0025_slow_sugar_man",
+      "breakpoints": true
     }
   ]
 }

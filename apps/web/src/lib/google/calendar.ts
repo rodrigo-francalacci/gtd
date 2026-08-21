@@ -21,6 +21,22 @@ import { GoogleApiError } from './client';
 
 const CALENDAR = 'https://www.googleapis.com/calendar/v3';
 
+/**
+ * The Calendar API is switched off in the Google Cloud project.
+ *
+ * Its own error because it is its own situation, and an easily misread one:
+ * the OAuth consent succeeds, the scope is granted, the token is valid — and
+ * every call still returns 403. Nothing about the connection is wrong, so
+ * reporting it as "couldn't reach Google" sends you to look at the one thing
+ * that is working. Each API has to be enabled per project, exactly as Drive
+ * and Gmail were.
+ */
+export class CalendarApiDisabled extends Error {
+  constructor(readonly activationUrl: string | null) {
+    super('The Google Calendar API is not enabled for this project.');
+  }
+}
+
 async function call<T>(url: string): Promise<T> {
   const token = await getAccessToken();
 
@@ -32,13 +48,24 @@ async function call<T>(url: string): Promise<T> {
   });
 
   if (!response.ok) {
-    throw new GoogleApiError(
-      `GET ${url} failed: ${response.status} ${await response.text()}`,
-      response.status,
-    );
+    const detail = await response.text();
+
+    // Google says which API and hands back the console page that turns it on,
+    // so the message can point at the fix rather than describe the symptom.
+    if (response.status === 403 && detail.includes('SERVICE_DISABLED')) {
+      throw new CalendarApiDisabled(activationUrlFrom(detail));
+    }
+
+    throw new GoogleApiError(`GET ${url} failed: ${response.status} ${detail}`, response.status);
   }
 
   return (await response.json()) as T;
+}
+
+/** The console URL Google embeds in a SERVICE_DISABLED body, if it is there. */
+function activationUrlFrom(body: string): string | null {
+  const match = /"activationUrl"\s*:\s*"([^"]+)"/.exec(body);
+  return match ? match[1].replace(/\\u003d/g, '=').replace(/\\u0026/g, '&') : null;
 }
 
 /**
@@ -106,21 +133,46 @@ export type CalendarEvent = {
   recurring: boolean;
 };
 
+/** One calendar, as the picker needs it. */
+export type CalendarSource = {
+  id: string;
+  name: string;
+  primary: boolean;
+  hidden: boolean;
+};
+
 /**
- * The calendars worth reading.
+ * Every calendar, whether or not it is being shown.
  *
  * Needs `calendar.readonly`; the narrower `calendar.events.readonly` cannot
  * enumerate calendars at all and can only read whichever one you name. That
  * is the whole reason for the broader scope — not events, but knowing which
  * calendars exist. Without it a second or shared calendar would be missing
  * and nothing would be able to tell you so.
+ *
+ * *All* of them come back, including the hidden ones: a picker that cannot
+ * list what you have turned off is a picker you cannot undo anything with.
  */
 async function calendars(): Promise<CalendarListEntry[]> {
   const body = await call<{ items?: CalendarListEntry[] }>(
     `${CALENDAR}/users/me/calendarList?minAccessRole=reader&maxResults=250`,
   );
 
-  return (body.items ?? []).filter((c) => c.selected !== false);
+  return body.items ?? [];
+}
+
+/**
+ * Which calendars to leave out.
+ *
+ * `hidden` null means nothing has been chosen in this app, so Google's own
+ * ticked state decides — a holidays calendar you unticked over there should
+ * not reappear here uninvited. The first explicit choice writes a list, and
+ * from then on Google's flags are not consulted at all: two owners of one
+ * decision is how a setting starts changing on its own.
+ */
+function hiddenIds(list: CalendarListEntry[], hidden: string[] | null): Set<string> {
+  if (hidden !== null) return new Set(hidden);
+  return new Set(list.filter((c) => c.selected === false).map((c) => c.id));
 }
 
 /** How far ahead to look. Past this, "upcoming" stops being a useful word. */
@@ -142,11 +194,31 @@ const PER_CALENDAR = 100;
  * off still returns that date, marked cancelled, and showing it would be
  * worse than showing nothing.
  */
-export async function getUpcomingEvents(days = DEFAULT_DAYS): Promise<CalendarEvent[]> {
+export async function getUpcomingEvents(
+  hidden: string[] | null,
+  days = DEFAULT_DAYS,
+): Promise<{ calendars: CalendarSource[]; events: CalendarEvent[] }> {
   const now = new Date();
   const until = new Date(now.getTime() + days * 24 * 60 * 60 * 1000);
 
   const list = await calendars();
+  const skip = hiddenIds(list, hidden);
+
+  /**
+   * Every calendar is reported, only the shown ones are read.
+   *
+   * The picker needs the full list or it cannot offer to un-hide anything;
+   * fetching events for a calendar you have turned off would be work done to
+   * be thrown away, and on a dense subscribed calendar that is not free.
+   */
+  const sources: CalendarSource[] = list.map((c) => ({
+    id: c.id,
+    name: c.summary ?? c.id,
+    primary: Boolean(c.primary),
+    hidden: skip.has(c.id),
+  }));
+
+  const shown = list.filter((c) => !skip.has(c.id));
 
   /**
    * One request per calendar, in parallel, and a failing calendar is skipped
@@ -154,7 +226,7 @@ export async function getUpcomingEvents(days = DEFAULT_DAYS): Promise<CalendarEv
    * calendar that has gone bad should cost you that calendar, not your day.
    */
   const perCalendar = await Promise.all(
-    list.map(async (calendar) => {
+    shown.map(async (calendar) => {
       const params = new URLSearchParams({
         timeMin: now.toISOString(),
         timeMax: until.toISOString(),
@@ -179,10 +251,12 @@ export async function getUpcomingEvents(days = DEFAULT_DAYS): Promise<CalendarEv
 
   // Merged across calendars, so Google's per-calendar ordering is no longer
   // enough — the whole set has to be sorted again.
-  return perCalendar
+  const events = perCalendar
     .flat()
     .filter((event): event is CalendarEvent => event !== null)
     .sort((a, b) => a.start.localeCompare(b.start));
+
+  return { calendars: sources, events };
 }
 
 function normalise(

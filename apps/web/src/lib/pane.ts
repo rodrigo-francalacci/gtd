@@ -47,6 +47,11 @@ export type Preferences = {
   /** Null means "no explicit choice yet" — fall back to the per-mode default. */
   listPaneWidth: number | null;
   theme: Theme;
+  /**
+   * Google calendars to leave out. Null means no choice has been made here and
+   * Google's own ticked state decides — see the column comment in the schema.
+   */
+  hiddenCalendars: string[] | null;
 };
 
 /** The width to render, honouring an explicit choice over the mode default. */

@@ -949,6 +949,25 @@ export const preferences = pgTable('preferences', {
   boxView: text('box_view'),
   /** 'light' | 'dark'. Null means "whatever the operating system says". */
   theme: text('theme'),
+  /**
+   * Google calendars to leave *out* of the calendar view.
+   *
+   * Stored as what to hide rather than what to show, and the asymmetry is the
+   * whole point: a calendar you add in Google later is not in this list, so it
+   * appears. Storing an allow-list would make a newly added calendar silently
+   * absent — the same failure that decided the scope, where a day view that
+   * quietly omits a calendar is worse than one showing too much, because you
+   * would trust it. A calendar deleted at Google leaves an id here that simply
+   * never matches again, which costs nothing and is not worth pruning: pruning
+   * needs a complete calendar list to be safe, and a momentarily incomplete one
+   * would silently un-hide things.
+   *
+   * Null is a real value, as with `theme`: it means no choice has been made
+   * here, and Google's own ticked/unticked state decides. The first explicit
+   * choice writes a list and Google's flags stop being consulted — one owner at
+   * a time, never two.
+   */
+  hiddenCalendars: jsonb('hidden_calendars').$type<string[]>(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 });
 

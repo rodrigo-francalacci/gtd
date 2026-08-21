@@ -1,0 +1,1 @@
+ALTER TABLE "preferences" ADD COLUMN "hidden_calendars" jsonb;

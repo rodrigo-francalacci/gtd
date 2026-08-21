@@ -37,5 +37,8 @@ export async function getPreferences(): Promise<Preferences> {
     boxView: row?.boxView === 'gallery' ? 'gallery' : 'list',
     listPaneWidth: row?.listPaneWidth ?? null,
     theme: row?.theme === 'dark' ? 'dark' : row?.theme === 'light' ? 'light' : null,
+    // Null and [] mean different things here — "never chosen" versus "chosen,
+    // hide nothing" — so an absent value must not collapse to an empty array.
+    hiddenCalendars: Array.isArray(row?.hiddenCalendars) ? row.hiddenCalendars : null,
   };
 }
