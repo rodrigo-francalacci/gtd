@@ -6,6 +6,11 @@ import { captureInboxItem, postBoxLink, postBoxNote } from '@/lib/actions';
 import { uploadToBox } from '@/lib/box-upload';
 import { uploadCaptureFiles } from '@/lib/capture-upload';
 import { captureLabel, type BoxOption } from '@/lib/queries.shared';
+import {
+  collectSharedFiles,
+  registerShareWorker,
+  sweepAbandonedShares,
+} from '@/lib/shared-files';
 import { soleUrl } from '@/lib/sole-url';
 import { CaptureDestination } from './capture-destination';
 import { MAX_DIRECT_UPLOAD_MB } from '@/lib/upload';
@@ -42,6 +47,9 @@ export function MobileCapture({
   initialText = '',
   initialUrl = '',
   boxes = [],
+  sharedKey = null,
+  sharedCount = 0,
+  missedFiles = 0,
 }: {
   recent: Recent[];
   /** Prefilled by the browser extension: the selection, or the page title. */
@@ -50,6 +58,11 @@ export function MobileCapture({
   initialUrl?: string;
   /** Offered as destinations beside the inbox. Empty hides the chooser. */
   boxes?: BoxOption[];
+  /** Where the service worker parked the files from an Android share. */
+  sharedKey?: string | null;
+  sharedCount?: number;
+  /** Files a share carried that arrived before the worker was ready. */
+  missedFiles?: number;
 }) {
   const router = useRouter();
   const field = useRef<HTMLTextAreaElement>(null);
@@ -80,6 +93,47 @@ export function MobileCapture({
   const [progress, setProgress] = useState<{ done: number; total: number } | null>(
     null,
   );
+
+  /**
+   * Registered from the capture screen, which is the one every share lands on
+   * and the one the installed app opens — so by the time anything is shared
+   * the worker that catches it has been installed for a while.
+   */
+  useEffect(() => {
+    registerShareWorker();
+    // Anything a previous share parked and never came back for. Opening the
+    // capture screen is the natural moment: it is where every share lands, so
+    // it is where the leftovers of one that didn't will be found.
+    void sweepAbandonedShares();
+  }, []);
+
+  /**
+   * Files from an Android share, collected out of the cache the worker left
+   * them in. They arrive staged rather than sent: a share is the start of a
+   * capture, not the whole of one, and you may still want to say what the
+   * photo was of.
+   */
+  useEffect(() => {
+    if (!sharedKey || sharedCount < 1) return;
+
+    let live = true;
+    void collectSharedFiles(sharedKey, sharedCount).then((files) => {
+      if (live && files.length > 0) setStaged((current) => [...current, ...files]);
+    });
+
+    return () => {
+      live = false;
+    };
+  }, [sharedKey, sharedCount]);
+
+  /** Said out loud rather than dropped silently — see `/m/share/route.ts`. */
+  useEffect(() => {
+    if (missedFiles > 0) {
+      setErrors([
+        `The app was still starting up, so ${missedFiles === 1 ? 'that file' : `those ${missedFiles} files`} did not come through. Share again and it will.`,
+      ]);
+    }
+  }, [missedFiles]);
 
   /**
    * Phones background a tab the instant you switch app, and the staged files
