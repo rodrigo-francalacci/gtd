@@ -57,7 +57,27 @@ export function ListPane({
 
   const body = (
     <>
-      <header className="border-b border-grey-200 px-4 py-3">
+      {/*
+        The header outranks the list, so menus opened from it are not cut into.
+
+        Menus here — the calendar picker, a sort menu — hang down over the rows,
+        and the rows carry sticky headings of their own: day chips in a feed,
+        status headings on projects and areas, year headings in the archive.
+        Those are all `z-20`, and so were the menus, and at an equal z-index the
+        later element in the DOM wins. The scrolling list comes after this
+        header, so a day chip painted straight across an open menu.
+
+        Fixed by *lowering the list* rather than raising the header. Raising it
+        works and costs something: the resize handle is a `z-30` sibling running
+        the full height of the pane, and a header above it would swallow the top
+        few centimetres of the drag strip. Putting the list in its own `z-0`
+        context caps every sticky heading inside it instead, leaving the handle
+        untouched and the header only one step up.
+
+        Done here rather than on each menu, because the next menu added to a
+        pane header would have the same problem and no reason to expect it.
+      */}
+      <header className="relative z-10 border-b border-grey-200 px-4 py-3">
         <div className="flex items-baseline justify-between gap-2">
           <h1 className="text-[13px] font-semibold uppercase tracking-wide text-grey-700">
             {title}
@@ -74,7 +94,10 @@ export function ListPane({
 
       {compact && columns ? <ColumnHeader columns={columns} /> : null}
 
-      <div className="min-h-0 flex-1 overflow-y-auto">{children}</div>
+      {/* `z-0` is not cosmetic: it makes this a stacking context, which is what
+          caps the sticky headings inside at their own level instead of letting
+          them compete with the header's menus. See the header above. */}
+      <div className="relative z-0 min-h-0 flex-1 overflow-y-auto">{children}</div>
     </>
   );
 
