@@ -169,3 +169,95 @@ button.quiet {
 /* Dropping anywhere in the panel, not onto a small target — the whole thing
    is the drop zone, which is what you expect from a panel this narrow. */
 body.dragging { outline: 2px dashed var(--grey-500); outline-offset: -4px; }
+
+/* Where this is going: the inbox, or a box. Underlined rather than boxed —
+   the panel is narrow enough that two filled buttons at the top would look
+   like the primary action, which is at the bottom. */
+.tabs {
+  display: flex;
+  gap: 0.75rem;
+  border-bottom: 1px solid var(--grey-300);
+  margin-bottom: 0.75rem;
+}
+
+.tabs button {
+  width: auto;
+  padding: 0.3rem 0;
+  margin-bottom: -1px;
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--grey-500);
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  border-radius: 0;
+}
+
+.tabs button[aria-selected='true'] {
+  color: var(--grey-800);
+  font-weight: 500;
+  border-bottom-color: var(--grey-800);
+}
+
+select {
+  width: 100%;
+  padding: 0.4rem;
+  margin-bottom: 0.6rem;
+  font: inherit;
+  color: inherit;
+  background: var(--paper);
+  border: 1px solid var(--grey-300);
+  border-radius: 2px;
+}
+
+select:focus { outline: none; border-color: var(--grey-500); }
+
+/* The staged-file list is the same thing on both tabs. */
+#box-files { list-style: none; margin: 0 0 0.6rem; padding: 0; }
+
+#box-files li {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.25rem 0.4rem;
+  margin-bottom: 0.2rem;
+  background: var(--grey-150);
+  border-radius: 2px;
+  font-size: 12px;
+}
+
+#box-files .name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+#box-files .size {
+  color: var(--grey-500);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+
+#box-files .drop {
+  background: none;
+  border: none;
+  color: var(--grey-500);
+  font-size: 15px;
+  line-height: 1;
+  padding: 0 0.2rem;
+  width: auto;
+  cursor: pointer;
+}
+
+/* Recording. Red is the one colour this panel allows itself, because a live
+   microphone is the one state where not knowing costs you something. */
+#box-record.recording {
+  color: #b91c1c;
+  border-color: #b91c1c;
+}
+
+@media (prefers-color-scheme: dark) {
+  #box-record.recording { color: #f87171; border-color: #f87171; }
+}

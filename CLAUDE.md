@@ -329,6 +329,17 @@ Turbopack is the default; `middleware` is now `proxy`.
 - **The URL goes in the *note*, never the title**, because a line of query
   string is unreadable in the inbox list. Extension lives in `extension/`,
   unpacked, not on the Web Store.
+- **The sidebar has two tabs because there are two destinations.** The inbox is
+  a queue to be emptied and a box is a shelf to be kept; the app never lets
+  those become one thing, so a "where should this go" dropdown under a single
+  form would be the wrong shape. The visible tab is also what the shared drop
+  and paste handlers read — neither can tell where a file was meant to go, and
+  the tab you are looking at is the only answer that is ever right.
+  `GET /api/boxes` fills the picker (fetched, never configured: boxes are
+  renamed in the app) and `POST /api/box/post` takes notes, links and places,
+  since a Server Action is not a public API. Files reuse `/api/box/ingest`.
+  Whether a bare address is a link is decided *server-side*, by the same rule
+  the app's composer uses, so the two cannot come to different conclusions.
 - **The sidebar uploads from the panel, not the service worker.**
   `runtime.sendMessage` serialises as JSON, so a `File` crossing it arrives as
   `{}`. The panel is the same extension origin and gets the same
@@ -805,6 +816,19 @@ withhold the cookie there.
 
 The stored Google grant keeps the refresh token, which Google returns only on
 first consent — a later token response without one must never overwrite it.
+
+**A grant can be alive here and dead at Google.** A refresh token is withdrawn
+when it goes months unused, when the password changes, or when it's revoked
+from the account page — and none of those tell the app. `hasSyncScopes` still
+reads as granted while every Drive call throws `GoogleAuthError`, so
+`/connections` offers "Reconnect Google" permanently rather than only once the
+app has noticed; `prompt: 'consent'` is already set, so re-running the flow
+returns a fresh refresh token. `serveDriveFile` catches that error and answers
+401 with a message saying so, because uncaught it was a bare 500 and the
+preview pane could only report "that file would not load" — true of every file
+in the app at once, and pointing at the file rather than at the one page that
+fixes it. The pane reads the reason off the response body for the same reason:
+an `<img>` only knows that it failed.
 
 ## Deployment
 

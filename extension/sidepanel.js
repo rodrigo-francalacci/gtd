@@ -1,15 +1,36 @@
 /**
- * The sidebar.
+ * The sidebar: two tabs, two destinations.
  *
- * It does no networking itself — every request goes through the service
- * worker, which is where the host-permission same-site behaviour is least
- * ambiguous. This file is the form and nothing else.
+ * The inbox is a queue to be emptied and a box is a shelf to be kept, and the
+ * app is careful that the two never become one thing. The sidebar has to be
+ * equally careful, which is why this is tabs rather than a "where should this
+ * go" dropdown under one form: the destination changes what you are doing,
+ * not just where it lands.
+ *
+ * Capture text goes through the service worker, where the host-permission
+ * same-site behaviour is least ambiguous. Everything else — uploads, the box
+ * posts, the box list — is fetched from this page, which is the same extension
+ * origin and gets the same treatment; `runtime.sendMessage` serialises as JSON
+ * so a `File` cannot cross it anyway.
  */
 
 const DEFAULT_ORIGIN = 'https://gtd-web-ten.vercel.app';
 
 const els = {
   text: document.getElementById('text'),
+  tabCapture: document.getElementById('tab-capture'),
+  tabBox: document.getElementById('tab-box'),
+  paneCapture: document.getElementById('pane-capture'),
+  paneBox: document.getElementById('pane-box'),
+  boxPicker: document.getElementById('box-picker'),
+  boxText: document.getElementById('box-text'),
+  boxFiles: document.getElementById('box-files'),
+  boxPost: document.getElementById('box-post'),
+  boxAttach: document.getElementById('box-attach'),
+  boxRecord: document.getElementById('box-record'),
+  boxPlace: document.getElementById('box-place'),
+  boxPage: document.getElementById('box-page'),
+  boxFilePicker: document.getElementById('box-picker-file'),
   note: document.getElementById('note'),
   capture: document.getElementById('capture'),
   refresh: document.getElementById('refresh'),
@@ -73,16 +94,36 @@ function renderFiles() {
   );
 }
 
+/**
+ * Stage files on whichever tab is showing.
+ *
+ * The drop zone is the whole panel and the paste listener is on the window, so
+ * neither can tell which form you meant — but the visible tab can, and it is
+ * the only answer that is ever right. A file dropped while looking at the Box
+ * tab landing in the inbox would be the sort of quiet misfiling you don't
+ * notice until you go looking for it.
+ */
 function stage(files) {
+  const list = [];
+
   for (const file of files) {
     if (file.size === 0) continue;
     if (file.size > MAX_MB * 1048576) {
       say(`${file.name} is bigger than ${MAX_MB} MB.`, 'bad');
       continue;
     }
-    staged.push(file);
+    list.push(file);
   }
-  renderFiles();
+
+  if (list.length === 0) return;
+
+  if (activeTab === 'box') {
+    boxStaged.push(...list);
+    renderBoxFiles();
+  } else {
+    staged.push(...list);
+    renderFiles();
+  }
 }
 
 chrome.storage.sync.get('origin').then(({ origin }) => {
@@ -440,3 +481,415 @@ for (const field of [els.text, els.note]) {
     }
   });
 }
+
+// ---------------------------------------------------------------------------
+// The Box tab
+// ---------------------------------------------------------------------------
+
+/**
+ * Which form is showing. Read by the shared drop and paste handlers, which
+ * cannot tell on their own where a file was meant to go.
+ */
+let activeTab = 'capture';
+
+/** Staged separately from the inbox's, so switching tabs cannot misfile them. */
+let boxStaged = [];
+
+/** Filled once, the first time the Box tab is opened. */
+let boxes = [];
+
+function renderBoxFiles() {
+  els.boxFiles.replaceChildren(
+    ...boxStaged.map((file, index) => {
+      const row = document.createElement('li');
+
+      const name = document.createElement('span');
+      name.className = 'name';
+      name.textContent = file.name;
+
+      const size = document.createElement('span');
+      size.className = 'size';
+      size.textContent = formatSize(file.size);
+
+      const drop = document.createElement('button');
+      drop.className = 'drop';
+      drop.type = 'button';
+      drop.textContent = '×';
+      drop.title = `Remove ${file.name}`;
+      drop.addEventListener('click', () => {
+        boxStaged.splice(index, 1);
+        renderBoxFiles();
+      });
+
+      row.append(name, size, drop);
+      return row;
+    }),
+  );
+}
+
+function showTab(name) {
+  activeTab = name;
+
+  els.tabCapture.setAttribute('aria-selected', String(name === 'capture'));
+  els.tabBox.setAttribute('aria-selected', String(name === 'box'));
+  els.paneCapture.hidden = name !== 'capture';
+  els.paneBox.hidden = name !== 'box';
+  say('');
+
+  // Remembered, because whichever one you use is the one you use: opening the
+  // panel on the wrong form every time is a small tax on the whole feature.
+  void chrome.storage.sync.set({ tab: name });
+
+  if (name === 'box' && boxes.length === 0) void loadBoxes();
+}
+
+/**
+ * The boxes, for the picker.
+ *
+ * Fetched rather than configured: boxes are created and renamed in the app,
+ * and a list typed into the extension's options would be wrong the first time
+ * either happened.
+ */
+async function loadBoxes() {
+  const base = await origin();
+
+  try {
+    const response = await fetch(`${base}/api/boxes`, { credentials: 'include' });
+
+    if (response.status === 401) {
+      say('Open the app and sign in, then reopen this panel.', 'bad');
+      return;
+    }
+    if (!response.ok) throw new Error(String(response.status));
+
+    const body = await response.json();
+    boxes = body.boxes ?? [];
+
+    if (boxes.length === 0) {
+      say('No boxes yet. Make one in the app first.', 'bad');
+      return;
+    }
+
+    const { boxId } = await chrome.storage.sync.get('boxId');
+    const chosen = boxes.some((b) => b.id === boxId)
+      ? boxId
+      : (boxes.find((b) => b.isDefault) ?? boxes[0]).id;
+
+    els.boxPicker.replaceChildren(
+      ...boxes.map((box) => {
+        const option = document.createElement('option');
+        option.value = box.id;
+        option.textContent = box.name;
+        return option;
+      }),
+    );
+    els.boxPicker.value = chosen;
+  } catch {
+    say('Could not reach the app.', 'bad');
+  }
+}
+
+/**
+ * Send one file into a box: our server opens a Drive session, the bytes go
+ * straight to Google, our server records the row.
+ *
+ * The same three steps the bridge script uses, and the reason a scan the size
+ * of a book can be filed from here at all — through the app's own function it
+ * would meet Vercel's 4.5 MB body cap. The session binds to whichever origin
+ * opened it, which here is this extension, and the PUT comes from the same
+ * place, so the two agree.
+ */
+async function uploadToBox(base, boxId, file) {
+  const opened = await fetch(`${base}/api/box/ingest`, {
+    method: 'POST',
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      step: 'open',
+      box: boxId,
+      name: file.name,
+      mimeType: file.type,
+    }),
+  });
+
+  if (opened.status === 401) throw new Error('Not signed in.');
+
+  const session = await opened.json();
+  if (!session.uploadUrl) throw new Error(session.error ?? 'No upload session.');
+
+  const put = await fetch(session.uploadUrl, {
+    method: 'PUT',
+    headers: { 'Content-Type': file.type || 'application/octet-stream' },
+    body: file,
+  });
+  if (!put.ok) throw new Error(`Drive refused the file (${put.status})`);
+
+  const { id } = await put.json();
+
+  const done = await fetch(`${base}/api/box/ingest`, {
+    method: 'POST',
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ step: 'complete', box: boxId, driveFileId: id }),
+  });
+
+  const record = await done.json();
+  if (!record.id) throw new Error(record.error ?? 'Could not record it.');
+
+  // Read it now rather than waiting for the cron, which may only run daily.
+  // Fire and forget: a failure here leaves it queued, which is fine.
+  void fetch(`${base}/api/box/read`, {
+    method: 'POST',
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ itemId: record.id }),
+  }).catch(() => {});
+
+  return record.id;
+}
+
+/** Post whatever is in the Box form: a message, some files, or both. */
+async function postToBox(extra = {}) {
+  const boxId = els.boxPicker.value;
+  if (!boxId) {
+    say('Pick a box first.', 'bad');
+    return;
+  }
+
+  const text = els.boxText.value.trim();
+  const files = [...boxStaged];
+
+  if (!text && files.length === 0 && !extra.kind) return;
+
+  els.boxPost.disabled = true;
+  const base = await origin();
+
+  try {
+    // The message first, so a slow upload never delays the thought. Whether a
+    // bare address is a link is decided by the server, using the same rule the
+    // app's own composer uses — in one place, so the two cannot disagree.
+    if (text || extra.kind) {
+      const response = await fetch(`${base}/api/box/post`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ box: boxId, text, ...extra }),
+      });
+
+      if (response.status === 401) {
+        say('Open the app and sign in, then try again.', 'bad');
+        els.boxPost.disabled = false;
+        return;
+      }
+
+      const body = await response.json();
+      if (!body.ok) throw new Error(body.error ?? 'That did not save.');
+
+      // Cleared only once it is actually written — the panel must not claim to
+      // be finished while anything is still in flight.
+      els.boxText.value = '';
+    }
+
+    let failed = 0;
+    for (const [index, file] of files.entries()) {
+      say(`Uploading ${index + 1} of ${files.length}…`);
+      try {
+        await uploadToBox(base, boxId, file);
+        // Cleared as each one lands, so the list never says "done" while four
+        // more are still going.
+        boxStaged = boxStaged.filter((f) => f !== file);
+      } catch (error) {
+        failed += 1;
+        say(`${file.name}: ${error.message}`, 'bad');
+      }
+      renderBoxFiles();
+    }
+
+    if (failed === 0) {
+      const box = boxes.find((b) => b.id === boxId);
+      say(`Filed in ${box ? box.name : 'the box'}.`, 'ok');
+    }
+  } catch (error) {
+    say(error.message ?? 'That did not save.', 'bad');
+  } finally {
+    els.boxPost.disabled = false;
+  }
+}
+
+els.tabCapture.addEventListener('click', () => showTab('capture'));
+els.tabBox.addEventListener('click', () => showTab('box'));
+
+els.boxPost.addEventListener('click', () => void postToBox());
+
+els.boxAttach.addEventListener('click', () => els.boxFilePicker.click());
+els.boxFilePicker.addEventListener('change', () => {
+  stage(els.boxFilePicker.files ?? []);
+  els.boxFilePicker.value = '';
+});
+
+// Enter posts, Shift+Enter makes a paragraph — the chat convention, and the
+// same one the app's own box composer uses.
+els.boxText.addEventListener('keydown', (event) => {
+  if (event.key === 'Enter' && !event.shiftKey) {
+    event.preventDefault();
+    void postToBox();
+  }
+});
+
+/** The page you are reading, kept as a link and read for its title and picture. */
+els.boxPage.addEventListener('click', async () => {
+  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+  const url = tab?.url ?? current.url;
+
+  if (!/^https?:/.test(url ?? '')) {
+    say('That page has no address worth keeping.', 'bad');
+    return;
+  }
+
+  await postToBox({ kind: 'link', url });
+});
+
+/**
+ * Where you are, asked for per entry and never watched.
+ *
+ * An extension holding a live position because you once pressed a button is
+ * not a trade anyone agreed to — the same rule the app's composer follows.
+ */
+els.boxPlace.addEventListener('click', () => {
+  if (!navigator.geolocation) {
+    say('This browser will not give a location.', 'bad');
+    return;
+  }
+
+  say('Finding you…');
+  navigator.geolocation.getCurrentPosition(
+    ({ coords }) => {
+      void postToBox({
+        kind: 'location',
+        lat: coords.latitude,
+        lng: coords.longitude,
+      });
+    },
+    (error) => {
+      say(
+        error.code === error.PERMISSION_DENIED
+          ? 'Location is blocked for this extension.'
+          : 'Could not get a location.',
+        'bad',
+      );
+    },
+    { enableHighAccuracy: true, timeout: 15000 },
+  );
+});
+
+// ---------------------------------------------------------------------------
+// Recording
+// ---------------------------------------------------------------------------
+
+/**
+ * The microphone, asked for raw.
+ *
+ * `{ audio: true }` accepts the browser's defaults, and the defaults are a
+ * voice-call processing chain: echo cancellation, noise suppression and
+ * automatic gain. That chain is why messaging-app voice notes sound the way
+ * they do — it high-passes the bottom out, gates the quiet detail at the top
+ * and rides the level. All three off, at 48 kHz, exactly as the app does it.
+ *
+ * Plain values rather than `exact`: a device that cannot honour one should
+ * degrade, not throw and leave you with nothing.
+ */
+const RAW_AUDIO = {
+  echoCancellation: false,
+  noiseSuppression: false,
+  autoGainControl: false,
+  sampleRate: 48000,
+};
+
+/** 128 kbps, against a messaging app's 16–32. Uploads go straight to Drive. */
+const BITRATE = 128000;
+
+function bestMimeType() {
+  const candidates = [
+    'audio/webm;codecs=opus',
+    'audio/ogg;codecs=opus',
+    'audio/mp4;codecs=mp4a.40.2',
+    'audio/mp4',
+    'audio/webm',
+  ];
+
+  return candidates.find((type) => MediaRecorder.isTypeSupported(type)) ?? '';
+}
+
+let recorder = null;
+let recordedChunks = [];
+let micStream = null;
+
+async function startRecording() {
+  let media;
+  try {
+    media = await navigator.mediaDevices.getUserMedia({ audio: RAW_AUDIO });
+  } catch {
+    say('No microphone, or permission was refused.', 'bad');
+    return;
+  }
+
+  micStream = media;
+  recordedChunks = [];
+
+  const mimeType = bestMimeType();
+  recorder = new MediaRecorder(media, {
+    ...(mimeType ? { mimeType } : {}),
+    audioBitsPerSecond: BITRATE,
+  });
+
+  recorder.ondataavailable = (event) => {
+    if (event.data.size > 0) recordedChunks.push(event.data);
+  };
+
+  recorder.onstop = () => {
+    // The microphone light stays on until every track is stopped, and leaving
+    // it lit after a voice note is its own small betrayal.
+    micStream?.getTracks().forEach((t) => t.stop());
+    micStream = null;
+
+    const type = recorder.mimeType || 'audio/webm';
+    const blob = new Blob(recordedChunks, { type });
+    recorder = null;
+
+    els.boxRecord.textContent = 'Record';
+    els.boxRecord.classList.remove('recording');
+
+    if (blob.size === 0) {
+      say('That recording came out empty.', 'bad');
+      return;
+    }
+
+    const stamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-');
+    const extension = type.includes('mp4')
+      ? 'm4a'
+      : type.includes('ogg')
+        ? 'ogg'
+        : 'webm';
+
+    // Staged rather than posted outright, so a recording can go up with a line
+    // about it — which is the difference between a voice note and a voice note
+    // you can find again.
+    stage([new File([blob], `Voice note ${stamp}.${extension}`, { type })]);
+    say('Recorded. Press Post to file it.', 'ok');
+  };
+
+  recorder.start();
+  els.boxRecord.textContent = 'Stop';
+  els.boxRecord.classList.add('recording');
+  say('Recording…');
+}
+
+els.boxRecord.addEventListener('click', () => {
+  if (recorder) recorder.stop();
+  else void startRecording();
+});
+
+// Open on whichever tab was last used.
+void chrome.storage.sync.get('tab').then(({ tab }) => {
+  if (tab === 'box') showTab('box');
+});

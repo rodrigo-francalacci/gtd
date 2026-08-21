@@ -7,35 +7,79 @@
   </head>
   <body>
     <header>
-      <h1>Capture</h1>
-      <a id="open-inbox" href="#" target="_blank">Inbox</a>
+      <h1>GTD</h1>
+      <a id="open-inbox" href="#" target="_blank">Open</a>
     </header>
+
+    <!-- Two destinations, and they are genuinely different places. The inbox
+         is a queue to be emptied; a box is a shelf to be kept. Tabs rather
+         than a dropdown because which one you are writing into changes what
+         the form below means, and that should be visible without opening
+         anything. -->
+    <nav class="tabs" role="tablist">
+      <button id="tab-capture" role="tab" aria-selected="true" aria-controls="pane-capture">
+        Inbox
+      </button>
+      <button id="tab-box" role="tab" aria-selected="false" aria-controls="pane-box">
+        Box
+      </button>
+    </nav>
 
     <!-- The page this is about. Shown rather than assumed, because the sidebar
          stays open across navigations and it must be obvious which page you
-         are capturing. -->
+         are capturing. Shared by both tabs: it is the same page either way. -->
     <section id="context" hidden>
       <span id="context-title"></span>
       <span id="context-url"></span>
     </section>
 
-    <label class="field-label" for="text">Capture</label>
-    <textarea id="text" rows="4" placeholder="What's worth keeping?"></textarea>
+    <section id="pane-capture" role="tabpanel" aria-labelledby="tab-capture">
+      <label class="field-label" for="text">Capture</label>
+      <textarea id="text" rows="4" placeholder="What's worth keeping?"></textarea>
 
-    <label class="field-label" for="note">Note</label>
-    <textarea id="note" rows="4" placeholder="Why it matters…"></textarea>
+      <label class="field-label" for="note">Note</label>
+      <textarea id="note" rows="4" placeholder="Why it matters…"></textarea>
 
-    <ul id="files"></ul>
+      <ul id="files"></ul>
 
-    <button id="capture">Capture</button>
-    <div class="row">
-      <button id="attach" class="quiet">Attach files</button>
-      <button id="refresh" class="quiet">Use this page</button>
-    </div>
+      <button id="capture">Capture</button>
+      <div class="row">
+        <button id="attach" class="quiet">Attach files</button>
+        <button id="refresh" class="quiet">Use this page</button>
+      </div>
+
+      <p class="hint">Drop files here, or paste a screenshot. Right-click an
+        image on the page to bring it in.</p>
+    </section>
+
+    <section id="pane-box" role="tabpanel" aria-labelledby="tab-box" hidden>
+      <label class="field-label" for="box-picker">Box</label>
+      <select id="box-picker"></select>
+
+      <label class="field-label" for="box-text">Write something</label>
+      <textarea id="box-text" rows="6" placeholder="A note, or paste a link…"></textarea>
+
+      <ul id="box-files"></ul>
+
+      <button id="box-post">Post</button>
+      <div class="row">
+        <button id="box-attach" class="quiet">Add files</button>
+        <button id="box-record" class="quiet">Record</button>
+      </div>
+      <div class="row">
+        <button id="box-place" class="quiet">Add where I am</button>
+        <button id="box-page" class="quiet">Keep this page</button>
+      </div>
+
+      <p class="hint">A message that is only a link is kept as one, and read
+        for its title and picture. Drop files here or paste a screenshot.</p>
+    </section>
+
+    <!-- One picker per tab: sharing it would mean a file chosen on one tab
+         could land on the other, which is the one mistake worth designing
+         out here. -->
     <input id="picker" type="file" multiple hidden />
-
-    <p class="hint">Drop files here, or paste a screenshot. Right-click an
-      image on the page to bring it in.</p>
+    <input id="box-picker-file" type="file" multiple hidden />
 
     <p id="status" role="status"></p>
 

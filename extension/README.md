@@ -1,6 +1,7 @@
 # GTD Capture — Chrome extension
 
-Sends the page you're on, or the text you've selected, to your GTD inbox.
+Sends the page you're on, or the text you've selected, to your GTD inbox — or
+files a note, a link, a file, a recording or a place into one of your boxes.
 
 ## Installing
 
@@ -51,6 +52,32 @@ alone, because a navigation must never delete a half-written sentence.
 If the shortcut collides with something else, remap it at
 `chrome://extensions/shortcuts`.
 
+## The Box tab
+
+Two tabs, because they are two genuinely different places. The **inbox** is a
+queue to be emptied — everything in it is waiting for you to decide what it is.
+A **box** is a shelf to be kept: filing something there is not a commitment, and
+nothing there is waiting on you. The app is careful never to let the two become
+one thing, and neither is the sidebar. It opens on whichever tab you used last.
+
+Pick a box, then:
+
+- **Type and press Enter.** A message that is *only* a web address is kept as a
+  link and read for its title, summary and picture; anything with words around
+  it stays a note. The server decides which, using the same rule the app's own
+  composer uses — in one place, so the two cannot disagree.
+- **Add files**, drop them on the panel, or paste a screenshot. Same path as the
+  inbox: straight to Drive, so the ceiling is Drive's.
+- **Record** a voice note. The microphone is asked for *raw* — echo
+  cancellation, noise suppression and automatic gain all off, 48 kHz, 128 kbps
+  — which is why these don't sound like messaging-app voice notes. The
+  recording is staged rather than sent, so you can write a line about it first.
+- **Add where I am** files a place. Asked for per entry and never watched.
+- **Keep this page** files the page you're reading as a link.
+
+The box list is fetched from the app rather than configured here, so boxes you
+create or rename appear without touching the extension.
+
 ## How it stays signed in
 
 The app's session cookie is `SameSite=Lax`, deliberately: the Google OAuth
@@ -85,7 +112,11 @@ the extension's origin, so it could never see your session at all.
 - `tabs` — read the title and URL of the tab you're on, so the sidebar can keep
   showing the right page as you browse. This is the broadest thing here: it
   covers tab titles and URLs generally, not just when invoked
-- `storage` — remembers your app's address
+- `geolocation` — the Box tab's **Add where I am**. Asked for at the moment you
+  press it and never watched; an extension holding a live position because you
+  once pressed a button is not a trade anyone agreed to
+- `storage` — remembers your app's address, which tab you were last on, and
+  which box you last filed into
 - host permissions for your GTD app only — what makes the session cookie
   travel, per the exemption above. Nothing else is listed; a different address
   is asked for at the moment you set it in options
