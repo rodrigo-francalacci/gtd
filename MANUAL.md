@@ -1,7 +1,7 @@
 # GTD — user manual
 
-A personal Getting Things Done system: a three-pane desktop app, a phone
-capture screen, and a Chrome sidebar. One user, one Google account.
+A personal Getting Things Done system: a three-pane desktop app, the same app
+on a phone, and a Chrome sidebar. One user, one Google account.
 
 This manual is about *using* it. `CLAUDE.md` is the companion document about
 how it is built and why — if you want the reasoning behind a decision rather
@@ -23,7 +23,7 @@ than the behaviour, look there.
 - [Search](#search)
 - [Views and preferences](#views-and-preferences)
 - [The Chrome extension](#the-chrome-extension)
-- [The phone](#the-phone)
+- [The phone](#the-phone) — the whole app, one screen at a time
 - [Google](#google)
 - [Reading files with AI](#reading-files-with-ai)
 - [Keyboard](#keyboard)
@@ -583,17 +583,80 @@ your text — you lose a click and nothing else.
 
 ## The phone
 
-`/capture` is a separate screen, deliberately outside the desktop shell. It is
-not the desktop box made narrower: the whole screen is the field, targets are
-thumb-sized, the camera is a first-class button, and there is no drag-and-drop.
+The whole app is on the phone. Every list, every detail pane, every preview,
+the boxes, the calendar, the review — not a capture screen with the rest left
+behind. What changes is how much of it you can see at once, and that you have a
+thumb rather than a mouse.
+
+### The layout
+
+Three things instead of three panes side by side:
+
+- **A drawer** holds what the sidebar holds on a desktop — search, the lists,
+  documents, organise, settings, theme, sign out. Open it from **Menu**, and it
+  closes the moment you choose something, because choosing is the end of
+  navigating.
+- **A carousel** holds the rest. The list, then the row you tapped, then the
+  file you opened — the same three panes in the same order, one screen at a
+  time. Tapping moves you forward; swiping right, or the phone's back gesture,
+  moves you back.
+- **A bar** stays fixed at the bottom: Menu, and four shortcuts.
+
+The carousel always starts where you are, not where you were. Opening a list
+puts you on the list; a link straight to a project opens the project. Leaving a
+section closes any file you had open in it, so you never land on a preview from
+two taps ago.
+
+### The four shortcuts
+
+**Capture**, **Now**, **Calendar**, **Boxes** — the ones you reach for standing
+up. Four, because a fifth at 390px is under a thumb rather than under a
+fingertip aimed at it. Everything else is one tap further, behind the menu.
+
+**Boxes** opens a picker — the boxes you have, to open one. The manager, where
+vocabularies and Drive folders are configured, is still in the menu: from a
+phone you want to open a box, not configure one.
+
+### Capture
+
+**Capture** goes to the phone's own capture screen, not the inbox list — the
+inbox is where captures are *processed*, which is a different and slower job.
+
+The whole display is the field. The camera and the microphone are buttons, not
+things behind a menu. The destination is chosen before you type: the inbox, or
+any box. A half-typed draft is kept in the browser, so a backgrounded tab
+discarded mid-word does not lose it, and below the field is a short list of what
+you just captured — proof it landed.
 
 It writes through the same path as everything else, so a capture made on the
-phone is not a second kind of capture. Below the field is a short list of what
-you just captured — proof it landed, which costs one query rather than trust.
+phone is not a second kind of capture.
 
-A half-typed draft is kept in the browser, so a backgrounded tab discarded
-mid-word does not lose it. Install it from the browser's menu and it opens
-straight to capture.
+### Sharing to it from Android
+
+Install the app first — from Chrome's menu, "Add to home screen". Sharing only
+works for an installed app, and the manifest is read at install time, so
+reinstall after an update if the share target misbehaves.
+
+After that the app appears in Android's share sheet. Anything shared — a page,
+a photo, several photos, text — arrives on the capture screen with the fields
+already filled and the destination still yours to choose. A page's address goes
+in the note rather than the title, because a line of query string is unreadable
+in a list. Apps disagree about which field the address goes in, and it is sorted
+out on arrival, so the box is prefilled the same way whatever you shared from.
+
+### What is different from the desktop
+
+**Dragging.** Touch has no drag-and-drop in any form, so anything that was only
+a drag needed a second way to ask. Filing an action onto a project is now also a
+menu on the action itself, calling the same thing the drag calls. Restaging a
+project and moving an action between Active and Future were already buttons.
+
+Still drag-only: manual reordering. The sort control offers name, date and use
+instead, which is most of what reordering was for.
+
+**PDFs.** Chrome on Android has no built-in PDF viewer, so a PDF preview is
+rendered by Drive rather than by the browser. Everything else previews exactly
+as it does on a desktop.
 
 ---
 
