@@ -1,6 +1,7 @@
 import 'server-only';
 
 import { NextResponse } from 'next/server';
+import { GoogleAuthError } from '../auth/token';
 import { downloadFile } from './client';
 
 /**
@@ -21,7 +22,34 @@ export async function serveDriveFile(
   request: Request,
 ): Promise<NextResponse> {
   const range = request.headers.get('range');
-  const upstream = await downloadFile(file.driveFileId, range);
+
+  /**
+   * A revoked grant is not a broken file, and must not be reported as one.
+   *
+   * `getAccessToken` throws when the refresh token has been withdrawn or has
+   * expired — Google does that of its own accord, and the only cure is
+   * consenting again. Left uncaught it became a bare 500 with an empty body,
+   * which the preview pane could only describe as "that file would not load":
+   * true of every file in the app at once, and pointing at the file rather
+   * than at the one page that can fix it.
+   */
+  let upstream: Response;
+  try {
+    upstream = await downloadFile(file.driveFileId, range);
+  } catch (error) {
+    if (error instanceof GoogleAuthError) {
+      return NextResponse.json(
+        {
+          error:
+            'Google has disconnected. Reconnect it on the Google page and this ' +
+            'file will open again.',
+          reconnect: true,
+        },
+        { status: 401 },
+      );
+    }
+    throw error;
+  }
 
   if (!upstream.ok || !upstream.body) {
     return NextResponse.json(

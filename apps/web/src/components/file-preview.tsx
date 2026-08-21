@@ -96,8 +96,34 @@ export function useFilePreview(): PreviewApi {
  * which is the only width there is a reason to choose — the other two are
  * determined by it and by the window.
  */
+const GENERIC = 'That file would not load.';
+
+/**
+ * Why a preview failed, in words worth showing.
+ *
+ * An `<img>` or an `<iframe>` reports only that it did not load, which for
+ * every file in the app at once is a true statement pointing in the wrong
+ * direction. The endpoint knows better — a withdrawn Google grant is the usual
+ * cause and is fixed on one page — so this asks it, and falls back to the
+ * generic line when there is nothing better to say.
+ */
+async function reasonFor(src: string): Promise<string> {
+  try {
+    return await reasonFrom(await fetch(src));
+  } catch {
+    return GENERIC;
+  }
+}
+
+async function reasonFrom(response: Response): Promise<string> {
+  if (!response.headers.get('content-type')?.includes('json')) return GENERIC;
+
+  const body = (await response.json().catch(() => null)) as { error?: string } | null;
+  return body?.error ?? GENERIC;
+}
+
 function PreviewPane({ file, onClose }: { file: PreviewFile; onClose: () => void }) {
-  const [failed, setFailed] = useState(false);
+  const [failed, setFailed] = useState<string | null>(null);
   const src = file.src;
   const type = file.mimeType ?? '';
 
@@ -131,7 +157,7 @@ function PreviewPane({ file, onClose }: { file: PreviewFile; onClose: () => void
 
       <div className="min-h-0 flex-1 overflow-auto bg-grey-100">
         {failed ? (
-          <Unsupported file={file} src={src} reason="That file would not load." />
+          <Unsupported file={file} src={src} reason={failed} />
         ) : isGoogleNative(type) ? (
           // Straight to Google's own editor, not through our proxy — a Docs
           // file has no bytes to fetch, and embedding the editor is what makes
@@ -144,13 +170,13 @@ function PreviewPane({ file, onClose }: { file: PreviewFile; onClose: () => void
             className="h-full w-full border-0 bg-paper"
           />
         ) : type.startsWith('image/') ? (
-          <ImageViewer src={src} alt={file.name} onFail={() => setFailed(true)} />
+          <ImageViewer src={src} alt={file.name} onFail={() => void reasonFor(src).then(setFailed)} />
         ) : type.startsWith('audio/') ? (
           <MediaPlayer src={src} kind="audio" />
         ) : type.startsWith('video/') ? (
           <MediaPlayer src={src} kind="video" />
         ) : isJson(type) ? (
-          <JsonView src={src} onFail={() => setFailed(true)} />
+          <JsonView src={src} onFail={() => void reasonFor(src).then(setFailed)} />
         ) : type === 'application/pdf' || isBrowserText(type) ? (
           // A PDF or plain text on our own origin: the browser's own viewer
           // handles both, and does it better than anything worth writing here.
@@ -180,7 +206,7 @@ function PreviewPane({ file, onClose }: { file: PreviewFile; onClose: () => void
  */
 function MediaPlayer({ src, kind }: { src: string; kind: 'audio' | 'video' }) {
   const [objectUrl, setObjectUrl] = useState<string | null>(null);
-  const [error, setError] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   /**
    * Fetched into a blob rather than pointed at the endpoint.
@@ -200,7 +226,13 @@ function MediaPlayer({ src, kind }: { src: string; kind: 'audio' | 'video' }) {
     void (async () => {
       try {
         const response = await fetch(src);
-        if (!response.ok) throw new Error(String(response.status));
+        if (!response.ok) {
+          // The body usually says something worth repeating — a revoked
+          // Google grant, most often, which is not a fact about this file.
+          const reason = await reasonFrom(response);
+          if (live) setError(reason);
+          return;
+        }
 
         const blob = await response.blob();
         if (!live) return;
@@ -208,7 +240,7 @@ function MediaPlayer({ src, kind }: { src: string; kind: 'audio' | 'video' }) {
         url = URL.createObjectURL(blob);
         setObjectUrl(url);
       } catch {
-        if (live) setError(true);
+        if (live) setError(GENERIC);
       }
     })();
 
@@ -219,11 +251,7 @@ function MediaPlayer({ src, kind }: { src: string; kind: 'audio' | 'video' }) {
   }, [src]);
 
   if (error) {
-    return (
-      <p className="p-6 text-center text-[12px] text-grey-500">
-        That file would not load.
-      </p>
-    );
+    return <p className="p-6 text-center text-[12px] text-grey-500">{error}</p>;
   }
 
   if (!objectUrl) {

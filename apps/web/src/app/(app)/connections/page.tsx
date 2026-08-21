@@ -47,13 +47,37 @@ export default async function ConnectionsPage() {
             Granted access
           </h2>
           {syncReady ? (
-            <ul className="mt-1 space-y-0.5">
-              {SYNC_SCOPES.map((scope) => (
-                <li key={scope} className="text-[12px] text-grey-600">
-                  {SCOPE_LABELS[scope] ?? scope}
-                </li>
-              ))}
-            </ul>
+            <>
+              <ul className="mt-1 space-y-0.5">
+                {SYNC_SCOPES.map((scope) => (
+                  <li key={scope} className="text-[12px] text-grey-600">
+                    {SCOPE_LABELS[scope] ?? scope}
+                  </li>
+                ))}
+              </ul>
+
+              {/*
+                A grant can be alive here and dead at Google: a refresh token
+                is withdrawn when it goes unused for months, when the password
+                changes, or when you revoke it from your account page — and
+                none of those tell the app. The scopes above still read as
+                granted while every Drive call fails, so the way to consent
+                again has to be permanently on offer rather than appearing
+                only when the app has noticed. It is quiet because most of the
+                time it isn't needed.
+              */}
+              <a
+                href="/api/auth/signin?scopes=sync"
+                className="mt-3 inline-block text-[11px] text-grey-500 underline underline-offset-2 hover:text-grey-800"
+              >
+                Reconnect Google
+              </a>
+              <p className="mt-1 max-w-prose text-[11px] leading-relaxed text-grey-500">
+                Needed if files stop opening or the queue reports that the token
+                was refused. Nothing is lost by doing it — it asks Google for the
+                same two permissions again.
+              </p>
+            </>
           ) : (
             <>
               <p className="mt-1 text-[12px] text-grey-600">
