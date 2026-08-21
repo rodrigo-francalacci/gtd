@@ -1,3 +1,4 @@
+import { AppShell } from '@/components/app-shell';
 import { CaptureHotkey } from '@/components/capture-hotkey';
 import { FilePreviewProvider } from '@/components/file-preview';
 import { SidebarNav } from '@/components/sidebar';
@@ -25,29 +26,26 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   ]);
 
   return (
-    /* Pane 1 of 3. Panes 2 and 3 come from each section's own page. The file
-       preview adds a fourth on the right, but only while something is open,
-       and it takes the space rather than a width of its own. */
+    /* Preview state only — `AppShell` decides where the pane goes, because
+       that differs between the two layouts and nothing else does. */
     <FilePreviewProvider>
-      {/* Renders nothing; listens for `c` so a thought can be captured from
-          wherever you happen to be when it arrives. */}
+      {/* Both render nothing. One listens for `c` so a thought can be captured
+          from wherever you are; the other counts what gets opened. */}
       <CaptureHotkey />
-      {/* Also renders nothing; counts what gets opened, so a list can be
-          sorted by what you actually use rather than only by what you filed. */}
       <UsageTracker />
-      <SidebarNav
-        counts={counts}
-        lists={lists}
-        boxes={boxes}
-        theme={prefs.theme}
-      />
-      {/* Panes 2 and 3 live in here, so this is what has to stop growing when
-          the preview opens — otherwise the pane inside it caps itself and the
-          space it gave up stays trapped in this wrapper. `0 1 auto`: as wide
-          as the two panes it holds, and shrinkable if the window is narrow. */}
-      <main className="flex min-w-0 flex-1 group-data-[preview=open]/shell:flex-[0_1_auto]">
+
+      <AppShell
+        sidebar={
+          <SidebarNav
+            counts={counts}
+            lists={lists}
+            boxes={boxes}
+            theme={prefs.theme}
+          />
+        }
+      >
         {children}
-      </main>
+      </AppShell>
     </FilePreviewProvider>
   );
 }

@@ -285,3 +285,61 @@ body {
 .range-dual input[type='range']::-moz-range-track {
   background: transparent;
 }
+
+/* The pane track ---------------------------------------------------------- */
+
+/*
+ * The same panes, laid out two ways, and the only place in the app that knows
+ * there are two. Above this the pages return their panes as plain siblings and
+ * below it the components know nothing about screen size; this is the seam.
+ */
+
+.pane-track {
+  display: flex;
+  min-width: 0;
+}
+
+@media (max-width: 767px) {
+  /*
+   * A phone cannot show three panes at once, so it shows them one at a time
+   * and you swipe between them: the list, then the thing you tapped, then the
+   * file you opened.
+   *
+   * Native scroll-snap rather than a dragged container. It is the same gesture
+   * and it comes with momentum, rubber-banding, keyboard and assistive-tech
+   * support, and — the part that is genuinely hard to hand-write — the
+   * browser's own decision about whether a given movement was meant for this
+   * track or for the list scrolling vertically inside it. A JS drag handler
+   * fights that list on every diagonal thumb movement.
+   */
+  .pane-track {
+    overflow-x: auto;
+    overflow-y: hidden;
+    scroll-snap-type: x mandatory;
+    /* Between panes, not within them: a half-swiped pane is nobody's idea of
+       a screen, and the panes are the units of this interface. */
+    overscroll-behavior-x: contain;
+  }
+
+  .pane-track > * {
+    /*
+     * Exactly one screen each. `!important` because the list pane carries an
+     * inline pixel width from its resize handle, which is meaningless here —
+     * there is nothing beside it to take width from — and an inline style
+     * cannot be beaten any other way.
+     */
+    flex: 0 0 100% !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    min-width: 0;
+    scroll-snap-align: start;
+    /* Each pane scrolls itself, vertically, as its own page. */
+    overflow-y: auto;
+  }
+
+  /* The resize handle is a mouse affordance for a width that no longer
+     exists. It is also a 6px target, which is not one. */
+  .pane-track [aria-label='Resize list pane'] {
+    display: none;
+  }
+}

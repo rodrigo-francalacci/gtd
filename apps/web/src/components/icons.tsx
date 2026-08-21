@@ -377,3 +377,12 @@ export const IconCalendar = (p: IconProps) => (
     <path d="M10.6 2.2v2.4" />
   </Glyph>
 );
+
+/** Menu — three rules. The one glyph nobody has to be taught. */
+export const IconMenu = (p: IconProps) => (
+  <Glyph {...p}>
+    <path d="M2.4 4h11.2" />
+    <path d="M2.4 8h11.2" />
+    <path d="M2.4 12h11.2" />
+  </Glyph>
+);

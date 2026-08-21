@@ -34,6 +34,8 @@ type PreviewApi = {
   /** So a pane can close itself when the file it's showing is detached. */
   closeIf: (id: string) => void;
   openId: string | null;
+  /** The shell reads this to place the pane; callers use `openId`. */
+  file: PreviewFile | null;
 };
 
 const Context = createContext<PreviewApi | null>(null);
@@ -55,30 +57,27 @@ export function FilePreviewProvider({ children }: { children: ReactNode }) {
       close: () => setFile(null),
       closeIf: (id) => setFile((f) => (f?.id === id ? null : f)),
       openId: file?.id ?? null,
+      file,
     }),
     [file],
   );
 
-  // The provider *is* the shell row, so the pane can be a flex sibling of the
-  // other three rather than a floating overlay on top of them.
-  //
-  // `data-preview` is on the row so the third pane can cap its own width while
-  // the preview is open — see `CAPPED_BY_PREVIEW` in panes.tsx. Read as a group
-  // rather than passed down: the pane in question is rendered by whichever page
-  // is open, five segments away from here, and threading a boolean through all
-  // of them to express "there is something to the right of you" is more wiring
-  // than the fact deserves.
-  return (
-    <Context.Provider value={api}>
-      <div
-        data-preview={file ? 'open' : 'closed'}
-        className="group/shell flex h-screen w-screen"
-      >
-        {children}
-        {file ? <PreviewPane file={file} onClose={() => setFile(null)} /> : null}
-      </div>
-    </Context.Provider>
-  );
+  /**
+   * State only. The pane itself is rendered by the shell.
+   *
+   * This provider used to *be* the shell row and render the pane as its last
+   * child, which was right while there was one layout. There are two now: on a
+   * wide screen the panes sit side by side, and on a phone they are panels of a
+   * swipe track — and in the second case the preview has to be a sibling of the
+   * other panes in that track, not a child of a wrapper around them. Something
+   * that knows about both layouts has to place it, and that is the shell.
+   */
+  return <Context.Provider value={api}>{children}</Context.Provider>;
+}
+
+/** The file currently open, for the shell to render as a pane. */
+export function useOpenPreview(): PreviewFile | null {
+  return useContext(Context)?.file ?? null;
 }
 
 export function useFilePreview(): PreviewApi {
@@ -122,7 +121,7 @@ async function reasonFrom(response: Response): Promise<string> {
   return body?.error ?? GENERIC;
 }
 
-function PreviewPane({ file, onClose }: { file: PreviewFile; onClose: () => void }) {
+export function PreviewPane({ file, onClose }: { file: PreviewFile; onClose: () => void }) {
   const [failed, setFailed] = useState<string | null>(null);
   const src = file.src;
   const type = file.mimeType ?? '';

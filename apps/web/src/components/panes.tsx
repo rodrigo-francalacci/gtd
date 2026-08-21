@@ -14,9 +14,11 @@ import { ViewToggle } from './view-toggle';
  * using. With no preview open the class doesn't apply and the pane fills the
  * window exactly as before.
  *
- * The shell's `<main>` carries the matching rule (see `(app)/layout.tsx`).
- * It wraps panes 2 and 3, so capping only the pane inside it just moved the
- * empty space one level up and still left the preview with half the window.
+ * This used to need a matching rule on the shell's `<main>`, which wrapped
+ * panes 2 and 3 — capping only the pane inside it moved the empty space one
+ * level up and still left the preview with half the window. That wrapper is
+ * gone: `<main>` is now the pane track itself, so every pane is a direct
+ * child of one flex container and the cap lands where it is written.
  */
 const CAPPED_BY_PREVIEW = 'group-data-[preview=open]/shell:flex-[0_1_41rem]';
 

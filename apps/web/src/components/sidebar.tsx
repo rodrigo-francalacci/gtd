@@ -167,7 +167,12 @@ export function SidebarNav({
   ];
 
   return (
-    <nav className="flex w-56 shrink-0 flex-col border-r border-grey-200 bg-grey-100">
+    <nav
+      /* Full width of whatever holds it: a 14rem column on a desktop, the
+         drawer's own width on a phone. The drawer decides how wide it is;
+         this decides what is in it. */
+      className="flex h-full w-full flex-col border-r border-grey-200 bg-grey-100 md:w-56"
+    >
       <div className="border-b border-grey-200 px-4 py-3">
         <span className="text-[13px] font-semibold tracking-tight text-grey-800">GTD</span>
       </div>
