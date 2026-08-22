@@ -34,7 +34,7 @@ export function AppShell({
   children: ReactNode;
 }) {
   const preview = useOpenPreview();
-  const { close } = useFilePreview();
+  const { close, focused } = useFilePreview();
   const [drawerOpen, setDrawerOpen] = useState(false);
   const pathname = usePathname();
   const params = useSearchParams();
@@ -54,10 +54,12 @@ export function AppShell({
    * the URL to narrow the list you are reading, and being thrown forward a
    * pane for that is the opposite of helpful.
    */
+  const selection = ['item', 'doc', 'action', 'area', 'goal', 'event', 'project', 'box']
+    .map((key) => params.get(key) ?? '')
+    .join('|');
+
   const chosen =
-    ['item', 'doc', 'action', 'area', 'goal', 'event', 'project', 'box'].some(
-      (key) => params.get(key),
-    ) ||
+    selection !== '' ||
     /**
      * Only projects put the choice in the path. `/box/<id>` and `/lists/<id>`
      * look like the same shape and are not: those are *lists* — a box's feed,
@@ -79,16 +81,34 @@ export function AppShell({
    *
    *   0  the list — nothing chosen
    *   1  the detail — a row is chosen
-   *   2  the file — a preview is open
+   *   2  the file — a preview was *asked for*
+   *
+   * `focused` rather than merely open, and that is the whole of the difference
+   * between a file you clicked and one loaded on your behalf. A box document
+   * has exactly one file behind it, so it is loaded the moment the document is
+   * selected — the swipe to reach it then shows the document instead of an
+   * empty pane that starts fetching when you arrive. Being *carried* there
+   * would be the opposite: you asked to read the entry, not to look at the
+   * scan.
    *
    * Correct on first paint too, which is what makes a link to a particular
    * project open that project rather than the list it happens to be in.
    */
-  const target = preview ? 2 : chosen ? 1 : 0;
+  const target = preview && focused ? 2 : chosen ? 1 : 0;
 
+  /*
+   * `selection` is in the dependencies, and not for tidiness.
+   *
+   * Choosing a *second* row leaves `target` at 1 — a row was chosen before and
+   * a row is chosen now — so with only the target to watch, this never ran
+   * again. Swipe back to the list, tap another row, and nothing moved: the
+   * pane you asked for was rendered, one screen to the right, with no
+   * indication it was there. Which row is chosen has to be part of the
+   * question, because "go to the detail" is an instruction about *this* row.
+   */
   useEffect(() => {
     scrollToPane(track.current, target);
-  }, [target, pathname]);
+  }, [target, pathname, selection]);
 
   /**
    * Leaving a section closes the file you had open in it.
@@ -131,7 +151,10 @@ export function AppShell({
    * is worse than the problem being fixed.
    */
   useEffect(() => {
-    if (!preview) return;
+    // Only a preview you asked for is a step forward. A preloaded one is a
+    // pane sitting quietly to the right; pushing an entry for it would make
+    // back appear to do nothing, having undone something invisible.
+    if (!preview || !focused) return;
 
     // A marker, not a route: the URL is untouched, so nothing re-renders and a
     // reload lands exactly where it would have anyway.
@@ -145,7 +168,7 @@ export function AppShell({
 
     window.addEventListener('popstate', onPop);
     return () => window.removeEventListener('popstate', onPop);
-  }, [preview, close]);
+  }, [preview, focused, close]);
 
   const closePreview = () => {
     // Through history, so the button and the gesture end in the same place.

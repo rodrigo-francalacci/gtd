@@ -45,13 +45,29 @@ export type PreviewFile = {
 };
 
 type PreviewApi = {
+  /** Open it and go to it — someone clicked a file. */
   open: (file: PreviewFile) => void;
+  /**
+   * Load it, but stay where you are.
+   *
+   * For the case where the file is not what you asked for but is what you are
+   * probably about to want: selecting a document in a box has exactly one file
+   * behind it, so there is nothing to choose and no reason to make you choose
+   * it. Loading it means the swipe to reach it shows the document rather than
+   * an empty pane that then starts fetching.
+   *
+   * The distinction is only about *where you are looking* — on a desktop both
+   * behave the same, because the pane is already on screen either way.
+   */
+  preload: (file: PreviewFile | null) => void;
   close: () => void;
   /** So a pane can close itself when the file it's showing is detached. */
   closeIf: (id: string) => void;
   openId: string | null;
   /** The shell reads this to place the pane; callers use `openId`. */
   file: PreviewFile | null;
+  /** Whether the pane was asked for, as against loaded ahead of time. */
+  focused: boolean;
 };
 
 const Context = createContext<PreviewApi | null>(null);
@@ -65,17 +81,45 @@ const Context = createContext<PreviewApi | null>(null);
  * to be threaded through five separate pages that each own their own panes.
  */
 export function FilePreviewProvider({ children }: { children: ReactNode }) {
-  const [file, setFile] = useState<PreviewFile | null>(null);
+  const [state, setState] = useState<{ file: PreviewFile | null; focused: boolean }>({
+    file: null,
+    focused: false,
+  });
+  const { file, focused } = state;
 
   const api = useMemo<PreviewApi>(
     () => ({
-      open: setFile,
-      close: () => setFile(null),
-      closeIf: (id) => setFile((f) => (f?.id === id ? null : f)),
+      open: (next) => setState({ file: next, focused: true }),
+      /*
+       * Always unfocused, never inheriting. If it kept a focus already set,
+       * then once you had opened one document every later selection would drag
+       * the carousel to the preview again — turning a convenience into the
+       * thing it was meant to avoid.
+       */
+      preload: (next) =>
+        setState((s) => {
+          if (next === null) {
+            /*
+             * Nothing to show, so show nothing — a selection with no file
+             * must not leave the previous one's document sitting in the pane.
+             * A note between two scans would otherwise read as belonging to
+             * the scan beside it, which is worse than an empty pane.
+             *
+             * A file you opened deliberately is left alone: the pane belongs
+             * to the window, and only the section change closes that.
+             */
+            return s.focused || s.file === null ? s : { file: null, focused: false };
+          }
+          return s.file?.id === next.id ? s : { file: next, focused: false };
+        }),
+      close: () => setState({ file: null, focused: false }),
+      closeIf: (id) =>
+        setState((s) => (s.file?.id === id ? { file: null, focused: false } : s)),
       openId: file?.id ?? null,
       file,
+      focused,
     }),
-    [file],
+    [file, focused],
   );
 
   /**

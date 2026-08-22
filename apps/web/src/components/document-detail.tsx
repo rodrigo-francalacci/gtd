@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useState, useTransition } from 'react';
+import { useEffect, useState, useTransition } from 'react';
 import {
   deleteDocument,
   linkDocument,
@@ -22,7 +22,7 @@ import {
   type BoxItemDetail,
   type BoxRow,
 } from '@/lib/queries.shared';
-import { useFilePreview } from './file-preview';
+import { useFilePreview, type PreviewFile } from './file-preview';
 import { IconAudio, IconDocument, IconLink, IconPlace } from './icons';
 
 const arrived = new Intl.DateTimeFormat('en-GB', {
@@ -147,18 +147,45 @@ export function DocumentDetail({
   const isAudio = item.mimeType?.startsWith('audio/') ?? false;
   const readable = (isDocument && !isAudio) || item.kind === 'link';
 
+  const asPreview = (): PreviewFile | null =>
+    file
+      ? {
+          id: item.id,
+          name: documentLabel(item),
+          src: `/api/box/${item.id}/file`,
+          transcriptUrl: `/api/box/${item.id}/transcript`,
+          mimeType: item.mimeType,
+          driveFileId: file,
+          driveUrl: driveFileUrl(file),
+        }
+      : null;
+
   const open = () => {
-    if (!file) return;
-    preview.open({
-      id: item.id,
-      name: documentLabel(item),
-      src: `/api/box/${item.id}/file`,
-      transcriptUrl: `/api/box/${item.id}/transcript`,
-      mimeType: item.mimeType,
-      driveFileId: file,
-      driveUrl: driveFileUrl(file),
-    });
+    const next = asPreview();
+    if (next) preview.open(next);
   };
+
+  /**
+   * Selecting a document loads its file, without going to it.
+   *
+   * A box entry has exactly one file behind it, so there was never a choice to
+   * make — clicking the filename only told the app what it could already work
+   * out. Loading it on selection means the pane is ready before you swipe to
+   * it, and on a desktop the document simply appears beside the entry the way
+   * it would if you had asked.
+   *
+   * `preload`, not `open`: the carousel must not travel to it. You asked to
+   * read the entry; the scan is the thing next to it.
+   */
+  const { preload } = preview;
+  useEffect(() => {
+    // Including the null case: an entry with no file — a note, a place —
+    // clears the pane rather than leaving the last scan in it.
+    preload(asPreview());
+    // Keyed on the document rather than on the object, which is rebuilt every
+    // render. `preload` ignores a repeat of the file already showing.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [item.id, file, preload]);
 
   return (
     <div className="flex flex-col gap-5">

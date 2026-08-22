@@ -123,7 +123,21 @@ function Player({ objectUrl }: { objectUrl: string | null }) {
   const ready = objectUrl !== null;
 
   return (
-    <div className="shrink-0 border-b border-grey-200 bg-grey-50 px-3 py-2.5">
+    /*
+     * Sticky as well as `shrink-0`, and both are doing work.
+     *
+     * The flex column already pins it while the textarea scrolls inside its
+     * own box — but that only holds while the heights resolve, and in the pane
+     * track a phone gives the pane its own scroller, so a long transcript can
+     * take the whole column with it and carry the transport off the top. That
+     * is the one thing this layout cannot afford: the player is what you are
+     * operating while you type, and a transport you have to scroll back to
+     * find is worse than the native control it replaced.
+     *
+     * An opaque background is part of it — text scrolling *under* a
+     * transparent bar is not stickiness, it is a mess.
+     */
+    <div className="sticky top-0 z-10 shrink-0 border-b border-grey-200 bg-grey-50 px-3 py-2.5">
       <audio
         ref={audio}
         src={objectUrl ?? undefined}
