@@ -1,4 +1,5 @@
 import { ActionBucket } from '@/components/action-bucket';
+import { ClearCompleted } from '@/components/clear-completed';
 import { QuickAddAction } from '@/components/quick-add';
 import { SortableActionList } from '@/components/sortable-action-list';
 import type { ActionRow } from '@/lib/queries';
@@ -103,6 +104,11 @@ export function ProjectActionsSection({
             <span className="ml-1.5 tabular-nums text-grey-400">{done.length}</span>
           </summary>
           <SortableActionList actions={withHref(done)} showProject={false} />
+          {/* Inside the fold, beside the rows it clears — a destructive button
+              in the open where you might mean to tick something is a button
+              waiting to be pressed by accident. Not offered on an archived
+              project: there the finished steps are the whole record. */}
+          <ClearCompleted projectId={projectId} count={done.length} />
         </details>
       ) : null}
     </section>

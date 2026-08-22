@@ -25,6 +25,7 @@ export function SimpleRow({
   title,
   selected,
   muted = false,
+  struck,
   faded = false,
   grip = true,
   control,
@@ -35,8 +36,17 @@ export function SimpleRow({
   href: string;
   title: ReactNode;
   selected: boolean;
-  /** Done or settled: struck through, as in the other views. */
+  /** Finished: greyed back, as in the other views. */
   muted?: boolean;
+  /**
+   * Struck through as well. Defaults to `muted`, which is what it always
+   * meant — until a finished *action* stopped wanting it. A done step on a
+   * project is reference: how the thing was actually done, read months later
+   * by someone doing it again. A line through it says "disregard", which is
+   * the opposite. A settled purchase is different and keeps the rule: that
+   * one really is closed, and the list is a shortlist rather than a record.
+   */
+  struck?: boolean;
   /** Mid-drag or mid-mutation. */
   faded?: boolean;
   grip?: boolean;
@@ -82,7 +92,9 @@ export function SimpleRow({
         className={[
           'min-w-0 flex-1 truncate',
           muted
-            ? 'text-grey-400 line-through'
+            ? (struck ?? true)
+              ? 'text-grey-400 line-through'
+              : 'text-grey-400'
             : selected
               ? 'font-medium text-grey-900'
               : 'text-grey-800',

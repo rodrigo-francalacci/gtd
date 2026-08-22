@@ -164,6 +164,26 @@ export async function updateProjectNotes(projectId: string, notes: unknown) {
 
 export async function deleteProject(projectId: string) {
   await requireSession();
+
+  /*
+   * The same clean-up an action gets, for the same reason and on a larger
+   * scale. `actions.project_id` cascades, so deleting a project took its
+   * actions with it and left every file attached to any of them orphaned:
+   * rows pointing at nothing, and their Drive files still sitting in a folder
+   * the app can no longer reach. The polymorphic `parent_id` has no foreign
+   * key to cascade through — it addresses four different tables — so this is
+   * the only place it can happen.
+   *
+   * Actions first, while they can still be found by their project.
+   */
+  const own = await db
+    .select({ id: actions.id })
+    .from(actions)
+    .where(eq(actions.projectId, projectId));
+
+  await purgeActions(own.map((a) => a.id));
+  await purgeFilesOf('project', [projectId]);
+
   await db.delete(projects).where(eq(projects.id, projectId));
   revalidateShell();
   redirect('/projects');
@@ -361,10 +381,103 @@ export async function updateListItemNotes(listItemId: string, notes: unknown) {
     .where(eq(listItems.id, listItemId));
 }
 
+/**
+ * Delete actions, and take what hangs off them.
+ *
+ * `attachments` and `box_item_links` are polymorphic — `parent_id` is a plain
+ * uuid with no foreign key, because it points at four different tables — so
+ * nothing cascades and deleting the action alone left its files behind as rows
+ * pointing at something that no longer exists: invisible in every pane, still
+ * counted by the enrichment queue, and their Drive files still sitting in the
+ * project folder with nothing in the app that could ever reach them again.
+ *
+ * Files are removed one at a time through `removeAttachment` rather than in
+ * one statement, because each one has a Drive file to trash and that is the
+ * part that must not be skipped. It *trashes*, never deletes — the standing
+ * rule for every file this app puts in Drive, and the reason this is safe to
+ * offer as a bulk button at all: the recovery is Drive's own bin.
+ *
+ * A link to a Big Box document is only unlinked. The document belongs to the
+ * box, and tidying a project has no business reaching into the archive.
+ */
+async function purgeFilesOf(
+  parentType: AttachmentParentType,
+  parentIds: string[],
+): Promise<number> {
+  // Not just an optimisation: `inArray` with nothing in it builds `in ()`,
+  // which Postgres rejects outright.
+  if (parentIds.length === 0) return 0;
+
+  const files = await db
+    .select({ id: attachments.id })
+    .from(attachments)
+    .where(
+      and(
+        eq(attachments.parentType, parentType),
+        inArray(attachments.parentId, parentIds),
+      ),
+    );
+
+  // One at a time, because each carries a Drive file to trash and that is the
+  // part that must not be skipped. `removeAttachment` trashes, never deletes.
+  for (const file of files) await removeAttachment(file.id);
+
+  // Only the citation goes. The document belongs to its box, and tidying up
+  // here has no business reaching into the archive.
+  await db
+    .delete(boxItemLinks)
+    .where(
+      and(
+        eq(boxItemLinks.parentType, parentType),
+        inArray(boxItemLinks.parentId, parentIds),
+      ),
+    );
+
+  return files.length;
+}
+
+async function purgeActions(ids: string[]): Promise<number> {
+  if (ids.length === 0) return 0;
+
+  const files = await purgeFilesOf('action', ids);
+  await db.delete(actions).where(inArray(actions.id, ids));
+
+  return files;
+}
+
 export async function deleteAction(actionId: string) {
   await requireSession();
-  await db.delete(actions).where(eq(actions.id, actionId));
+  await purgeActions([actionId]);
   revalidateShell();
+}
+
+/**
+ * Clear the finished steps off a project.
+ *
+ * Not every project is worth a record. A recurring bit of admin accumulates
+ * the same four steps every time and none of them will ever be read again,
+ * and a project pane you have to scroll past forty ticked rows to reach is a
+ * project you stop opening. Deliberately per-project and deliberately a
+ * button: there is no sweep, nothing expires, and a project whose history is
+ * the point keeps all of it by doing nothing.
+ *
+ * Returns how much went, so the caller can say so rather than leaving you to
+ * work out what a silent refresh did.
+ */
+export async function deleteCompletedActions(projectId: string) {
+  await requireSession();
+
+  const done = await db
+    .select({ id: actions.id })
+    .from(actions)
+    .where(and(eq(actions.projectId, projectId), eq(actions.status, 'done')));
+
+  const ids = done.map((a) => a.id);
+  const files = await purgeActions(ids);
+
+  revalidateShell();
+
+  return { actions: ids.length, files };
 }
 
 export async function moveActionToProject(actionId: string, projectId: string | null) {

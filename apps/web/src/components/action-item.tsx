@@ -82,6 +82,9 @@ export function ActionItem({
         title={action.title}
         selected={selected}
         muted={done}
+        /* Greyed but not crossed out — a finished step is the record of how
+           this was done, not something to disregard. */
+        struck={false}
         faded={pending || isDragging}
         control={checkbox}
       />
@@ -114,7 +117,7 @@ export function ActionItem({
             className={[
               'min-w-0 flex-1 truncate',
               done
-                ? 'text-grey-400 line-through'
+                ? 'text-grey-400'
                 : selected
                   ? 'font-medium text-grey-900'
                   : 'text-grey-800',
@@ -160,7 +163,7 @@ export function ActionItem({
           className={[
             'block truncate text-[13px]',
             done
-              ? 'text-grey-400 line-through'
+              ? 'text-grey-400'
               : selected
                 ? 'font-medium text-grey-900'
                 : 'text-grey-800',
