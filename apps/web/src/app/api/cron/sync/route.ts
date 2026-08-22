@@ -3,6 +3,7 @@ import { timingSafeEqual } from 'node:crypto';
 import { drainBoxQueue } from '@/lib/box/queue';
 import { drainEnrichmentQueue } from '@/lib/enrich/queue';
 import { refreshGoogleNames } from '@/lib/google/attachments';
+import { renameBoxFiles } from '@/lib/google/boxes';
 import { drainSyncQueue } from '@/lib/google/queue';
 import { getSession } from '@/lib/auth/session';
 
@@ -42,12 +43,16 @@ export async function GET(request: Request) {
   // APIs — push to Google, read an attachment, read a document — and a second
   // cron entry would be a second thing to forget to configure. Hobby accounts
   // allow one daily schedule, so there is only one tick to put them in.
-  const [sync, enrich, box, renamed] = await Promise.all([
+  const [sync, enrich, box, renamed, filed] = await Promise.all([
     drainSyncQueue(),
     drainEnrichmentQueue(),
     drainBoxQueue(),
     refreshGoogleNames(),
+    // The other direction, and the reason both belong on the same tick: names
+    // come back from the Docs files Google owns, and go out to the box
+    // documents this app named.
+    renameBoxFiles(),
   ]);
 
-  return NextResponse.json({ ok: true, sync, enrich, box, renamed });
+  return NextResponse.json({ ok: true, sync, enrich, box, renamed, filed });
 }

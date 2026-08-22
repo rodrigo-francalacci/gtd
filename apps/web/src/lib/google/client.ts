@@ -117,13 +117,26 @@ export async function getFile(fileId: string): Promise<DriveFile | null> {
   }
 }
 
-/** Rename a folder the app made, so its Drive name follows the app's. */
-export async function renameFolder(folderId: string, name: string): Promise<void> {
-  await call(`${DRIVE}/files/${folderId}?fields=id`, {
+/**
+ * Rename something the app made, so its Drive name follows the app's.
+ *
+ * `drive.file` covers this: the scope is per-file access to files the app
+ * created, and creating one includes the right to rename it. Verified against
+ * the real API before anything was built on the assumption — which is worth
+ * saying, because the alternative under consideration was exporting a manifest
+ * for an Apps Script to consume, and that would have been a second system
+ * maintained forever to work around a permission the app already had.
+ */
+export async function renameFile(fileId: string, name: string): Promise<void> {
+  await call(`${DRIVE}/files/${fileId}?fields=id`, {
     method: 'PATCH',
     body: JSON.stringify({ name }),
   });
 }
+
+/** A folder is a file in Drive. Named separately so call sites read as what
+    they mean. */
+export const renameFolder = renameFile;
 
 /** Move a file by swapping its parents — Drive has no "move" verb. */
 export async function moveFile(fileId: string, newParentId: string): Promise<void> {

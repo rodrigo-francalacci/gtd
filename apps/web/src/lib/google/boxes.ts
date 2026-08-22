@@ -1,7 +1,7 @@
 import 'server-only';
 
 import { boxItems, boxes, db } from '@gtd/db';
-import { eq } from 'drizzle-orm';
+import { and, eq, isNotNull, sql } from 'drizzle-orm';
 import { hasSyncScopes } from '@/lib/auth/google';
 import { getGrant } from '@/lib/auth/token';
 import { canClassify } from '@/lib/box/classify';
@@ -10,6 +10,7 @@ import {
   createResumableSession,
   ensureFolder,
   getFile,
+  renameFile,
   renameFolder,
   trashFile,
 } from './client';
@@ -199,4 +200,115 @@ export async function deleteBoxItem(itemId: string): Promise<void> {
     // Failing here would leave you unable to tidy the box because of a
     // problem at Google's end.
   }
+}
+
+/**
+ * The name a box document should carry in Drive.
+ *
+ * The title is what the box calls it — the model's, or whatever you corrected
+ * it to. The extension comes from the name Drive currently holds, because
+ * dropping it would leave a file the operating system no longer knows how to
+ * open; it is not doubled if the title already ends in it.
+ *
+ * The printed date goes in front when there is one, and that is not decoration.
+ * The scanner bridge already names its uploads `2026-01-30 Fuel Receipt — …`,
+ * so a bare title would have been a regression against a convention already
+ * sitting in the folder: a document folder is read in date order, and a
+ * hundred receipts sorted by the first letter of a summary is not a filing
+ * system. It is also the one fact those generated names carry that a title
+ * often doesn't, and Drive has nowhere else to put it.
+ *
+ * `doc_date` rather than arrival, matching the feed: what the paper says,
+ * which is the date you would look for.
+ */
+export function driveNameFor(
+  title: string,
+  current: string,
+  docDate: string | null,
+): string | null {
+  const base = safeName(title);
+  if (!base) return null;
+
+  // Already led by an ISO date — the model repeating it, or a title that has
+  // been through here before. Prefixing again would stutter.
+  const dated =
+    docDate && !/^\d{4}-\d{2}-\d{2}/.test(base) ? `${docDate} ${base}` : base;
+
+  const ext = /\.[A-Za-z0-9]{1,8}$/.exec(current)?.[0] ?? '';
+  if (!ext) return dated;
+
+  return dated.toLowerCase().endsWith(ext.toLowerCase()) ? dated : `${dated}${ext}`;
+}
+
+/**
+ * Make Drive call a document what the box calls it.
+ *
+ * A scan arrives named by whatever produced it — a camera's timestamp, a
+ * scanner's counter — and is then read and given a real title. Until now that
+ * title lived only here, so the box knew the document as "MFG Marlborough Road
+ * Fuel Receipt" and Drive still knew it as an upload filename. Anyone opening
+ * the Drive folder saw none of the work.
+ *
+ * This is one-way sync doing exactly what it says, not an exception to it: the
+ * app owns a document's title and pushes it out. It is the mirror image of
+ * `refreshGoogleNames`, which pulls in the names of Docs-editor files — those
+ * are renamed by typing in a title bar and the app offers no other way, so
+ * Google owns them. Both rules come from the same question, and the answers
+ * differ because the answer to "who renames this" differs. Docs-native files
+ * are excluded here for that reason, not overlooked.
+ *
+ * Drift is found without asking Google anything. `box_items.name` is by
+ * definition the name Drive holds, so a title that no longer agrees with it is
+ * the whole test — no per-file read, and nothing to do on a tick where nothing
+ * has been renamed.
+ *
+ * A file whose rename fails is skipped rather than failing the sweep. The
+ * usual cause is a document removed from Drive by hand, which is not a reason
+ * to stop renaming the other forty.
+ */
+export async function renameBoxFiles(limit = 50): Promise<number> {
+  const grant = await getGrant();
+  if (!grant?.refreshToken || !hasSyncScopes(grant.scope)) return 0;
+
+  const rows = await db
+    .select({
+      id: boxItems.id,
+      name: boxItems.name,
+      title: boxItems.title,
+      docDate: boxItems.docDate,
+      driveFileId: boxItems.driveFileId,
+    })
+    .from(boxItems)
+    .where(
+      and(
+        eq(boxItems.status, 'ready'),
+        isNotNull(boxItems.driveFileId),
+        isNotNull(boxItems.title),
+        // Google's to name. See above.
+        sql`coalesce(${boxItems.mimeType}, '') not like 'application/vnd.google-apps.%'`,
+      ),
+    )
+    .limit(limit);
+
+  let renamed = 0;
+
+  for (const row of rows) {
+    const wanted = driveNameFor(row.title!, row.name, row.docDate);
+    if (!wanted || wanted === row.name) continue;
+
+    try {
+      await renameFile(row.driveFileId!, wanted);
+    } catch {
+      continue;
+    }
+
+    // Written after Drive agrees, never before: this column is the record of
+    // what Drive holds, and setting it first would mean a failed rename left
+    // the app certain of a name that was never applied — and never trying
+    // again, because the drift it looks for would be gone.
+    await db.update(boxItems).set({ name: wanted }).where(eq(boxItems.id, row.id));
+    renamed += 1;
+  }
+
+  return renamed;
 }

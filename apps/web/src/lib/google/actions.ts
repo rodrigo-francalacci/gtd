@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache';
 import { requireSession } from '@/lib/auth/session';
 import { backfillProjectLinks, drainSyncQueue, retryFailedJobs } from './queue';
 import { refreshGoogleNames } from './attachments';
+import { renameBoxFiles } from './boxes';
 import { LiveGoogleSync } from './live-sync';
 import type { LinkDrift } from './sync';
 import {
@@ -16,7 +17,7 @@ export async function runSyncNow() {
   await requireSession();
   // Names come back in the same pass: if you have just renamed a doc in
   // Google, "run sync now" is the button you would reach for.
-  await Promise.all([drainSyncQueue(25), refreshGoogleNames()]);
+  await Promise.all([drainSyncQueue(25), refreshGoogleNames(), renameBoxFiles()]);
   revalidateShell();
 }
 
