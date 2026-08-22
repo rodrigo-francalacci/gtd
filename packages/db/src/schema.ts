@@ -311,6 +311,19 @@ export const lists = pgTable('lists', {
   id: uuid('id').primaryKey().defaultRandom(),
   name: text('name').notNull(),
   type: listType('type').notNull(),
+  /**
+   * What there is to spend, for a purchases list. Null means no ceiling.
+   *
+   * Without it the budget could only say what things cost, never whether you
+   * could afford them — and "would commit £400" is not a decision until you
+   * know what it leaves. On the list rather than in preferences because two
+   * purchases lists are two separate pots, which is most of the reason to have
+   * a second one.
+   *
+   * Plain currency units, like `fields.cost`, so the two can be subtracted
+   * without a scaling rule that only one of them knows about.
+   */
+  budget: doublePrecision('budget'),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 });
 
@@ -380,6 +393,20 @@ export const attachments = pgTable(
      * render a row for a file whose name it would have to ask for.
      */
     name: text('name').notNull().default(''),
+    /**
+     * The name Drive is known to hold, as against `name`, which is the name
+     * this app wants it to have.
+     *
+     * Two columns because a rename here cannot call Google — no mutation may —
+     * so the difference between them *is* the outstanding work, and the sweep
+     * on the cron tick is what closes it. The same job `box_items.title` does
+     * against `box_items.name`, which needed no second column only because a
+     * document already had somewhere to keep the name it was given.
+     *
+     * Null means never pushed and nothing to compare: rows that predate this,
+     * which are left alone rather than renamed on the strength of a guess.
+     */
+    driveName: text('drive_name'),
     mimeType: text('mime_type'),
     sizeBytes: integer('size_bytes'),
     /** Populated asynchronously by the enrichment queue. */

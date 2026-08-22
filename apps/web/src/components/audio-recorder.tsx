@@ -15,38 +15,35 @@ import { useEffect, useRef, useState } from 'react';
  */
 
 /**
- * Two of the three off, and the third deliberately on.
+ * A voice note, the way Telegram makes one.
  *
- * `{ audio: true }` accepts the browser's defaults, which are a voice-call
- * processing chain: echo cancellation, noise suppression and automatic gain.
- * It is worth being precise about which part of that chain is the problem,
- * because they are not the same kind of thing.
+ * This reverses an earlier decision, on purpose and with the trade understood.
+ * The chain used to run with noise suppression off, on the reasoning that it
+ * is destructive and cannot be undone: AEC brings a high-pass and takes the
+ * bottom out, suppression gates the quiet detail at the top, and that is
+ * exactly what makes a messaging app's voice notes unpleasant to hear twice.
+ * All of that is still true. It was weighed against how the result actually
+ * sounds in use and lost — a spoken note is a message to yourself, not a
+ * recording of a room, and Telegram's are the ones worth copying.
  *
- * Echo cancellation and noise suppression change the *sound*. AEC brings a
- * high-pass filter with it and takes the bottom out; suppression gates the
- * quiet detail at the top and leaves speech sounding like it is coming down a
- * phone line. Both are destructive and neither can be undone afterwards, so
- * both stay off — that is what a messaging app does to a voice note and the
- * reason those are unpleasant to listen to twice.
+ * So: suppression on, gain on, echo cancellation still off. AEC is the one
+ * that exists for a *loudspeaker* problem a voice note does not have, and it
+ * is the harshest of the three on the low end.
  *
- * Automatic gain only changes the *level*, and the frequency response is
- * untouched either way. Off, a quiet microphone records quietly and there is
- * nothing to be done about it after the fact short of re-encoding the file.
- * On, the recording arrives at a usable level with its full bandwidth intact.
- * That is a straightforwardly better trade for a voice note, and it is the one
- * thing here that costs nothing to accept.
+ * Mono, because a voice note is one voice and the second channel is a copy of
+ * the first with a different noise floor.
  *
  * Plain values rather than `exact`, so a device that can't honour one degrades
  * instead of throwing `OverconstrainedError` and leaving you with no recording
- * at all. `channelCount` is deliberately unconstrained: a built-in mic is mono
- * and an interface is stereo, and taking what the hardware actually offers is
- * more faithful than insisting on either.
+ * at all — which is why `channelCount` here is a request, and why the readout
+ * reports what was actually granted rather than what was asked for.
  */
 const RAW_AUDIO: MediaTrackConstraints = {
   echoCancellation: false,
-  noiseSuppression: false,
+  noiseSuppression: true,
   autoGainControl: true,
   sampleRate: 48_000,
+  channelCount: 1,
 };
 
 /**
@@ -75,13 +72,20 @@ function bestMimeType(): string {
 }
 
 /**
- * 128 kbps, against a messaging app's 16–32.
+ * 32 kbps mono Opus — a voice note, at the size Telegram sends one.
  *
- * Uploads go straight to Drive, so the ceiling is not ours to worry about: this
- * is roughly a megabyte a minute, and the difference between a recording you
- * keep and one you tolerate.
+ * Down from 128, which was chosen when the goal was to keep everything the
+ * microphone heard. That is a different goal from the one these recordings
+ * actually serve, and Opus is not remotely linear here: 32k mono is a codec
+ * designed for speech doing the thing it was designed for, and the four times
+ * the bitrate was buying headroom for material there is none of.
+ *
+ * About a quarter of a megabyte a minute, so an hour of thinking out loud is
+ * around 14 MB rather than 60 — which matters most on the phone, where these
+ * are recorded, on a connection that is paying for them.
  */
-const BITRATE = 128_000;
+const BITRATE = 32_000;
+
 export function AudioRecorder({
   onDone,
   onCancel,
@@ -154,22 +158,24 @@ export function AudioRecorder({
         const settings = media.getAudioTracks()[0]?.getSettings() ?? {};
 
         /**
-         * Reports the frequency response, not the level.
+         * What was actually granted, not what was asked for.
          *
-         * "raw" used to mean all three filters off, and now that automatic
-         * gain is deliberately on it would be a lie — but gain is not what the
-         * word was ever about. What matters here is whether the sound has been
-         * altered in a way nothing downstream can undo, which is echo
-         * cancellation and noise suppression and neither of the other two.
-         * "full range" says that and stays true whatever the level is doing.
+         * Constraints are requests — a device that cannot honour one is meant
+         * to degrade rather than fail — so a microphone quietly ignoring the
+         * channel count or the suppression flag should be visible here rather
+         * than be a mystery about why one recording sounds unlike the rest.
+         *
+         * "voice" rather than "filtered": suppression is on by intention now,
+         * and a word that reads like a fault would misreport a choice.
          */
-        const coloured = settings.noiseSuppression || settings.echoCancellation;
-
         setQuality(
           [
             settings.sampleRate ? `${Math.round(settings.sampleRate / 1000)} kHz` : null,
             settings.channelCount === 2 ? 'stereo' : 'mono',
-            coloured ? 'filtered' : 'full range',
+            `${Math.round(BITRATE / 1000)} kbps`,
+            settings.noiseSuppression || settings.echoCancellation
+              ? 'voice'
+              : 'full range',
             settings.autoGainControl ? 'auto level' : null,
           ]
             .filter(Boolean)

@@ -2,7 +2,7 @@ import 'server-only';
 
 import { attachments, actions, db, listItems, projects } from '@gtd/db';
 import type { AttachmentKind, AttachmentParentType } from '@gtd/db';
-import { eq, sql } from 'drizzle-orm';
+import { and, eq, isNotNull, ne, sql } from 'drizzle-orm';
 import { getGrant } from '@/lib/auth/token';
 import { hasSyncScopes } from '@/lib/auth/google';
 import { enqueueEnrichment } from '@/lib/enrich/queue';
@@ -12,6 +12,7 @@ import {
   createResumableSession,
   ensureFolder,
   getFile,
+  renameFile,
   trashFile,
   uploadFile,
 } from './client';
@@ -147,6 +148,9 @@ export async function uploadAttachment(
       kind: kindFor(mimeType),
       driveFileId: uploaded.id,
       name: uploaded.name ?? file.name,
+      // Drive holds exactly this, so the two start in step and the rename
+      // sweep has nothing to do until one of them changes.
+      driveName: uploaded.name ?? file.name,
       mimeType,
       sizeBytes: file.size,
     })
@@ -222,6 +226,7 @@ export async function completeUpload(
       kind: kindFor(mimeType),
       driveFileId: file.id,
       name: file.name,
+      driveName: file.name,
       mimeType,
       sizeBytes: Number.isFinite(size) ? size : null,
     })
@@ -264,6 +269,7 @@ export async function createGoogleDocument(
       kind: 'file',
       driveFileId: created.id,
       name: created.name ?? title,
+      driveName: created.name ?? title,
       mimeType,
       // Google stores it; there is no size on our side to record.
       sizeBytes: null,
@@ -318,13 +324,87 @@ export async function refreshGoogleNames(limit = 50): Promise<number> {
 
     await db
       .update(attachments)
-      .set({ name: file.name })
+      // Both, and that is the point: this is now the name Drive holds *and*
+      // the name we want, so the push sweep sees no disagreement and doesn't
+      // send Google's own answer straight back to it.
+      .set({ name: file.name, driveName: file.name })
       .where(eq(attachments.id, row.id));
 
     changed += 1;
   }
 
   return changed;
+}
+
+/**
+ * Carry a renamed attachment out to Drive.
+ *
+ * The same arrangement the Big Box uses, and the same reason for it: the app
+ * owns the name of a file it uploaded, so renaming it here should rename it
+ * there rather than leaving Drive holding `IMG_20260812.jpg` for something
+ * this app calls the quote from the kitchen fitter.
+ *
+ * The one difference is where the two names live. A box document already had
+ * somewhere to keep the name it was given — `title` beside `name` — so the
+ * disagreement between them *was* the outstanding work. An attachment had only
+ * the one column, hence `drive_name`: `name` is what we want, `drive_name` is
+ * what Drive is known to hold, and the gap between them is the queue.
+ *
+ * Docs-editor files are excluded, as they are there. Those are renamed by
+ * typing in a title bar, so Google owns the name and `refreshGoogleNames`
+ * above pulls it in — pushing here as well would be two systems each
+ * overwriting the other on alternate ticks.
+ *
+ * A null `drive_name` means a row written before this existed: left alone
+ * rather than renamed on the strength of a guess about what Drive holds.
+ */
+export async function renameDriveAttachments(limit = 50): Promise<number> {
+  const grant = await getGrant();
+  if (!grant?.refreshToken || !hasSyncScopes(grant.scope)) return 0;
+
+  const rows = await db
+    .select({
+      id: attachments.id,
+      name: attachments.name,
+      driveFileId: attachments.driveFileId,
+    })
+    .from(attachments)
+    .where(
+      and(
+        isNotNull(attachments.driveFileId),
+        isNotNull(attachments.driveName),
+        ne(attachments.name, attachments.driveName),
+        sql`coalesce(${attachments.mimeType}, '') not like 'application/vnd.google-apps.%'`,
+      ),
+    )
+    .limit(limit);
+
+  let renamed = 0;
+
+  for (const row of rows) {
+    const wanted = safeName(row.name);
+    if (!wanted) continue;
+
+    try {
+      await renameFile(row.driveFileId!, wanted);
+    } catch {
+      // Usually a file removed from Drive by hand. Not a reason to stop
+      // renaming the rest.
+      continue;
+    }
+
+    // After Drive agrees, never before — otherwise a failed rename would
+    // leave the app certain of a name that was never applied, and the
+    // disagreement it retries on would be gone.
+    await db
+      .update(attachments)
+      .set({ driveName: wanted, name: wanted })
+      .where(eq(attachments.id, row.id));
+
+    renamed += 1;
+  }
+
+  return renamed;
 }
 
 /**

@@ -3,7 +3,7 @@
 import { useRef, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import type { AttachmentParentType } from '@gtd/db';
-import { createDocument, detachAttachment } from '@/lib/actions';
+import { createDocument, detachAttachment, renameAttachment } from '@/lib/actions';
 import { UploadError, uploadToDrive } from '@/lib/drive-upload';
 import {
   GOOGLE_DOC,
@@ -69,6 +69,8 @@ export function Attachments({
   const [errors, setErrors] = useState<string[]>([]);
   const [creating, setCreating] = useState(false);
   const [recording, setRecording] = useState(false);
+  /** The row being renamed, or null. One at a time — this is a list, not a form. */
+  const [renaming, setRenaming] = useState<string | null>(null);
   const [, startTransition] = useTransition();
 
   /**
@@ -305,6 +307,20 @@ export function Attachments({
               typeof row === 'string' ? (
                 <GroupHeading key={`h-${row}`} label={row} />
               ) : (
+              renaming === row.id ? (
+                <li key={row.id} className="px-3 py-1.5">
+                  <RenameRow
+                    name={row.name}
+                    onDone={(next) => {
+                      setRenaming(null);
+                      if (next === null) return;
+                      startTransition(async () => {
+                        await renameAttachment(row.id, next);
+                      });
+                    }}
+                  />
+                </li>
+              ) : (
               <li
                 key={row.id}
                 className="group flex items-center gap-2 px-3 py-1.5 text-[12px]"
@@ -369,6 +385,15 @@ export function Attachments({
 
                 <button
                   type="button"
+                  title="Rename — Drive follows on the next sync"
+                  onClick={() => setRenaming(row.id)}
+                  className="shrink-0 text-[11px] text-grey-400 opacity-0 underline underline-offset-2 transition-opacity hover:text-grey-800 group-hover:opacity-100"
+                >
+                  Rename
+                </button>
+
+                <button
+                  type="button"
                   title="Remove — the file goes to Drive’s bin"
                   onClick={() =>
                     startTransition(async () => {
@@ -383,6 +408,7 @@ export function Attachments({
                   Remove
                 </button>
               </li>
+              )
               ),
             )}
 
@@ -422,6 +448,46 @@ export function Attachments({
  * the icon is already sitting there doing nothing. Making it the control costs
  * the row no width at all, which is the whole reason not to put a player in it.
  */
+/**
+ * The row, while it is being renamed.
+ *
+ * The extension is shown but not edited — it is kept whatever you type, so
+ * putting it in the field would only invite deleting it by accident while
+ * clearing the name. Enter commits, Escape abandons, and blur commits too:
+ * clicking away from a field you have just typed into means the typing, not
+ * the leaving.
+ */
+function RenameRow({
+  name,
+  onDone,
+}: {
+  name: string;
+  onDone: (next: string | null) => void;
+}) {
+  const ext = /\.[A-Za-z0-9]{1,8}$/.exec(name)?.[0] ?? '';
+  const [value, setValue] = useState(ext ? name.slice(0, -ext.length) : name);
+
+  const commit = () => onDone(value.trim() === '' ? null : value);
+
+  return (
+    <div className="flex items-center gap-2 text-[12px]">
+      <input
+        autoFocus
+        value={value}
+        onChange={(e) => setValue(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') commit();
+          if (e.key === 'Escape') onDone(null);
+        }}
+        onBlur={commit}
+        aria-label="File name"
+        className="min-w-0 flex-1 rounded-sm border border-grey-300 bg-paper px-1.5 py-0.5 text-grey-900 focus:border-selected focus:outline-none"
+      />
+      {ext ? <span className="shrink-0 text-[11px] text-grey-400">{ext}</span> : null}
+    </div>
+  );
+}
+
 function Glyph({ row }: { row: AttachmentRow }) {
   const className = 'shrink-0 text-grey-400';
 

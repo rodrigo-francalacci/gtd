@@ -1,0 +1,12 @@
+-- Adopt the current name as the name Drive holds.
+--
+-- Every row that already existed got its name *from* Drive — at upload, or
+-- from `refreshGoogleNames` — so `name` is exactly what Drive has, and
+-- recording that is a statement of fact rather than a guess.
+--
+-- It matters that this happens here rather than lazily in the sweep. A row
+-- left null could be renamed in the app before the first cron tick, and a
+-- sweep that adopted `name` at that point would take the *new* name as what
+-- Drive holds and never push it — the rename would be silently lost, which is
+-- the one outcome worse than not offering the rename at all.
+UPDATE "attachments" SET "drive_name" = "name" WHERE "drive_name" IS NULL;

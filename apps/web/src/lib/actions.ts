@@ -1330,6 +1330,47 @@ export async function detachAttachment(attachmentId: string) {
   revalidateShell();
 }
 
+/**
+ * Rename an attachment, here and eventually in Drive.
+ *
+ * Only our row is written, because a mutation must not call Google. That is
+ * not a compromise here so much as the mechanism: `drive_name` still holds
+ * what Drive has, so the disagreement this creates *is* the instruction, and
+ * the sweep on the cron tick — or "run sync now" — carries it over.
+ *
+ * The extension is kept whatever you type. Dropping it is the easiest thing in
+ * the world to do by accident when you are editing a title, and it leaves a
+ * file the operating system no longer knows how to open for the sake of a
+ * character you probably didn't mean to delete.
+ */
+export async function renameAttachment(attachmentId: string, name: string) {
+  await requireSession();
+
+  const [row] = await db
+    .select({ name: attachments.name })
+    .from(attachments)
+    .where(eq(attachments.id, attachmentId))
+    .limit(1);
+
+  if (!row) return;
+
+  const base = name.replace(/[\\/]/g, '-').replace(/\s+/g, ' ').trim().slice(0, 120);
+  if (!base) return;
+
+  const ext = /\.[A-Za-z0-9]{1,8}$/.exec(row.name)?.[0] ?? '';
+  const next =
+    ext && !base.toLowerCase().endsWith(ext.toLowerCase()) ? `${base}${ext}` : base;
+
+  if (next === row.name) return;
+
+  await db
+    .update(attachments)
+    .set({ name: next })
+    .where(eq(attachments.id, attachmentId));
+
+  revalidateShell();
+}
+
 // ---------------------------------------------------------------------------
 // The Big Box
 // ---------------------------------------------------------------------------
