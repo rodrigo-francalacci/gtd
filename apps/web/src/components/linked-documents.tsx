@@ -72,11 +72,14 @@ export function LinkedDocuments({
 
   return (
     <section className="mt-6 flex flex-col gap-2">
-      <div className="flex items-baseline justify-between">
+      {/* Wraps for the same reason the attachments header does — fewer
+          controls here, so it only bites on a narrow pane with a long
+          sort label, but the failure is the same one. */}
+      <div className="flex flex-wrap items-baseline justify-between gap-x-2 gap-y-1">
         <span className="text-[10px] uppercase tracking-wider text-grey-500">
           Documents
         </span>
-        <div className="flex shrink-0 items-center gap-3">
+        <div className="flex min-w-0 flex-wrap items-center justify-end gap-x-3 gap-y-1">
           {sort && sortKey && rows.length > 1 ? (
             <SortControl viewKey={sortKey} choice={sort} />
           ) : null}

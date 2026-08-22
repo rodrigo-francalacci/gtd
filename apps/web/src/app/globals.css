@@ -335,6 +335,27 @@ body {
     scroll-snap-align: start;
     /* Each pane scrolls itself, vertically, as its own page. */
     overflow-y: auto;
+    /*
+     * And never horizontally, whatever is inside it.
+     *
+     * Not tidiness — this is what stops a styling mistake becoming a
+     * navigation bug. Left alone, `overflow-x` computes to `auto` here
+     * (the spec turns `visible` into `auto` when the other axis is not
+     * `visible`), so one element too wide to fit silently turns the pane
+     * into a horizontal scroller. Then a sideways swipe scrolls the pane's
+     * contents instead of moving the carousel, and the browser scrolling a
+     * focused field into view shifts the pane under you — which is the
+     * "sometimes" in a carousel that is sometimes off.
+     *
+     * `clip`, not `hidden`, and the difference is the whole point: `hidden`
+     * still creates a scroll container, just one without visible bars, so
+     * both of those keep happening. `clip` does not scroll at all.
+     *
+     * Anything genuinely wider than a phone — a chip strip, a wide table —
+     * gets its own `overflow-x: auto` container, which still works normally
+     * inside this and keeps its gesture to itself.
+     */
+    overflow-x: clip;
   }
 
   /* The resize handle is a mouse affordance for a width that no longer

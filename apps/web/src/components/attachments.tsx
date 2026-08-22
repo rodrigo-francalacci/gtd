@@ -161,14 +161,30 @@ export function Attachments({
 
   return (
     <section className="mt-8 border-t border-grey-150 pt-5">
-      <div className="mb-2 flex items-baseline justify-between gap-2">
+      {/*
+        Wraps, because six controls do not fit beside a heading on a phone.
+
+        They used to be `shrink-0` in a row that could not wrap, which on a
+        390px pane put 367px of buttons into 280px of space. The overflow was
+        not the worst of it: a pane that overflows horizontally becomes a
+        horizontal scroller — `overflow-y: auto` computes `overflow-x` to
+        `auto` too — and a pane that scrolls sideways eats the swipe meant for
+        the carousel. So a wide button row stopped the *navigation* working,
+        several routes away from anything to do with attachments.
+
+        `min-w-0` is what lets it narrow at all; without it the cluster keeps
+        its max-content width and wrapping never happens. On a desktop pane
+        (38rem) the heading and the controls still share one line exactly as
+        before — there is room, so nothing wraps.
+      */}
+      <div className="mb-2 flex flex-wrap items-baseline justify-between gap-x-2 gap-y-1">
         <h2 className="text-[10px] font-semibold uppercase tracking-wider text-grey-500">
           {label}
           {rows.length > 0 ? (
             <span className="ml-1.5 tabular-nums text-grey-400">{rows.length}</span>
           ) : null}
         </h2>
-        <div className="flex shrink-0 items-center gap-3">
+        <div className="flex min-w-0 flex-wrap items-center justify-end gap-x-3 gap-y-1">
           {sort && sortKey && rows.length > 1 ? (
             // Only once there is an order to argue about. One file cannot be
             // sorted, and a menu offering to is noise on every pane that has
