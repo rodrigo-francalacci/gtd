@@ -1,20 +1,35 @@
 import Link from 'next/link';
 import { KIND_LABELS, hrefFor, search, type SearchHit, type SearchKind } from '@/lib/search';
 
-const KIND_ORDER: SearchKind[] = [
-  'project',
-  'action',
-  'list_item',
-  'inbox',
-  'attachment',
-];
+/**
+ * What order the groups come in — and, more usefully, a guarantee that every
+ * kind is in it.
+ *
+ * This was an array, and an array of a union type is happy to be missing a
+ * member: adding `box_item` to the search made the query return documents and
+ * this page drop them on the floor, with the result count including hits that
+ * were never rendered. A `Record` cannot be incomplete, so the next kind added
+ * is a compile error here rather than a group that silently never appears.
+ */
+const KIND_ORDER: Record<SearchKind, number> = {
+  project: 0,
+  action: 1,
+  list_item: 2,
+  inbox: 3,
+  box_item: 4,
+  attachment: 5,
+};
+
+const KINDS = (Object.keys(KIND_ORDER) as SearchKind[]).sort(
+  (a, b) => KIND_ORDER[a] - KIND_ORDER[b],
+);
 
 export default async function SearchPage(props: PageProps<'/search'>) {
   const searchParams = await props.searchParams;
   const term = typeof searchParams.q === 'string' ? searchParams.q : '';
   const hits = await search(term);
 
-  const grouped = KIND_ORDER.map((kind) => ({
+  const grouped = KINDS.map((kind) => ({
     kind,
     hits: hits.filter((h) => h.kind === kind),
   })).filter((g) => g.hits.length > 0);
@@ -28,8 +43,9 @@ export default async function SearchPage(props: PageProps<'/search'>) {
 
         {!term ? (
           <p className="mt-2 max-w-prose text-[13px] leading-relaxed text-grey-600">
-            Searches project and action titles and their notes, list items, and
-            raw inbox captures. Quoted phrases, <code>-exclusions</code> and{' '}
+            Searches project and action titles and their notes, list items, raw
+            inbox captures, everything filed in a box, and what your files
+            actually say. Quoted phrases, <code>-exclusions</code> and{' '}
             <code>OR</code> all work.
           </p>
         ) : hits.length === 0 ? (

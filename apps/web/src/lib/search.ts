@@ -3,7 +3,13 @@ import 'server-only';
 import { db } from '@gtd/db';
 import { sql } from 'drizzle-orm';
 
-export type SearchKind = 'project' | 'action' | 'list_item' | 'inbox' | 'attachment';
+export type SearchKind =
+  | 'project'
+  | 'action'
+  | 'list_item'
+  | 'inbox'
+  | 'attachment'
+  | 'box_item';
 
 export type SearchHit = {
   kind: SearchKind;
@@ -125,6 +131,43 @@ export async function search(term: string, limit = 60): Promise<SearchHit[]> {
       left join list_items li on li.id = att.parent_id and att.parent_type = 'list_item'
       left join inbox_items ibp on ibp.id = att.parent_id and att.parent_type = 'inbox_item'
       where att.search_vector @@ q.tsq
+
+      union all
+
+      -- The Big Box, which was missing from here and should not have been.
+      --
+      -- box_items.search_vector has existed and been maintained all along --
+      -- the classifier writes search_text from the summary, the transcription
+      -- and the tags every time it reads a document -- but the only thing that
+      -- ever queried it was the "link a document" picker. So the archive was
+      -- searchable in principle and unreachable from the search box, which is
+      -- the one place you would look.
+      --
+      -- The title falls back the way documentLabel does: a note has no title
+      -- and is its own description, a recording has neither and is known by
+      -- its filename. Coalescing here rather than showing a blank row keeps a
+      -- hit recognisable whichever kind it is.
+      --
+      -- meta carries the box id, because a document has no page of its own:
+      -- it is a row in a feed, reached as /box/<box>?doc=<id>.
+      select
+        'box_item',
+        bi.id::text,
+        coalesce(
+          nullif(btrim(coalesce(bi.title, '')), ''),
+          nullif(left(btrim(coalesce(bi.description, '')), 80), ''),
+          nullif(bi.name, ''),
+          'Untitled'
+        ),
+        ts_headline('english', coalesce(bi.search_text, ''), q.tsq, ${HEADLINE_OPTS}),
+        bx.name,
+        bi.box_id::text,
+        ts_rank(bi.search_vector, q.tsq)
+          + (case when to_tsvector('english', coalesce(bi.title, '')) @@ q.tsq then 0.5 else 0 end)
+      from box_items bi
+      cross join q
+      join boxes bx on bx.id = bi.box_id
+      where bi.search_vector @@ q.tsq
     ) hits
     order by rank desc, title asc
     limit ${limit}
@@ -139,6 +182,7 @@ export const KIND_LABELS: Record<SearchKind, string> = {
   list_item: 'List items',
   inbox: 'Inbox',
   attachment: 'Files',
+  box_item: 'The Big Box',
 };
 
 /** Where a hit sends you when clicked. */
@@ -154,6 +198,9 @@ export function hrefFor(hit: SearchHit): string {
       return `/inbox?item=${hit.id}`;
     case 'attachment':
       return attachmentHref(hit.meta);
+    case 'box_item':
+      // A document has no page of its own: it is a row in its box's feed.
+      return hit.meta ? `/box/${hit.meta}?doc=${hit.id}` : '/box';
   }
 }
 
