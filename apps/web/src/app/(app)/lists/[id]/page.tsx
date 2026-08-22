@@ -1,6 +1,7 @@
 import { notFound } from 'next/navigation';
 import { attachmentsFor, documentsFor } from '@/lib/file-lists';
 import { BudgetSummary } from '@/components/budget-summary';
+import { BudgetTrialProvider, TrialTotal } from '@/components/budget-trial';
 import { ListItemDetail } from '@/components/list-item-detail';
 import { DetailPane, EmptyDetail, EmptyList, ListPane } from '@/components/panes';
 import { QuickAddListItem } from '@/components/quick-add-list-item';
@@ -63,19 +64,37 @@ export default async function ListPage(props: PageProps<'/lists/[id]'>) {
   const files = selected ? await attachmentsFor('list_item', selected.id) : null;
   const docs = selected ? await documentsFor('list_item', selected.id) : null;
 
+  /*
+   * Wraps both panes because the two halves of one question live in each: you
+   * tick candidates in the list and read the total in the budget beside it. It
+   * renders no DOM, so the panes stay direct children of the pane track — which
+   * is what the phone's carousel counts.
+   *
+   * Only a purchases list gets it. Everywhere else the hook returns null and
+   * the ticks never render, so no other list grows a control about money.
+   */
+  const Frame = isPurchases ? BudgetTrialProvider : Passthrough;
+
   return (
-    <>
+    <Frame>
       <ListPane
         title={list.name}
         viewMode={viewMode}
         paneWidth={paneWidth(prefs)}
         columns={isPurchases ? PURCHASE_COLUMNS : LIST_ITEM_COLUMNS}
         subtitle={
-          isPurchases
-            ? `${candidates} candidate${candidates === 1 ? '' : 's'} · ${formatMoney(openTotal)} open${
+          isPurchases ? (
+            <>
+              {`${candidates} candidate${candidates === 1 ? '' : 's'} · ${formatMoney(openTotal)} open${
                 impact || where ? ` · showing ${items.length} of ${allItems.length}` : ''
-              }`
-            : `${candidates} candidate${candidates === 1 ? '' : 's'} of ${allItems.length}`
+              }`}
+              {/* Beside the ticking, so the running total is readable while a
+                  selected item is covering the budget pane. */}
+              <TrialTotal items={allItems} />
+            </>
+          ) : (
+            `${candidates} candidate${candidates === 1 ? '' : 's'} of ${allItems.length}`
+          )
         }
       >
         <QuickAddListItem listId={id} />
@@ -126,6 +145,11 @@ export default async function ListPage(props: PageProps<'/lists/[id]'>) {
       ) : (
         <EmptyDetail message="Select an item" />
       )}
-    </>
+    </Frame>
   );
+}
+
+/** Keeps the non-budget case free of a provider it would never read. */
+function Passthrough({ children }: { children: React.ReactNode }) {
+  return <>{children}</>;
 }

@@ -11,6 +11,7 @@ import {
 import type { ViewMode } from '@/lib/pane';
 import { DragGrip } from './sortable';
 import { SimpleRow } from './simple-row';
+import { TrialTick } from './budget-trial';
 
 /**
  * A list item. The visual weight is deliberately lower than an action row:
@@ -34,6 +35,15 @@ export function ListItemRow({
   const cost = item.fields?.cost;
   const impact = item.fields?.impact;
   const where = item.fields?.where;
+
+  /*
+   * Only a candidate can be tried, because trying one asks what committing it
+   * would cost — and a committed item has already answered that. `TrialTick`
+   * renders nothing off a budget list, so this stays out of the way of every
+   * list that is not about money.
+   */
+  const tick =
+    isPurchases && item.stage === 'candidate' ? <TrialTick id={item.id} /> : null;
 
   const stageLabel = (
     <span
@@ -61,6 +71,7 @@ export function ListItemRow({
         selected={selected}
         muted={item.stage === 'settled'}
         faded={isDragging}
+        control={tick}
       />
     );
   }
@@ -79,6 +90,7 @@ export function ListItemRow({
       >
         <div className="flex min-w-0 items-center gap-1.5">
           <DragGrip />
+          {tick}
           <Link
             href={href}
             draggable={false}
@@ -129,6 +141,9 @@ export function ListItemRow({
       ].join(' ')}
     >
       <DragGrip />
+      {/* Nudged down to sit on the title's baseline rather than above it —
+          the row aligns to `items-start` so the metadata line stays put. */}
+      {tick ? <span className="mt-1 flex">{tick}</span> : null}
 
       <Link href={href} draggable={false} className="min-w-0 flex-1">
         <div className="flex items-baseline justify-between gap-2">

@@ -1,3 +1,5 @@
+'use client';
+
 import Link from 'next/link';
 import {
   IMPACT_LABELS,
@@ -6,6 +8,7 @@ import {
   type ListItemRow,
   type PurchaseImpact,
 } from '@/lib/queries.shared';
+import { useBudgetTrial } from './budget-trial';
 
 /**
  * Budget view over a Purchases list.
@@ -88,6 +91,8 @@ export function BudgetSummary({
         </p>
       ) : null}
 
+      <WhatIf candidates={proposed} committed={sum(committed)} />
+
       {byImpact.length > 0 ? (
         <section className="mt-7">
           <h2 className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-grey-500">
@@ -139,6 +144,127 @@ export function BudgetSummary({
         ) : null}
       </section>
     </div>
+  );
+}
+
+/**
+ * What a combination would cost, before any of it is real.
+ *
+ * The three tiles above are a report on decisions already taken. This is the
+ * question you actually have on a purchases list — *can I do these two and
+ * that one?* — and until now the only way to ask it was to promote them and
+ * undo it afterwards, which creates actions, files them on projects and leaves
+ * a trail through Waiting For. Nobody does that to check a total.
+ *
+ * Shown even with nothing ticked, because a control that only appears once you
+ * have used it cannot be discovered. Empty, it is one line explaining itself.
+ */
+function WhatIf({
+  candidates,
+  committed,
+}: {
+  candidates: ListItemRow[];
+  committed: number;
+}) {
+  const trial = useBudgetTrial();
+  if (!trial) return null;
+
+  const picked = candidates.filter((i) => trial.picked.has(i.id));
+  const trying = picked.reduce((n, i) => n + (i.fields?.cost ?? 0), 0);
+  const noCost = picked.filter((i) => typeof i.fields?.cost !== 'number').length;
+
+  return (
+    <section className="mt-7 rounded-sm border border-grey-200 bg-grey-50 px-3 py-3">
+      <div className="flex items-baseline justify-between gap-2">
+        <h2 className="text-[10px] font-semibold uppercase tracking-wider text-grey-500">
+          What if
+        </h2>
+        {picked.length > 0 ? (
+          <button
+            type="button"
+            onClick={trial.clear}
+            className="text-[11px] text-grey-500 underline underline-offset-2 hover:text-grey-800"
+          >
+            Clear
+          </button>
+        ) : null}
+      </div>
+
+      {picked.length === 0 ? (
+        <p className="mt-1.5 text-[12px] leading-relaxed text-grey-500">
+          Tick candidates in the list to cost a combination. Nothing is promoted
+          and nothing is saved — it is only arithmetic.
+        </p>
+      ) : (
+        <>
+          <table className="mt-2 w-full text-[12px]">
+            <tbody>
+              <Line label="Committed already" amount={committed} />
+              <Line
+                label={
+                  picked.length === 1
+                    ? 'This candidate'
+                    : `These ${picked.length} candidates`
+                }
+                amount={trying}
+              />
+              <Line label="Would commit" amount={committed + trying} total />
+            </tbody>
+          </table>
+
+          <ul className="mt-2.5 space-y-0.5">
+            {picked.map((i) => (
+              <li key={i.id} className="flex items-baseline justify-between gap-2">
+                <span className="min-w-0 truncate text-[11px] text-grey-600">
+                  {i.title}
+                </span>
+                <span className="shrink-0 text-[11px] tabular-nums text-grey-500">
+                  {typeof i.fields?.cost === 'number' ? formatMoney(i.fields.cost) : '—'}
+                </span>
+              </li>
+            ))}
+          </ul>
+
+          {noCost > 0 ? (
+            <p className="mt-2 text-[11px] text-stale">
+              {noCost} of these {noCost === 1 ? 'has' : 'have'} no cost set, so the
+              figure is lower than reality.
+            </p>
+          ) : null}
+        </>
+      )}
+    </section>
+  );
+}
+
+function Line({
+  label,
+  amount,
+  total = false,
+}: {
+  label: string;
+  amount: number;
+  total?: boolean;
+}) {
+  return (
+    <tr className={total ? 'border-t border-grey-300' : ''}>
+      <td
+        className={[
+          'py-1',
+          total ? 'font-medium text-grey-800' : 'text-grey-600',
+        ].join(' ')}
+      >
+        {label}
+      </td>
+      <td
+        className={[
+          'py-1 text-right tabular-nums',
+          total ? 'text-[15px] font-medium text-grey-900' : 'text-grey-700',
+        ].join(' ')}
+      >
+        {formatMoney(amount)}
+      </td>
+    </tr>
   );
 }
 
