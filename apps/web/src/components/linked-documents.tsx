@@ -131,6 +131,7 @@ export function LinkedDocuments({
                       id: row.id,
                       name: documentLabel(row),
                       src: `/api/box/${row.id}/file`,
+                      transcriptUrl: `/api/box/${row.id}/transcript`,
                       mimeType: row.mimeType,
                       driveFileId: row.driveFileId,
                       driveUrl: driveFileUrl(row.driveFileId!),

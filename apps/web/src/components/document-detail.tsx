@@ -153,6 +153,7 @@ export function DocumentDetail({
       id: item.id,
       name: documentLabel(item),
       src: `/api/box/${item.id}/file`,
+      transcriptUrl: `/api/box/${item.id}/transcript`,
       mimeType: item.mimeType,
       driveFileId: file,
       driveUrl: driveFileUrl(file),

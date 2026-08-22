@@ -90,6 +90,7 @@ export function Attachments({
         id: row.id,
         name: row.name,
         src: `/api/attachments/${row.id}/file`,
+        transcriptUrl: `/api/attachments/${row.id}/transcript`,
         mimeType,
         driveFileId: row.driveFileId,
         driveUrl: driveFileUrl(row.driveFileId),
@@ -331,6 +332,7 @@ export function Attachments({
                       id: row.id,
                       name: row.name,
                       src: `/api/attachments/${row.id}/file`,
+                      transcriptUrl: `/api/attachments/${row.id}/transcript`,
                       mimeType: row.mimeType,
                       driveFileId: row.driveFileId,
                       driveUrl: row.driveFileId

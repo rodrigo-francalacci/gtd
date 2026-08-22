@@ -11,6 +11,8 @@ import {
   type ReactNode,
 } from 'react';
 import { embedUrl, isGoogleNative } from '@/lib/google/sync';
+import { reasonFor, useMediaBlob } from '@/lib/preview-media';
+import { AudioTranscript } from './audio-transcript';
 
 export type PreviewFile = {
   id: string;
@@ -26,6 +28,20 @@ export type PreviewFile = {
   /** Needed for the Google editor embed, which addresses Drive directly. */
   driveFileId: string | null;
   driveUrl: string | null;
+  /**
+   * Where the typed transcript is read and written, for a recording.
+   *
+   * Passed in for the same reason `src` is, and it sits beside it on both
+   * sides of the app: `…/file` is the bytes, `…/transcript` is the words about
+   * them. Deriving one from the other would work today and would make the pane
+   * responsible for a URL shape it does not own.
+   *
+   * Null means this source has nowhere to keep one. Nothing passes null yet —
+   * both an attachment and a Big Box entry have a column for it — but a source
+   * that doesn't should be able to say so without the pane offering an editor
+   * that silently discards what you type into it.
+   */
+  transcriptUrl?: string | null;
 };
 
 type PreviewApi = {
@@ -95,32 +111,6 @@ export function useFilePreview(): PreviewApi {
  * which is the only width there is a reason to choose — the other two are
  * determined by it and by the window.
  */
-const GENERIC = 'That file would not load.';
-
-/**
- * Why a preview failed, in words worth showing.
- *
- * An `<img>` or an `<iframe>` reports only that it did not load, which for
- * every file in the app at once is a true statement pointing in the wrong
- * direction. The endpoint knows better — a withdrawn Google grant is the usual
- * cause and is fixed on one page — so this asks it, and falls back to the
- * generic line when there is nothing better to say.
- */
-async function reasonFor(src: string): Promise<string> {
-  try {
-    return await reasonFrom(await fetch(src));
-  } catch {
-    return GENERIC;
-  }
-}
-
-async function reasonFrom(response: Response): Promise<string> {
-  if (!response.headers.get('content-type')?.includes('json')) return GENERIC;
-
-  const body = (await response.json().catch(() => null)) as { error?: string } | null;
-  return body?.error ?? GENERIC;
-}
-
 /**
  * Whether this browser will render a PDF in a frame.
  *
@@ -189,9 +179,16 @@ export function PreviewPane({ file, onClose }: { file: PreviewFile; onClose: () 
         ) : type.startsWith('image/') ? (
           <ImageViewer src={src} alt={file.name} onFail={() => void reasonFor(src).then(setFailed)} />
         ) : type.startsWith('audio/') ? (
-          <MediaPlayer src={src} kind="audio" />
+          /* key: the transcript seeds state from a fetch, so without it the
+             pane would show the previous recording's words beside the new
+             recording's audio — and then autosave them onto it. */
+          <AudioTranscript
+            key={file.id}
+            src={src}
+            transcriptUrl={file.transcriptUrl ?? null}
+          />
         ) : type.startsWith('video/') ? (
-          <MediaPlayer src={src} kind="video" />
+          <MediaPlayer src={src} />
         ) : isJson(type) ? (
           <JsonView src={src} onFail={() => void reasonFor(src).then(setFailed)} />
         ) : type === 'application/pdf' && !canRenderPdf() && file.driveFileId ? (
@@ -237,57 +234,15 @@ export function PreviewPane({ file, onClose }: { file: PreviewFile; onClose: () 
 }
 
 /**
- * Audio and video, played where they are.
+ * Video, played where it is.
  *
- * A voice note you cannot hear without leaving for Drive is barely attached to
- * anything. Nothing clever: the browser's own transport controls do the job,
- * and the proxy passes a Content-Length so the timeline is draggable.
+ * The browser's own transport controls do the job here, and the proxy passes a
+ * Content-Length so the timeline is draggable. Audio used to share this and no
+ * longer does: a recording is played to be *written down*, which needs a
+ * transport the native control does not have, so it has a pane of its own.
  */
-function MediaPlayer({ src, kind }: { src: string; kind: 'audio' | 'video' }) {
-  const [objectUrl, setObjectUrl] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
-
-  /**
-   * Fetched into a blob rather than pointed at the endpoint.
-   *
-   * A media element loads over its own path, separate from `fetch`, and it
-   * negotiates ranges before it will admit to a duration — an easy thing to
-   * get subtly wrong through a proxy, and hard to tell apart from a broken
-   * file when it does. Handing it bytes it already has removes the
-   * negotiation entirely: the clip either decodes or it doesn't. Nothing is
-   * lost at a 4 MB ceiling, where progressive playback would save a moment at
-   * most.
-   */
-  useEffect(() => {
-    let url: string | null = null;
-    let live = true;
-
-    void (async () => {
-      try {
-        const response = await fetch(src);
-        if (!response.ok) {
-          // The body usually says something worth repeating — a revoked
-          // Google grant, most often, which is not a fact about this file.
-          const reason = await reasonFrom(response);
-          if (live) setError(reason);
-          return;
-        }
-
-        const blob = await response.blob();
-        if (!live) return;
-
-        url = URL.createObjectURL(blob);
-        setObjectUrl(url);
-      } catch {
-        if (live) setError(GENERIC);
-      }
-    })();
-
-    return () => {
-      live = false;
-      if (url) URL.revokeObjectURL(url);
-    };
-  }, [src]);
+function MediaPlayer({ src }: { src: string }) {
+  const { objectUrl, error } = useMediaBlob(src);
 
   if (error) {
     return <p className="p-6 text-center text-[12px] text-grey-500">{error}</p>;
@@ -297,20 +252,9 @@ function MediaPlayer({ src, kind }: { src: string; kind: 'audio' | 'video' }) {
     return <p className="p-6 text-center text-[12px] text-grey-400">Loading…</p>;
   }
 
-  if (kind === 'video') {
-    return (
-      <div className="flex h-full items-center justify-center bg-ink p-3">
-        <video src={objectUrl} controls className="max-h-full max-w-full" />
-      </div>
-    );
-  }
-
   return (
-    <div className="flex h-full flex-col items-center justify-center gap-3 p-6">
-      <audio src={objectUrl} controls className="w-full max-w-md" />
-      <p className="max-w-xs text-center text-[11px] leading-relaxed text-grey-500">
-        Not transcribed — search can’t reach inside this yet.
-      </p>
+    <div className="flex h-full items-center justify-center bg-ink p-3">
+      <video src={objectUrl} controls className="max-h-full max-w-full" />
     </div>
   );
 }
