@@ -232,6 +232,24 @@ Inside a project, actions are split into two buckets:
 
 Drag between the buckets to change an action's status.
 
+Finished steps collect in a **Done** fold below them. They are greyed but not
+crossed out — a done step is the record of how the thing was actually done,
+which is what you read months later when doing it again.
+
+**Clearing them.** Not every project deserves that record: recurring admin
+accrues the same four ticked rows every time round. Inside the Done fold there
+is a way to delete the finished steps in one go. It asks first, and it is
+worth knowing exactly what it does:
+
+- The steps themselves are **gone for good**
+- Files attached to them go to **Drive's bin**, where they can be recovered
+- Documents cited from a box are only **unlinked** — the document stays in
+  its box
+
+It is never offered on an archived project, where the finished steps are the
+whole point. The same clean-up now happens when you delete a single action or
+a whole project, so nothing is left stranded in Drive.
+
 **Finishing an action can name its successor.** "Turn into next action" marks
 the current one done and inserts a new row carrying the project, contexts and
 list position — a new row rather than a rename, so the finished step stays in
@@ -301,6 +319,20 @@ double-counting. A purchase item carries a cost, an optional project, an impact
 (*blocks a project / improves things / nice to have*) and where (*online / in
 town*). Filters narrow the list; the budget totals stay over the whole list,
 because a filtered subtotal masquerading as the budget would mislead.
+
+### Costing a combination
+
+Those three totals report decisions already taken. To ask the question you
+actually have — *can I do these two and that one?* — **tick the candidates in
+the list**. Each candidate row has a small tick box; the budget's **What if**
+panel then shows what is committed already, what the ticked ones would add, and
+the total, with the items listed under it. The running total also appears in
+the list's own header, so it stays readable while you have an item open.
+
+Nothing is promoted and nothing is saved. The ticks are arithmetic — they are
+not written to the database or the URL, and they vanish when you leave the
+list. **Clear** resets them. Only candidates can be ticked: a committed item
+has already answered the question.
 
 ---
 
@@ -380,6 +412,29 @@ The printed date is never touched.
 - **Deleting a box refiles its documents** into the default one. The documents
   are the point; the box is only how they were grouped. The default box cannot
   be deleted
+
+### Drive filenames follow the box
+
+A scan arrives named by whatever produced it — a camera timestamp, a scanner's
+counter, `Screenshot_2026-08-21-22-02-23-650_com.android.chrome.jpg` — and is
+then read and given a real title. That title is now carried out to Drive, so
+the folder reads the way the box does:
+
+```
+Screenshot_2026-08-21-22-02-23-650_com.android.chrome.jpg
+  → American Express points redemption confirmation.jpg
+
+Comprovante_22-08-2026_123331.pdf
+  → 2026-08-22 Banco do Brasil Pix payment receipt.pdf
+```
+
+The document's own printed date goes in front when there is one, so a folder
+of receipts still sorts chronologically. The extension is kept.
+
+It happens on the daily sync and on **run sync now**, which makes renaming the
+fix for a wrong name: correct the title in the box and Drive follows. Google
+Docs and Sheets are left alone — those you rename in their own title bar, and
+the app takes its name *from* Google for them.
 
 ---
 
@@ -490,9 +545,42 @@ In a box feed a recording *does* get a full player inline, because there it has
 no title and no summary and is the one entry you cannot judge without hearing
 it.
 
-> **Note:** recordings are stored and playable but **not searchable**. There is
-> no speech-to-text provider wired up, so nothing transcribes them, and the
-> queue deliberately does not schedule a job that nothing can run.
+There is still no speech-to-text provider, so nothing transcribes a recording
+for you and the queue deliberately does not schedule a job that nothing can
+run. You can write the transcript yourself — see below — and once you have,
+search finds it like anything else.
+
+### Transcribing a recording
+
+Open any recording in the **preview pane** and you get a transport built for
+writing down what you hear, with the text area underneath:
+
+| Control | Does |
+| --- | --- |
+| **−5s** | Back five seconds |
+| **▶** | Play |
+| **⏸** | Pause, keeping your place |
+| **⏹** | Stop and return to the start |
+| **+5s** | Forward five seconds |
+| timeline | Drag to anywhere in the clip |
+
+Play and pause are separate buttons on purpose: with one toggle, hitting pause
+twice starts playback again, in a control you are using precisely because you
+have stopped looking at it.
+
+The buttons **do not take the cursor out of the text**. Rewind, type, rewind
+again — your place in the transcript is kept throughout, which is the whole
+point of the layout.
+
+Typing saves itself about a second after you stop, and again when you click
+away. It works for every recording the preview pane can open, wherever it came
+from: an attachment on a project, an action or a capture, or a voice note in a
+box. A box recording linked into a project is the same recording, so there is
+one transcript, not two.
+
+Once written, the transcript goes into the same search index as everything
+else — for an attachment it is reachable from **Search**, and for a box
+recording it makes the entry findable when linking documents.
 
 ---
 
