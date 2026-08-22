@@ -198,6 +198,26 @@ Turbopack is the default; `middleware` is now `proxy`.
   stale copy of a name whose only editor is elsewhere would be the app
   pretending to own something it doesn't. `refreshGoogleNames` runs on the cron
   tick and on "run sync now", and touches Docs-editor files only.
+- **A box document's name is pushed the other way, and `drive.file` covers it.**
+  A scan arrives named by a camera's timestamp and is then read and titled, so
+  `renameBoxFiles` carries that title out to Drive — the mirror of the rule
+  above, with the opposite answer because the answer to "who renames this"
+  differs. Docs-native files are excluded for exactly that reason. No Apps
+  Script and no exported manifest: the scope is per-file access to files the
+  app *created*, creating includes renaming, and every box document is
+  app-created — the bridge re-uploads through the app's credentials precisely
+  so it is. Verified against the live API before it was built on.
+- **Drift is found without asking Google.** `box_items.name` is by definition
+  the name Drive holds, so a title disagreeing with it is the whole test — no
+  per-file read, and a tick where nothing was retitled makes no calls at all.
+  The column is written *after* Drive agrees: writing first would leave the app
+  certain of a name that was never applied and never retrying, because the
+  disagreement it looks for would be gone.
+- **The printed date leads the filename.** The scanner bridge already names its
+  uploads `2026-01-30 Fuel Receipt — …`, so a bare title regressed against a
+  convention already in the folder — and a hundred receipts sorted by the first
+  letter of a summary is not a filing system. `doc_date`, matching the feed;
+  not doubled when the title already starts with one.
 - **Audio and video are fetched into a blob, not pointed at the endpoint.** A
   media element loads over its own path, separate from `fetch`, and negotiates
   ranges before it will admit a duration — easy to get subtly wrong through a
@@ -402,10 +422,38 @@ Turbopack is the default; `middleware` is now `proxy`.
 - **Pasting a screenshot is the commonest visual capture there is.** The
   listener is on `window`, not the field, and only claims events carrying
   files, so pasted text still behaves normally.
-- **Audio is recorded, stored and playable — and not searchable.** There is
-  still no speech provider, so `MediaRecorder` output goes up the ordinary
-  attachment path and stops there. `enqueueEnrichment` won't queue it, which is
-  deliberate: a job nothing can run is a manufactured failure.
+- **Audio is recorded, stored and playable — and searchable only if you type
+  it out.** There is still no speech provider, so `MediaRecorder` output goes
+  up the ordinary attachment path and `enqueueEnrichment` won't queue it: a job
+  nothing can run is a manufactured failure. The transcript columns were
+  therefore unreachable rather than merely unfilled, and the preview pane is
+  now the other way to fill them — play the clip and write what you hear.
+- **A recording's transport is not the browser's.** Transcribing is a loop of
+  back a bit, play, pause, type, and the native control cannot do the first of
+  those at all. Play and pause are separate buttons rather than one toggle,
+  because a toggle punishes the reflex of hitting pause twice by restarting
+  playback in a control you have stopped looking at. The buttons suppress
+  `mousedown`, which is the detail the whole design rests on: rewinding must
+  not take the caret out of the text you are typing into.
+- **`MediaRecorder` can refuse to say how long a clip is.** It writes WebM with
+  no Duration element — streaming, and it never goes back to fill it in — so
+  `duration` reads `Infinity` and the scrubber has no scale, for exactly the
+  files the record button produces. Seeking past any plausible end makes the
+  browser settle on a real figure. Guarded, not assumed.
+- **A transcript is stored in two places with two different rules, and the
+  difference is not cosmetic.** `attachments.search_vector` is generated from
+  `transcription`, so writing that column is enough. `box_items.search_vector`
+  is generated from `search_text`, so writing `text` alone would store the
+  words and leave them unfindable — which is the whole reason to type them.
+  `lib/transcripts.ts` owns both, and the box recipe matches
+  `updateBoxItemDescription` exactly: two rules for building one column would
+  disagree the first time either changed.
+- **The preview pane addresses words the way it addresses bytes.** `…/file` is
+  the file, `…/transcript` is what it says, on both sides of the app — so the
+  pane stays ignorant of which table a file came from, as it always has.
+  Routes rather than Server Actions because the pane has to *read* the text and
+  is client state with no server component above it; fetching on open is also
+  what keeps transcripts out of every list payload.
 - **Two of the microphone's three filters are off; automatic gain is on.**
   `{ audio: true }` accepts the browser's defaults, a voice-call processing
   chain — echo cancellation, noise suppression, automatic gain — and the three
@@ -445,6 +493,18 @@ Turbopack is the default; `middleware` is now `proxy`.
   and exists to survive the one thing phones do freely — discarding a
   backgrounded tab mid-word. `app/manifest.ts` starts at `/capture` rather than
   `/`, because the reason to install it is to capture in one tap.
+- **A pane never scrolls sideways: `overflow-x: clip`.** Not tidiness — this is
+  what stops a styling mistake becoming a navigation bug. A pane sets
+  `overflow-y: auto`, and the spec turns the other axis from `visible` into
+  `auto` when it does, so one element too wide silently makes the pane a
+  horizontal scroller: the sideways swipe then scrolls the pane's contents
+  instead of moving the carousel, and the browser scrolling a focused field
+  into view shifts the pane under you. That was the "sometimes" in a carousel
+  that was sometimes on the wrong pane — caused, of all things, by six
+  un-wrappable buttons in the attachments header. `clip`, not `hidden`:
+  `hidden` still creates a scroll container, so both symptoms survive it.
+  Anything genuinely wider than a phone gets its own `overflow-x: auto`
+  container, which still works inside `clip` and keeps its gesture to itself.
 - **Inputs on the phone are 16px minimum.** iOS Safari zooms the page in when a
   smaller field takes focus. The fix is the type size, never
   `user-scalable=no` — blocking pinch-zoom to stop it is a bad trade.
@@ -471,6 +531,31 @@ Turbopack is the default; `middleware` is now `proxy`.
   derived from that column plus the action's status — they are mutually
   exclusive by construction, which is what stops spend double-counting. Don't
   add a fourth source of truth for "is this ordered".
+- **The budget's "what if" ticks are arithmetic, and are stored nowhere.** Not
+  the URL, not the database. The three buckets report decisions already taken;
+  ticking candidates answers the question you actually have — *can I do these
+  two and that one?* — which until now could only be asked by promoting them
+  and undoing it. Persisting an idle sum would make it look like a plan, which
+  is the line the whole list is built to keep. Its own control rather than the
+  row's checkbox: a checkbox on a list means done, and this means suppose. The
+  provider wraps both panes and emits no DOM, because the phone's pane track is
+  a carousel that counts its children.
+- **A finished action is greyed, not struck through.** A project's Done fold is
+  the record of how the thing was actually done, read months later by whoever
+  does it next; a line through it says disregard. A settled purchase keeps its
+  line — that one really is closed. Hence `SimpleRow`'s `muted` (greyed) and
+  `struck` (the line) being separate, with `struck` defaulting to `muted` so
+  the older callers are unchanged.
+- **Deleting an action or a project must take its files with it.**
+  `attachments.parent_id` is polymorphic — a plain uuid addressing four tables
+  — so it has no foreign key and nothing cascades. Both deletes went through
+  `purgeActions`/`purgeFilesOf` for that reason: without it, deleting a project
+  cascaded its actions and orphaned every file on all of them at once, rows
+  pointing at nothing with their Drive files unreachable. Files are removed one
+  at a time because each has a Drive file to *trash* — which is what makes
+  "delete all finished steps" safe to offer as a bulk button. A cited Big Box
+  document is only unlinked; tidying a project has no business reaching into
+  the archive.
 - **A link in a note follows on click.** `openOnClick` was false, on the
   reasoning that a click inside an editor places the cursor — true of a text
   editor and wrong here: these notes are read far more often than edited, and
