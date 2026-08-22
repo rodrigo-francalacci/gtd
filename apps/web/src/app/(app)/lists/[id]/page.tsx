@@ -1,3 +1,4 @@
+import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { attachmentsFor, documentsFor } from '@/lib/file-lists';
 import { BudgetSummary } from '@/components/budget-summary';
@@ -25,7 +26,24 @@ export default async function ListPage(props: PageProps<'/lists/[id]'>) {
   if (!list) notFound();
 
   const isPurchases = list.type === 'purchases';
-  const selectedId = typeof searchParams.item === 'string' ? searchParams.item : null;
+
+  /**
+   * The budget, asked for rather than fallen back to.
+   *
+   * Side by side it is simply what fills the pane when no item is selected, and
+   * that was the whole design. One pane at a time it isn't reachable at all:
+   * selecting an item replaces it, and there is no "nothing" to click to get
+   * back — the way out on a desktop is clicking empty space, which a phone
+   * hasn't got. So it gets a name in the URL, which makes it somewhere you can
+   * go, a link the list header can point at, and a place the carousel knows to
+   * travel to.
+   *
+   * It wins over a selected item rather than clearing it: come back from the
+   * budget and the item you were looking at is still the one selected.
+   */
+  const wantsBudget = isPurchases && searchParams.budget !== undefined;
+  const selectedId =
+    !wantsBudget && typeof searchParams.item === 'string' ? searchParams.item : null;
   const impact = typeof searchParams.impact === 'string' ? searchParams.impact : undefined;
   const where = typeof searchParams.where === 'string' ? searchParams.where : undefined;
 
@@ -51,6 +69,15 @@ export default async function ListPage(props: PageProps<'/lists/[id]'>) {
     p.set('item', itemId);
     return `/lists/${id}?${p}`;
   };
+
+  /** The budget, keeping whichever filters are on. */
+  const budgetHref = (() => {
+    const p = new URLSearchParams();
+    if (impact) p.set('impact', impact);
+    if (where) p.set('where', where);
+    p.set('budget', '1');
+    return `/lists/${id}?${p}`;
+  })();
 
   const openTotal = allItems
     .filter((i) => i.stage !== 'settled')
@@ -82,6 +109,22 @@ export default async function ListPage(props: PageProps<'/lists/[id]'>) {
         viewMode={viewMode}
         paneWidth={paneWidth(prefs)}
         columns={isPurchases ? PURCHASE_COLUMNS : LIST_ITEM_COLUMNS}
+        /* In the header because that is the one part of a purchases list
+           always on screen, whichever pane you are looking at. */
+        actions={
+          isPurchases ? (
+            <Link
+              href={budgetHref}
+              aria-current={wantsBudget ? 'page' : undefined}
+              className={[
+                'text-[11px] underline underline-offset-2',
+                wantsBudget ? 'text-selected' : 'text-grey-500 hover:text-grey-800',
+              ].join(' ')}
+            >
+              Budget
+            </Link>
+          ) : null
+        }
         subtitle={
           isPurchases ? (
             <>
@@ -140,6 +183,8 @@ export default async function ListPage(props: PageProps<'/lists/[id]'>) {
             items={allItems}
             filters={{ impact, where }}
             basePath={`/lists/${id}`}
+            listId={id}
+            budget={list.budget}
           />
         </DetailPane>
       ) : (

@@ -54,7 +54,24 @@ export function AppShell({
    * the URL to narrow the list you are reading, and being thrown forward a
    * pane for that is the opposite of helpful.
    */
-  const selection = ['item', 'doc', 'action', 'area', 'goal', 'event', 'project', 'box']
+  const selection = [
+    'item',
+    'doc',
+    'action',
+    'area',
+    'goal',
+    'event',
+    'project',
+    'box',
+    /*
+     * Not a row, but the same kind of thing: something the second pane can be
+     * showing that you asked for. A purchases budget fills that pane whenever
+     * no item is selected, which side by side needs no name — and one pane at
+     * a time made it unreachable, because getting back to it means selecting
+     * nothing and a phone has no empty space to click.
+     */
+    'budget',
+  ]
     .map((key) => params.get(key) ?? '')
     .join('|');
 

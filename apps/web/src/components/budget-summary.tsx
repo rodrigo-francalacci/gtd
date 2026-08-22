@@ -1,6 +1,8 @@
 'use client';
 
 import Link from 'next/link';
+import { useState, useTransition } from 'react';
+import { promoteListItems, setListBudget } from '@/lib/actions';
 import {
   IMPACT_LABELS,
   WHERE_LABELS,
@@ -22,10 +24,15 @@ export function BudgetSummary({
   items,
   filters,
   basePath,
+  listId,
+  budget,
 }: {
   items: ListItemRow[];
   filters: { impact?: string; where?: string };
   basePath: string;
+  listId: string;
+  /** The ceiling, or null when there isn't one. */
+  budget: number | null;
 }) {
   const costOf = (i: ListItemRow) => i.fields?.cost ?? 0;
   const sum = (rows: ListItemRow[]) => rows.reduce((n, i) => n + costOf(i), 0);
@@ -91,7 +98,14 @@ export function BudgetSummary({
         </p>
       ) : null}
 
-      <WhatIf candidates={proposed} committed={sum(committed)} />
+      <Allowance listId={listId} budget={budget} spent={sum(committed) + sum(settled)} />
+
+      <WhatIf
+        candidates={proposed}
+        committed={sum(committed)}
+        settled={sum(settled)}
+        budget={budget}
+      />
 
       {byImpact.length > 0 ? (
         <section className="mt-7">
@@ -162,16 +176,29 @@ export function BudgetSummary({
 function WhatIf({
   candidates,
   committed,
+  settled,
+  budget,
 }: {
   candidates: ListItemRow[];
   committed: number;
+  settled: number;
+  budget: number | null;
 }) {
   const trial = useBudgetTrial();
+  const [pending, startTransition] = useTransition();
   if (!trial) return null;
 
   const picked = candidates.filter((i) => trial.picked.has(i.id));
   const trying = picked.reduce((n, i) => n + (i.fields?.cost ?? 0), 0);
   const noCost = picked.filter((i) => typeof i.fields?.cost !== 'number').length;
+
+  /*
+   * Settled spend counts against the allowance and *not* against "would
+   * commit", and the two figures answer different questions. What you would
+   * be committed to is about outstanding obligations; what is left is about
+   * the pot, and money already spent has left the pot.
+   */
+  const left = budget === null ? null : budget - settled - committed - trying;
 
   return (
     <section className="mt-7 rounded-sm border border-grey-200 bg-grey-50 px-3 py-3">
@@ -209,6 +236,21 @@ function WhatIf({
                 amount={trying}
               />
               <Line label="Would commit" amount={committed + trying} total />
+              {left !== null ? (
+                <tr>
+                  <td className="pt-2 text-grey-600">
+                    {left < 0 ? 'Over by' : 'Left after that'}
+                  </td>
+                  <td
+                    className={[
+                      'pt-2 text-right text-[15px] font-medium tabular-nums',
+                      left < 0 ? 'text-stale' : 'text-grey-900',
+                    ].join(' ')}
+                  >
+                    {formatMoney(Math.abs(left))}
+                  </td>
+                </tr>
+              ) : null}
             </tbody>
           </table>
 
@@ -231,9 +273,141 @@ function WhatIf({
               figure is lower than reality.
             </p>
           ) : null}
+
+          {/*
+            The sentence after the arithmetic.
+
+            Ticking answers what a combination would cost; this is agreeing to
+            it. Without the button the answer had to be retyped as a series of
+            individual promotions — tedious, and a chance to commit four of the
+            five you just costed.
+
+            It clears the ticks afterwards, because they described a question
+            that has now been answered: leaving them would show a trial for
+            items that are no longer candidates.
+          */}
+          <button
+            type="button"
+            disabled={pending}
+            onClick={() =>
+              startTransition(async () => {
+                await promoteListItems(picked.map((i) => i.id));
+                trial.clear();
+              })
+            }
+            className="mt-3 w-full rounded-sm border border-grey-800 bg-grey-800 px-2 py-1.5 text-[12px] text-paper hover:bg-grey-900 disabled:opacity-40"
+          >
+            {pending
+              ? 'Promoting…'
+              : picked.length === 1
+                ? 'Promote it'
+                : `Promote all ${picked.length}`}
+          </button>
+          <p className="mt-1.5 text-[11px] leading-relaxed text-grey-500">
+            {picked.length === 1 ? 'This becomes' : 'These become'} committed spend,
+            with {picked.length === 1 ? 'an action' : 'one action each'} to buy{' '}
+            {picked.length === 1 ? 'it' : 'them'}.
+          </p>
         </>
       )}
     </section>
+  );
+}
+
+/**
+ * What there is to spend, and what is left of it.
+ *
+ * The three totals could always say what things cost and never whether you
+ * could afford them — "would commit £400" is not a decision until you know
+ * what it leaves. On the list rather than in preferences because two purchases
+ * lists are two separate pots, which is most of the reason to keep a second.
+ *
+ * Editable in place and clearable: a budget is a thing you revise, and one you
+ * cannot remove would be a worse answer than never having set it.
+ */
+function Allowance({
+  listId,
+  budget,
+  spent,
+}: {
+  listId: string;
+  budget: number | null;
+  spent: number;
+}) {
+  const [pending, startTransition] = useTransition();
+  const [editing, setEditing] = useState(false);
+  const [value, setValue] = useState(budget === null ? '' : String(budget));
+
+  const save = () => {
+    setEditing(false);
+    const next = value.trim() === '' ? null : Number(value);
+    if (next !== null && !Number.isFinite(next)) return;
+    if (next === budget) return;
+    startTransition(async () => {
+      await setListBudget(listId, next);
+    });
+  };
+
+  if (editing) {
+    return (
+      <div className="mt-4 flex items-center gap-2">
+        <label className="text-[11px] text-grey-500" htmlFor="allowance">
+          Budget
+        </label>
+        <input
+          id="allowance"
+          autoFocus
+          inputMode="decimal"
+          value={value}
+          onChange={(e) => setValue(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') save();
+            if (e.key === 'Escape') setEditing(false);
+          }}
+          onBlur={save}
+          placeholder="No ceiling"
+          className="w-28 rounded-sm border border-grey-300 bg-paper px-1.5 py-0.5 text-[12px] tabular-nums text-grey-900 focus:border-selected focus:outline-none"
+        />
+        <span className="text-[11px] text-grey-400">blank to clear</span>
+      </div>
+    );
+  }
+
+  const left = budget === null ? null : budget - spent;
+
+  return (
+    <div className={['mt-4 flex items-baseline gap-2', pending ? 'opacity-60' : ''].join(' ')}>
+      {budget === null ? (
+        <button
+          type="button"
+          onClick={() => setEditing(true)}
+          className="text-[11px] text-grey-500 underline underline-offset-2 hover:text-grey-800"
+        >
+          Set a budget
+        </button>
+      ) : (
+        <>
+          <span className="text-[12px] text-grey-600">
+            Budget {formatMoney(budget)} ·{' '}
+            <span className={left! < 0 ? 'text-stale' : 'text-grey-800'}>
+              {left! < 0
+                ? `${formatMoney(Math.abs(left!))} over`
+                : `${formatMoney(left!)} left`}
+            </span>
+          </span>
+          <button
+            type="button"
+            onClick={() => {
+              setValue(String(budget));
+              setEditing(true);
+            }}
+            className="text-[11px] text-grey-400 underline underline-offset-2 hover:text-grey-800"
+          >
+            Change
+          </button>
+        </>
+      )}
+    </div>
   );
 }
 

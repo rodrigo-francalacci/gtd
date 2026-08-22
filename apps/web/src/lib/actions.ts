@@ -1121,6 +1121,38 @@ export async function promoteListItem(itemId: string) {
   revalidateShell();
 }
 
+/**
+ * Promote several at once — the ticked combination, committed.
+ *
+ * The trial answers "what would these come to"; this is the sentence after it.
+ * Without it the answer had to be retyped as a series of individual promotions,
+ * which is both tedious and a chance to promote four of the five you costed.
+ *
+ * Sequential rather than parallel: each one inserts an action and writes back
+ * to the item, the `neon-http` driver has no transactions, and a burst of
+ * concurrent writes buys nothing on five rows. `promoteListItem` already
+ * refuses an item that has been promoted, so a double click costs nothing.
+ */
+export async function promoteListItems(itemIds: string[]) {
+  await requireSession();
+
+  for (const id of itemIds) await promoteListItem(id);
+
+  return itemIds.length;
+}
+
+/** What there is to spend on this list. Empty clears the ceiling. */
+export async function setListBudget(listId: string, budget: number | null) {
+  await requireSession();
+
+  await db
+    .update(lists)
+    .set({ budget: budget !== null && Number.isFinite(budget) ? budget : null })
+    .where(eq(lists.id, listId));
+
+  revalidateShell();
+}
+
 /** Detach from the spawned action without deleting the action itself. */
 export async function unpromoteListItem(itemId: string) {
   await requireSession();
