@@ -895,6 +895,42 @@ export const boxItems = pgTable(
   ],
 );
 
+/**
+ * A line about the day itself, under the date in a box's feed.
+ *
+ * Not a `box_items` row, and the distinction is the whole reason this table
+ * exists. An entry is a *thing that arrived* — it has a time, a place in the
+ * order, a file behind it more often than not. This is about the day, which
+ * has no arrival and cannot be one entry among the others without pretending
+ * to be: it would need a position in a feed it is the heading of.
+ *
+ * Its job is context rather than content. Three receipts and a screenshot from
+ * a Tuesday in March tell you what you filed; "drove to Bristol for the
+ * handover, van broke down" tells you what you were *doing*, which is what you
+ * actually search your memory with when hunting for one of them.
+ *
+ * One per box per day, so the primary key is the pair. Kept in its own table
+ * rather than on `boxes` as a blob for the obvious reason: a year is 365 rows
+ * and one of them is what you want.
+ */
+export const boxDays = pgTable(
+  'box_days',
+  {
+    boxId: uuid('box_id')
+      .notNull()
+      .references(() => boxes.id, { onDelete: 'cascade' }),
+    /** Local calendar day, the same key the feed groups by. */
+    day: date('day').notNull(),
+    note: text('note').notNull().default(''),
+    searchVector: searchVector('note'),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.boxId, t.day] }),
+    index('box_days_search_idx').using('gin', t.searchVector),
+  ],
+);
+
 export const boxItemTags = pgTable(
   'box_item_tags',
   {

@@ -6,6 +6,7 @@ import {
   areasOfFocus,
   attachments,
   boxCategories,
+  boxDays,
   boxItemLinks,
   boxItemTags,
   boxItems,
@@ -1239,4 +1240,20 @@ export async function getLinkableDocuments(
     .limit(limit);
 
   return rows as LinkedDocumentRow[];
+}
+
+/**
+ * The journal lines for a box, keyed by day.
+ *
+ * One query for the whole feed rather than one per heading: a box shows
+ * dozens of days at once, and a round trip each would make the note the most
+ * expensive thing on a page whose entries are already loaded.
+ */
+export async function getBoxDayNotes(boxId: string): Promise<Map<string, string>> {
+  const rows = await db
+    .select({ day: boxDays.day, note: boxDays.note })
+    .from(boxDays)
+    .where(eq(boxDays.boxId, boxId));
+
+  return new Map(rows.filter((r) => r.note !== '').map((r) => [r.day, r.note]));
 }

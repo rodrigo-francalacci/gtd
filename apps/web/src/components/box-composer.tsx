@@ -2,16 +2,10 @@
 
 import { useRouter } from 'next/navigation';
 import { useRef, useState, useTransition } from 'react';
-import {
-  postBoxLink,
-  postBoxLocation,
-  postBoxNote,
-  setDocumentExpiry,
-} from '@/lib/actions';
+import { postBoxLink, postBoxLocation, postBoxNote } from '@/lib/actions';
 import { uploadToBox } from '@/lib/box-upload';
 import { soleUrl } from '@/lib/sole-url';
 import { AudioRecorder } from './audio-recorder';
-import { LifetimePicker, expiryFor } from './lifetime-picker';
 import { IconAudio, IconCamera, IconPaperclip, IconPlace } from './icons';
 
 /**
@@ -28,7 +22,7 @@ import { IconAudio, IconCamera, IconPaperclip, IconPlace } from './icons';
  */
 export function BoxComposer({ boxId }: { boxId: string }) {
   const router = useRouter();
-  const [pending, startTransition] = useTransition();
+  const [, startTransition] = useTransition();
   const input = useRef<HTMLInputElement>(null);
   const camera = useRef<HTMLInputElement>(null);
 
@@ -47,8 +41,6 @@ export function BoxComposer({ boxId }: { boxId: string }) {
    * is not when it was made.
    */
   const [useFileDate, setUseFileDate] = useState(false);
-  /** How long what you file here is worth keeping. Null is forever. */
-  const [keepFor, setKeepFor] = useState<number | null>(null);
   const [recording, setRecording] = useState(false);
   const [over, setOver] = useState(false);
 
@@ -73,11 +65,8 @@ export function BoxComposer({ boxId }: { boxId: string }) {
     const url = soleUrl(body);
 
     startTransition(async () => {
-      const id = url ? await postBoxLink(boxId, url, '') : await postBoxNote(boxId, body);
-      // Applied after the row exists, through the same action the pane uses,
-      // so there is one rule about what a valid expiry is.
-      const expires = expiryFor(keepFor);
-      if (expires && id) await setDocumentExpiry(id, expires);
+      if (url) await postBoxLink(boxId, url, '');
+      else await postBoxNote(boxId, body);
       router.refresh();
     });
   };
@@ -106,7 +95,6 @@ export function BoxComposer({ boxId }: { boxId: string }) {
               ? new Date(file.lastModified)
               : undefined,
           readNow: true,
-          expiresAt: expiryFor(keepFor),
         });
 
         router.refresh();
@@ -141,9 +129,7 @@ export function BoxComposer({ boxId }: { boxId: string }) {
         setBusy(null);
 
         startTransition(async () => {
-          const id = await postBoxLocation(boxId, coords.latitude, coords.longitude, body);
-          const expires = expiryFor(keepFor);
-          if (expires && id) await setDocumentExpiry(id, expires);
+          await postBoxLocation(boxId, coords.latitude, coords.longitude, body);
           router.refresh();
         });
       },
@@ -289,10 +275,19 @@ export function BoxComposer({ boxId }: { boxId: string }) {
           date from the file
         </label>
 
-        {/* Beside the date, because they are the two facts about *when* that
-            are worth settling while you are filing rather than afterwards. */}
-        <LifetimePicker months={keepFor} onChange={setKeepFor} disabled={pending} />
+        {/*
+          No lifetime picker here, and that is a decision rather than an
+          omission. Five more chips in a row that already carries a date
+          checkbox, four buttons and a status line make the composer look like
+          a form — which is the one thing a composer must not be, since a
+          journal that needs a form filled in is a journal you stop keeping.
 
+          It stays on the phone's capture screen, where there is a screen's
+          worth of room and where filing something with a known shelf life —
+          a receipt, photographed on the way out of a shop — is what you are
+          actually doing. Everywhere else it is one click on the document
+          afterwards, on a pane with space to explain itself.
+        */}
         <span className="min-w-0 flex-1 truncate text-[11px] text-grey-500">
           {error ? <span className="text-stale">{error}</span> : busy ? `${busy}…` : ''}
         </span>

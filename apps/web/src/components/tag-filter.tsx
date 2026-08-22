@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import type { BoxCategoryRow } from '@/lib/queries.shared';
+import { FilterChip, filterHref } from './filter-chip';
 
 /**
  * Narrow a box by its own tags.
@@ -14,6 +15,11 @@ import type { BoxCategoryRow } from '@/lib/queries.shared';
  * Adding tags narrows — the list needs *all* of them. A filter that widens as
  * you add to it is one you stop trusting after the first surprise.
  *
+ * Right-click, or hold on a touchscreen, and the tag is filtered *against*
+ * instead: everything except this. The other question a box asks constantly,
+ * and one that previously needed every other tag selected by hand — which is
+ * not the same thing, and stops working the moment a new tag appears.
+ *
  * And it only offers what is still there. Once Tesco is selected, a tag that
  * appears on none of the remaining receipts leads to an empty list, so showing
  * it is offering a dead end — the bar fills up with roads that go nowhere and
@@ -24,46 +30,36 @@ export function TagFilter({
   boxId,
   categories,
   selected,
+  excluded,
   counts,
 }: {
   boxId: string;
   categories: BoxCategoryRow[];
   selected: string[];
+  /** Tags being filtered *against* — show everything that doesn't carry one. */
+  excluded: string[];
   /** How many of the entries currently showing carry each tag. */
   counts: Record<string, number>;
 }) {
   const searchParams = useSearchParams();
+  const base = `/box/${boxId}`;
 
   const withTags = categories
     .map((category) => ({
       ...category,
-      // A selected tag stays whatever its count, or there would be no way to
-      // unselect it — including the case where two selections between them
-      // match nothing at all.
+      // A tag in either state stays listed whatever its count, or there would
+      // be no way to undo it — an excluded tag has a count of zero by
+      // definition, so this is the only thing keeping it reachable.
       tags: category.tags.filter(
-        (tag) => (counts[tag.id] ?? 0) > 0 || selected.includes(tag.id),
+        (tag) =>
+          (counts[tag.id] ?? 0) > 0 ||
+          selected.includes(tag.id) ||
+          excluded.includes(tag.id),
       ),
     }))
     .filter((category) => category.tags.length > 0);
 
   if (withTags.length === 0) return null;
-
-  const hrefFor = (tagId: string) => {
-    const next = selected.includes(tagId)
-      ? selected.filter((t) => t !== tagId)
-      : [...selected, tagId];
-
-    // Built from the current URL so the date range survives — the two filters
-    // are meant to combine, and rebuilding from scratch would silently drop
-    // whichever one you weren't touching.
-    const params = new URLSearchParams(searchParams);
-    params.delete('tag');
-    next.forEach((t) => params.append('tag', t));
-    params.delete('doc');
-
-    const query = params.toString();
-    return query ? `/box/${boxId}?${query}` : `/box/${boxId}`;
-  };
 
   return (
     <div className="flex flex-col gap-1">
@@ -73,31 +69,45 @@ export function TagFilter({
             {category.name}
           </span>
           {category.tags.map((tag) => {
-            const on = selected.includes(tag.id);
+            const state = selected.includes(tag.id)
+              ? 'include'
+              : excluded.includes(tag.id)
+                ? 'exclude'
+                : 'off';
+
             return (
-              <Link
+              <FilterChip
                 key={tag.id}
-                href={hrefFor(tag.id)}
-                className={[
-                  'flex items-baseline gap-1 rounded-sm px-1.5 py-px text-[11px]',
-                  on
-                    ? 'bg-selected-bg font-medium text-selected'
-                    : 'bg-grey-200 text-grey-600 hover:bg-grey-300',
-                ].join(' ')}
-              >
-                {tag.name}
-                {/* What you'd be left with. Worth the space: it turns the bar
-                    from a list of labels into a picture of what's in the box. */}
-                <span className="tabular-nums opacity-60">
-                  {counts[tag.id] ?? 0}
-                </span>
-              </Link>
+                label={tag.name}
+                /* What you'd be left with. Worth the space: it turns the bar
+                   from a list of labels into a picture of what's in the box. */
+                count={counts[tag.id] ?? 0}
+                state={state}
+                includeHref={filterHref(
+                  base,
+                  searchParams,
+                  'tag',
+                  'nottag',
+                  tag.id,
+                  // Click is a toggle to and from off; excluding is the other gesture, so
+                  // clicking a struck-through chip clears it rather than flipping it.
+                  state === 'off' ? 'include' : 'off',
+                )}
+                excludeHref={filterHref(
+                  base,
+                  searchParams,
+                  'tag',
+                  'nottag',
+                  tag.id,
+                  state === 'exclude' ? 'off' : 'exclude',
+                )}
+              />
             );
           })}
         </div>
       ))}
 
-      {selected.length > 0 ? (
+      {selected.length > 0 || excluded.length > 0 ? (
         <Link
           href={clearedHref(boxId, searchParams)}
           className="self-start text-[11px] text-grey-500 underline underline-offset-2"
@@ -109,10 +119,11 @@ export function TagFilter({
   );
 }
 
-/** Drop the tags and keep everything else, the dates included. */
+/** Drop the tags, both kinds, and keep everything else — the dates included. */
 function clearedHref(boxId: string, params: URLSearchParams): string {
   const next = new URLSearchParams(params);
   next.delete('tag');
+  next.delete('nottag');
   next.delete('doc');
   const query = next.toString();
   return query ? `/box/${boxId}?${query}` : `/box/${boxId}`;

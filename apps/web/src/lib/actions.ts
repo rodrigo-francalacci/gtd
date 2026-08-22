@@ -7,6 +7,7 @@ import {
   areasOfFocus,
   attachments,
   boxCategories,
+  boxDays,
   boxItemLinks,
   boxItemTags,
   boxItems,
@@ -2154,4 +2155,37 @@ export async function startFromDocument(
 
   revalidateShell();
   return action;
+}
+
+/**
+ * Write the line about a day, in a box's feed.
+ *
+ * An upsert on the pair, because a day either has a note or it doesn't and
+ * there is no third state to keep track of — and an empty one is deleted
+ * rather than stored, so "nothing written here" is the absence of a row rather
+ * than a row saying nothing. That keeps the feed's lookup honest: a day is in
+ * the map or it is not.
+ */
+export async function setBoxDayNote(boxId: string, day: string, note: string) {
+  await requireSession();
+
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(day)) return;
+
+  const text = note.trim().slice(0, 10_000);
+
+  if (!text) {
+    await db
+      .delete(boxDays)
+      .where(and(eq(boxDays.boxId, boxId), eq(boxDays.day, day)));
+  } else {
+    await db
+      .insert(boxDays)
+      .values({ boxId, day, note: text })
+      .onConflictDoUpdate({
+        target: [boxDays.boxId, boxDays.day],
+        set: { note: text, updatedAt: new Date() },
+      });
+  }
+
+  revalidateShell();
 }

@@ -1,12 +1,12 @@
 'use client';
 
-import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import {
   ENTRY_TYPE_LABELS,
   ENTRY_TYPE_ORDER,
   type EntryType,
 } from '@/lib/queries.shared';
+import { FilterChip, filterHref } from './filter-chip';
 
 /**
  * Narrow a box by what sort of thing an entry is.
@@ -28,35 +28,29 @@ export function TypeFilter({
   boxId,
   counts,
   selected,
+  excluded,
 }: {
   boxId: string;
   /** How many of the entries currently showing are of each type. */
   counts: Record<string, number>;
   selected: EntryType[];
+  /** Types being filtered *against* — show everything that is not one. */
+  excluded: EntryType[];
 }) {
   const searchParams = useSearchParams();
 
+  const base = `/box/${boxId}`;
+
+  // Either state keeps a type listed whatever its count: an excluded type has
+  // a count of zero by definition, and would otherwise become unreachable.
   const present = ENTRY_TYPE_ORDER.filter(
-    (type) => (counts[type] ?? 0) > 0 || selected.includes(type),
+    (type) =>
+      (counts[type] ?? 0) > 0 || selected.includes(type) || excluded.includes(type),
   );
 
   // One sort of thing in the whole box is not a choice worth offering.
   if (present.length < 2) return null;
 
-  const hrefFor = (type: EntryType) => {
-    const next = selected.includes(type)
-      ? selected.filter((t) => t !== type)
-      : [...selected, type];
-
-    // Built from the current URL, so the tags and the dates come along.
-    const params = new URLSearchParams(searchParams);
-    params.delete('type');
-    next.forEach((t) => params.append('type', t));
-    params.delete('doc');
-
-    const query = params.toString();
-    return query ? `/box/${boxId}?${query}` : `/box/${boxId}`;
-  };
 
   return (
     <div className="flex flex-wrap items-baseline gap-1">
@@ -65,21 +59,37 @@ export function TypeFilter({
       </span>
 
       {present.map((type) => {
-        const on = selected.includes(type);
+        const state = selected.includes(type)
+          ? 'include'
+          : excluded.includes(type)
+            ? 'exclude'
+            : 'off';
+
         return (
-          <Link
+          <FilterChip
             key={type}
-            href={hrefFor(type)}
-            className={[
-              'flex items-baseline gap-1 rounded-sm px-1.5 py-px text-[11px]',
-              on
-                ? 'bg-selected-bg font-medium text-selected'
-                : 'bg-grey-200 text-grey-600 hover:bg-grey-300',
-            ].join(' ')}
-          >
-            {ENTRY_TYPE_LABELS[type]}
-            <span className="tabular-nums opacity-60">{counts[type] ?? 0}</span>
-          </Link>
+            label={ENTRY_TYPE_LABELS[type]}
+            count={counts[type] ?? 0}
+            state={state}
+            includeHref={filterHref(
+              base,
+              searchParams,
+              'type',
+              'nottype',
+              type,
+              // Click is a toggle to and from off; excluding is the other gesture, so
+                  // clicking a struck-through chip clears it rather than flipping it.
+                  state === 'off' ? 'include' : 'off',
+            )}
+            excludeHref={filterHref(
+              base,
+              searchParams,
+              'type',
+              'nottype',
+              type,
+              state === 'exclude' ? 'off' : 'exclude',
+            )}
+          />
         );
       })}
     </div>

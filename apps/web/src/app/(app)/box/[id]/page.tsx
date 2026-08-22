@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { DayHeading } from '@/components/day-heading';
+import { DayJournal } from '@/components/day-journal';
 import { DocumentDetail } from '@/components/document-detail';
 import { BoxComposer } from '@/components/box-composer';
 import { BoxViewToggle } from '@/components/box-view-toggle';
@@ -16,6 +17,7 @@ import { groupByDay } from '@/lib/days';
 import {
   getBox,
   getBoxCategories,
+  getBoxDayNotes,
   getBoxItem,
   getBoxItems,
   getBoxRange,
@@ -50,6 +52,23 @@ export default async function BoxPage(props: PageProps<'/box/[id]'>) {
   const tagIds = requested.filter((t) => known.has(t));
 
   /**
+   * Tags being filtered *against*: show everything that does *not* carry one.
+   *
+   * The other question a box asks constantly — "the fuel receipts that aren't
+   * Shell" — which previously needed every other vendor selected by hand. That
+   * is not the same query, and it stops being right the moment a new vendor
+   * appears.
+   *
+   * A separate parameter rather than a `-` prefix on `tag`, because the values
+   * are uuids and a prefix would make the parser responsible for telling a
+   * sign apart from an id. Two lists cannot be misread.
+   */
+  const notRaw = searchParams.nottag;
+  const excludedTags = (
+    notRaw === undefined ? [] : Array.isArray(notRaw) ? notRaw : [notRaw]
+  ).filter((t) => known.has(t) && !tagIds.includes(t));
+
+  /**
    * A day from the URL, or nothing. An unparseable one is ignored rather than
    * refused: a filter you cannot see is better than a page that won't load.
    */
@@ -61,13 +80,28 @@ export default async function BoxPage(props: PageProps<'/box/[id]'>) {
 
   const range = { from: day(searchParams.from), to: day(searchParams.to) };
 
-  const [items, categories, prefs, boxList, span] = await Promise.all([
+  const [matched, categories, dayNotes, prefs, boxList, span] = await Promise.all([
     getBoxItems(id, tagIds, range),
     getBoxCategories(id),
+    getBoxDayNotes(id),
     getPreferences(),
     getBoxes(),
     getBoxRange(id),
   ]);
+
+  /*
+   * Exclusions are applied in memory, where the positive tags were matched in
+   * SQL — because the rows already carry their tags, so the answer is here and
+   * a second query would only ask the database something it has just told us.
+   *
+   * NONE rather than NOT ALL: excluding Shell and Tesco means an entry
+   * carrying either is out. Anything else would make adding a second exclusion
+   * *widen* the result, which is the trap the positive tags avoid by being AND.
+   */
+  const items =
+    excludedTags.length === 0
+      ? matched
+      : matched.filter((item) => !item.tags.some((t) => excludedTags.includes(t.id)));
 
   /**
    * The type filter is applied here rather than in SQL.
@@ -90,10 +124,24 @@ export default async function BoxPage(props: PageProps<'/box/[id]'>) {
         : []
   ).filter((t): t is EntryType => (ENTRY_TYPE_ORDER as string[]).includes(t));
 
-  const shown =
-    requestedTypes.length === 0
-      ? items
-      : items.filter((item) => requestedTypes.includes(entryTypeOf(item)));
+  const excludedTypes = (
+    typeof searchParams.nottype === 'string'
+      ? [searchParams.nottype]
+      : Array.isArray(searchParams.nottype)
+        ? searchParams.nottype
+        : []
+  )
+    .filter((t): t is EntryType => (ENTRY_TYPE_ORDER as string[]).includes(t))
+    // A type cannot be both wanted and unwanted; the positive one wins.
+    .filter((t) => !requestedTypes.includes(t));
+
+  const shown = items.filter((item) => {
+    const type = entryTypeOf(item);
+    // Included types are OR — nothing is both audio and a place. Excluded ones
+    // are NONE, so adding a second exclusion narrows rather than widens.
+    if (requestedTypes.length > 0 && !requestedTypes.includes(type)) return false;
+    return !excludedTypes.includes(type);
+  });
 
   /**
    * Counts for each facet are taken with the *other* filters applied but not
@@ -126,9 +174,11 @@ export default async function BoxPage(props: PageProps<'/box/[id]'>) {
   const href = (docId: string) => {
     const params = new URLSearchParams();
     tagIds.forEach((t) => params.append('tag', t));
+    excludedTags.forEach((t) => params.append('nottag', t));
     // The filters have to survive selecting a row, or clicking a result would
     // throw away the search that found it.
     requestedTypes.forEach((t) => params.append('type', t));
+    excludedTypes.forEach((t) => params.append('nottype', t));
     if (typeof searchParams.from === 'string') params.set('from', searchParams.from);
     if (typeof searchParams.to === 'string') params.set('to', searchParams.to);
     params.set('doc', docId);
@@ -170,11 +220,17 @@ export default async function BoxPage(props: PageProps<'/box/[id]'>) {
                 to={typeof searchParams.to === 'string' ? searchParams.to : undefined}
               />
             ) : null}
-            <TypeFilter boxId={id} counts={typeCounts} selected={requestedTypes} />
+            <TypeFilter
+              boxId={id}
+              counts={typeCounts}
+              selected={requestedTypes}
+              excluded={excludedTypes}
+            />
             <TagFilter
               boxId={id}
               categories={categories}
               selected={tagIds}
+              excluded={excludedTags}
               counts={tagCounts}
             />
           </div>
@@ -196,6 +252,10 @@ export default async function BoxPage(props: PageProps<'/box/[id]'>) {
           groupByDay(shown, (i) => i.capturedAt).map((day) => (
             <section key={day.key}>
               <DayHeading label={day.label} />
+
+              {/* Under the date, above the entries: it is about the day, not
+                  one of the things that arrived in it. */}
+              <DayJournal boxId={id} day={day.key} note={dayNotes.get(day.key) ?? ''} />
 
               {/* The day headings survive the gallery: arrival is the filing
                   system here, and a wall of thumbnails with no sense of when

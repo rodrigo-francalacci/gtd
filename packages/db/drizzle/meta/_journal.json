@@ -204,6 +204,13 @@
       "when": 1787419464350,
       "tag": "0028_premium_shadow_king",
       "breakpoints": true
+    },
+    {
+      "idx": 29,
+      "version": "7",
+      "when": 1787429776789,
+      "tag": "0029_aberrant_iron_patriot",
+      "breakpoints": true
     }
   ]
 }
