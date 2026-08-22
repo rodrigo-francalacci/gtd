@@ -294,6 +294,8 @@ export type BoxLinkRow = {
 export type BoxItemDetail = BoxItemRow & {
   boxName: string;
   text: string | null;
+  /** When this stops being worth keeping. Null is forever, and is the default. */
+  expiresAt: string | null;
   lastError: string | null;
   links: BoxLinkRow[];
 };

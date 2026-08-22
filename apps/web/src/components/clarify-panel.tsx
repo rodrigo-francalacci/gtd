@@ -18,6 +18,14 @@ const ACTIONABLE: { kind: Kind; label: string; hint: string }[] = [
 
 const NOT_ACTIONABLE: { kind: Kind; label: string; hint: string }[] = [
   { kind: 'list_item', label: 'Park on a list', hint: 'Someday, reference, purchases' },
+  /*
+   * The answer that was missing. Everything else here turns a capture into
+   * something you have to *do*, and often the honest answer is that you do not
+   * have to do anything with it and would like to find it again — which is
+   * what a box is for. Without this, a receipt photographed on the way past
+   * had to be trashed or made into a fake action.
+   */
+  { kind: 'filed', label: 'File in a box', hint: 'Reference — keep it, do nothing' },
   { kind: 'trashed', label: 'Trash', hint: 'No action, no value' },
 ];
 
@@ -28,6 +36,7 @@ export function ClarifyPanel({
   projects,
   areas,
   lists,
+  boxes,
   contextGroups,
 }: {
   item: {
@@ -46,6 +55,7 @@ export function ClarifyPanel({
   projects: { id: string; title: string }[];
   areas: { id: string; name: string }[];
   lists: { id: string; name: string; type: string }[];
+  boxes: { id: string; name: string }[];
   contextGroups: {
     place: Context[];
     time: Context[];
@@ -74,6 +84,7 @@ export function ClarifyPanel({
   const [projectId, setProjectId] = useState(item.aiSuggestion?.projectId ?? '');
   const [areaId, setAreaId] = useState('');
   const [listId, setListId] = useState(lists[0]?.id ?? '');
+  const [boxId, setBoxId] = useState(boxes[0]?.id ?? '');
   const [contextIds, setContextIds] = useState<string[]>(
     item.aiSuggestion?.contextIds ?? [],
   );
@@ -95,6 +106,9 @@ export function ClarifyPanel({
     else if (kind === 'list_item') {
       if (!listId) return;
       decision = { kind, title, listId, note };
+    } else if (kind === 'filed') {
+      if (!boxId) return;
+      decision = { kind, title, boxId, note };
     } else
       decision = { kind, title, projectId: projectId || null, contextIds, note };
 
@@ -368,6 +382,38 @@ export function ClarifyPanel({
             </div>
           ) : null}
 
+          {kind === 'filed' ? (
+            <div className="mt-3">
+              <label className="block text-[10px] font-semibold uppercase tracking-wider text-grey-500">
+                Box
+              </label>
+              {boxes.length === 0 ? (
+                <p className="mt-1 text-[12px] text-stale">
+                  No boxes yet — make one under Manage boxes first.
+                </p>
+              ) : (
+                <>
+                  <select
+                    value={boxId}
+                    onChange={(e) => setBoxId(e.target.value)}
+                    className="mt-1 w-full rounded-sm border border-grey-300 bg-paper px-2 py-1 text-[13px] focus:border-grey-500 focus:outline-none"
+                  >
+                    {boxes.map((b) => (
+                      <option key={b.id} value={b.id}>
+                        {b.name}
+                      </option>
+                    ))}
+                  </select>
+                  <p className="mt-1.5 text-[11px] leading-relaxed text-grey-500">
+                    {attachments.length > 0
+                      ? `${attachments.length === 1 ? 'The file becomes a document' : `Each of the ${attachments.length} files becomes a document`} in the box, read and tagged like anything else filed there. What you typed is kept beside ${attachments.length === 1 ? 'it' : 'the first'}.`
+                      : 'This becomes a note in the box — kept and searchable, with nothing to do.'}
+                  </p>
+                </>
+              )}
+            </div>
+          ) : null}
+
           <div className="mt-4 flex items-center gap-2">
             <button
               type="button"
@@ -375,7 +421,8 @@ export function ClarifyPanel({
               disabled={
                 pending ||
                 (needsTitle && !title.trim()) ||
-                (kind === 'list_item' && !listId)
+                (kind === 'list_item' && !listId) ||
+                (kind === 'filed' && !boxId)
               }
               className="rounded-sm bg-grey-800 px-2.5 py-1 text-[12px] text-paper disabled:opacity-40"
             >

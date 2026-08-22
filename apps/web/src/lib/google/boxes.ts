@@ -1,7 +1,7 @@
 import 'server-only';
 
 import { boxItems, boxes, db } from '@gtd/db';
-import { and, eq, isNotNull, sql } from 'drizzle-orm';
+import { and, eq, isNotNull, lte, sql } from 'drizzle-orm';
 import { hasSyncScopes } from '@/lib/auth/google';
 import { getGrant } from '@/lib/auth/token';
 import { canClassify } from '@/lib/box/classify';
@@ -200,6 +200,41 @@ export async function deleteBoxItem(itemId: string): Promise<void> {
     // Failing here would leave you unable to tidy the box because of a
     // problem at Google's end.
   }
+}
+
+/**
+ * Throw away what has reached the end of its life.
+ *
+ * Some documents have a known shelf life the moment they arrive — the receipt
+ * proving a card bill was paid is worth three months and nothing after — and
+ * deciding that then is far easier than reviewing a thousand of them later.
+ * Nothing expires unless you say so; the column is null by default, which is
+ * what a box is for.
+ *
+ * Through `deleteBoxItem`, so it is exactly the same operation as pressing
+ * "throw away" by hand: the row goes and the Drive file is *trashed*, never
+ * deleted. That matters more here than anywhere else in the app, because this
+ * is the one deletion nobody is watching — and Drive keeps a binned file for
+ * thirty days, so a date set wrongly in March is still recoverable in April.
+ *
+ * `<=` today rather than `<`: a document set to expire on a date should be
+ * gone on that date, not the day after.
+ */
+export async function expireBoxItems(limit = 50): Promise<number> {
+  const due = await db
+    .select({ id: boxItems.id })
+    .from(boxItems)
+    .where(
+      and(
+        isNotNull(boxItems.expiresAt),
+        lte(boxItems.expiresAt, new Date().toISOString().slice(0, 10)),
+      ),
+    )
+    .limit(limit);
+
+  for (const row of due) await deleteBoxItem(row.id);
+
+  return due.length;
 }
 
 /**

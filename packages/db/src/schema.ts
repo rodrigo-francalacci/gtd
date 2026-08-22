@@ -145,6 +145,21 @@ export const inboxOutcome = pgEnum('inbox_outcome', [
   'list_item',
   'done',
   'trashed',
+  /**
+   * Filed in a box — a reference, not a commitment.
+   *
+   * The missing answer to "what is this?". Everything else here turns a
+   * capture into something you have to *do*, and the honest answer is often
+   * that you do not have to do anything with it and would like to be able to
+   * find it later. That is what a box is for, and without this the only routes
+   * into one were the composer and the scanner: a photographed receipt taken
+   * on the way past had to be trashed or made into a fake action.
+   *
+   * It does not blur the inbox and the box, which meet at `box_item_links` and
+   * nowhere else. This is the *clarify decision* that a thing belongs in one,
+   * and the inbox is still emptied by it.
+   */
+  'filed',
 ]);
 
 // ---------------------------------------------------------------------------
@@ -842,6 +857,21 @@ export const boxItems = pgTable(
      */
     imageUrl: text('image_url'),
     docDate: date('doc_date'),
+    /**
+     * When this stops being worth keeping. Null means forever, which is the
+     * default and the point of a box.
+     *
+     * Some documents have a known shelf life at the moment they arrive — the
+     * receipt proving a card bill was paid is worth three months and nothing
+     * after that — and deciding then is far easier than reviewing a thousand
+     * of them later. Set on arrival, acted on by the worker.
+     *
+     * A date rather than a duration, because a duration would have to be
+     * re-evaluated against a start that could itself be edited: `captured_at`
+     * is correctable, and a "3 months" that silently moved when you fixed an
+     * arrival date would be a surprise. This is a decision, already made.
+     */
+    expiresAt: date('expires_at'),
     /** The full transcription, so search can reach inside the document. */
     text: text('text'),
     status: boxItemStatus('status').notNull().default('pending'),

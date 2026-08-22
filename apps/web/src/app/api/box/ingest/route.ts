@@ -4,6 +4,7 @@ import { eq, sql } from 'drizzle-orm';
 import { getSession } from '@/lib/auth/session';
 import { WHY, authoriseSecret } from '@/lib/box/auth';
 import { BoxError, completeBoxUpload, startBoxUpload } from '@/lib/google/boxes';
+import { setDocumentExpiry } from '@/lib/actions';
 
 export const dynamic = 'force-dynamic';
 /** Opening a Drive session and reading a file back are both Google calls. */
@@ -80,6 +81,7 @@ export async function POST(request: Request) {
     mimeType: string;
     driveFileId: string;
     capturedAt: string;
+    expires: string;
     sourceFolderId: string;
   }>;
 
@@ -132,6 +134,11 @@ export async function POST(request: Request) {
         body.driveFileId,
         parseCapturedAt(body.capturedAt),
       );
+
+      // Applied after the row exists rather than threaded through the insert:
+      // the same action the document pane calls, so there is one rule about
+      // what a valid expiry is and one place it is enforced.
+      if (body.expires) await setDocumentExpiry(item.id, body.expires);
 
       return NextResponse.json({ ok: true, id: item.id, name: item.name });
     }

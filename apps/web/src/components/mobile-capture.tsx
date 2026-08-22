@@ -2,7 +2,12 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { captureInboxItem, postBoxLink, postBoxNote } from '@/lib/actions';
+import {
+  captureInboxItem,
+  postBoxLink,
+  postBoxNote,
+  setDocumentExpiry,
+} from '@/lib/actions';
 import { uploadToBox } from '@/lib/box-upload';
 import { uploadCaptureFiles } from '@/lib/capture-upload';
 import { captureLabel, type BoxOption } from '@/lib/queries.shared';
@@ -13,6 +18,7 @@ import {
 } from '@/lib/shared-files';
 import { soleUrl } from '@/lib/sole-url';
 import { CaptureDestination } from './capture-destination';
+import { LifetimePicker, expiryFor } from './lifetime-picker';
 import { MAX_DIRECT_UPLOAD_MB } from '@/lib/upload';
 import { AudioRecorder } from './audio-recorder';
 import { IconAudio, IconCamera, IconImage, IconPaperclip, IconStop } from './icons';
@@ -86,6 +92,8 @@ export function MobileCapture({
    * a sticky destination is the wrong kind of convenience.
    */
   const [boxId, setBoxId] = useState<string | null>(null);
+  /** Only means anything when the destination is a box. Null is forever. */
+  const [keepFor, setKeepFor] = useState<number | null>(null);
   const [busy, setBusy] = useState(false);
   const [recording, setRecording] = useState(false);
   const [errors, setErrors] = useState<string[]>([]);
@@ -222,8 +230,11 @@ export function MobileCapture({
       try {
         if (note) {
           const bare = soleUrl(note);
-          if (bare) await postBoxLink(boxId, bare, '');
-          else await postBoxNote(boxId, note);
+          const id = bare
+            ? await postBoxLink(boxId, bare, '')
+            : await postBoxNote(boxId, note);
+          const expires = expiryFor(keepFor);
+          if (expires && id) await setDocumentExpiry(id, expires);
         }
 
         if (files.length > 0) {
@@ -232,7 +243,10 @@ export function MobileCapture({
 
           for (const [index, file] of files.entries()) {
             try {
-              await uploadToBox(boxId, file, { readNow: true });
+              await uploadToBox(boxId, file, {
+                readNow: true,
+                expiresAt: expiryFor(keepFor),
+              });
             } catch (e) {
               failed.push(file);
               setErrors((errs) => [
@@ -351,6 +365,12 @@ export function MobileCapture({
         onChange={setBoxId}
         disabled={busy}
       />
+
+      {/* Only for a box: the inbox is a queue to be emptied, so nothing in it
+          lives long enough for a lifetime to mean anything. */}
+      {boxId ? (
+        <LifetimePicker months={keepFor} onChange={setKeepFor} disabled={busy} />
+      ) : null}
 
       {/* 16px minimum, or iOS Safari zooms the whole page in on focus. Left
           scalable otherwise — blocking pinch-zoom to avoid that is a bad

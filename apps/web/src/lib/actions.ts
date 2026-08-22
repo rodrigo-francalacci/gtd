@@ -48,6 +48,7 @@ import {
 import { deleteBoxItem } from './google/boxes';
 import { enqueueSync } from './google/queue';
 import { enqueueBoxJob } from './box/queue';
+import { canClassify } from './box/classify';
 import { canGroup, type SortChoice } from './sort';
 import { setUsage, type UsableType } from './usage';
 import { setViewPref } from './view-prefs';
@@ -650,6 +651,7 @@ export type ClarifyDecision =
     } & WithNote)
   | ({ kind: 'project'; title: string; areaId: string | null } & WithNote)
   | ({ kind: 'list_item'; title: string; listId: string } & WithNote)
+  | ({ kind: 'filed'; title: string; boxId: string } & WithNote)
   | { kind: 'trashed' };
 
 /**
@@ -711,6 +713,9 @@ export async function clarifyInboxItem(itemId: string, decision: ClarifyDecision
       .values({ listId: decision.listId, title, ...noteColumns(decision.note) })
       .returning();
     outcomeId = listItem.id;
+  } else if (decision.kind === 'filed') {
+    outcomeId = await fileCaptureInBox(itemId, decision);
+    if (!outcomeId) return;
   } else if (decision.kind !== 'trashed') {
     const title = decision.title.trim();
     if (!title) return;
@@ -752,7 +757,10 @@ export async function clarifyInboxItem(itemId: string, decision: ClarifyDecision
   // Trashed is the exception. Deliberately dropping something shouldn't strand
   // its file on nothing, so the attachment stays on the capture — which keeps
   // the evidence intact, and keeps the Drive file recoverable.
-  if (outcomeId && decision.kind !== 'trashed') {
+  // `filed` is the other exception, for the opposite reason to `trashed`: its
+  // files have already *become* box documents, so there is no attachment row
+  // left to re-parent and nothing that would want to be one.
+  if (outcomeId && decision.kind !== 'trashed' && decision.kind !== 'filed') {
     await db
       .update(attachments)
       .set({ parentType: PARENT_FOR_OUTCOME[decision.kind], parentId: outcomeId })
@@ -781,10 +789,11 @@ export async function clarifyInboxItem(itemId: string, decision: ClarifyDecision
  * Which attachment parent a clarify decision produces.
  *
  * `trashed` never gets here — it has no outcome row to hang a file off — and
- * the three action-shaped decisions all produce an action.
+ * neither does `filed`, whose files become box documents rather than staying
+ * attachments at all. The three action-shaped decisions all produce an action.
  */
 const PARENT_FOR_OUTCOME: Record<
-  Exclude<ClarifyDecision['kind'], 'trashed'>,
+  Exclude<ClarifyDecision['kind'], 'trashed' | 'filed'>,
   AttachmentParentType
 > = {
   next_action: 'action',
@@ -793,6 +802,107 @@ const PARENT_FOR_OUTCOME: Record<
   project: 'project',
   list_item: 'list_item',
 };
+
+/**
+ * Turn a capture into something filed in a box.
+ *
+ * The conversion is the interesting part. A capture's file is an `attachments`
+ * row; a box document keeps its own `drive_file_id`. Those are different
+ * tables, so nothing can be re-parented — the row is rebuilt on the other side
+ * and the original deleted.
+ *
+ * Deleted *directly*, never through `removeAttachment`, and this is the whole
+ * hazard of the operation: that function trashes the Drive file, which is
+ * exactly right when you are detaching something and exactly wrong here. The
+ * file is not going anywhere; only the row that describes it changes table.
+ *
+ * One box entry per file, because an entry holds one file. With no file at all
+ * the capture becomes a note, which is what a typed thought already is — and
+ * why `box_items.drive_file_id` is nullable.
+ *
+ * The Drive file stays in `GTD/Inbox` rather than moving to the box's folder.
+ * Moving it is a Google call and a mutation must not make one; this is the
+ * same compromise clarify already makes for every other outcome, and the file
+ * is reachable by id either way.
+ */
+async function fileCaptureInBox(
+  itemId: string,
+  decision: Extract<ClarifyDecision, { kind: 'filed' }>,
+): Promise<string | null> {
+  const title = decision.title.trim();
+  const note = decision.note?.trim() ?? '';
+
+  const files = await db
+    .select({
+      id: attachments.id,
+      name: attachments.name,
+      driveFileId: attachments.driveFileId,
+      mimeType: attachments.mimeType,
+      sizeBytes: attachments.sizeBytes,
+    })
+    .from(attachments)
+    .where(
+      and(eq(attachments.parentType, 'inbox_item'), eq(attachments.parentId, itemId)),
+    );
+
+  // The words you captured, kept as the entry's description so the filing is
+  // not just a file with no account of why you kept it.
+  const description = [title, note].filter(Boolean).join('\n\n') || null;
+
+  if (files.length === 0) {
+    if (!description) return null;
+
+    const [row] = await db
+      .insert(boxItems)
+      .values({
+        boxId: decision.boxId,
+        kind: 'note',
+        // A note is already in its final form — nothing to read, so `ready`.
+        status: 'ready',
+        description,
+        searchText: description,
+      })
+      .returning({ id: boxItems.id });
+
+    return row.id;
+  }
+
+  const made: string[] = [];
+
+  for (const file of files) {
+    const mimeType = file.mimeType ?? 'application/octet-stream';
+    const readable = canClassify(mimeType);
+    // Read before the insert rather than from `made` inside it: the values
+    // object would otherwise depend on a variable assigned from the insert's
+    // own result, which TypeScript reads as circular.
+    const isFirst = made.length === 0;
+
+    const [row] = await db
+      .insert(boxItems)
+      .values({
+        boxId: decision.boxId,
+        kind: 'document',
+        driveFileId: file.driveFileId,
+        name: file.name,
+        mimeType,
+        sizeBytes: file.sizeBytes,
+        // The description goes on the first only. Repeating it across five
+        // photos of the same thing would put one sentence in the feed five
+        // times.
+        description: isFirst ? description : null,
+        searchText: isFirst ? description : null,
+        status: readable ? 'pending' : 'ready',
+      })
+      .returning({ id: boxItems.id });
+
+    await db.delete(attachments).where(eq(attachments.id, file.id));
+
+    if (readable) await enqueueBoxJob(row.id);
+    made.push(row.id);
+  }
+
+  return made[0] ?? null;
+}
 
 // ---------------------------------------------------------------------------
 // Areas of focus and goals
@@ -1693,6 +1803,37 @@ export async function setDocumentArrivedAt(itemId: string, iso: string) {
   await db
     .update(boxItems)
     .set({ capturedAt: when, updatedAt: new Date() })
+    .where(eq(boxItems.id, itemId));
+
+  revalidateShell();
+}
+
+/**
+ * How long this document is worth keeping. Null is forever, and is the default.
+ *
+ * Only the date is stored; the worker does the throwing away, on the same
+ * `deleteBoxItem` path as the button — so the Drive file is trashed rather than
+ * deleted and stays recoverable for thirty days. A date set wrongly is a
+ * mistake with a month to notice it, not a loss.
+ *
+ * Refused if it is not a real date or is absurdly far out, the same rails the
+ * arrival date uses: a year mistyped as 202 would otherwise mean "delete this
+ * immediately", which is the worst possible reading of a typo.
+ */
+export async function setDocumentExpiry(itemId: string, date: string | null) {
+  await requireSession();
+
+  if (date !== null) {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return;
+
+    const when = new Date(`${date}T00:00:00`);
+    if (Number.isNaN(when.getTime())) return;
+    if (when.getFullYear() < 1900 || when.getFullYear() > 2200) return;
+  }
+
+  await db
+    .update(boxItems)
+    .set({ expiresAt: date, updatedAt: new Date() })
     .where(eq(boxItems.id, itemId));
 
   revalidateShell();

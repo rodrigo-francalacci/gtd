@@ -14,6 +14,25 @@
  * so a `File` cannot cross it anyway.
  */
 
+/**
+ * How long what you are filing is worth keeping, as a date.
+ *
+ * Decided here rather than only in the app afterwards, because this is the
+ * moment it is easy: you are looking at the receipt and you know it is worth
+ * three months. Counted from today, which is also when it arrives, so it can
+ * never resolve to a date already past.
+ *
+ * Null means forever, which is the default and the point of a box.
+ */
+function keepUntil() {
+  const months = Number(els.boxKeep?.value || 0);
+  if (!months) return null;
+
+  const date = new Date();
+  date.setMonth(date.getMonth() + months);
+  return date.toISOString().slice(0, 10);
+}
+
 const DEFAULT_ORIGIN = 'https://gtd-web-ten.vercel.app';
 
 const els = {
@@ -23,6 +42,7 @@ const els = {
   paneCapture: document.getElementById('pane-capture'),
   paneBox: document.getElementById('pane-box'),
   boxPicker: document.getElementById('box-picker'),
+  boxKeep: document.getElementById('box-keep'),
   boxText: document.getElementById('box-text'),
   boxFiles: document.getElementById('box-files'),
   boxPost: document.getElementById('box-post'),
@@ -630,7 +650,12 @@ async function uploadToBox(base, boxId, file) {
     method: 'POST',
     credentials: 'include',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ step: 'complete', box: boxId, driveFileId: id }),
+    body: JSON.stringify({
+      step: 'complete',
+      box: boxId,
+      driveFileId: id,
+      expires: keepUntil() ?? undefined,
+    }),
   });
 
   const record = await done.json();
@@ -673,7 +698,12 @@ async function postToBox(extra = {}) {
         method: 'POST',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ box: boxId, text, ...extra }),
+        body: JSON.stringify({
+          box: boxId,
+          text,
+          expires: keepUntil() ?? undefined,
+          ...extra,
+        }),
       });
 
       if (response.status === 401) {

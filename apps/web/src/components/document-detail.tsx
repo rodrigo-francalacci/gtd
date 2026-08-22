@@ -7,6 +7,7 @@ import {
   deleteDocument,
   linkDocument,
   setDocumentArrivedAt,
+  setDocumentExpiry,
   moveDocument,
   startFromDocument,
   toggleDocumentTag,
@@ -375,6 +376,23 @@ export function DocumentDetail({
         ) : null}
       </section>
 
+      {/*
+        How long this is worth keeping.
+
+        Decided on arrival, which is the only moment it is easy: the receipt
+        proving a card bill was paid is worth three months and you know that
+        while you are looking at it, not while reviewing a thousand documents
+        two years later. Default is forever, because that is what a box is for
+        — this is the exception you opt into.
+      */}
+      <Lifetime
+        itemId={item.id}
+        expiresAt={item.expiresAt}
+        capturedAt={item.capturedAt}
+        disabled={pending}
+        onDone={() => router.refresh()}
+      />
+
       {categories.length > 0 ? (
         <section className="flex flex-col gap-2">
           <span className="text-[10px] uppercase tracking-wider text-grey-500">
@@ -647,5 +665,161 @@ export function DocumentDetail({
         </pre>
       ) : null}
     </div>
+  );
+}
+
+/**
+ * A shelf life, in the words you would actually use.
+ *
+ * Presets rather than a date picker as the primary control, because the
+ * thought is "three months", not "the 22nd of November". The exact date is
+ * shown beside it so the choice is never vague, and a date field is there for
+ * the case where the paper itself names one.
+ *
+ * "Keep forever" is not merely the default but the way back: a box exists to
+ * keep things, so removing an expiry has to be as easy as setting one.
+ */
+function Lifetime({
+  itemId,
+  expiresAt,
+  capturedAt,
+  disabled,
+  onDone,
+}: {
+  itemId: string;
+  expiresAt: string | null;
+  capturedAt: Date;
+  disabled?: boolean;
+  onDone: () => void;
+}) {
+  const [pending, startTransition] = useTransition();
+
+  const set = (value: string | null) =>
+    startTransition(async () => {
+      await setDocumentExpiry(itemId, value);
+      onDone();
+    });
+
+  /*
+   * Counted from arrival, not from today. "Three months" said about a document
+   * means three months of *its* life — set on a receipt imported from last
+   * year, counting from now would keep it fifteen months.
+   */
+  const after = (months: number) => {
+    const date = new Date(capturedAt);
+    date.setMonth(date.getMonth() + months);
+    return date.toISOString().slice(0, 10);
+  };
+
+  const todayISO = new Date().toISOString().slice(0, 10);
+
+  const options: { label: string; months: number }[] = [
+    { label: '3 months', months: 3 },
+    { label: '6 months', months: 6 },
+    { label: '1 year', months: 12 },
+    { label: '7 years', months: 84 },
+  ];
+
+  const due = expiresAt ? new Date(`${expiresAt}T00:00:00`) : null;
+
+  /*
+   * Whole days between two local midnights, rather than a difference of
+   * timestamps. "Tomorrow" should read as one day away all day, not as two in
+   * the morning and one after lunch — and it keeps the countdown agreeing with
+   * the date beside it.
+   */
+  const days = due
+    ? Math.round(
+        (due.getTime() - new Date(`${todayISO}T00:00:00`).getTime()) / 86_400_000,
+      )
+    : null;
+
+  return (
+    <section
+      className={[
+        'flex flex-col gap-1.5 text-[12px]',
+        pending || disabled ? 'opacity-60' : '',
+      ].join(' ')}
+    >
+      <span className="text-[10px] uppercase tracking-wider text-grey-500">
+        Keep it
+      </span>
+
+      <div className="flex flex-wrap items-center gap-1.5">
+        <button
+          type="button"
+          disabled={pending || disabled}
+          onClick={() => set(null)}
+          className={[
+            'rounded-sm border px-1.5 py-px text-[11px]',
+            expiresAt === null
+              ? 'border-grey-700 bg-grey-700 text-paper'
+              : 'border-grey-300 text-grey-600 hover:border-grey-500',
+          ].join(' ')}
+        >
+          Forever
+        </button>
+
+        {options.map((o) => {
+          const value = after(o.months);
+          /*
+           * A lifetime schedules a *future* deletion. On a document imported
+           * with an old arrival date, arrival + three months is already behind
+           * us, and one click would have thrown it away on the next sweep with
+           * a line of small print as the only warning.
+           *
+           * Offered as unavailable rather than silently counted from today,
+           * because "three months" means three months of the document's life
+           * and quietly reinterpreting it would be the app deciding something
+           * else was meant. If a document really is finished with, Throw away
+           * is right there and says what it does.
+           */
+          const past = value <= todayISO;
+
+          return (
+            <button
+              key={o.label}
+              type="button"
+              disabled={pending || disabled || past}
+              title={
+                past
+                  ? `That would be ${printed.format(new Date(`${value}T00:00:00`))}, already past — use Throw away instead.`
+                  : `Delete on ${printed.format(new Date(`${value}T00:00:00`))}`
+              }
+              onClick={() => set(value)}
+              className={[
+                'rounded-sm border px-1.5 py-px text-[11px]',
+                expiresAt === value
+                  ? 'border-grey-700 bg-grey-700 text-paper'
+                  : 'border-grey-300 text-grey-600 hover:border-grey-500',
+                past ? 'opacity-40' : '',
+              ].join(' ')}
+            >
+              {o.label}
+            </button>
+          );
+        })}
+
+        <input
+          type="date"
+          value={expiresAt ?? ''}
+          // Same rule, enforced by the field: a date already gone is not a
+          // lifetime, it is a deletion, and there is a button for that.
+          min={todayISO}
+          disabled={pending || disabled}
+          onChange={(e) => set(e.target.value || null)}
+          aria-label="Delete on"
+          className="rounded-sm border border-transparent bg-transparent px-1 py-0.5 text-[11px] text-grey-600 hover:border-grey-300 focus:border-grey-400 focus:outline-none"
+        />
+      </div>
+
+      {due ? (
+        <p className="text-[11px] text-stale">
+          {days !== null && days <= 0
+            ? 'Due to be thrown away on the next sync.'
+            : `Thrown away on ${printed.format(due)}${days !== null && days <= 30 ? ` — ${days} day${days === 1 ? '' : 's'} away` : ''}. The file goes to Drive’s bin.`}
+        </p>
+      ) : null}
+    </section>
   );
 }

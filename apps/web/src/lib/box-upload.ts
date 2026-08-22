@@ -31,6 +31,16 @@ export type BoxUploadOptions = {
    * document queued, which is fine.
    */
   readNow?: boolean;
+  /**
+   * When it stops being worth keeping, as `YYYY-MM-DD`. Omitted means forever,
+   * which is the default and the point of a box.
+   *
+   * Decided here rather than only on the pane afterwards, because this is the
+   * moment it is easy: you are looking at the receipt and you know it is worth
+   * three months. Coming back to a thousand filed documents to decide the same
+   * thing one at a time is the version nobody does.
+   */
+  expiresAt?: string | null;
 };
 
 export async function uploadToBox(
@@ -71,6 +81,7 @@ export async function uploadToBox(
       box: boxId,
       driveFileId: uploaded.id,
       capturedAt: options.capturedAt?.toISOString(),
+      expires: options.expiresAt ?? undefined,
     }),
   });
 

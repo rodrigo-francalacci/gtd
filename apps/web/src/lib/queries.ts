@@ -1087,6 +1087,7 @@ export async function getBoxItem(id: string): Promise<BoxItemDetail | null> {
       title: boxItems.title,
       description: boxItems.description,
       docDate: boxItems.docDate,
+      expiresAt: boxItems.expiresAt,
       text: boxItems.text,
       status: boxItems.status,
       capturedAt: boxItems.capturedAt,

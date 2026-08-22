@@ -1,6 +1,11 @@
 import { NextResponse } from 'next/server';
 import { apiSession } from '@/lib/auth/session';
-import { postBoxLink, postBoxLocation, postBoxNote } from '@/lib/actions';
+import {
+  postBoxLink,
+  postBoxLocation,
+  postBoxNote,
+  setDocumentExpiry,
+} from '@/lib/actions';
 import { soleUrl } from '@/lib/sole-url';
 
 export const dynamic = 'force-dynamic';
@@ -26,6 +31,7 @@ export async function POST(request: Request) {
   const body = (await request.json().catch(() => ({}))) as Partial<{
     box: string;
     kind: 'note' | 'link' | 'location';
+    expires: string;
     text: string;
     url: string;
     lat: number;
@@ -45,11 +51,13 @@ export async function POST(request: Request) {
    * same rule applies here rather than in the extension, so the two can't come
    * to different conclusions about the same pasted string.
    */
+  const expires = (body.expires ?? '').trim() || null;
   const kind = body.kind ?? (body.url ? 'link' : soleUrl(text) ? 'link' : 'note');
 
   try {
     if (kind === 'location') {
       const id = await postBoxLocation(boxId, Number(body.lat), Number(body.lng), text);
+      if (expires && id) await setDocumentExpiry(id, expires);
       if (!id) {
         return NextResponse.json({ error: 'That is not a place.' }, { status: 400 });
       }
@@ -66,6 +74,7 @@ export async function POST(request: Request) {
       // it; when it was given separately, the text is a note about the link.
       const note = soleUrl(text) ? '' : text;
       const id = await postBoxLink(boxId, url, note);
+      if (expires && id) await setDocumentExpiry(id, expires);
       return NextResponse.json({ ok: true, id, kind });
     }
 
@@ -74,6 +83,7 @@ export async function POST(request: Request) {
     }
 
     const id = await postBoxNote(boxId, text);
+    if (expires && id) await setDocumentExpiry(id, expires);
     return NextResponse.json({ ok: true, id, kind: 'note' });
   } catch (error) {
     console.error('box post failed', error);

@@ -8,6 +8,7 @@ import {
   getContextsByDimension,
   getInboxItem,
   getInboxItems,
+  getBoxes,
   getListOptions,
   getProjectOptions,
 } from '@/lib/queries';
@@ -52,13 +53,14 @@ export default async function InboxPage(props: PageProps<'/inbox'>) {
       ? selectedId
       : (ordered[0]?.id ?? null);
 
-  const [selected, files, projects, horizons, listOptions, contextGroups] =
+  const [selected, files, projects, horizons, listOptions, boxOptions, contextGroups] =
     await Promise.all([
       targetId ? getInboxItem(targetId) : Promise.resolve(null),
       targetId ? attachmentsFor('inbox_item', targetId) : Promise.resolve(null),
       getProjectOptions(),
       getAreasAndGoals(),
       getListOptions(),
+      getBoxes(),
       getContextsByDimension(),
     ]);
 
@@ -216,6 +218,7 @@ export default async function InboxPage(props: PageProps<'/inbox'>) {
             projects={projects}
             areas={horizons.areas}
             lists={listOptions}
+            boxes={boxOptions.map((b) => ({ id: b.id, name: b.name }))}
             contextGroups={contextGroups}
           />
         </DetailPane>
