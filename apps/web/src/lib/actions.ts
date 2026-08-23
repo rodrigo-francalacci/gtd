@@ -2200,3 +2200,88 @@ export async function setBoxDayNote(day: string, note: string) {
 
   revalidateShell();
 }
+
+/**
+ * Where a capture dragged out of the inbox lands.
+ *
+ * The same five decisions the clarify panel offers, named as destinations
+ * rather than as forms — because that is what a drag is. Dropping a capture on
+ * "What can I do now" *is* saying it is a next action, and having to then fill
+ * in the title it already has would be the app asking a question it can read
+ * the answer to.
+ */
+export type CaptureDrop =
+  | { kind: 'now' }
+  | { kind: 'waiting' }
+  | { kind: 'project' }
+  | { kind: 'list'; listId: string }
+  | { kind: 'box'; boxId: string };
+
+/**
+ * Clarify a capture by dropping it somewhere.
+ *
+ * Processing an inbox is mostly a sequence of small obvious decisions, and the
+ * panel makes each one cost a selection, a form and a confirm. Most captures
+ * do not need any of that: you know where it goes the moment you read the
+ * line. Dragging it there says so in one gesture.
+ *
+ * The title and note come off the capture rather than the caller, using the
+ * same rule the panel seeds its fields with — first line the title, the rest
+ * the note. Nothing new is being decided here, so nothing new should have to
+ * be typed, and the outcome is identical to having opened the form and pressed
+ * confirm without changing anything.
+ *
+ * It routes through `clarifyInboxItem` rather than reimplementing any of it:
+ * the attachment re-parenting, the `outcome` stamp and the immutability of the
+ * raw capture are all decisions that must not have a second version.
+ */
+export async function dropCapture(itemId: string, target: CaptureDrop) {
+  await requireSession();
+
+  const [item] = await db
+    .select({ rawText: inboxItems.rawText, status: inboxItems.status })
+    .from(inboxItems)
+    .where(eq(inboxItems.id, itemId))
+    .limit(1);
+
+  if (!item || item.status === 'clarified') return;
+
+  const lines = (item.rawText ?? '').split('\n');
+  const note = lines.slice(1).join('\n').trim();
+
+  /*
+   * A photo with no note has no first line to use. The clarify panel falls
+   * back to the file's name in that case and so does this, because a list
+   * item called "" is not a thing you can find again.
+   */
+  let title = lines[0]?.trim() ?? '';
+
+  if (!title) {
+    const [file] = await db
+      .select({ name: attachments.name })
+      .from(attachments)
+      .where(
+        and(eq(attachments.parentType, 'inbox_item'), eq(attachments.parentId, itemId)),
+      )
+      .limit(1);
+
+    title = file?.name ?? 'Untitled';
+  }
+
+  const decision: ClarifyDecision =
+    target.kind === 'list'
+      ? { kind: 'list_item', title, listId: target.listId, note }
+      : target.kind === 'box'
+        ? { kind: 'filed', title, boxId: target.boxId, note }
+        : target.kind === 'project'
+          ? { kind: 'project', title, areaId: null, note }
+          : {
+              kind: target.kind === 'waiting' ? 'waiting' : 'next_action',
+              title,
+              projectId: null,
+              contextIds: [],
+              note,
+            };
+
+  await clarifyInboxItem(itemId, decision);
+}

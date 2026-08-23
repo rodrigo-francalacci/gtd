@@ -24,6 +24,8 @@ import type { Theme } from '@/lib/pane';
 import { ThemeToggle } from './theme-toggle';
 import type { ListRow } from '@/lib/queries.shared';
 import { SearchBox } from './search-box';
+import { CaptureTarget } from './drag-capture';
+import type { CaptureDrop } from '@/lib/actions';
 
 type Icon = ComponentType<SVGProps<SVGSVGElement>>;
 
@@ -40,6 +42,15 @@ type Item = {
    * list lit both that list and the index above it.
    */
   exact?: boolean;
+  /**
+   * What a capture dragged out of the inbox becomes if dropped here.
+   *
+   * Only on entries that are genuinely an answer to "what is this?" — Now,
+   * Waiting for, Projects, each list and each box. Contexts, the archive and
+   * the Google page are places rather than decisions, and lighting up under a
+   * drag would promise something they cannot do.
+   */
+  drop?: CaptureDrop;
 };
 
 export function SidebarNav({
@@ -88,12 +99,14 @@ export function SidebarNav({
           label: 'What can I do now',
           icon: IconNow,
           count: counts.next,
+          drop: { kind: 'now' },
         },
         {
           href: '/waiting',
           label: 'Waiting for',
           icon: IconWaiting,
           count: counts.waiting,
+          drop: { kind: 'waiting' },
         },
         // Engage rather than Organise: the calendar is not something you keep,
         // it is the shape of the day you are deciding inside. No count —
@@ -116,6 +129,7 @@ export function SidebarNav({
           label: 'Projects',
           icon: IconProject,
           count: counts.projects,
+          drop: { kind: 'project' },
         },
         {
           href: '/projects?filter=stalled',
@@ -146,6 +160,7 @@ export function SidebarNav({
           label: b.name,
           icon: IconBox as Icon,
           count: b.pendingCount,
+          drop: { kind: 'box' as const, boxId: b.id },
         })),
         { href: '/box', label: 'Manage boxes', icon: IconBox, exact: true },
       ],
@@ -160,6 +175,7 @@ export function SidebarNav({
           label: l.name,
           icon: LIST_TYPE_ICONS[l.type] as Icon,
           count: l.candidateCount,
+          drop: { kind: 'list' as const, listId: l.id },
         })),
         { href: '/lists', label: 'Manage lists', icon: IconLists, exact: true },
       ],
@@ -174,7 +190,9 @@ export function SidebarNav({
       className="flex h-full w-full flex-col border-r border-grey-200 bg-grey-100 md:w-56"
     >
       <div className="border-b border-grey-200 px-4 py-3">
-        <span className="text-[13px] font-semibold tracking-tight text-grey-800">GTD</span>
+        <span className="text-[13px] font-semibold tracking-tight text-grey-800">
+          GTD
+        </span>
       </div>
 
       <SearchBox />
@@ -189,8 +207,7 @@ export function SidebarNav({
               {group.items.map((item) => {
                 const [path, query] = item.href.split('?');
                 const onPath =
-                  pathname === path ||
-                  (!item.exact && pathname.startsWith(`${path}/`));
+                  pathname === path || (!item.exact && pathname.startsWith(`${path}/`));
 
                 // "Stalled" is a filtered view of /projects, so the filter has
                 // to be part of the comparison: matching on the path alone lit
@@ -204,35 +221,50 @@ export function SidebarNav({
                     (new URLSearchParams(query).get('filter') ?? '');
                 const Icon = item.icon;
 
+                const link = (
+                  <Link
+                    href={item.href}
+                    /* An <a> is natively draggable and would drag its own
+                       href, which on a drop target reads as the entry trying
+                       to be dragged away. */
+                    draggable={false}
+                    className={[
+                      'flex items-center gap-2 px-4 py-1.5 text-[13px]',
+                      active
+                        ? 'bg-selected-bg font-medium text-selected'
+                        : 'text-grey-700 hover:bg-grey-150',
+                    ].join(' ')}
+                  >
+                    <Icon
+                      className={[
+                        'shrink-0',
+                        active ? 'text-selected' : 'text-grey-400',
+                      ].join(' ')}
+                    />
+                    <span className="min-w-0 flex-1 truncate">{item.label}</span>
+                    {item.count !== undefined && item.count > 0 ? (
+                      <span
+                        className={[
+                          'shrink-0 text-[11px] tabular-nums',
+                          item.alert ? 'font-semibold text-stale' : 'text-grey-500',
+                        ].join(' ')}
+                      >
+                        {item.count}
+                      </span>
+                    ) : null}
+                  </Link>
+                );
+
                 return (
                   <li key={item.href}>
-                    <Link
-                      href={item.href}
-                      className={[
-                        'flex items-center gap-2 px-4 py-1.5 text-[13px]',
-                        active
-                          ? 'bg-selected-bg font-medium text-selected'
-                          : 'text-grey-700 hover:bg-grey-150',
-                      ].join(' ')}
-                    >
-                      <Icon
-                        className={[
-                          'shrink-0',
-                          active ? 'text-selected' : 'text-grey-400',
-                        ].join(' ')}
-                      />
-                      <span className="min-w-0 flex-1 truncate">{item.label}</span>
-                      {item.count !== undefined && item.count > 0 ? (
-                        <span
-                          className={[
-                            'shrink-0 text-[11px] tabular-nums',
-                            item.alert ? 'font-semibold text-stale' : 'text-grey-500',
-                          ].join(' ')}
-                        >
-                          {item.count}
-                        </span>
-                      ) : null}
-                    </Link>
+                    {/* Wrapped only where a drop means something, so the rest
+                        of the sidebar stays plain markup and cannot light up
+                        under a drag it could not honour. */}
+                    {item.drop ? (
+                      <CaptureTarget drop={item.drop}>{link}</CaptureTarget>
+                    ) : (
+                      link
+                    )}
                   </li>
                 );
               })}

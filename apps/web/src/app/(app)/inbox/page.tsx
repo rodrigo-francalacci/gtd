@@ -15,6 +15,7 @@ import {
 import { IconNote, IconPaperclip } from '@/components/icons';
 import { DayHeading } from '@/components/day-heading';
 import { SimpleRow } from '@/components/simple-row';
+import { DragCapture } from '@/components/drag-capture';
 import { INBOX_COLUMNS } from '@/lib/columns';
 import { groupByDay } from '@/lib/days';
 import { captureHasNote, captureLabel } from '@/lib/queries.shared';
@@ -90,121 +91,126 @@ export default async function InboxPage(props: PageProps<'/inbox'>) {
             <section key={day.key}>
               <DayHeading label={day.label} />
               {day.items.map((item) => (
-                <SimpleRow
-                  key={item.id}
-                  href={`/inbox?item=${item.id}`}
-                  selected={item.id === targetId}
-                  grip={false}
-                  after={
-                    <>
-                      {item.attachmentCount > 0 ? (
-                        <span className="shrink-0 text-grey-400">
-                          <IconPaperclip />
-                        </span>
-                      ) : null}
-                      {captureHasNote(item) ? (
-                        <span className="shrink-0 text-grey-400" title="Has a note">
-                          <IconNote />
-                        </span>
-                      ) : null}
-                    </>
-                  }
-                  title={
-                    <span className={item.rawText ? '' : 'italic text-grey-500'}>
-                      {captureLabel(item)}
-                    </span>
-                  }
-                />
+                <DragCapture key={item.id} id={item.id}>
+                  <SimpleRow
+                    key={item.id}
+                    href={`/inbox?item=${item.id}`}
+                    selected={item.id === targetId}
+                    grip={false}
+                    after={
+                      <>
+                        {item.attachmentCount > 0 ? (
+                          <span className="shrink-0 text-grey-400">
+                            <IconPaperclip />
+                          </span>
+                        ) : null}
+                        {captureHasNote(item) ? (
+                          <span className="shrink-0 text-grey-400" title="Has a note">
+                            <IconNote />
+                          </span>
+                        ) : null}
+                      </>
+                    }
+                    title={
+                      <span className={item.rawText ? '' : 'italic text-grey-500'}>
+                        {captureLabel(item)}
+                      </span>
+                    }
+                  />
+                </DragCapture>
               ))}
             </section>
           ))
         ) : (
-          ordered.map((item) =>
-            viewMode === 'compact' ? (
-              <Link
-                key={item.id}
-                href={`/inbox?item=${item.id}`}
-                style={{ gridTemplateColumns: INBOX_COLUMNS.template }}
-                className={[
-                  'grid items-center gap-2 border-b border-grey-150 px-4 py-1 text-[12px]',
-                  item.id === targetId ? 'bg-selected-bg' : 'hover:bg-grey-100',
-                ].join(' ')}
-              >
-                {/* One line: the capture is often a sentence, so it takes the
-                    space and the date becomes a column rather than a row. */}
-                <span
+          ordered.map((item) => (
+            <DragCapture key={item.id} id={item.id}>
+              {viewMode === 'compact' ? (
+                <Link
+                  href={`/inbox?item=${item.id}`}
+                  style={{ gridTemplateColumns: INBOX_COLUMNS.template }}
                   className={[
-                    'flex items-center gap-1.5 truncate',
-                    item.id === targetId
-                      ? 'font-medium text-grey-900'
-                      : 'text-grey-800',
-                    item.rawText ? '' : 'italic text-grey-500',
+                    'grid items-center gap-2 border-b border-grey-150 px-4 py-1 text-[12px]',
+                    item.id === targetId ? 'bg-selected-bg' : 'hover:bg-grey-100',
                   ].join(' ')}
                 >
-                  {item.attachmentCount > 0 ? (
-                    <span className="shrink-0 text-grey-400">
-                      <IconPaperclip />
-                    </span>
-                  ) : null}
-                  {captureHasNote(item) ? (
-                    <span className="shrink-0 text-grey-400" title="Has a note">
-                      <IconNote />
-                    </span>
-                  ) : null}
-                  <span className="truncate">{captureLabel(item)}</span>
-                </span>
-                <span className="truncate text-grey-500">
-                  {item.aiSuggestion?.projectId ? 'suggestion' : '—'}
-                </span>
-                <span className="truncate tabular-nums text-grey-500">
-                  {stamp.format(item.createdAt)}
-                </span>
-              </Link>
-            ) : (
-              <Link
-                key={item.id}
-                href={`/inbox?item=${item.id}`}
-                className={[
-                  'block border-b border-grey-150 px-4 py-2.5',
-                  item.id === targetId ? 'bg-selected-bg' : 'hover:bg-grey-100',
-                ].join(' ')}
-              >
-                {/* One line here too, now that a capture can carry a note.
+                  {/* One line: the capture is often a sentence, so it takes the
+                    space and the date becomes a column rather than a row. */}
+                  <span
+                    className={[
+                      'flex items-center gap-1.5 truncate',
+                      item.id === targetId
+                        ? 'font-medium text-grey-900'
+                        : 'text-grey-800',
+                      item.rawText ? '' : 'italic text-grey-500',
+                    ].join(' ')}
+                  >
+                    {item.attachmentCount > 0 ? (
+                      <span className="shrink-0 text-grey-400">
+                        <IconPaperclip />
+                      </span>
+                    ) : null}
+                    {captureHasNote(item) ? (
+                      <span className="shrink-0 text-grey-400" title="Has a note">
+                        <IconNote />
+                      </span>
+                    ) : null}
+                    <span className="truncate">{captureLabel(item)}</span>
+                  </span>
+                  <span className="truncate text-grey-500">
+                    {item.aiSuggestion?.projectId ? 'suggestion' : '—'}
+                  </span>
+                  <span className="truncate tabular-nums text-grey-500">
+                    {stamp.format(item.createdAt)}
+                  </span>
+                </Link>
+              ) : (
+                <Link
+                  href={`/inbox?item=${item.id}`}
+                  className={[
+                    'block border-b border-grey-150 px-4 py-2.5',
+                    item.id === targetId ? 'bg-selected-bg' : 'hover:bg-grey-100',
+                  ].join(' ')}
+                >
+                  {/* One line here too, now that a capture can carry a note.
                     `line-clamp-2` was for a long single thought; wrapping the
                     note in as well made every row a paragraph. */}
-                <span
-                  className={[
-                    'block truncate text-[13px]',
-                    item.id === targetId
-                      ? 'font-medium text-grey-900'
-                      : 'text-grey-800',
-                    item.rawText ? '' : 'italic text-grey-500',
-                  ].join(' ')}
-                >
-                  {captureLabel(item)}
-                </span>
-                <span className="mt-1 flex items-center gap-2 text-[11px] text-grey-500">
-                  {stamp.format(item.createdAt)}
-                  {item.attachmentCount > 0 ? (
-                    <span className="flex items-center gap-1 text-grey-400">
-                      <IconPaperclip />
-                      <span className="tabular-nums">{item.attachmentCount}</span>
-                    </span>
-                  ) : null}
-                  {captureHasNote(item) ? (
-                    <span className="flex items-center gap-1 text-grey-400" title="Has a note">
-                      <IconNote />
-                    </span>
-                  ) : null}
-                  {item.aiSuggestion?.projectId ? (
-                    <span className="rounded-sm bg-grey-200 px-1.5 py-px text-grey-600">
-                      suggestion
-                    </span>
-                  ) : null}
-                </span>
-              </Link>
-            ),
-          )
+                  <span
+                    className={[
+                      'block truncate text-[13px]',
+                      item.id === targetId
+                        ? 'font-medium text-grey-900'
+                        : 'text-grey-800',
+                      item.rawText ? '' : 'italic text-grey-500',
+                    ].join(' ')}
+                  >
+                    {captureLabel(item)}
+                  </span>
+                  <span className="mt-1 flex items-center gap-2 text-[11px] text-grey-500">
+                    {stamp.format(item.createdAt)}
+                    {item.attachmentCount > 0 ? (
+                      <span className="flex items-center gap-1 text-grey-400">
+                        <IconPaperclip />
+                        <span className="tabular-nums">{item.attachmentCount}</span>
+                      </span>
+                    ) : null}
+                    {captureHasNote(item) ? (
+                      <span
+                        className="flex items-center gap-1 text-grey-400"
+                        title="Has a note"
+                      >
+                        <IconNote />
+                      </span>
+                    ) : null}
+                    {item.aiSuggestion?.projectId ? (
+                      <span className="rounded-sm bg-grey-200 px-1.5 py-px text-grey-600">
+                        suggestion
+                      </span>
+                    ) : null}
+                  </span>
+                </Link>
+              )}
+            </DragCapture>
+          ))
         )}
       </ListPane>
 
