@@ -40,6 +40,7 @@ import {
   type ViewMode,
 } from './pane';
 import { suggester } from './ai/suggest';
+import { readPurchase, type PurchaseRead } from './ai/purchase';
 import { requireSession } from './auth/session';
 import type { ReviewStep } from './review';
 import {
@@ -2291,4 +2292,50 @@ export async function setListLayout(key: string, layout: ListLayout) {
   await requireSession();
   await setLayout(key, layout);
   revalidateShell();
+}
+
+/**
+ * Work out what a shared listing is offering to sell you.
+ *
+ * Its own action rather than part of the capture, because reading is a step
+ * you take *before* deciding — you look at what it found, correct it, and then
+ * post. Folding it into the write would mean a wrong price arriving in the
+ * budget with no chance to catch it.
+ */
+export async function suggestPurchase(text: string): Promise<PurchaseRead> {
+  await requireSession();
+  return readPurchase(text);
+}
+
+/**
+ * Add something to a purchases list, with what it costs.
+ *
+ * Straight to the list rather than through the inbox, which is the whole point
+ * of the tab: a thing you want to buy is already clarified — you know what it
+ * is and you know it is a purchase — so routing it through a queue that exists
+ * to answer "what is this?" adds a step and clutters the queue.
+ */
+export async function addPurchase(
+  listId: string,
+  title: string,
+  fields: PurchaseFields,
+  note: string,
+) {
+  await requireSession();
+
+  const trimmed = title.trim();
+  if (!trimmed) return null;
+
+  const [row] = await db
+    .insert(listItems)
+    .values({
+      listId,
+      title: trimmed,
+      fields,
+      ...noteColumns(note),
+    })
+    .returning({ id: listItems.id });
+
+  revalidateShell();
+  return row.id;
 }

@@ -3,6 +3,25 @@
 import type { BoxOption } from '@/lib/queries.shared';
 
 /**
+ * Where a capture is going.
+ *
+ * Three kinds rather than two, because a thing you want to buy is already
+ * clarified — you know what it is and that it is a purchase — so routing it
+ * through a queue whose job is to answer "what is this?" adds a step, and puts
+ * something in the queue that was never a question.
+ */
+export type Destination =
+  | { kind: 'inbox' }
+  | { kind: 'box'; id: string }
+  | { kind: 'buy'; listId: string };
+
+/** One string per destination, so a chip row can compare by identity. */
+export function destKey(d: Destination): string {
+  if (d.kind === 'inbox') return 'inbox';
+  return d.kind === 'box' ? `box:${d.id}` : `buy:${d.listId}`;
+}
+
+/**
  * Where this capture is going: the inbox, or a box.
  *
  * A visible row of chips rather than a menu, because the destination changes
@@ -19,23 +38,33 @@ import type { BoxOption } from '@/lib/queries.shared';
  */
 export function CaptureDestination({
   boxes,
+  purchases,
   value,
   onChange,
   disabled = false,
 }: {
   boxes: BoxOption[];
-  /** Null is the inbox. A box id is a box. */
-  value: string | null;
-  onChange: (boxId: string | null) => void;
+  /** Purchases lists, offered as destinations of their own. */
+  purchases: BoxOption[];
+  value: Destination;
+  onChange: (next: Destination) => void;
   disabled?: boolean;
 }) {
-  // One destination is not a choice worth showing.
-  if (boxes.length === 0) return null;
-
-  const options: { id: string | null; label: string }[] = [
-    { id: null, label: 'Inbox' },
-    ...boxes.map((box) => ({ id: box.id as string | null, label: box.name })),
+  const options: { dest: Destination; label: string }[] = [
+    { dest: { kind: 'inbox' }, label: 'Inbox' },
+    // Before the boxes: buying something is a far commoner thing to be doing
+    // on a phone than filing a document, and the row scrolls.
+    ...purchases.map((l) => ({
+      dest: { kind: 'buy' as const, listId: l.id },
+      label: l.name,
+    })),
+    ...boxes.map((box) => ({ dest: { kind: 'box' as const, id: box.id }, label: box.name })),
   ];
+
+  // One destination is not a choice worth showing.
+  if (options.length < 2) return null;
+
+  const current = destKey(value);
 
   return (
     <div
@@ -46,16 +75,17 @@ export function CaptureDestination({
       className="-mx-4 flex gap-1.5 overflow-x-auto px-4 pb-1"
     >
       {options.map((option) => {
-        const active = option.id === value;
+        const key = destKey(option.dest);
+        const active = key === current;
 
         return (
           <button
-            key={option.id ?? 'inbox'}
+            key={key}
             type="button"
             role="radio"
             aria-checked={active}
             disabled={disabled}
-            onClick={() => onChange(option.id)}
+            onClick={() => onChange(option.dest)}
             className={[
               // 44px, the floor for something aimed at with a thumb rather than a
               // cursor. These chips are a primary interaction here, not a

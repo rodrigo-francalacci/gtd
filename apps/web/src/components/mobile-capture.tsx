@@ -7,6 +7,8 @@ import {
   postBoxLink,
   postBoxNote,
   setDocumentExpiry,
+  suggestPurchase,
+  addPurchase,
 } from '@/lib/actions';
 import { uploadToBox } from '@/lib/box-upload';
 import { uploadCaptureFiles } from '@/lib/capture-upload';
@@ -17,8 +19,10 @@ import {
   sweepAbandonedShares,
 } from '@/lib/shared-files';
 import { soleUrl } from '@/lib/sole-url';
-import { CaptureDestination } from './capture-destination';
+import { CaptureDestination, type Destination } from './capture-destination';
 import { LifetimePicker, expiryFor } from './lifetime-picker';
+import { PurchaseFieldsPanel } from './purchase-fields';
+import type { PurchaseRead } from '@/lib/ai/purchase';
 import { MAX_DIRECT_UPLOAD_MB } from '@/lib/upload';
 import { AudioRecorder } from './audio-recorder';
 import { IconAudio, IconCamera, IconImage, IconPaperclip, IconStop } from './icons';
@@ -53,6 +57,7 @@ export function MobileCapture({
   initialText = '',
   initialUrl = '',
   boxes = [],
+  purchases = [],
   sharedKey = null,
   sharedCount = 0,
   missedFiles = 0,
@@ -64,6 +69,8 @@ export function MobileCapture({
   initialUrl?: string;
   /** Offered as destinations beside the inbox. Empty hides the chooser. */
   boxes?: BoxOption[];
+  /** Purchases lists, which take an item straight to the list. */
+  purchases?: BoxOption[];
   /** Where the service worker parked the files from an Android share. */
   sharedKey?: string | null;
   sharedCount?: number;
@@ -91,7 +98,18 @@ export function MobileCapture({
    * every capture rather than remembering — see `CaptureDestination` for why
    * a sticky destination is the wrong kind of convenience.
    */
-  const [boxId, setBoxId] = useState<string | null>(null);
+  const [dest, setDest] = useState<Destination>({ kind: 'inbox' });
+  const boxId = dest.kind === 'box' ? dest.id : null;
+
+  /**
+   * What the shared text turned out to be offering, once read.
+   *
+   * Null until you ask. Reading is a step you take *before* deciding — you
+   * look at what it found, correct it, then post — because a price that
+   * arrives in a budget unexamined is a wrong number you will believe.
+   */
+  const [read, setRead] = useState<PurchaseRead | null>(null);
+  const [reading, setReading] = useState(false);
   /** Only means anything when the destination is a box. Null is forever. */
   const [keepFor, setKeepFor] = useState<number | null>(null);
   const [busy, setBusy] = useState(false);
@@ -226,6 +244,48 @@ export function MobileCapture({
      * message and the files as separate entries — there is no row for them to
      * hang off, because a document in a box *is* the entry.
      */
+    /**
+     * A purchase goes straight to the list, not through the inbox.
+     *
+     * It is already clarified: you know what it is and you know it is
+     * something you want to buy. Sending it to a queue whose job is to answer
+     * "what is this?" would add a step to every one, and put something in the
+     * queue that was never a question.
+     *
+     * Files are not offered here. A listing is a link and a price; a photo of
+     * a shop window is a capture, and belongs in the inbox where you can still
+     * decide what it was.
+     */
+    if (dest.kind === 'buy') {
+      try {
+        const id = await addPurchase(
+          dest.listId,
+          read?.title?.trim() || title,
+          {
+            ...(read?.cost != null ? { cost: read.cost } : {}),
+            ...(read?.where ? { where: read.where } : {}),
+          },
+          // The address goes in the note rather than the title, the same rule
+          // the inbox uses: a line of query string is unreadable in a list.
+          [extra, read?.url].filter(Boolean).join('\n\n'),
+        );
+
+        setRead(null);
+        setStaged([]);
+        setFlash(id ? 'Added to the list.' : 'Nothing to add.');
+        setDest({ kind: 'inbox' });
+        router.refresh();
+        dismissIfPopup();
+      } catch (e) {
+        setErrors([e instanceof Error ? e.message : 'Could not add it.']);
+        setText(title);
+        setDetail(extra);
+      } finally {
+        setBusy(false);
+      }
+      return;
+    }
+
     if (boxId) {
       try {
         if (note) {
@@ -265,7 +325,7 @@ export function MobileCapture({
 
         const box = boxes.find((b) => b.id === boxId);
         setFlash(`Filed in ${box ? box.name : 'the box'}.`);
-        setBoxId(null);
+        setDest({ kind: 'inbox' });
         router.refresh();
         dismissIfPopup();
       } catch {
@@ -361,8 +421,12 @@ export function MobileCapture({
           than discovered after it. */}
       <CaptureDestination
         boxes={boxes}
-        value={boxId}
-        onChange={setBoxId}
+        purchases={purchases}
+        value={dest}
+        onChange={(next) => {
+          setDest(next);
+          setRead(null);
+        }}
         disabled={busy}
       />
 
@@ -370,6 +434,32 @@ export function MobileCapture({
           lives long enough for a lifetime to mean anything. */}
       {boxId ? (
         <LifetimePicker months={keepFor} onChange={setKeepFor} disabled={busy} />
+      ) : null}
+
+      {/*
+        What it worked out, once you ask it to look.
+
+        Below the field rather than replacing it, so the share you pasted stays
+        readable beside the reading of it — the numbers are a guess and you
+        should be able to check them against the thing they came from without
+        undoing anything.
+      */}
+      {dest.kind === 'buy' ? (
+        <PurchaseFieldsPanel
+          text={text}
+          read={read}
+          reading={reading}
+          disabled={busy}
+          onRead={async () => {
+            setReading(true);
+            try {
+              setRead(await suggestPurchase(`${text}\n${detail}`.trim()));
+            } finally {
+              setReading(false);
+            }
+          }}
+          onChange={setRead}
+        />
       ) : null}
 
       {/* 16px minimum, or iOS Safari zooms the whole page in on focus. Left

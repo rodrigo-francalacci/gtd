@@ -1,5 +1,5 @@
 import { MobileCapture } from '@/components/mobile-capture';
-import { getBoxes, getRecentCaptures } from '@/lib/queries';
+import { getBoxes, getListOptions, getRecentCaptures } from '@/lib/queries';
 import { soleUrl } from '@/lib/sole-url';
 
 /**
@@ -36,7 +36,17 @@ export default async function MobileHome(props: PageProps<'/m'>) {
   const sharedUrl = url || soleUrl(text) || '';
   const sharedTitle = sharedUrl === text ? title : text || title;
 
-  const [recent, boxes] = await Promise.all([getRecentCaptures(5), getBoxes()]);
+  const [recent, boxes, lists] = await Promise.all([
+    getRecentCaptures(5),
+    getBoxes(),
+    getListOptions(),
+  ]);
+
+  // Only purchases lists: they are the one kind where a shared listing has a
+  // shape the app can read, and the one where skipping the inbox is right.
+  const purchases = lists
+    .filter((l) => l.type === 'purchases')
+    .map((l) => ({ id: l.id, name: l.name }));
 
   return (
     <MobileCapture
@@ -44,6 +54,7 @@ export default async function MobileHome(props: PageProps<'/m'>) {
       initialText={sharedTitle}
       initialUrl={sharedUrl}
       boxes={boxes.map((box) => ({ id: box.id, name: box.name }))}
+      purchases={purchases}
       sharedKey={one('shared') || null}
       sharedCount={Number(one('n')) || 0}
       missedFiles={Number(one('missed')) || 0}
