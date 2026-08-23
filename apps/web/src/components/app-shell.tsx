@@ -54,7 +54,7 @@ export function AppShell({
    * the URL to narrow the list you are reading, and being thrown forward a
    * pane for that is the opposite of helpful.
    */
-  const selection = [
+  const chosenBy = [
     'item',
     'doc',
     'action',
@@ -71,12 +71,22 @@ export function AppShell({
      * nothing and a phone has no empty space to click.
      */
     'budget',
-  ]
-    .map((key) => params.get(key) ?? '')
-    .join('|');
+  ].map((key) => params.get(key) ?? '');
+
+  /**
+   * A fingerprint of *which* row is chosen, for the effect to react to.
+   *
+   * Only ever compared with a previous fingerprint — never tested for
+   * emptiness, which is what went wrong when this replaced the old check: nine
+   * empty strings joined by a separator is `"||||||||"`, not `""`, so `chosen`
+   * was true on every page in the app and every view opened one pane along.
+   * Whether something is chosen is a question about the values, and is asked
+   * of the values.
+   */
+  const selection = chosenBy.join('|');
 
   const chosen =
-    selection !== '' ||
+    chosenBy.some(Boolean) ||
     /**
      * Only projects put the choice in the path. `/box/<id>` and `/lists/<id>`
      * look like the same shape and are not: those are *lists* — a box's feed,

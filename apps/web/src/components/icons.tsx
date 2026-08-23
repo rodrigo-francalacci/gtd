@@ -29,6 +29,20 @@ function Glyph({ children, ...props }: IconProps & { children: React.ReactNode }
   );
 }
 
+/**
+ * Capture — a pencil.
+ *
+ * Its own glyph rather than the tray, now that the phone's bar carries both.
+ * They are a pair and the distinction is the whole point: this is putting a
+ * thought down, the tray beside it is dealing with what has piled up.
+ */
+export const IconCapture = (p: IconProps) => (
+  <Glyph {...p}>
+    <path d="M11.4 2.6 13.4 4.6 5.6 12.4 2.6 13.4 3.6 10.4z" />
+    <path d="M9.9 4.1 11.9 6.1" />
+  </Glyph>
+);
+
 /** Inbox — a tray. */
 export const IconInbox = (p: IconProps) => (
   <Glyph {...p}>

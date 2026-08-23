@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { usePathname, useSearchParams } from 'next/navigation';
 import type { ReactNode } from 'react';
-import { IconBox, IconCalendar, IconInbox, IconNow } from './icons';
+import { IconCalendar, IconCapture, IconInbox, IconNow } from './icons';
 
 /**
  * The fixed footer: the menu, and the places worth one tap.
@@ -22,12 +22,16 @@ const SHORTCUTS = [
   // display as the field, the camera and microphone as first-class buttons,
   // and the destination chosen before you type. The inbox list is where you
   // go to *process* captures, which is a different job and a slower one.
-  { href: '/m', label: 'Capture', icon: IconInbox },
+  { href: '/m', label: 'Capture', icon: IconCapture },
+  /*
+   * The inbox rather than the boxes, and the pairing is the point: capture
+   * puts things in, and this is where they are dealt with. A box is a shelf
+   * you visit occasionally and reach through the menu; an inbox is the one
+   * list with a number on it that wants emptying.
+   */
+  { href: '/inbox', label: 'Inbox', icon: IconInbox },
   { href: '/now', label: 'Now', icon: IconNow },
   { href: '/calendar', label: 'Calendar', icon: IconCalendar },
-  // `/m/boxes`, not `/box`: that is the manager, where vocabularies and Drive
-  // folders are set up. From a phone you want to open a box, not configure one.
-  { href: '/m/boxes', label: 'Boxes', icon: IconBox },
 ];
 
 export function MobileBar({
