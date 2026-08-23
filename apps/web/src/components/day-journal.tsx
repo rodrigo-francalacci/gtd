@@ -21,12 +21,10 @@ import { setBoxDayNote } from '@/lib/actions';
  * are nagged into keeping is one you stop keeping.
  */
 export function DayJournal({
-  boxId,
   day,
   note,
 }: {
-  boxId: string;
-  /** The ISO day, which is the key the feed already groups by. */
+  /** The ISO day, which is the key every feed already groups by. */
   day: string;
   note: string;
 }) {
@@ -38,7 +36,7 @@ export function DayJournal({
     setEditing(false);
     if (draft.trim() === note.trim()) return;
     startTransition(async () => {
-      await setBoxDayNote(boxId, day, draft);
+      await setBoxDayNote(day, draft);
     });
   };
 

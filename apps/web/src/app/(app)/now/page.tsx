@@ -13,6 +13,7 @@ import {
   getLinkableDocuments,
 } from '@/lib/queries';
 import { getPreferences, paneWidth } from '@/lib/view-mode';
+import { densityKeys, getDensity } from '@/lib/view-prefs';
 
 export default async function NowPage(props: PageProps<'/now'>) {
   const searchParams = await props.searchParams;
@@ -27,7 +28,8 @@ export default async function NowPage(props: PageProps<'/now'>) {
     selectedId ? getAction(selectedId) : Promise.resolve(null),
     getPreferences(),
   ]);
-  const viewMode = prefs.viewMode;
+  const viewKey = densityKeys.path('/now');
+  const viewMode = await getDensity(viewKey, prefs.viewMode);
 
   const qs = (id: string) => {
     const p = new URLSearchParams();
@@ -48,6 +50,7 @@ export default async function NowPage(props: PageProps<'/now'>) {
       <ListPane
         title="What can I do now"
         viewMode={viewMode}
+        viewKey={viewKey}
         paneWidth={paneWidth(prefs)}
         columns={ACTION_COLUMNS}
         subtitle={<ContextFilter groups={groups} />}

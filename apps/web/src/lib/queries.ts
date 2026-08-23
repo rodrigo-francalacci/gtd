@@ -1249,11 +1249,8 @@ export async function getLinkableDocuments(
  * dozens of days at once, and a round trip each would make the note the most
  * expensive thing on a page whose entries are already loaded.
  */
-export async function getBoxDayNotes(boxId: string): Promise<Map<string, string>> {
-  const rows = await db
-    .select({ day: boxDays.day, note: boxDays.note })
-    .from(boxDays)
-    .where(eq(boxDays.boxId, boxId));
+export async function getBoxDayNotes(): Promise<Map<string, string>> {
+  const rows = await db.select({ day: boxDays.day, note: boxDays.note }).from(boxDays);
 
   return new Map(rows.filter((r) => r.note !== '').map((r) => [r.day, r.note]));
 }

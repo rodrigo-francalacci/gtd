@@ -1,5 +1,6 @@
 import { CalendarView } from '@/components/calendar-view';
 import { getPreferences, paneWidth } from '@/lib/view-mode';
+import { densityKeys, getDensity } from '@/lib/view-prefs';
 
 /**
  * What is booked, today first.
@@ -16,5 +17,13 @@ import { getPreferences, paneWidth } from '@/lib/view-mode';
 export default async function CalendarPage() {
   const prefs = await getPreferences();
 
-  return <CalendarView paneWidth={paneWidth(prefs)} viewMode={prefs.viewMode} />;
+  const viewKey = densityKeys.path('/calendar');
+
+  return (
+    <CalendarView
+      paneWidth={paneWidth(prefs)}
+      viewMode={await getDensity(viewKey, prefs.viewMode)}
+      viewKey={viewKey}
+    />
+  );
 }

@@ -14,7 +14,17 @@ import { IconViewCompact, IconViewComfortable, IconViewSimple } from './icons';
  * Ordered by how much each one says, most first, so the row reads as a dial
  * rather than three unrelated buttons.
  */
-export function ViewToggle({ mode }: { mode: ViewMode }) {
+export function ViewToggle({
+  mode,
+  viewKey,
+}: {
+  mode: ViewMode;
+  /**
+   * Which list this is. Omitted means the app-wide default, which is now only
+   * the seed a list that has never been switched follows.
+   */
+  viewKey?: string;
+}) {
   const [pending, startTransition] = useTransition();
 
   const options: { value: ViewMode; label: string; Icon: typeof IconViewCompact }[] = [
@@ -32,7 +42,7 @@ export function ViewToggle({ mode }: { mode: ViewMode }) {
           title={label}
           aria-label={label}
           aria-pressed={mode === value}
-          onClick={() => startTransition(() => void setViewMode(value))}
+          onClick={() => startTransition(() => void setViewMode(value, viewKey))}
           className={[
             'rounded-sm p-1',
             mode === value

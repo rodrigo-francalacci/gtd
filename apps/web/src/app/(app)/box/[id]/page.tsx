@@ -27,6 +27,7 @@ import {
 } from '@/lib/queries';
 import { ENTRY_TYPE_ORDER, entryTypeOf, type EntryType } from '@/lib/queries.shared';
 import { getPreferences, paneWidth } from '@/lib/view-mode';
+import { densityKeys, getDensity } from '@/lib/view-prefs';
 
 /**
  * One box, read from the top.
@@ -83,11 +84,14 @@ export default async function BoxPage(props: PageProps<'/box/[id]'>) {
   const [matched, categories, dayNotes, prefs, boxList, span] = await Promise.all([
     getBoxItems(id, tagIds, range),
     getBoxCategories(id),
-    getBoxDayNotes(id),
+    getBoxDayNotes(),
     getPreferences(),
     getBoxes(),
     getBoxRange(id),
   ]);
+
+  const viewKey = densityKeys.box(id);
+  const viewMode = await getDensity(viewKey, prefs.viewMode);
 
   /*
    * Exclusions are applied in memory, where the positive tags were matched in
@@ -189,7 +193,8 @@ export default async function BoxPage(props: PageProps<'/box/[id]'>) {
     <>
       <ListPane
         title={box.name}
-        viewMode={prefs.viewMode}
+        viewMode={viewMode}
+        viewKey={viewKey}
         paneWidth={paneWidth(prefs)}
         columns={prefs.boxView === 'gallery' ? undefined : BOX_COLUMNS}
         actions={
@@ -255,7 +260,7 @@ export default async function BoxPage(props: PageProps<'/box/[id]'>) {
 
               {/* Under the date, above the entries: it is about the day, not
                   one of the things that arrived in it. */}
-              <DayJournal boxId={id} day={day.key} note={dayNotes.get(day.key) ?? ''} />
+              <DayJournal day={day.key} note={dayNotes.get(day.key) ?? ''} />
 
               {/* The day headings survive the gallery: arrival is the filing
                   system here, and a wall of thumbnails with no sense of when
@@ -276,7 +281,7 @@ export default async function BoxPage(props: PageProps<'/box/[id]'>) {
                     item={item}
                     href={href(item.id)}
                     selected={item.id === targetId}
-                    mode={prefs.viewMode}
+                    mode={viewMode}
                   />
                 ))
               )}

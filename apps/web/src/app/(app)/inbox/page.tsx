@@ -19,6 +19,7 @@ import { INBOX_COLUMNS } from '@/lib/columns';
 import { groupByDay } from '@/lib/days';
 import { captureHasNote, captureLabel } from '@/lib/queries.shared';
 import { getPreferences, paneWidth } from '@/lib/view-mode';
+import { densityKeys, getDensity } from '@/lib/view-prefs';
 
 const stamp = new Intl.DateTimeFormat('en-GB', {
   day: 'numeric',
@@ -36,7 +37,9 @@ export default async function InboxPage(props: PageProps<'/inbox'>) {
   const selectedId = typeof searchParams.item === 'string' ? searchParams.item : null;
 
   const [items, prefs] = await Promise.all([getInboxItems(), getPreferences()]);
-  const simple = prefs.viewMode === 'simple';
+  const viewKey = densityKeys.path('/inbox');
+  const viewMode = await getDensity(viewKey, prefs.viewMode);
+  const simple = viewMode === 'simple';
 
   // The queue is oldest-first, which is the right way to *process* an inbox.
   // Grouped by day it reads the other way round — the most recent day belongs
@@ -68,7 +71,8 @@ export default async function InboxPage(props: PageProps<'/inbox'>) {
     <>
       <ListPane
         title="Inbox"
-        viewMode={prefs.viewMode}
+        viewMode={viewMode}
+        viewKey={viewKey}
         paneWidth={paneWidth(prefs)}
         columns={INBOX_COLUMNS}
         subtitle={
@@ -116,7 +120,7 @@ export default async function InboxPage(props: PageProps<'/inbox'>) {
           ))
         ) : (
           ordered.map((item) =>
-            prefs.viewMode === 'compact' ? (
+            viewMode === 'compact' ? (
               <Link
                 key={item.id}
                 href={`/inbox?item=${item.id}`}

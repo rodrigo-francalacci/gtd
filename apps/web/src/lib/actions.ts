@@ -52,7 +52,7 @@ import { enqueueBoxJob } from './box/queue';
 import { canClassify } from './box/classify';
 import { canGroup, type SortChoice } from './sort';
 import { setUsage, type UsableType } from './usage';
-import { setViewPref } from './view-prefs';
+import { setDensity, setViewPref } from './view-prefs';
 import { docFromText, extractText } from './tiptap';
 
 /**
@@ -1045,9 +1045,18 @@ export async function setBoxView(view: BoxView) {
   revalidateShell();
 }
 
-export async function setViewMode(mode: ViewMode) {
+export async function setViewMode(mode: ViewMode, key?: string) {
   await requireSession();
-  await savePreference({ viewMode: mode });
+
+  /*
+   * With a key this is a fact about one list; without one it is the app-wide
+   * default, which is still what a list that has never been switched follows.
+   * Every list pane passes a key now, so the global value has become the seed
+   * a new list starts from rather than something you set directly.
+   */
+  if (key) await setDensity(key, mode);
+  else await savePreference({ viewMode: mode });
+
   revalidateShell();
 }
 
@@ -2158,15 +2167,19 @@ export async function startFromDocument(
 }
 
 /**
- * Write the line about a day, in a box's feed.
+ * Write the line about a day.
  *
- * An upsert on the pair, because a day either has a note or it doesn't and
- * there is no third state to keep track of — and an empty one is deleted
- * rather than stored, so "nothing written here" is the absence of a row rather
- * than a row saying nothing. That keeps the feed's lookup honest: a day is in
- * the map or it is not.
+ * Keyed on the day alone, and not on the box it was typed in. You only had the
+ * one Tuesday: a box is how documents are grouped, and the day you had is the
+ * same day whichever shelf you happen to be looking at. Per box, the note left
+ * in Receipts would be invisible from Feed and the same afternoon would get
+ * described twice.
+ *
+ * An empty note deletes the row rather than storing a blank, so "nothing
+ * written here" is the absence of a row rather than a row saying nothing —
+ * which keeps every feed's lookup honest: a day is in the map or it is not.
  */
-export async function setBoxDayNote(boxId: string, day: string, note: string) {
+export async function setBoxDayNote(day: string, note: string) {
   await requireSession();
 
   if (!/^\d{4}-\d{2}-\d{2}$/.test(day)) return;
@@ -2174,15 +2187,13 @@ export async function setBoxDayNote(boxId: string, day: string, note: string) {
   const text = note.trim().slice(0, 10_000);
 
   if (!text) {
-    await db
-      .delete(boxDays)
-      .where(and(eq(boxDays.boxId, boxId), eq(boxDays.day, day)));
+    await db.delete(boxDays).where(eq(boxDays.day, day));
   } else {
     await db
       .insert(boxDays)
-      .values({ boxId, day, note: text })
+      .values({ day, note: text })
       .onConflictDoUpdate({
-        target: [boxDays.boxId, boxDays.day],
+        target: boxDays.day,
         set: { note: text, updatedAt: new Date() },
       });
   }

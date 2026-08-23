@@ -18,12 +18,15 @@ export function ArchiveListPane({
   selectedId,
   showDropped,
   viewMode,
+  viewKey,
   paneWidth,
 }: {
   projects: ArchivedProjectRow[];
   selectedId: string | null;
   showDropped: boolean;
   viewMode: ViewMode;
+  /** Which list this is, so its density is remembered per list. */
+  viewKey?: string;
   paneWidth: number;
 }) {
   const rows = showDropped ? projects : projects.filter((p) => p.status === 'completed');
@@ -47,6 +50,7 @@ export function ArchiveListPane({
     <ListPane
       title="Archive"
       viewMode={viewMode}
+      viewKey={viewKey}
       paneWidth={paneWidth}
       columns={ARCHIVE_COLUMNS}
       subtitle={

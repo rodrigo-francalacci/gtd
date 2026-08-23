@@ -71,9 +71,12 @@ type Payload = {
 export function CalendarView({
   paneWidth,
   viewMode,
+  viewKey,
 }: {
   paneWidth: number;
   viewMode: ViewMode;
+  /** Which list this is, so its density is remembered per list. */
+  viewKey?: string;
 }) {
   const [state, setState] = useState<Payload | null>(null);
   const [failed, setFailed] = useState<string | null>(null);
@@ -143,6 +146,7 @@ export function CalendarView({
       <ListPane
         title="Calendar"
         viewMode={viewMode}
+        viewKey={viewKey}
         paneWidth={paneWidth}
         showToggle={false}
         actions={

@@ -17,6 +17,7 @@ import {
   getProjectOptions,
 } from '@/lib/queries';
 import { getPreferences, paneWidth } from '@/lib/view-mode';
+import { densityKeys, getDensity } from '@/lib/view-prefs';
 
 export default async function ListPage(props: PageProps<'/lists/[id]'>) {
   const { id } = await props.params;
@@ -53,7 +54,8 @@ export default async function ListPage(props: PageProps<'/lists/[id]'>) {
     isPurchases ? getProjectOptions() : Promise.resolve([]),
     getPreferences(),
   ]);
-  const viewMode = prefs.viewMode;
+  const viewKey = densityKeys.list(id);
+  const viewMode = await getDensity(viewKey, prefs.viewMode);
 
   // Filters narrow the list, but the budget totals stay over the whole list —
   // a filtered subtotal masquerading as the budget would be misleading.
@@ -107,6 +109,7 @@ export default async function ListPage(props: PageProps<'/lists/[id]'>) {
       <ListPane
         title={list.name}
         viewMode={viewMode}
+        viewKey={viewKey}
         paneWidth={paneWidth(prefs)}
         columns={isPurchases ? PURCHASE_COLUMNS : LIST_ITEM_COLUMNS}
         /* In the header because that is the one part of a purchases list

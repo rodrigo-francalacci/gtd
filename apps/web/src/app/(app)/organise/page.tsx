@@ -5,6 +5,7 @@ import { UnfileTarget } from '@/components/unfile-target';
 import { ACTION_COLUMNS, PROJECT_COLUMNS } from '@/lib/columns';
 import { getNowActions, getProjects, getWaitingActions } from '@/lib/queries';
 import { getPreferences, paneWidth } from '@/lib/view-mode';
+import { densityKeys, getDensity } from '@/lib/view-prefs';
 
 /**
  * Filing view: projects on the left, loose actions on the right, drag across
@@ -21,7 +22,8 @@ export default async function OrganisePage(props: PageProps<'/organise'>) {
     getWaitingActions(),
     getPreferences(),
   ]);
-  const viewMode = prefs.viewMode;
+  const viewKey = densityKeys.path('/organise');
+  const viewMode = await getDensity(viewKey, prefs.viewMode);
 
   // Unfiled actions are the ones this view exists to clear, so they lead.
   const all = [...next, ...waiting];
@@ -35,6 +37,7 @@ export default async function OrganisePage(props: PageProps<'/organise'>) {
         subtitle="Drop an action on a project to file it"
         columns={PROJECT_COLUMNS}
         viewMode={viewMode}
+        viewKey={viewKey}
         paneWidth={paneWidth(prefs)}
       >
         <SortableProjectList
@@ -48,6 +51,7 @@ export default async function OrganisePage(props: PageProps<'/organise'>) {
         fill
         columns={ACTION_COLUMNS}
         viewMode={viewMode}
+        viewKey={viewKey}
         showToggle={false}
         subtitle={
           <div className="flex items-center gap-2">

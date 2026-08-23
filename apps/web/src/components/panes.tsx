@@ -37,6 +37,7 @@ export function ListPane({
   viewMode,
   paneWidth,
   showToggle = true,
+  viewKey,
   columns,
   children,
 }: {
@@ -51,6 +52,9 @@ export function ListPane({
   paneWidth?: number;
   /** Set false on a second pane in the same view so the toggle isn't doubled. */
   showToggle?: boolean;
+  /** Which list this is, so the density it is switched to is remembered here
+      rather than app-wide. */
+  viewKey?: string;
   /** Column header, shown only in compact mode. */
   columns?: ColumnSet;
   children: ReactNode;
@@ -86,7 +90,9 @@ export function ListPane({
           </h1>
           <div className="flex items-center gap-2">
             {actions}
-            {viewMode && showToggle ? <ViewToggle mode={viewMode} /> : null}
+            {viewMode && showToggle ? (
+              <ViewToggle mode={viewMode} viewKey={viewKey} />
+            ) : null}
           </div>
         </div>
         {subtitle ? (

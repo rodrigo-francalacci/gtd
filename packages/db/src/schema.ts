@@ -896,7 +896,7 @@ export const boxItems = pgTable(
 );
 
 /**
- * A line about the day itself, under the date in a box's feed.
+ * A line about the day itself, under the date in every box's feed.
  *
  * Not a `box_items` row, and the distinction is the whole reason this table
  * exists. An entry is a *thing that arrived* — it has a time, a place in the
@@ -909,26 +909,22 @@ export const boxItems = pgTable(
  * handover, van broke down" tells you what you were *doing*, which is what you
  * actually search your memory with when hunting for one of them.
  *
- * One per box per day, so the primary key is the pair. Kept in its own table
- * rather than on `boxes` as a blob for the obvious reason: a year is 365 rows
- * and one of them is what you want.
+ * Keyed on the day alone, not on the box and the day. You only had the one
+ * Tuesday: the boxes are how documents are grouped, and the day you had is the
+ * same day whichever shelf you happen to be looking at. Writing it per box
+ * would mean the note you left in Receipts was invisible from Feed and the
+ * same afternoon got described twice.
  */
 export const boxDays = pgTable(
   'box_days',
   {
-    boxId: uuid('box_id')
-      .notNull()
-      .references(() => boxes.id, { onDelete: 'cascade' }),
-    /** Local calendar day, the same key the feed groups by. */
-    day: date('day').notNull(),
+    /** Local calendar day, the same key every feed groups by. */
+    day: date('day').primaryKey(),
     note: text('note').notNull().default(''),
     searchVector: searchVector('note'),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },
-  (t) => [
-    primaryKey({ columns: [t.boxId, t.day] }),
-    index('box_days_search_idx').using('gin', t.searchVector),
-  ],
+  (t) => [index('box_days_search_idx').using('gin', t.searchVector)],
 );
 
 export const boxItemTags = pgTable(
@@ -1085,6 +1081,22 @@ export const preferences = pgTable('preferences', {
  */
 export const viewPrefs = pgTable('view_prefs', {
   key: text('key').primaryKey(),
+  /**
+   * `'comfortable' | 'compact' | 'simple'` for this list, or null to follow
+   * the app-wide default in `preferences`.
+   *
+   * Density was one setting for everything, which made it the wrong setting
+   * for everything: an inbox is a queue you scan and wants titles only, a
+   * purchases list is a table of costs and wants the columns. Choosing on one
+   * silently re-made the choice on the other, so you set it again every time
+   * you moved — which is not a preference, it is a chore.
+   *
+   * Here rather than a table of its own because this is already "what a
+   * particular view remembers", and sort lives in the same row for the same
+   * reason. Null is the normal state: nothing is written until something is
+   * picked, so an untouched app still has one global answer.
+   */
+  density: text('density'),
   /** 'manual' | 'arrival' | 'alpha' | 'usage'. */
   sort: text('sort'),
   /** Newest/Z-A/most-used first. Ignored by 'manual', which has no direction. */
