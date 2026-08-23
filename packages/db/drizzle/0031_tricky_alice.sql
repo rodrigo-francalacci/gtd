@@ -1,0 +1,1 @@
+ALTER TABLE "view_prefs" ADD COLUMN "layout" text;

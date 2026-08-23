@@ -357,16 +357,27 @@ function InsertionLine({ atBottom = false }: { atBottom?: boolean }) {
 export function DragGrip() {
   const drag = useContext(TouchDragContext);
 
+  /*
+   * Nothing at all outside a sortable list.
+   *
+   * The context is provided per row by `SortableList`, so its absence means
+   * this row cannot be reordered — a timeline view ordered by date, for
+   * instance. A grip there is a handle that does nothing: on a desktop it
+   * invites a drag the row will not accept, and on a phone it is a permanent
+   * visible control for an operation that is not available.
+   */
+  if (!drag) return null;
+
   return (
     <span
       aria-hidden
-      onPointerDown={drag ? (e) => drag.begin(drag.id, e) : undefined}
-      style={drag ? { touchAction: 'none' } : undefined}
+      onPointerDown={(e) => drag.begin(drag.id, e)}
+      style={{ touchAction: 'none' }}
       className={[
         'shrink-0 cursor-grab select-none leading-none transition-opacity',
         // A fingertip target on a phone, a hairline on a desktop.
         'mt-1 text-[11px] max-md:mt-0 max-md:px-1.5 max-md:py-2 max-md:text-[15px]',
-        drag?.active ? 'text-selected' : 'text-grey-300',
+        drag.active ? 'text-selected' : 'text-grey-300',
         'opacity-0 group-hover:opacity-100 max-md:opacity-100',
       ].join(' ')}
       title="Drag to reorder"

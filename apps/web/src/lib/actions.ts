@@ -52,7 +52,7 @@ import { enqueueBoxJob } from './box/queue';
 import { canClassify } from './box/classify';
 import { canGroup, type SortChoice } from './sort';
 import { setUsage, type UsableType } from './usage';
-import { setDensity, setViewPref } from './view-prefs';
+import { setDensity, setLayout, setViewPref, type ListLayout } from './view-prefs';
 import { docFromText, extractText } from './tiptap';
 
 /**
@@ -2284,4 +2284,11 @@ export async function dropCapture(itemId: string, target: CaptureDrop) {
             };
 
   await clarifyInboxItem(itemId, decision);
+}
+
+/** Read a list in your order, or in the order things arrived. */
+export async function setListLayout(key: string, layout: ListLayout) {
+  await requireSession();
+  await setLayout(key, layout);
+  revalidateShell();
 }

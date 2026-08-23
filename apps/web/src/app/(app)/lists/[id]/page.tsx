@@ -17,7 +17,11 @@ import {
   getProjectOptions,
 } from '@/lib/queries';
 import { getPreferences, paneWidth } from '@/lib/view-mode';
-import { densityKeys, getDensity } from '@/lib/view-prefs';
+import { densityKeys, getDensity, getLayout } from '@/lib/view-prefs';
+import { DayHeading } from '@/components/day-heading';
+import { LayoutToggle } from '@/components/layout-toggle';
+import { ListItemRow } from '@/components/list-item-row';
+import { groupByDay } from '@/lib/days';
 
 export default async function ListPage(props: PageProps<'/lists/[id]'>) {
   const { id } = await props.params;
@@ -45,7 +49,8 @@ export default async function ListPage(props: PageProps<'/lists/[id]'>) {
   const wantsBudget = isPurchases && searchParams.budget !== undefined;
   const selectedId =
     !wantsBudget && typeof searchParams.item === 'string' ? searchParams.item : null;
-  const impact = typeof searchParams.impact === 'string' ? searchParams.impact : undefined;
+  const impact =
+    typeof searchParams.impact === 'string' ? searchParams.impact : undefined;
   const where = typeof searchParams.where === 'string' ? searchParams.where : undefined;
 
   const [allItems, selected, projectOptions, prefs] = await Promise.all([
@@ -56,6 +61,7 @@ export default async function ListPage(props: PageProps<'/lists/[id]'>) {
   ]);
   const viewKey = densityKeys.list(id);
   const viewMode = await getDensity(viewKey, prefs.viewMode);
+  const layout = await getLayout(viewKey);
 
   // Filters narrow the list, but the budget totals stay over the whole list —
   // a filtered subtotal masquerading as the budget would be misleading.
@@ -115,18 +121,21 @@ export default async function ListPage(props: PageProps<'/lists/[id]'>) {
         /* In the header because that is the one part of a purchases list
            always on screen, whichever pane you are looking at. */
         actions={
-          isPurchases ? (
-            <Link
-              href={budgetHref}
-              aria-current={wantsBudget ? 'page' : undefined}
-              className={[
-                'text-[11px] underline underline-offset-2',
-                wantsBudget ? 'text-selected' : 'text-grey-500 hover:text-grey-800',
-              ].join(' ')}
-            >
-              Budget
-            </Link>
-          ) : null
+          <>
+            <LayoutToggle layout={layout} viewKey={viewKey} />
+            {isPurchases ? (
+              <Link
+                href={budgetHref}
+                aria-current={wantsBudget ? 'page' : undefined}
+                className={[
+                  'text-[11px] underline underline-offset-2',
+                  wantsBudget ? 'text-selected' : 'text-grey-500 hover:text-grey-800',
+                ].join(' ')}
+              >
+                Budget
+              </Link>
+            ) : null}
+          </>
         }
         subtitle={
           isPurchases ? (
@@ -144,12 +153,19 @@ export default async function ListPage(props: PageProps<'/lists/[id]'>) {
         }
       >
         <QuickAddListItem listId={id} />
-        <SortableListItems
-          items={items.map((i) => ({ ...i, href: qs(i.id) }))}
-          selectedId={selectedId}
-          isPurchases={isPurchases}
-          mode={viewMode}
-          emptyState={
+
+        {layout === 'timeline' ? (
+          /*
+           * The same rows read as a history: what you were thinking about in
+           * March, under the day you wrote it down. The manual order is not
+           * changed, only looked past — which is the difference between this
+           * and a sort, and the reason both can exist.
+           *
+           * No drag here. Position means nothing in a view ordered by a date,
+           * and offering a grip that silently reorders a list you cannot see
+           * the order of would be worse than not offering one.
+           */
+          items.length === 0 ? (
             <EmptyList
               message={
                 allItems.length === 0
@@ -157,8 +173,40 @@ export default async function ListPage(props: PageProps<'/lists/[id]'>) {
                   : 'No items match these filters.'
               }
             />
-          }
-        />
+          ) : (
+            groupByDay(items, (i) => i.createdAt).map((day) => (
+              <section key={day.key}>
+                <DayHeading label={day.label} />
+                {day.items.map((i) => (
+                  <ListItemRow
+                    key={i.id}
+                    item={i}
+                    href={qs(i.id)}
+                    selected={i.id === selectedId}
+                    isPurchases={isPurchases}
+                    mode={viewMode}
+                  />
+                ))}
+              </section>
+            ))
+          )
+        ) : (
+          <SortableListItems
+            items={items.map((i) => ({ ...i, href: qs(i.id) }))}
+            selectedId={selectedId}
+            isPurchases={isPurchases}
+            mode={viewMode}
+            emptyState={
+              <EmptyList
+                message={
+                  allItems.length === 0
+                    ? 'Nothing on this list yet. Add a candidate above — it commits you to nothing.'
+                    : 'No items match these filters.'
+                }
+              />
+            }
+          />
+        )}
       </ListPane>
 
       {selected ? (

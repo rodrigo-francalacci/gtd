@@ -1097,6 +1097,20 @@ export const viewPrefs = pgTable('view_prefs', {
    * picked, so an untouched app still has one global answer.
    */
   density: text('density'),
+  /**
+   * `'list' | 'timeline'` — whether this list is read in the order you put it
+   * in, or in the order it arrived.
+   *
+   * A different question from density, which trades metadata for rows and
+   * applies within either. A purchases list you are ranking by hand and a
+   * purchases list you are reading as a history of what you decided are two
+   * ways of looking at one set of rows, and the manual order that makes the
+   * first useful is exactly what the second has to ignore.
+   *
+   * Null is the normal state and means the ordered list, which is what a list
+   * has always been.
+   */
+  layout: text('layout'),
   /** 'manual' | 'arrival' | 'alpha' | 'usage'. */
   sort: text('sort'),
   /** Newest/Z-A/most-used first. Ignored by 'manual', which has no direction. */

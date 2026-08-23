@@ -121,3 +121,32 @@ export async function setDensity(key: string, mode: ViewMode): Promise<void> {
       set: { density: mode, updatedAt: sql`now()` },
     });
 }
+
+export type ListLayout = 'list' | 'timeline';
+
+/**
+ * Whether this list is read in your order or in date order.
+ *
+ * Stored beside the density in the same row, because both are answers to
+ * "how do I want to look at this particular list" and splitting them across
+ * tables would be two lookups for one question.
+ */
+export async function getLayout(key: string): Promise<ListLayout> {
+  const [row] = await db
+    .select({ layout: viewPrefs.layout })
+    .from(viewPrefs)
+    .where(eq(viewPrefs.key, key))
+    .limit(1);
+
+  return row?.layout === 'timeline' ? 'timeline' : 'list';
+}
+
+export async function setLayout(key: string, layout: ListLayout): Promise<void> {
+  await db
+    .insert(viewPrefs)
+    .values({ key, layout })
+    .onConflictDoUpdate({
+      target: viewPrefs.key,
+      set: { layout, updatedAt: sql`now()` },
+    });
+}

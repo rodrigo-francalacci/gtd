@@ -128,6 +128,8 @@ export type ListItemRow = {
    * shipping a document per row to render a title.
    */
   notes: unknown;
+  /** When it was written down. What the timeline view groups by. */
+  createdAt: Date;
 };
 
 export function stageOf(

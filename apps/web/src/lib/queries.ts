@@ -704,6 +704,7 @@ export async function getListItems(listId: string): Promise<ListItemRow[]> {
       promotedActionId: listItems.promotedActionId,
       promotedActionStatus: actions.status,
       position: listItems.position,
+      createdAt: listItems.createdAt,
     })
     .from(listItems)
     .leftJoin(projects, eq(projects.id, listItems.projectId))
@@ -734,6 +735,7 @@ export async function getListItem(id: string): Promise<ListItemRow | null> {
       promotedActionStatus: actions.status,
       position: listItems.position,
       notes: listItems.notes,
+      createdAt: listItems.createdAt,
     })
     .from(listItems)
     .leftJoin(projects, eq(projects.id, listItems.projectId))
