@@ -1151,6 +1151,51 @@ settings.
   Documents with nothing anywhere reporting a problem. If a query's row needs a
   cast, the query is wrong.
 
+- **The record button has two profiles, and one chain is not enough.** The first
+  version had one, tuned to make quiet speech loud, applied to everything that
+  came near it. Point it at an acoustic guitar and the arithmetic is brutal: a
+  signal already peaking at −9 dBFS collects nineteen decibels of gain reduction,
+  and the ten-millisecond attack — right for a voice — lets every pick transient
+  through to the clipper behind it. Squashed and distorted, on an instrument that
+  needed nothing done to it. A leveller is not a quality setting; it is the
+  answer to *this is too quiet and too uneven*, and an instrument is not asking
+  it. `music` is a 30 Hz rumble filter (a bass guitar's low E is 41 Hz, an
+  acoustic's is 82 — anything higher removes the instrument), no drive, both
+  compressors at ratio 1 which is a true bypass, and the limiter left as a safety
+  net it should never touch.
+- **The profile is switchable mid-recording and never remembered.** Switchable
+  because the moment you discover the chain is wrong for what you are playing is
+  the moment you have started playing it — every node stays put and only its
+  parameters move, so nothing is rebuilt. Not remembered because it is the one
+  setting that can ruin a take, and the same rule the capture screen's
+  destination chips follow applies: a remembered profile is how you get a
+  squashed guitar or a voice note nobody can hear, and you find out on playback.
+- **A second way to file a message: paste what identifies it.** Labelling in
+  Gmail is still the main path. This is the desk case — the message is in front
+  of you and reaching for the label menu is more friction than pasting what you
+  are already looking at. The app cannot fetch it, so it writes down *that you
+  asked* in `email_requests` and the Apps Script claims the row on its next run.
+  **A row, not a file in Drive**: a JSON or CSV handed between the two would mean
+  a format to agree on, a race between writer and reader, and no way for the app
+  to show what is outstanding or why one failed. The script already calls an
+  authenticated endpoint every run — it can ask.
+- **`readEmailPaste` recognises four shapes, and refuses to guess at a fifth.** A
+  Gmail address, a sixteen-character message id and an RFC822 `Message-ID` in
+  angle brackets are none of them things anybody types as a thought, so they are
+  taken on sight. A Gmail *search* is not — `from:sam worktop` is unusual prose
+  but "email Sam about the worktop" is not — so a search must announce itself
+  with an `email:` prefix. The cost of guessing wrong is a note silently turned
+  into a query, which is a note you have lost.
+- **The `FMfcgz…` permalink is refused at the moment you paste it.** That id
+  belongs to Gmail's own interface; no API accepts it and there is no way to
+  convert it. Saying so immediately beats a request that sits pending until a
+  script fails on it an hour later, and the message names the two ways round it.
+- **A failed request stays on the feed until dismissed.** The usual reason one
+  fails is something you can act on, and a request that quietly disappeared would
+  be indistinguishable from one that worked — you would find out months later,
+  looking for a message that was never filed. Pending ones cannot be dismissed:
+  that would race the script, which may be fetching as you press.
+
 ## Enrichment
 
 Attachments are read in the background so search can reach inside them.

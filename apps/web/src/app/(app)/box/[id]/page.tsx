@@ -9,6 +9,8 @@ import { DateRange } from '@/components/date-range';
 import { DocumentGalleryRow } from '@/components/document-gallery-row';
 import { DocumentRow } from '@/components/document-row';
 import { ReadWaiting } from '@/components/read-waiting';
+import { EmailRequests } from '@/components/email-requests';
+import { getEmailRequests } from '@/lib/box/email-requests';
 import { TagBrowser } from '@/components/tag-browser';
 import { TagFilter } from '@/components/tag-filter';
 import { TypeFilter } from '@/components/type-filter';
@@ -83,15 +85,17 @@ export default async function BoxPage(props: PageProps<'/box/[id]'>) {
   const range = { from: day(searchParams.from), to: day(searchParams.to) };
 
   const viewKey = densityKeys.box(id);
-  const [matched, categories, dayNotes, prefs, boxList, span, view] = await Promise.all([
-    getBoxItems(id, tagIds, range),
-    getBoxCategories(id),
-    getBoxDayNotes(),
-    getPreferences(),
-    getBoxes(),
-    getBoxRange(id),
-    getView(viewKey),
-  ]);
+  const [matched, categories, dayNotes, prefs, boxList, span, view, asked] =
+    await Promise.all([
+      getBoxItems(id, tagIds, range),
+      getBoxCategories(id),
+      getBoxDayNotes(),
+      getPreferences(),
+      getBoxes(),
+      getBoxRange(id),
+      getView(viewKey),
+      getEmailRequests(id),
+    ]);
 
   const viewMode = view.density ?? prefs.viewMode;
 
@@ -258,6 +262,7 @@ export default async function BoxPage(props: PageProps<'/box/[id]'>) {
         }
       >
         <BoxComposer boxId={id} />
+        <EmailRequests requests={asked} />
 
         {shown.length === 0 ? (
           <EmptyList

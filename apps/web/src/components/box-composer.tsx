@@ -2,8 +2,15 @@
 
 import { useRouter } from 'next/navigation';
 import { useRef, useState, useTransition } from 'react';
-import { createBoxFile, postBoxLink, postBoxLocation, postBoxNote } from '@/lib/actions';
+import {
+  createBoxFile,
+  postBoxLink,
+  postBoxLocation,
+  postBoxNote,
+  requestEmail,
+} from '@/lib/actions';
 import { uploadToBox } from '@/lib/box-upload';
+import { readEmailPaste } from '@/lib/email-paste';
 import { driveFileUrl } from '@/lib/google/sync';
 import { soleUrl } from '@/lib/sole-url';
 import { AudioRecorder } from './audio-recorder';
@@ -108,8 +115,43 @@ export function BoxComposer({ boxId }: { boxId: string }) {
     const url = soleUrl(body);
 
     startTransition(async () => {
-      if (url) await postBoxLink(boxId, url, '');
-      else await postBoxNote(boxId, body);
+      /**
+       * A pasted Gmail address is a request for the message, not a link to a
+       * page.
+       *
+       * Filing it as a link would produce an entry whose picture and summary
+       * come from Gmail’s sign-in page, because that is what anything without
+       * your cookies sees when it follows one — a box full of identical
+       * entries called "Gmail". What you meant was the message, and the bridge
+       * is what can fetch it.
+       *
+       * Four shapes count: a Gmail address, a message id, an RFC822
+       * `Message-ID`, and anything after an `email:` prefix. The first three
+       * are unambiguous enough to recognise on sight; a *search* is not, so
+       * it has to announce itself — the cost of guessing wrong there is a
+       * note silently turned into a query, which is a note you have lost.
+       *
+       * Decided in `readEmailPaste` rather than in `soleUrl`, which answers a
+       * narrower question — is this text nothing but an address — and is
+       * shared with the Chrome extension.
+       */
+      const wanted = readEmailPaste(body);
+
+      if (wanted) {
+        const asked = await requestEmail(boxId, wanted);
+        if (!asked.ok) {
+          setError(asked.error);
+          // Put it back: the message was not filed and the address is the one
+          // thing you would have to go and find again.
+          setText(body);
+          return;
+        }
+      } else if (url) {
+        await postBoxLink(boxId, url, '');
+      } else {
+        await postBoxNote(boxId, body);
+      }
+
       router.refresh();
     });
   };
@@ -260,7 +302,7 @@ export function BoxComposer({ boxId }: { boxId: string }) {
           }
         }}
         rows={2}
-        placeholder="Write something, or drop a file…"
+        placeholder="Write something, paste a link, drop a file…"
         className="w-full resize-none bg-transparent text-[13px] leading-relaxed text-grey-800 placeholder:text-grey-400 focus:outline-none"
       />
 

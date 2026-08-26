@@ -1015,6 +1015,66 @@ export const boxJobs = pgTable(
 );
 
 // ---------------------------------------------------------------------------
+// Email requests
+// ---------------------------------------------------------------------------
+
+export const emailRequestStatus = pgEnum('email_request_status', [
+  'pending',
+  'done',
+  'failed',
+]);
+
+/**
+ * A message you have asked for, before the bridge has been able to fetch it.
+ *
+ * Labelling a message in Gmail is the main way in and needs none of this. This
+ * is the second way: you are at a desk with the message open, you paste
+ * something that identifies it, and the app writes down that you want it. The
+ * Apps Script asks for the pending ones on its next run, fetches each from
+ * Gmail, files it, and reports back.
+ *
+ * **A row, not a file in Drive.** Handing the script a JSON or CSV file would
+ * work and costs more than it looks: a format to agree on, a race between the
+ * thing writing it and the thing reading it, and no way for the app to show
+ * you what is outstanding. The script already talks to the app over an
+ * authenticated endpoint on every run — it can ask.
+ *
+ * `query` is deliberately not called `messageId`, because what you paste is
+ * whatever you have: a Gmail message id, an RFC822 Message-ID, a Gmail URL, or
+ * a search like `from:sam worktop`. Deciding which of those it is happens in
+ * the script, where Gmail can be asked, rather than here where it can only be
+ * guessed at.
+ */
+export const emailRequests = pgTable(
+  'email_requests',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    boxId: uuid('box_id')
+      .notNull()
+      .references(() => boxes.id, { onDelete: 'cascade' }),
+    /** Whatever you pasted, verbatim. */
+    query: text('query').notNull(),
+    status: emailRequestStatus('status').notNull().default('pending'),
+    /**
+     * How many messages it turned into, or why it turned into none.
+     *
+     * A failure here is nearly always a thing you can act on — an id Gmail
+     * does not recognise, a search that matched nothing — so it is worth
+     * saying out loud on the page you asked from rather than only in a log
+     * inside Apps Script.
+     */
+    note: text('note'),
+    filed: integer('filed').notNull().default(0),
+    attempts: integer('attempts').notNull().default(0),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    resolvedAt: timestamp('resolved_at', { withTimezone: true }),
+  },
+  (t) => [
+    index('email_requests_status_idx').on(t.status, t.createdAt),
+  ],
+);
+
+// ---------------------------------------------------------------------------
 // Preferences
 // ---------------------------------------------------------------------------
 

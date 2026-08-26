@@ -2,8 +2,9 @@
 
 import { useEffect, useRef, useState } from 'react';
 import {
-  VOICE_CHAIN_LABEL,
+  PROFILE_LABEL,
   buildVoiceChain,
+  type RecordProfile,
   type VoiceChain,
   type VoiceMeter,
 } from '@/lib/voice-chain';
@@ -127,6 +128,12 @@ export function AudioRecorder({
   const stream = useRef<MediaStream | null>(null);
   const chain = useRef<VoiceChain | null>(null);
   /**
+   * Read by the effect that builds the chain, which runs once on mount and
+   * must not be torn down and restarted when the profile changes — that
+   * would end the recording. The chain is told about the change instead.
+   */
+  const profileRef = useRef<RecordProfile>('voice');
+  /**
    * Cancelling must not deliver the file. `stop()` fires `onstop`
    * asynchronously, so by the time it runs the component may already be gone
    * — a ref is the only thing both sides can still read.
@@ -148,12 +155,29 @@ export function AudioRecorder({
     deliver.current = onDone;
   });
 
+
   const [seconds, setSeconds] = useState(0);
   const [error, setError] = useState<string | null>(null);
   /** What the microphone actually gave us, shown so the setting is checkable. */
   const [quality, setQuality] = useState<string | null>(null);
   /** Live level and gain reduction, so the chain is visible while it works. */
   const [meter, setMeter] = useState<VoiceMeter>({ peak: -Infinity, reduction: 0 });
+  /**
+   * Levelled for speech, or left alone.
+   *
+   * Starts on voice every time and is never remembered, which is the same
+   * rule the capture screen applies to where a thought is going. A profile
+   * that persisted would eventually squash a guitar or leave a voice note
+   * nobody can hear, and you would only find out on playback.
+   */
+  const [profile, setProfile] = useState<RecordProfile>('voice');
+
+  // Applied to a graph that is already running, so switching mid-take is
+  // seamless. What is already encoded keeps the treatment it was given.
+  useEffect(() => {
+    profileRef.current = profile;
+    chain.current?.setProfile(profile);
+  }, [profile]);
 
   useEffect(() => {
     let ticker: ReturnType<typeof setInterval> | null = null;
@@ -195,7 +219,7 @@ export function AudioRecorder({
          * microphone's — that is what makes the levelling free, since the
          * processed signal is the only one that is ever encoded.
          */
-        const built = buildVoiceChain(media);
+        const built = buildVoiceChain(media, profileRef.current);
         chain.current = built;
 
         /**
@@ -226,7 +250,7 @@ export function AudioRecorder({
             settings.noiseSuppression || settings.echoCancellation
               ? 'device filtering'
               : 'full range',
-            built.processed ? VOICE_CHAIN_LABEL : 'unprocessed',
+            built.processed ? null : 'unprocessed',
           ]
             .filter(Boolean)
             .join(' · '),
@@ -371,10 +395,45 @@ export function AudioRecorder({
           <span className="h-2 w-2 shrink-0 animate-pulse rounded-full bg-waiting" />
           Recording · <span className="tabular-nums">{clock(seconds)}</span>
           {quality ? <span className="text-grey-500">{quality}</span> : null}
+          {/* Rendered from the toggle rather than baked into `quality` when the
+              chain was built, or it would go on describing the profile you
+              started in after you had switched out of it. */}
+          <span className="text-grey-500">{PROFILE_LABEL[profile]}</span>
           {nearLimit ? <span className="text-grey-500">— still recording</span> : null}
         </span>
 
         <span className="flex shrink-0 items-center gap-3">
+          {/*
+            On screen for the whole take, because it is the one setting that
+            can ruin one. Switchable mid-recording: the graph is already
+            running and only its parameters move, and the moment you find out
+            the chain is wrong for what you are playing is the moment you have
+            started playing it.
+          */}
+          <span className="flex overflow-hidden rounded-sm border border-grey-300">
+            {(['voice', 'music'] as const).map((which) => (
+              <button
+                key={which}
+                type="button"
+                aria-pressed={profile === which}
+                onClick={() => setProfile(which)}
+                title={
+                  which === 'voice'
+                    ? 'Levelled hard, so a quiet note is still audible'
+                    : 'Flat — no drive, no compression, just a safety limiter'
+                }
+                className={[
+                  'px-1.5 py-0.5 text-[11px]',
+                  profile === which
+                    ? 'bg-grey-800 text-paper'
+                    : 'bg-paper text-grey-600 hover:text-grey-900',
+                ].join(' ')}
+              >
+                {which === 'voice' ? 'Voice' : 'Music'}
+              </button>
+            ))}
+          </span>
+
           <button
             type="button"
             onClick={() => {

@@ -47,6 +47,11 @@ import {
   createGoogleDocument,
   removeAttachment,
 } from './google/attachments';
+import {
+  createEmailRequest,
+  forgetEmailRequest,
+  readEmailQuery,
+} from './box/email-requests';
 import { createBoxDocument, deleteBoxItem } from './google/boxes';
 import { enqueueSync } from './google/queue';
 import { enqueueBoxJob } from './box/queue';
@@ -1956,6 +1961,38 @@ export async function createBoxFile(boxId: string, mimeType: string, name: strin
   const row = await createBoxDocument(boxId, mimeType, name);
   revalidateShell();
   return row;
+}
+
+/**
+ * Ask the bridge to fetch a message you have not labelled.
+ *
+ * The app cannot read Gmail and is not going to start: the scope that would
+ * let it is restricted, and the cost of holding one is either an annual
+ * security assessment or a refresh token Google expires weekly — the same
+ * token Drive sync and the calendar run on. So this writes down that you asked
+ * and the Apps Script picks it up.
+ *
+ * Refuses a Gmail permalink out loud rather than accepting one and failing an
+ * hour later inside a script, because the id in it is one only Gmail’s own
+ * interface understands.
+ */
+export async function requestEmail(boxId: string, raw: string) {
+  await requireSession();
+
+  const read = readEmailQuery(raw);
+  if ('refuse' in read) return { ok: false as const, error: read.refuse };
+
+  await createEmailRequest(boxId, read.query);
+  revalidateShell();
+
+  return { ok: true as const };
+}
+
+/** Clear a request you have read the failure of. */
+export async function forgetEmail(id: string) {
+  await requireSession();
+  await forgetEmailRequest(id);
+  revalidateShell();
 }
 
 /**

@@ -33,8 +33,11 @@
 // Nothing to add if `big-box-feed.gs` is already working: this reads the same
 // two Script Properties. Then:
 //   1. Run `authoriseGmail` once, by hand, and grant Gmail access.
-//   2. Run `fileLabelledEmails` once, by hand, to check it.
-//   3. Add a time-driven trigger on `fileLabelledEmails`.
+//   2. Run `syncEmails` once, by hand, to check it.
+//   3. Add a time-driven trigger on `syncEmails`.
+//
+// `syncEmails` does both halves: the messages you labelled in Gmail, and the
+// ones asked for from the app by pasting an id, a Message-ID or a search.
 
 /**
  * The label you put on a message to file it.
@@ -72,6 +75,131 @@ const BUDGET_MS = 4 * 60 * 1000;
 
 /** Threads per run. A backlog drains over several runs rather than one long one. */
 const MAX_THREADS = 25;
+
+// --- REQUESTS ---------------------------------------------------------------
+
+/**
+ * The other way in: messages asked for from the app.
+ *
+ * Labelling is the main path and needs nothing here. This covers the case
+ * where you are at a desk with the message open and pasting what you are
+ * already looking at is less friction than reaching for the label menu.
+ *
+ * The app cannot look a message up — it holds `gmail.labels` and nothing more.
+ * It writes down that you asked, and this claims the request, resolves it
+ * against Gmail, and reports back what happened. Add it to the same trigger as
+ * `fileLabelledEmails`, or run `syncEmails` which does both.
+ */
+function fetchRequestedEmails() {
+  const startedAt = Date.now();
+  const props = PropertiesService.getScriptProperties();
+  const origin = (props.getProperty('APP_ORIGIN') || '').replace(/\/+$/, '');
+  const secret = props.getProperty('BOX_INGEST_SECRET');
+
+  if (!origin || !secret) {
+    Logger.log('Set APP_ORIGIN and BOX_INGEST_SECRET in Script Properties first.');
+    return;
+  }
+
+  const claimed = postTo(origin, secret, '/api/box/email', { step: 'claim', limit: 10 });
+  const requests = claimed.requests || [];
+
+  Logger.log(requests.length + ' request(s) waiting');
+
+  for (var i = 0; i < requests.length; i++) {
+    if (Date.now() - startedAt > BUDGET_MS) {
+      Logger.log('Out of time; the rest stay pending.');
+      break;
+    }
+
+    const request = requests[i];
+    var filed = 0;
+    var note = null;
+
+    try {
+      const messages = findMessages(request.query);
+
+      if (messages.length === 0) {
+        note = 'Gmail found nothing for that.';
+      } else {
+        for (var m = 0; m < messages.length && m < 20; m++) {
+          if (fileMessage(origin, secret, messages[m], request.box)) filed++;
+        }
+        if (messages.length > 20) note = 'Matched ' + messages.length + ' messages; filed the first 20.';
+      }
+    } catch (e) {
+      note = String(e).slice(0, 300);
+      Logger.log('Failed on "' + request.query + '": ' + e);
+    }
+
+    postTo(origin, secret, '/api/box/email', {
+      step: 'resolve',
+      id: request.id,
+      filed: filed,
+      note: note,
+    });
+
+    Logger.log('  ' + request.query + ' -> ' + filed + ' filed' + (note ? ' (' + note + ')' : ''));
+  }
+}
+
+/**
+ * Work out what you pasted, by asking Gmail rather than by guessing.
+ *
+ * Three shapes, tried in the order that a wrong answer is cheapest:
+ *
+ * 1. A **message or thread id** — sixteen or more hex characters. This is what
+ *    the API understands, and it is what "Show original" puts in its URL.
+ *    Tried as a message first and then as a thread, because the two id spaces
+ *    look identical and only Gmail knows which it is.
+ * 2. An **RFC822 Message-ID** — `<something@mail.gmail.com>`, also from "Show
+ *    original". Gmail searches on it directly with `rfc822msgid:`.
+ * 3. Anything else is treated as a **Gmail search**, which is the shape that
+ *    turns out to be most useful: `from:sam worktop` finds the thread you were
+ *    thinking of without you having to open it at all.
+ *
+ * The modern `FMfcgz…` permalink is refused by the app before it ever reaches
+ * here, because that id belongs to Gmail’s own interface and no API accepts
+ * it. If Google ever changes that, this is where it would be handled.
+ */
+function findMessages(query) {
+  const text = String(query).trim();
+
+  if (/^[0-9a-f]{16,}$/i.test(text)) {
+    try {
+      const message = GmailApp.getMessageById(text);
+      if (message) return [message];
+    } catch (e) {
+      // Not a message id. It may still be a thread id.
+    }
+
+    try {
+      const thread = GmailApp.getThreadById(text);
+      if (thread) return thread.getMessages();
+    } catch (e) {
+      // Neither. Fall through and let it be searched for.
+    }
+  }
+
+  const search = /^<[^>]+>$/.test(text)
+    ? 'rfc822msgid:' + text.replace(/^<|>$/g, '')
+    : text;
+
+  const threads = GmailApp.search(search, 0, 5);
+  var messages = [];
+
+  for (var t = 0; t < threads.length; t++) {
+    messages = messages.concat(threads[t].getMessages());
+  }
+
+  return messages;
+}
+
+/** Both halves, for one trigger. */
+function syncEmails() {
+  fileLabelledEmails();
+  fetchRequestedEmails();
+}
 
 // --- MAIN -------------------------------------------------------------------
 
@@ -133,7 +261,8 @@ function fileLabelledEmails() {
   Logger.log(filed + ' message(s) filed into "' + EMAIL_BOX + '"');
 }
 
-function fileMessage(origin, secret, message) {
+function fileMessage(origin, secret, message, box) {
+  const intoBox = box || EMAIL_BOX;
   const subject = message.getSubject() || '(no subject)';
   const sent = message.getDate();
 
@@ -154,7 +283,7 @@ function fileMessage(origin, secret, message) {
 
   const open = post(origin, secret, {
     step: 'open',
-    box: EMAIL_BOX,
+    box: intoBox,
     name: name,
     mimeType: 'text/html',
   });
@@ -176,7 +305,7 @@ function fileMessage(origin, secret, message) {
 
   const done = post(origin, secret, {
     step: 'complete',
-    box: EMAIL_BOX,
+    box: intoBox,
     driveFileId: uploaded.id,
     /*
      * Filed under the day it was *sent*, not the day you got round to
@@ -275,8 +404,13 @@ function safeName(text) {
   return String(text).replace(/[\\/]/g, '-').replace(/\s+/g, ' ').trim().slice(0, 100) || 'Message';
 }
 
+/** The ingest route, which is what most of this script talks to. */
 function post(origin, secret, payload) {
-  const response = UrlFetchApp.fetch(origin + '/api/box/ingest', {
+  return postTo(origin, secret, '/api/box/ingest', payload);
+}
+
+function postTo(origin, secret, path, payload) {
+  const response = UrlFetchApp.fetch(origin + path, {
     method: 'post',
     contentType: 'application/json',
     headers: { Authorization: 'Bearer ' + secret },
