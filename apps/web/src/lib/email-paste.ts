@@ -36,6 +36,18 @@ export function readEmailPaste(text: string): string | null {
   // and what "Show original" puts in its URL.
   if (/^[0-9a-f]{16,}$/i.test(body)) return body;
 
+  /*
+   * A permalink id on its own, which is *not* usable — and is recognised
+   * here precisely so that it is not mistaken for a thought.
+   *
+   * Left out, a pasted `FMfcgz…` fell through every branch and became a
+   * note: silently, with no error, filed as a line of gibberish in a box.
+   * Recognising it means it reaches `readEmailQuery`, which refuses it with
+   * a sentence explaining the three things that do work. A wrong answer you
+   * are told about beats a wrong answer you are not.
+   */
+  if (/^(FMfcg|QgrcJ)[A-Za-z0-9_-]{12,}$/.test(body)) return body;
+
   // An RFC822 Message-ID, also from "Show original".
   if (/^<[^\s>]+@[^\s>]+>$/.test(body)) return body;
 

@@ -37,17 +37,25 @@ export type EmailRequestRow = {
 };
 
 /**
+ * Why a Gmail permalink cannot be used, and the three things that can.
+ *
+ * Worth being this long. It is the one dead end in the feature, the reason is
+ * genuinely not the user’s fault, and every alternative is two clicks away —
+ * so the message that names them is doing more good than a shorter one that
+ * only says no.
+ */
+const PERMALINK_REFUSAL =
+  'That id is one only Gmail’s own interface understands — no API accepts it, and there is no way to convert it. Three things that do work: open the message, choose "Show original", and paste the Message-ID from the top of that page (it looks like <abc@mail.gmail.com>); or paste a search such as subject:"the exact subject" or from:sam worktop; or label the message GTD/Relevant in Gmail and the bridge will collect it on its next run.';
+
+/**
  * What you pasted, and whether it is worth sending at all.
  *
- * The one case worth refusing up front is the modern Gmail permalink — the
- * `#inbox/FMfcgz…` form. That token belongs to Gmail's own interface; it is not
- * a message id, the API does not accept it, and there is no way to convert one
- * into the other. Telling you so at the moment you paste it is far better than
- * a request that sits pending until a script fails on it an hour later.
- *
- * Everything else goes through. An id, an RFC822 `Message-ID`, or a plain
- * search like `from:sam worktop` are all things Gmail can resolve, and deciding
- * which is which happens in the script where Gmail can actually be asked.
+ * An id, an RFC822 `Message-ID` and a search are all things Gmail can
+ * resolve, and deciding which is which happens in the script, where Gmail
+ * can actually be asked. The one shape refused here is the permalink, which
+ * nothing can resolve — and refusing it at the moment you paste it is far
+ * better than a request that sits pending until a script fails on it an hour
+ * later, or worse, searches for it literally and finds nothing.
  */
 export function readEmailQuery(raw: string): { query: string } | { refuse: string } {
   /*
@@ -63,20 +71,26 @@ export function readEmailQuery(raw: string): { query: string } | { refuse: strin
   if (!text) return { refuse: 'Nothing to look up.' };
 
   const gmail = /^https?:\/\/mail\.google\.com\/.*#[^/]+\/([^/?&#]+)/i.exec(text);
+  const token = gmail ? gmail[1] : text;
 
-  if (gmail) {
-    const token = gmail[1];
+  // A legacy hex id is usable as it stands, in a URL or on its own.
+  if (/^[0-9a-f]{16,}$/i.test(token)) return { query: token };
 
-    // A legacy hex id in a URL is perfectly usable; hand on just the id.
-    if (/^[0-9a-f]{16,}$/i.test(token)) return { query: token };
-
-    return {
-      refuse:
-        'That is a Gmail permalink, and the id in it is one only Gmail’s own ' +
-        'interface understands — the API cannot resolve it. Open the message, ' +
-        'choose “Show original”, and paste the Message-ID from there; or paste a ' +
-        'search like from:sam worktop; or just label it GTD/Relevant in Gmail.',
-    };
+  /*
+   * The permalink id, refused whether it arrives in a URL or on its own.
+   *
+   * It only checked the URL form at first, on the assumption that nobody would
+   * take the id out by hand. Somebody did, immediately — the advice for the
+   * *other* id shape is "copy the id out of the URL", so of course they did —
+   * and a bare `FMfcgz…` fell through as a plain search, which Gmail then ran
+   * literally and matched nothing. A silent nothing is the worst answer of the
+   * three available here.
+   *
+   * The shape is unmistakable: Gmail mints these as long mixed-case tokens
+   * beginning `FMfcg` or `QgrcJ`, and no Gmail search term looks like that.
+   */
+  if (gmail || /^(FMfcg|QgrcJ)[A-Za-z0-9_-]{12,}$/.test(token)) {
+    return { refuse: PERMALINK_REFUSAL };
   }
 
   return { query: text };
