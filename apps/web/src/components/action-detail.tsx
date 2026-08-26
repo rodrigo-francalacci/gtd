@@ -267,6 +267,15 @@ export function ActionDetail({
         groups={docOrder?.groups}
       />
 
+
+      <LinkedDocuments
+        only="emails"
+        parentType="action"
+        parentId={action.id}
+        rows={documents}
+        candidates={documentOptions}
+      />
+
       <footer className="mt-8 border-t border-grey-150 pt-3">
         <button
           type="button"

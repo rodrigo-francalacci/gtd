@@ -11,7 +11,7 @@ import type { SortChoice } from '@/lib/sort';
 import { useFilePreview } from './file-preview';
 import { FileMeta } from './file-meta';
 import { GroupHeading } from './group-heading';
-import { IconBox } from './icons';
+import { IconBox, IconEnvelope } from './icons';
 import { SortControl } from './sort-control';
 
 /**
@@ -27,6 +27,7 @@ export function LinkedDocuments({
   parentType,
   parentId,
   rows,
+  only = 'documents',
   candidates,
   sort,
   sortKey,
@@ -35,6 +36,20 @@ export function LinkedDocuments({
   parentType: AttachmentParentType;
   parentId: string;
   rows: LinkedDocumentRow[];
+  /**
+   * Which half of the box this list is showing.
+   *
+   * Emails are separated from everything else because they are read for a
+   * different reason. A document is evidence — the parking notice, the
+   * quote, the receipt — and you open it to check something. A message is
+   * correspondence: what was agreed, by whom, and when, and the next thing
+   * you do with it is usually reply. Mixing the two produces a list where
+   * neither question is easy to ask.
+   *
+   * One component and one query rather than two of each: the rows are the
+   * same rows, joined the same way, differing only in `kind`.
+   */
+  only?: 'documents' | 'emails';
   /** Recent documents not yet linked here, for the picker. */
   candidates: LinkedDocumentRow[];
   /**
@@ -55,13 +70,19 @@ export function LinkedDocuments({
   const [pending, startTransition] = useTransition();
   const [adding, setAdding] = useState(false);
 
-  if (rows.length === 0 && candidates.length === 0) return null;
+  const emails = only === 'emails';
+  const mine = (row: LinkedDocumentRow) => (row.kind === 'email') === emails;
+
+  const shown = rows.filter(mine);
+  const offered = candidates.filter(mine);
+
+  if (shown.length === 0 && offered.length === 0) return null;
 
   // Headings threaded in as strings, exactly as the attachments list does it.
   const ordered: (LinkedDocumentRow | string)[] = !groups
-    ? rows
+    ? shown
     : (() => {
-        const byId = new Map(rows.map((r) => [r.id, r]));
+        const byId = new Map(shown.map((r) => [r.id, r]));
         return groups.flatMap((group) => {
           const found = group.ids
             .map((id) => byId.get(id))
@@ -77,10 +98,10 @@ export function LinkedDocuments({
           sort label, but the failure is the same one. */}
       <div className="flex flex-wrap items-baseline justify-between gap-x-2 gap-y-1">
         <span className="text-[10px] uppercase tracking-wider text-grey-500">
-          Documents
+          {emails ? 'Relevant emails' : 'Documents'}
         </span>
         <div className="flex min-w-0 flex-wrap items-center justify-end gap-x-3 gap-y-1">
-          {sort && sortKey && rows.length > 1 ? (
+          {sort && sortKey && !emails && shown.length > 1 ? (
             <SortControl viewKey={sortKey} choice={sort} />
           ) : null}
           <button
@@ -88,14 +109,16 @@ export function LinkedDocuments({
             onClick={() => setAdding((v) => !v)}
             className="text-[11px] text-grey-500 underline underline-offset-2 hover:text-grey-800"
           >
-            {adding ? 'Cancel' : 'Link a document'}
+            {adding ? 'Cancel' : emails ? 'Link an email' : 'Link a document'}
           </button>
         </div>
       </div>
 
-      {rows.length === 0 ? (
+      {shown.length === 0 ? (
         <p className="text-[12px] text-grey-500">
-          Nothing from the Big Box is linked here yet.
+          {emails
+            ? 'No messages linked here. Label one in Gmail and it will arrive in a box.'
+            : 'Nothing from the Big Box is linked here yet.'}
         </p>
       ) : (
         <ul className="flex flex-col">
@@ -108,7 +131,7 @@ export function LinkedDocuments({
               className="group flex items-center gap-2 border-b border-grey-150 py-1.5 text-[12px] last:border-0"
             >
               <span className="shrink-0 text-grey-400">
-                <IconBox />
+                {row.kind === 'email' ? <IconEnvelope /> : <IconBox />}
               </span>
 
               {/* Plain click previews; a modified click opens Drive, the way
@@ -117,7 +140,14 @@ export function LinkedDocuments({
                   plain link back to where it sits in its box. */}
               {row.driveFileId ? (
                 <a
-                  href={driveFileUrl(row.driveFileId)}
+                  /*
+                   * A modified click on a message goes to Gmail, not Drive.
+                   * The copy in Drive is a rendering kept for reading and
+                   * searching; the message is the thing you reply to, and
+                   * opening the wrong one is the sort of mistake you only
+                   * notice after typing an answer into it.
+                   */
+                  href={row.url ?? driveFileUrl(row.driveFileId)}
                   target="_blank"
                   rel="noreferrer"
                   /* Counted on the way past by the shell's one listener. On
@@ -213,8 +243,8 @@ export function LinkedDocuments({
           }}
           className="w-full rounded-sm border border-grey-300 bg-paper px-2 py-1 text-[12px] focus:border-grey-500 focus:outline-none"
         >
-          <option value="">Recent documents…</option>
-          {candidates.map((row) => (
+          <option value="">{emails ? 'Recent messages…' : 'Recent documents…'}</option>
+          {offered.map((row) => (
             <option key={row.id} value={row.id}>
               {documentLabel(row)} — {row.boxName}
             </option>

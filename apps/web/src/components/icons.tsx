@@ -302,6 +302,14 @@ export const IconAudio = (p: IconProps) => (
   </Glyph>
 );
 
+/** An email — an envelope, flap down. */
+export const IconEnvelope = (p: IconProps) => (
+  <Glyph {...p}>
+    <rect x="2" y="3.4" width="12" height="9.2" rx="1.4" />
+    <path d="M2.6 4.4 8 8.8l5.4-4.4" />
+  </Glyph>
+);
+
 /** Add a note — ruled lines. */
 export const IconNote = (p: IconProps) => (
   <Glyph {...p}>

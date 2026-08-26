@@ -128,10 +128,33 @@ export async function startBoxUpload(
  * importing a backlog of scans files each one under the day it arrived instead
  * of burying a year of documents under today.
  */
+/**
+ * What a message brought with it, when the thing being filed is an email.
+ *
+ * The body is already in Drive by the time this is called — it went up as
+ * HTML like any other file. These are the facts that are *not* in the file:
+ * who sent it, when they sent it, and where the original still lives. A
+ * rendered message has all three somewhere in its markup and none of them
+ * reliably, which is why the bridge reads them from Gmail and passes them.
+ */
+export type EmailFacts = {
+  subject: string;
+  from: string;
+  /** ISO. The sent date, which is also the day it should file under. */
+  date?: string;
+  /** Back to the real thing, which is where you reply from. */
+  permalink?: string;
+  /** Gmail’s own one-line preview, good enough to be the summary. */
+  snippet?: string;
+  /** The body as text, so search can see inside it without a model. */
+  text?: string;
+};
+
 export async function completeBoxUpload(
   boxId: string,
   driveFileId: string,
   capturedAt?: Date,
+  email?: EmailFacts,
 ): Promise<{ id: string; name: string }> {
   const file = await getFile(driveFileId);
   if (!file) throw new BoxError('That upload could not be found in Drive.');
@@ -160,23 +183,72 @@ export async function completeBoxUpload(
    */
   const readable = canClassify(mimeType);
 
+  /**
+   * An email is filed read, not queued.
+   *
+   * Everything a document is queued to discover, a message already states:
+   * the subject is a better title than a model would write, the sender and
+   * the date are facts rather than readings, and Gmail’s own snippet is a
+   * serviceable summary. Paying to have a mailbox summarised, message by
+   * message, would be the app spending money to learn what the message
+   * already said.
+   *
+   * Tags are the one thing it misses, and they are one press of "Read it
+   * again" away on the pane — which is the right shape, because whether an
+   * email is worth tagging is a judgement about that email.
+   */
+  const queue = readable && !email;
+
   const [row] = await db
     .insert(boxItems)
     .values({
       boxId,
-      kind: 'document',
+      kind: email ? 'email' : 'document',
       driveFileId: file.id,
       name: file.name,
       mimeType,
       sizeBytes: Number.isFinite(size) ? size : null,
-      status: readable ? 'pending' : 'ready',
+      status: queue ? 'pending' : 'ready',
       ...(capturedAt ? { capturedAt } : {}),
+      ...(email
+        ? {
+            title: email.subject || file.name,
+            description: emailSummary(email),
+            url: email.permalink ?? null,
+            docDate: email.date ? email.date.slice(0, 10) : null,
+            text: email.text ?? null,
+            /*
+             * The vector is generated from `search_text`, never from
+             * `text` — the rule this table carries a warning about. An
+             * email whose body was stored and not indexed would be the one
+             * kind of entry search could not see into, which is the
+             * opposite of the point of filing it.
+             */
+            searchText: [emailSummary(email), email.text ?? ""]
+              .filter(Boolean)
+              .join("\n")
+              .slice(0, 100_000) || null,
+          }
+        : {}),
     })
     .returning({ id: boxItems.id, name: boxItems.name });
 
-  if (readable) await enqueueBoxJob(row.id);
+  if (queue) await enqueueBoxJob(row.id);
 
   return row;
+}
+
+/**
+ * The line under an email’s subject in the feed.
+ *
+ * Who it is from first, because in a list of messages that is what tells
+ * them apart — twenty from the same sender is a different problem from
+ * twenty from twenty people. Gmail’s snippet follows when there is one; it
+ * is the first line of the body with the quoting stripped, which is exactly
+ * what a summary of an email should be and costs nothing to obtain.
+ */
+function emailSummary(email: EmailFacts): string {
+  return [email.from, email.snippet].filter(Boolean).join(' — ').slice(0, 500);
 }
 
 /**

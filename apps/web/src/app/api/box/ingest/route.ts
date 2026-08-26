@@ -3,7 +3,12 @@ import { boxes, db } from '@gtd/db';
 import { eq, sql } from 'drizzle-orm';
 import { getSession } from '@/lib/auth/session';
 import { WHY, authoriseSecret } from '@/lib/box/auth';
-import { BoxError, completeBoxUpload, startBoxUpload } from '@/lib/google/boxes';
+import {
+  BoxError,
+  completeBoxUpload,
+  startBoxUpload,
+  type EmailFacts,
+} from '@/lib/google/boxes';
 import { setDocumentExpiry } from '@/lib/actions';
 
 export const dynamic = 'force-dynamic';
@@ -83,6 +88,7 @@ export async function POST(request: Request) {
     capturedAt: string;
     expires: string;
     sourceFolderId: string;
+    email: EmailFacts;
   }>;
 
   /**
@@ -133,6 +139,13 @@ export async function POST(request: Request) {
         box.id,
         body.driveFileId,
         parseCapturedAt(body.capturedAt),
+        /*
+         * Present only for a message. Its subject, sender and permalink are
+         * things Gmail knows and the rendered HTML does not say reliably,
+         * so the bridge reads them there and hands them over rather than
+         * having the app guess at them from markup.
+         */
+        body.email && body.email.subject ? body.email : undefined,
       );
 
       // Applied after the row exists rather than threaded through the insert:

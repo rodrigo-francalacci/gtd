@@ -24,7 +24,13 @@ import {
   type BoxRow,
 } from '@/lib/queries.shared';
 import { useFilePreview, type PreviewFile } from './file-preview';
-import { IconAudio, IconDocument, IconLink, IconPlace } from './icons';
+import {
+  IconAudio,
+  IconDocument,
+  IconEnvelope,
+  IconLink,
+  IconPlace,
+} from './icons';
 
 const arrived = new Intl.DateTimeFormat('en-GB', {
   day: 'numeric',
@@ -202,6 +208,30 @@ export function DocumentDetail({
           className="w-full border-0 border-b border-transparent bg-transparent pb-1 text-[17px] font-medium text-grey-900 placeholder:text-grey-400 focus:border-grey-300 focus:outline-none"
         />
       </header>
+
+      {/*
+        Back to the message itself.
+        
+        What is stored here is a rendering, kept so the words are searchable
+        and readable in a pane. It is not the message: you cannot reply to it,
+        the thread has moved on since, and anything that arrived after it is
+        not in it. So the pane says plainly where the real one is, and the link
+        goes to Gmail rather than to the copy in Drive.
+      */}
+      {item.kind === 'email' && item.url ? (
+        <a
+          href={item.url}
+          target="_blank"
+          rel="noreferrer"
+          className="flex items-center gap-2 rounded-sm border border-grey-200 px-3 py-2 text-[12px] text-grey-700 hover:bg-grey-100"
+        >
+          <IconEnvelope />
+          <span className="min-w-0 flex-1 truncate">
+            Open the original in Gmail
+          </span>
+          <span className="shrink-0 text-[11px] text-grey-400">↗</span>
+        </a>
+      ) : null}
 
       {item.kind === 'link' && item.url ? (
         <a

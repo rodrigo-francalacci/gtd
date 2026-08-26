@@ -1,0 +1,1 @@
+ALTER TYPE "public"."box_item_kind" ADD VALUE 'email';

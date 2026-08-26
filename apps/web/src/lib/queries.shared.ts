@@ -305,6 +305,10 @@ export type BoxItemDetail = BoxItemRow & {
 export type LinkedDocumentRow = {
   id: string;
   boxId: string;
+  /** So a pane can tell an email from a receipt and list them apart. */
+  kind: BoxItemKind;
+  /** A link entry’s address, or an email’s permalink back into Gmail. */
+  url: string | null;
   boxName: string;
   name: string;
   title: string | null;
@@ -329,6 +333,7 @@ export type LinkedDocumentRow = {
 export type EntryType =
   | 'note'
   | 'link'
+  | 'email'
   | 'location'
   | 'image'
   | 'audio'
@@ -343,6 +348,7 @@ export type EntryType =
 export const ENTRY_TYPE_LABELS: Record<EntryType, string> = {
   note: 'Notes',
   link: 'Links',
+  email: 'Email',
   location: 'Places',
   image: 'Images',
   audio: 'Audio',
@@ -359,6 +365,7 @@ export const ENTRY_TYPE_LABELS: Record<EntryType, string> = {
 export const ENTRY_TYPE_ORDER: EntryType[] = [
   'note',
   'link',
+  'email',
   'location',
   'pdf',
   'image',
@@ -375,6 +382,8 @@ export function entryTypeOf(item: {
   kind: BoxItemKind;
   mimeType: string | null;
 }): EntryType {
+  // A note, a place, a link and an email are what they are; only a document
+  // has to be identified by what is inside it.
   if (item.kind !== 'document') return item.kind;
 
   const mime = item.mimeType ?? '';

@@ -1180,6 +1180,8 @@ export async function getLinkedDocuments(
     .select({
       id: boxItems.id,
       boxId: boxItems.boxId,
+      kind: boxItems.kind,
+      url: boxItems.url,
       boxName: boxes.name,
       name: boxItems.name,
       title: boxItems.title,
@@ -1217,7 +1219,7 @@ export async function getLinkedDocuments(
       }),
     );
 
-  return rows as LinkedDocumentRow[];
+  return rows;
 }
 
 /** Documents not yet cited by this thing, for the "link a document" picker. */
@@ -1233,6 +1235,8 @@ export async function getLinkableDocuments(
     .select({
       id: boxItems.id,
       boxId: boxItems.boxId,
+      kind: boxItems.kind,
+      url: boxItems.url,
       boxName: boxes.name,
       name: boxItems.name,
       title: boxItems.title,
@@ -1240,6 +1244,7 @@ export async function getLinkableDocuments(
       mimeType: boxItems.mimeType,
       sizeBytes: boxItems.sizeBytes,
       driveFileId: boxItems.driveFileId,
+      useCount: boxItems.useCount,
       capturedAt: boxItems.capturedAt,
     })
     .from(boxItems)
@@ -1262,7 +1267,7 @@ export async function getLinkableDocuments(
     .orderBy(desc(boxItems.capturedAt))
     .limit(limit);
 
-  return rows as LinkedDocumentRow[];
+  return rows;
 }
 
 /**

@@ -274,6 +274,15 @@ export function ProjectDetail({
         groups={docOrder?.groups}
       />
 
+
+      <LinkedDocuments
+        only="emails"
+        parentType="project"
+        parentId={project.id}
+        rows={documents}
+        candidates={documentOptions}
+      />
+
       <footer className="mt-8 space-y-2 border-t border-grey-150 pt-3">
         {/* Says what is actually true of this project, rather than a fixed
             sentence about the app. Only new projects and status changes queue

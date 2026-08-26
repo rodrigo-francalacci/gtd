@@ -794,11 +794,24 @@ export const boxItemStatus = pgEnum('box_item_status', [
  * `document` is the only kind with a file, and so the only kind the model
  * reads. A note is already in its final form.
  */
+/**
+ * What an entry in a box *is*.
+ *
+ * `email` is a document with a provenance. It has a file like any other — the
+ * message rendered to HTML, in Drive, app-created like everything else — but it
+ * also has a sender, a sent date and a permalink back to Gmail, and it is the
+ * one kind that arrives without anyone touching this app: you label a message
+ * in Gmail and the bridge files it.
+ *
+ * A kind rather than a mime type, because the file is `text/html` and so are a
+ * dozen unrelated things. What makes it an email is where it came from.
+ */
 export const boxItemKind = pgEnum('box_item_kind', [
   'document',
   'note',
   'location',
   'link',
+  'email',
 ]);
 
 /**

@@ -6,6 +6,7 @@ import {
   IconArchive2,
   IconAudio,
   IconDocument,
+  IconEnvelope,
   IconImage,
   IconLink,
   IconNote,
@@ -17,6 +18,7 @@ import {
 const GLYPHS: Record<EntryType, typeof IconDocument> = {
   note: IconNote,
   link: IconLink,
+  email: IconEnvelope,
   location: IconPlace,
   image: IconImage,
   audio: IconAudio,

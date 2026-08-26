@@ -1083,6 +1083,74 @@ to be kept. They meet at `box_item_links` and nowhere else.
   hours, so it is fetched fresh per request and the bytes come through us —
   storing one would produce a gallery that works for an afternoon.
 
+## Email
+
+A message you label in Gmail becomes an entry in a box. `scripts/gtd-email.gs`
+is the bridge, and it is a *second file* in the same Apps Script project as the
+scanner — it reads the same two properties and touches none of that script's
+settings.
+
+- **The app's Gmail scope does not widen, and that is the whole design.**
+  Reading a message body needs `gmail.readonly`, which Google classes as
+  *restricted*: published, it needs an annual security assessment; unpublished,
+  Google expires the refresh token every seven days — and that is the same token
+  Drive sync and the calendar run on, so the cost is not "email breaks weekly",
+  it is "everything does". The Apps Script is not a published app. It is bound to
+  one account, reading its own mail, and needs no verification at all. Exactly
+  the asymmetry the scanner bridge already relies on, used a second time.
+- **A label, not a pasted link, because a Gmail URL has no usable id in it.**
+  The `#inbox/FMfcgz…` on the end of one is a permalink for Gmail's own
+  interface; the API and Apps Script both want the message id and there is no
+  way to convert between them. A label is also better to use — two taps, in the
+  app you are already reading the message in.
+- **Every message in a labelled thread is filed, not just the last.** The quote
+  at the bottom of a reply is a rendering of what came before, not the thing
+  itself, and it is routinely trimmed. Filing each message is what lets the
+  search find whichever one actually said the thing.
+- **An email is filed `ready`, never queued.** Everything a document is queued to
+  discover, a message already states: the subject is a better title than a model
+  would write, the sender and date are facts rather than readings, and Gmail's
+  snippet is a serviceable summary. Having a mailbox summarised message by
+  message would be paying to learn what the message already said. Tags are the
+  one thing it misses and they are one press of "Read it again" away — which is
+  the right shape, because whether a message is worth tagging is a judgement
+  about that message.
+- **The body is stored as HTML in Drive, so it costs nothing new.** It previews
+  through the same sandboxed frame as any other `.html`, which means **remote
+  images do not load**: `sandbox=""` gives the frame an opaque origin and denies
+  scripts, so a tracking pixel in a filed message does not fire when you read it
+  — a better outcome than it gets in most mail clients. `text` and `search_text`
+  are written from the plain body, because on this table the vector is generated
+  from `search_text` and a message stored but unindexed would be the one entry
+  search could not see into.
+- **The script's `safeName` is deliberately identical to the app's.** The app
+  owns a document's title and sweeps Drive to make the filename match it, so a
+  different rule here would mean every message being filed and then immediately
+  renamed, once, for nothing.
+- **`capturedAt` is when the message was *sent*.** A month of correspondence
+  labelled in one sitting would otherwise land under today, which is the one
+  arrangement that makes it impossible to find anything later.
+- **A modified click on a message goes to Gmail, not Drive.** The stored copy is
+  a rendering kept for reading and searching; the message is the thing you reply
+  to, and opening the wrong one is a mistake you notice after typing an answer
+  into it. `box_items.url` holds the permalink, the same column a `link` entry
+  uses for its address.
+- **"Relevant emails" is the same query and the same component as Documents**,
+  split on `kind`. They are read for different reasons — a document is evidence
+  you open to check something, a message is correspondence you open to see what
+  was agreed — and mixing them gives a list where neither question is easy to
+  ask. The emails list borrows the documents' sort rather than carrying a
+  control of its own: two controls writing one preference key is a setting that
+  appears to be in two places and is in one.
+- **`getLinkedDocuments` and `getLinkableDocuments` no longer cast their rows.**
+  `return rows as LinkedDocumentRow[]` was not describing a shape the compiler
+  could not work out, it was overriding one it had worked out correctly — and
+  both queries had drifted from the type they claimed to return. Adding `kind`
+  to the row type changed nothing at runtime: it arrived `undefined`,
+  `undefined === 'email'` is false, and every message filed itself under
+  Documents with nothing anywhere reporting a problem. If a query's row needs a
+  cast, the query is wrong.
+
 ## Enrichment
 
 Attachments are read in the background so search can reach inside them.
