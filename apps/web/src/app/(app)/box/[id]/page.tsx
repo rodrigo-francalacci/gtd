@@ -171,10 +171,20 @@ export default async function BoxPage(props: PageProps<'/box/[id]'>) {
     }
   }
 
-  const targetId =
-    selectedId && shown.some((i) => i.id === selectedId)
-      ? selectedId
-      : (shown[0]?.id ?? null);
+  /**
+   * A chosen row wins over the filters, and that is a change.
+   *
+   * It used to fall back whenever the selection was not among the rows on
+   * screen, which was right while the only reason for that was a filter you
+   * had just changed. It stopped being right when an entry could be in a box
+   * and deliberately not in its feed: arriving from a project, or from search,
+   * the pane would quietly show you a different document.
+   *
+   * `getBoxItem` fetches by id and returns null for anything that is not there,
+   * so an id naming nothing still shows an empty pane — it just does so on the
+   * row not existing rather than on it not being listed.
+   */
+  const targetId = selectedId ?? shown[0]?.id ?? null;
 
   const [selected, projectOptions] = await Promise.all([
     targetId ? getBoxItem(targetId) : Promise.resolve(null),

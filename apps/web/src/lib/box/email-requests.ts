@@ -1,6 +1,6 @@
 import 'server-only';
 
-import { boxItemLinks, boxes, db, emailRequests } from '@gtd/db';
+import { boxItemLinks, boxItems, boxes, db, emailRequests } from '@gtd/db';
 import type { AttachmentParentType } from '@gtd/db';
 import { and, asc, desc, eq, inArray, isNotNull, or, sql } from 'drizzle-orm';
 
@@ -280,6 +280,23 @@ export async function resolveEmailRequest(
         })),
       )
       .onConflictDoNothing();
+
+    /*
+     * Kept out of the feed, because you asked for it somewhere else.
+     *
+     * It is still in the box — it has to be, a box entry belongs to a box by
+     * definition — and it is still searchable and still openable. It simply
+     * does not appear in a list you read like a journal, on a day you were
+     * not filing anything. The pane can put it there whenever you decide it
+     * belongs there.
+     *
+     * A labelled message is untouched by this: nobody asked for that one on
+     * behalf of anything, so the box is exactly where it goes.
+     */
+    await db
+      .update(boxItems)
+      .set({ listed: false })
+      .where(inArray(boxItems.id, itemIds));
   }
 
   /*

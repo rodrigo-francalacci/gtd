@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useEffect, useState, useTransition } from 'react';
 import {
   deleteDocument,
+  setBoxItemListed,
   linkDocument,
   setDocumentArrivedAt,
   setDocumentExpiry,
@@ -617,6 +618,32 @@ export function DocumentDetail({
         ) : (
           <span className="flex items-center gap-2 text-grey-500">
             Box <span className="text-grey-700">{item.boxName}</span>
+            {/*
+              Whether it is in the feed, said where the box is named.
+
+              Only ever shown when the answer is currently no, which is the rare
+              case: everything else is in its box because that is what putting it
+              in a box meant. A control offering to hide things would be an
+              invitation to tidy a box, and a box is not for tidying.
+            */}
+            {item.listed ? null : (
+              <>
+                <span className="text-grey-400">· not in the feed</span>
+                <button
+                  type="button"
+                  disabled={pending}
+                  onClick={() =>
+                    startTransition(async () => {
+                      await setBoxItemListed(item.id, true);
+                      router.refresh();
+                    })
+                  }
+                  className="text-grey-500 underline underline-offset-2 hover:text-grey-800 disabled:opacity-50"
+                >
+                  Add it to {item.boxName}
+                </button>
+              </>
+            )}
             <Link
               href="/box"
               className="underline underline-offset-2 hover:text-grey-800"

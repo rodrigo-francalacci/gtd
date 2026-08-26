@@ -1,0 +1,1 @@
+ALTER TABLE "box_items" ADD COLUMN "listed" boolean DEFAULT true NOT NULL;

@@ -2029,6 +2029,29 @@ async function defaultBox(): Promise<string | null> {
   return row?.id ?? null;
 }
 
+/**
+ * Put an entry in its box's feed, or take it out again.
+ *
+ * The only thing that arrives unlisted is a message fetched for a project:
+ * you asked for it there, so that is where it belongs, and a feed you read
+ * like a journal should not fill up with correspondence you never filed. But
+ * some of it *is* worth filing — the quote you will want beside the receipts
+ * — and this is how you say so, from the pane, one entry at a time.
+ *
+ * Reversible in both directions, because the judgement can go either way and
+ * a one-way door would make people hesitate before using it.
+ */
+export async function setBoxItemListed(id: string, listed: boolean) {
+  await requireSession();
+
+  await db
+    .update(boxItems)
+    .set({ listed, updatedAt: new Date() })
+    .where(eq(boxItems.id, id));
+
+  revalidateShell();
+}
+
 /** Clear a request you have read the failure of. */
 export async function forgetEmail(id: string) {
   await requireSession();

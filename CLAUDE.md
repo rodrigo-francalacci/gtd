@@ -1231,6 +1231,35 @@ settings.
   staged alongside still have to go up, and the screen still has to say what
   happened and reset itself, or a capture looks swallowed.
 
+- **A message fetched for a project does not go in the box's feed.**
+  `box_items.listed` defaults true — you put something in a box so that it would
+  be in the box — and is set false for exactly one case: a message the bridge
+  fetched because a *request carried a parent*. You asked for it on a project,
+  you want it on the project, and having it also appear in a list you read like
+  a journal is the app filing something on your behalf that you never filed.
+  A labelled message is untouched: nobody asked for that one on behalf of
+  anything, so the box is where it goes.
+- **It is a listing decision, not a storage one.** The entry is still in a box,
+  because a `box_item` belongs to one by definition and a message that existed
+  only as a project's evidence would go with the project. It is still
+  searchable, still openable, still linked. The document pane offers *Add it to
+  &lt;box&gt;* whenever you decide it belongs in the feed after all.
+- **The filter lives in `getBoxItems`, not in its callers.** The type counts, the
+  tag counts, the date range and the gallery are all derived from those rows, so
+  one clause keeps every one of them honest. Adding it further out would leave a
+  facet counting entries that are not on screen.
+- **A chosen row now beats the filters.** The selection used to fall back
+  whenever it was not among the rows on screen, which was right while the only
+  reason for that was a filter you had just changed. It stopped being right when
+  an entry could be in a box and deliberately not in its feed: arriving from a
+  project or from search, the pane quietly showed a different document.
+  `getBoxItem` returns null for an id that names nothing, so a bad id still ends
+  in an empty pane — it just does so for the right reason.
+- **The control only offers to *add*, never to hide.** Everything else in a box
+  is there because putting it in a box is what you did. A button offering to take
+  things out of a feed would be an invitation to tidy a box, and a box is not for
+  tidying — it is for keeping.
+
 ## Enrichment
 
 Attachments are read in the background so search can reach inside them.

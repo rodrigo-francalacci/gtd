@@ -889,6 +889,25 @@ export const boxItems = pgTable(
     text: text('text'),
     status: boxItemStatus('status').notNull().default('pending'),
     /**
+     * Whether this shows in its box's feed.
+     *
+     * Almost everything does, which is why the default is true: you put it in
+     * a box so that it would be in the box. The exception is a message fetched
+     * *for* a project — you asked for it there, you want it there, and having
+     * it also turn up in a feed you read like a journal is the app filing
+     * something on your behalf that you did not ask it to file.
+     *
+     * It is still in the box. It has to be: a `box_item` belongs to a box by
+     * definition, and an email that existed only as a project’s evidence would
+     * go with the project. This is a listing decision, not a storage one — the
+     * document pane can put it in the feed whenever you decide it belongs
+     * there, and that is the "add it to the box directly" half.
+     *
+     * General rather than email-only on purpose. The reason to keep something
+     * out of a feed is not a fact about messages.
+     */
+    listed: boolean('listed').notNull().default(true),
+    /**
      * Description, transcription and tag names flattened together. Same
      * arrangement as `list_items`: the vector is generated from a column the
      * app maintains, so anything that writes one must write the other.

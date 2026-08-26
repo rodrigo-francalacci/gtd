@@ -1075,6 +1075,17 @@ export async function getBoxItems(
     .where(
       and(
         eq(boxItems.boxId, boxId),
+        /*
+         * Unlisted entries are in the box and not in its feed. A message
+         * fetched for a project is the case this exists for: you asked for it
+         * there and you want it there, and having it also appear in a feed you
+         * read like a journal is the app filing something on your behalf.
+         *
+         * Here rather than in the caller, because everything downstream — the
+         * type counts, the tag counts, the date range, the gallery — is
+         * derived from these rows, so one clause keeps all of them honest.
+         */
+        eq(boxItems.listed, true),
         tagIds.length === 0
           ? undefined
           : sql`(
@@ -1113,6 +1124,7 @@ export async function getBoxItem(id: string): Promise<BoxItemDetail | null> {
       docDate: boxItems.docDate,
       expiresAt: boxItems.expiresAt,
       text: boxItems.text,
+      listed: boxItems.listed,
       status: boxItems.status,
       capturedAt: boxItems.capturedAt,
       tags: itemTags,
