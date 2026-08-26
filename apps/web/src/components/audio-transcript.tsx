@@ -34,7 +34,7 @@ export function AudioTranscript({
 
   return (
     <div className="flex h-full min-h-0 flex-col bg-paper">
-      <Player objectUrl={objectUrl} />
+      <Player objectUrl={objectUrl} src={src} />
       {transcriptUrl ? (
         <Transcript url={transcriptUrl} />
       ) : (
@@ -48,9 +48,20 @@ export function AudioTranscript({
 
 // ---------------------------------------------------------------------------
 
-function Player({ objectUrl }: { objectUrl: string | null }) {
+function Player({ objectUrl, src }: { objectUrl: string | null; src: string }) {
   const audio = useRef<HTMLAudioElement>(null);
   const [playing, setPlaying] = useState(false);
+  /**
+   * A file the browser will not decode.
+   *
+   * The bytes arrived — that is what `useMediaBlob` reports on — and then the
+   * element could make nothing of them. Without this the transport simply
+   * stayed disabled for ever, which reads as a broken player rather than an
+   * unplayable file and gives no way out. Some formats really are beyond a
+   * given browser, and the honest answer is to say so and offer the file.
+   */
+  const [source, setSource] = useState<'blob' | 'direct' | 'failed'>('blob');
+  const undecodable = source === 'failed';
   const [time, setTime] = useState(0);
   const [duration, setDuration] = useState(0);
 
@@ -120,7 +131,32 @@ function Player({ objectUrl }: { objectUrl: string | null }) {
     return `${m}:${String(s).padStart(2, '0')}`;
   };
 
-  const ready = objectUrl !== null;
+  const ready = (source === 'direct' || objectUrl !== null) && !undecodable;
+
+  if (undecodable) {
+    /*
+     * A dead end said out loud, with a way past it. Downloading plays
+     * it in whatever the machine uses for audio, which is very often a
+     * player with more codecs than a browser has; the transcript below stays
+     * usable either way, because typing out what you heard elsewhere is
+     * still the thing this pane is for.
+     */
+    return (
+      <div className="sticky top-0 z-10 shrink-0 border-b border-grey-200 bg-grey-50 px-3 py-2.5">
+        <p className="text-[12px] text-grey-600">
+          This browser will not play that file.{' '}
+          <a
+            href={src}
+            download
+            className="text-grey-700 underline underline-offset-2 hover:text-grey-900"
+          >
+            Download it
+          </a>{' '}
+          and it will most likely open in whatever plays audio on this machine.
+        </p>
+      </div>
+    );
+  }
 
   return (
     /*
@@ -140,7 +176,7 @@ function Player({ objectUrl }: { objectUrl: string | null }) {
     <div className="sticky top-0 z-10 shrink-0 border-b border-grey-200 bg-grey-50 px-3 py-2.5">
       <audio
         ref={audio}
-        src={objectUrl ?? undefined}
+        src={source === 'direct' ? src : (objectUrl ?? undefined)}
         onLoadedMetadata={onLoadedMetadata}
         onDurationChange={() => {
           const el = audio.current;
@@ -156,6 +192,19 @@ function Player({ objectUrl }: { objectUrl: string | null }) {
         onPlaying={() => setPlaying(true)}
         onPause={() => setPlaying(false)}
         onEnded={() => setPlaying(false)}
+        /**
+         * A blob that will not decode gets one more go, over the network.
+         *
+         * The blob is here because a media element negotiating ranges through
+         * a proxy is easy to get subtly wrong, and because it is what makes a
+         * `MediaRecorder` clip admit to a duration. But it is not strictly
+         * better: an MP4 with its `moov` at the end — which is most of what a
+         * phone records — is exactly the case the element’s own loader
+         * handles and the shortcut can refuse. So the shortcut goes first and
+         * the real loader second, and only then is it a file this browser
+         * will not play. Two attempts, in the order that is right most often.
+         */
+        onError={() => setSource((was) => (was === 'blob' ? 'direct' : 'failed'))}
         className="hidden"
       />
 

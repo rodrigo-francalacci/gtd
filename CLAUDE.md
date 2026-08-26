@@ -514,6 +514,51 @@ Turbopack is the default; `middleware` is now `proxy`.
   48 kHz mono, and the bitrate is set explicitly (32 kbps — a voice note at the
   size Telegram sends one) because `MediaRecorder`'s default is neither
   documented nor generous.
+- **A safety clipper follows the limiter, and it is not decoration.**
+  `DynamicsCompressorNode` is feed-forward with no lookahead, so however fast
+  the attack a transient gets through before the gain moves. Measured on real
+  recordings, the chain was delivering peaks of **+3.8 dBFS** with the limiter
+  set to −1.2: it was working, it simply cannot catch the first millisecond of a
+  plosive, which is the part that clips. A `WaveShaperNode` is a lookup table,
+  so it has no attack to be too slow. Linear below −4.4 dBFS and a `tanh` bend
+  above, joined so value *and* slope are continuous — a plain `tanh` over the
+  whole range pulls a −6 dBFS signal down by nearly a decibel, which is a
+  compressor pretending to be a clipper. Curve sampled across [−2, 2], because
+  the input to this stage really does exceed full scale and a table stopping at
+  1 makes the browser hard-clip at its last entry.
+- **`context.resume()` on the chain, always.** An `AudioContext` built outside a
+  user gesture starts suspended, and a suspended graph feeds its destination
+  silence — the recording would be the right length, the right size, and empty.
+  It is built a moment after `getUserMedia` resolves, which is *usually* still
+  inside the gesture; "usually" is not good enough when the failure mode is a
+  file of nothing.
+- **The recordings were checked by decoding them, not by listening.**
+  `decodeAudioData` on the stored files, then peak and RMS: before the chain, a
+  voice note measured peak −20.6 dBFS and RMS −55.9; after, peak +3.8 and RMS
+  −10.4. That is the whole complaint and the whole fix in two numbers, and it is
+  how the clipping above was found. Do this again before changing any constant.
+- **Media types are normalised on the way out, in `canonicalMediaType`.** A file
+  is typed by whatever produced it, and for audio that is a mess of aliases: an
+  iPhone voice memo arrives as `audio/x-m4a`, some recorders say `audio/m4a` —
+  which Chrome refuses outright, `canPlayType` returning the empty string. On
+  the way *out* rather than at ingest, so the stored type stays a record of what
+  the file claimed and the fix reaches every file already in the app. Unknown
+  types pass through untouched.
+- **The player tries the blob, then the network, then says so.** The blob is
+  there because a media element negotiating ranges through a proxy is easy to
+  get subtly wrong, and because it is what makes a `MediaRecorder` clip admit to
+  a duration — but it is not strictly better. An MP4 with its `moov` at the end,
+  which is most of what a phone records, is exactly what the element's own
+  loader handles well. So: blob, then the direct URL, then an honest message
+  with a download link. What it did before was leave the transport disabled for
+  ever, which reads as a broken player rather than an unplayable file and offers
+  no way out.
+- **A backgrounded tab cannot be used to test media playback.** Chrome suspends
+  media element loading when `document.hidden`, and every `<audio>` probe stalls
+  at `readyState 0` with neither `loadedmetadata` nor `error` — including one on
+  a file that is known to be fine. Diagnosing a playback failure that way
+  produces confident nonsense. `decodeAudioData` is unaffected and is the tool
+  for automated checks; a media element needs a real, focused window.
 - **Markdown, LaTeX and HTML are read *and written* in the preview pane.**
   These are the files where the text *is* the document — nothing is lost by
   showing the source, because the source is all there is — which is what makes

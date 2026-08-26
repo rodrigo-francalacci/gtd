@@ -31,6 +31,33 @@
 const gain = (dB: number) => 10 ** (dB / 20);
 
 /**
+ * The clipper's transfer curve, as a lookup table.
+ *
+ * Sampled across [−2, 2] rather than [−1, 1]: the input to this stage really
+ * does exceed full scale — that is the whole reason it exists — and a table
+ * that stops at 1 would have the browser clamp to its last entry, which is a
+ * hard clip with aliasing rather than the soft bend the curve describes.
+ */
+function clipCurve(points = 4096): Float32Array<ArrayBuffer> {
+  // Backed by an explicit ArrayBuffer: WaveShaperNode.curve is typed as one,
+  // and a bare Float32Array could in principle be over shared memory.
+  const curve = new Float32Array(new ArrayBuffer(points * 4));
+  const span = CLIP_CEILING - CLIP_KNEE;
+
+  for (let i = 0; i < points; i++) {
+    const x = (i / (points - 1)) * 4 - 2;
+    const magnitude = Math.abs(x);
+
+    curve[i] =
+      magnitude <= CLIP_KNEE
+        ? x
+        : Math.sign(x) * (CLIP_KNEE + span * Math.tanh((magnitude - CLIP_KNEE) / span));
+  }
+
+  return curve;
+}
+
+/**
  * Rumble, removed before anything is multiplied by fourteen.
  *
  * Not tone-shaping, and deliberately far below anything a voice uses: a phone
@@ -138,6 +165,30 @@ const LIMIT = {
   release: 0.08,
 } as const;
 
+/**
+ * The safety clipper, and it is not decoration.
+ *
+ * `DynamicsCompressorNode` is a feed-forward compressor with no lookahead, so
+ * however fast the attack, a transient gets through before the gain moves. That
+ * is fine for a compressor and not fine for the last stage before an encoder:
+ * measured on real recordings, this chain was delivering peaks of **+3.8 dBFS**
+ * with the limiter set to −1.2. The limiter was working; it simply cannot catch
+ * the first millisecond of a plosive, which is exactly the part that clips.
+ *
+ * A `WaveShaperNode` is sample-accurate by construction — it is a lookup table,
+ * so it has no attack to be too slow. Nothing gets past it.
+ *
+ * Linear below the knee and a `tanh` bend above, joined so that both the value
+ * and the slope are continuous at the join: below −4.4 dBFS the signal is
+ * untouched, and above it bends smoothly to the ceiling instead of folding
+ * over. A plain `tanh` over the whole range was the first idea and is audibly
+ * wrong — it pulls a −6 dBFS signal down by nearly a decibel, which is a
+ * compressor pretending to be a clipper.
+ */
+const CLIP_KNEE = 0.6;
+/** −1.0 dBFS. Below zero because a lossy decoder reconstructs peaks above it. */
+const CLIP_CEILING = 0.891;
+
 export type VoiceMeter = {
   /** Peak of the last frame, in dBFS. `-Infinity` for silence. */
   peak: number;
@@ -221,6 +272,13 @@ export function buildVoiceChain(source: MediaStream): VoiceChain {
    * earlier and it would be describing a signal that no longer exists by the
    * time it reaches the file.
    */
+  const clipper = context.createWaveShaper();
+  clipper.curve = clipCurve();
+  // No oversampling: the curve is near-linear for all but the top few decibels,
+  // so the harmonics it generates are both rare and low. Four-times
+  // oversampling would add latency to every sample to tidy up a transient.
+  clipper.oversample = '2x';
+
   const analyser = context.createAnalyser();
   analyser.fftSize = 2048;
 
@@ -233,8 +291,19 @@ export function buildVoiceChain(source: MediaStream): VoiceChain {
     .connect(fast)
     .connect(makeup)
     .connect(limiter)
+    .connect(clipper)
     .connect(analyser)
     .connect(output);
+
+  /*
+   * An `AudioContext` constructed outside a user gesture starts suspended, and
+   * a suspended graph feeds its destination silence — so the recording would be
+   * the right length, the right size, and empty. It is created a moment after
+   * `getUserMedia` resolves, which is usually still within the gesture that
+   * opened the recorder, but "usually" is not a thing to rely on when the
+   * failure is a file of nothing.
+   */
+  void context.resume().catch(() => {});
 
   const frame = new Float32Array(analyser.fftSize);
 

@@ -2,6 +2,7 @@ import 'server-only';
 
 import { NextResponse } from 'next/server';
 import { GoogleAuthError } from '../auth/token';
+import { canonicalMediaType } from '../media-types';
 import { downloadFile } from './client';
 
 /**
@@ -82,7 +83,10 @@ export async function serveDriveFile(
   }
 
   const headers = new Headers({
-    'Content-Type': file.mimeType || 'application/octet-stream',
+    // Normalised, because a file is typed by whatever produced it and for
+    // audio that is a mess of aliases a browser does not recognise. See
+    // `canonicalMediaType` — an unknown type passes through untouched.
+    'Content-Type': canonicalMediaType(file.mimeType) || 'application/octet-stream',
     // `inline` so the browser renders it in the pane rather than downloading
     // it. The filename is quoted because it is user input.
     'Content-Disposition': `inline; ${filenameParams(file.name)}`,

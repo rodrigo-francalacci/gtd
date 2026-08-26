@@ -50,8 +50,13 @@ import {
  * behind a voice is what makes a recording sound like a place rather than a
  * telephone.
  *
- * Mono, because a voice note is one voice and the second channel is a copy of
- * the first with a different noise floor.
+ * Stereo is asked for, which reverses the earlier mono decision now that the
+ * level is under control. Mono was right while the point was to keep a voice
+ * note small and a phone microphone is one capsule anyway; it stops being
+ * right the moment you record anything that is not a voice, and an interface
+ * with two inputs was being folded down for a saving that no longer matters at
+ * this bitrate. A device with one capsule still gives one channel, because a
+ * constraint is a request.
  *
  * Plain values rather than `exact`, so a device that can't honour one degrades
  * instead of throwing `OverconstrainedError` and leaving you with no recording
@@ -63,7 +68,7 @@ const VOICE_INPUT: MediaTrackConstraints = {
   noiseSuppression: false,
   autoGainControl: false,
   sampleRate: 48_000,
-  channelCount: 1,
+  channelCount: 2,
 };
 
 /**
@@ -92,19 +97,23 @@ function bestMimeType(): string {
 }
 
 /**
- * 32 kbps mono Opus — a voice note, at the size Telegram sends one.
+ * 128 kbps stereo Opus.
  *
- * Down from 128, which was chosen when the goal was to keep everything the
- * microphone heard. That is a different goal from the one these recordings
- * actually serve, and Opus is not remotely linear here: 32k mono is a codec
- * designed for speech doing the thing it was designed for, and the four times
- * the bitrate was buying headroom for material there is none of.
+ * Back up from 32, and the reasoning that took it down is worth recording
+ * because it was sound at the time and is not any more. 32k mono is what Opus
+ * was designed for and is genuinely transparent *for speech* — the argument was
+ * that four times the bitrate buys headroom for material there is none of.
  *
- * About a quarter of a megabyte a minute, so an hour of thinking out loud is
- * around 14 MB rather than 60 — which matters most on the phone, where these
- * are recorded, on a connection that is paying for them.
+ * What changed is that the level is now under control, and a recording you can
+ * actually hear is a recording you use for more than speech: a room, a rehearsal,
+ * an idea hummed at an instrument. 32k mono is the wrong container for any of
+ * those, and the thing about a lossy encode is that you find out afterwards.
+ *
+ * A megabyte a minute rather than a quarter of one. Uploads go straight to
+ * Drive, so the ceiling is Drive's and the cost is the connection it goes up
+ * on — which is worth a minute of a phone's data for something kept for years.
  */
-const BITRATE = 32_000;
+const BITRATE = 128_000;
 
 export function AudioRecorder({
   onDone,
