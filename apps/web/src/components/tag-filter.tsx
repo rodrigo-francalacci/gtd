@@ -1,49 +1,52 @@
 'use client';
 
-import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import type { BoxCategoryRow } from '@/lib/queries.shared';
-import { TAG_BUDGET, allotTags } from '@/lib/tag-budget';
 import { FilterChip, filterHref } from './filter-chip';
-import { TagPicker } from './tag-picker';
+import { useSidebarSlot } from './sidebar-slot';
 
 /**
- * Narrow a box by its own tags.
+ * The tags worth offering right now — one row, no categories.
  *
  * Links rather than a form, so a filtered view has a URL you can keep: "every
  * Tesco fuel receipt" is a thing worth bookmarking, and a filter held in
  * component state is a filter you have to rebuild every visit.
  *
  * Adding tags narrows — the list needs *all* of them. A filter that widens as
- * you add to it is one you stop trusting after the first surprise.
+ * you add to it is one you stop trusting after the first surprise. Right-click,
+ * or hold on a touchscreen, and the tag is filtered *against* instead.
  *
- * Right-click, or hold on a touchscreen, and the tag is filtered *against*
- * instead: everything except this. The other question a box asks constantly,
- * and one that previously needed every other tag selected by hand — which is
- * not the same thing, and stops working the moment a new tag appears.
+ * **Flat, and that is the change worth explaining.** This used to be a row per
+ * category with a heading on each, which cost a line per category before a
+ * single tag was shown — three lines for four chips, and worse the more
+ * categories a box grew. But the heading was rarely the thing you needed:
+ * "Tesco", "Swindon" and "Receipt" say which axis they are on by being
+ * themselves. So the categories are gone from here and live in the browser,
+ * which is where the question "what tags are there" is actually asked.
  *
- * And it only offers what is still there. Once Tesco is selected, a tag that
- * appears on none of the remaining receipts leads to an empty list, so showing
- * it is offering a dead end — the bar fills up with roads that go nowhere and
- * you stop reading it. The counts come from the rows on screen, so what is
- * listed is exactly what would still find something.
+ * The exception is a name that appears in two categories — a Shell that is both
+ * a vendor and a place — and only *those* carry their category, because that is
+ * the only case where the bare name is genuinely ambiguous. Labelling every
+ * chip to cover a collision that usually doesn't exist is the cost the old
+ * layout was paying.
  *
- * **The bar has a budget, and the budget is what makes it survive a real
- * vocabulary.** Document types stay at half a dozen forever; locations become
- * every town you have bought fuel in, and vendors every shop you have kept a
- * receipt from. Unbounded, the bar ends up taller than the list it filters,
- * which is the one thing a filter must never be. So each category shows as many
- * as its share of `TAG_BUDGET` allows and folds the rest into a searchable
- * panel — see `lib/tag-budget.ts` for why the share is not simply an equal cut.
- *
- * **Which ones survive the fold is decided by the current counts, so it moves
- * as you filter.** That is the point rather than a side effect: after choosing
- * Tesco, the vendors worth offering next are the ones that still co-occur with
- * it, and a bar frozen on the box's all-time favourites would be showing you
- * the wrong five. Anything selected or excluded is kept on the bar whatever its
- * rank — it has a count of zero by definition once excluded, and folding it
- * away would leave no way to undo it.
+ * **What survives the cut is the current count, so it moves as you filter.**
+ * The counts come from the rows on screen, so after choosing Tesco the tags
+ * offered next are the ones that still co-occur with it — not the box's
+ * all-time favourites. Anything chosen is pinned to the front whatever its
+ * rank: an excluded tag has a count of zero by definition, and dropping it
+ * would leave no way to undo it.
  */
+
+/**
+ * How many chips before the row stops being glanceable.
+ *
+ * Fifteen is about two lines in a pane at its usual width. Past that you are
+ * not reading a bar, you are searching one — which is what the browser is for,
+ * and it is one press away.
+ */
+const QUICK_TAGS = 15;
+
 export function TagFilter({
   boxId,
   categories,
@@ -60,136 +63,102 @@ export function TagFilter({
   counts: Record<string, number>;
 }) {
   const searchParams = useSearchParams();
+  const slot = useSidebarSlot();
   const base = `/box/${boxId}`;
 
-  const withTags = categories
-    .map((category) => ({
-      ...category,
-      // A tag in either state stays listed whatever its count, or there would
-      // be no way to undo it — an excluded tag has a count of zero by
-      // definition, so this is the only thing keeping it reachable.
-      tags: category.tags.filter(
+  /** Every tag that would still find something, with the category it came from. */
+  const live = categories.flatMap((category) =>
+    category.tags
+      .filter(
         (tag) =>
           (counts[tag.id] ?? 0) > 0 ||
           selected.includes(tag.id) ||
           excluded.includes(tag.id),
-      ),
-    }))
-    .filter((category) => category.tags.length > 0);
-
-  if (withTags.length === 0) return null;
-
-  /**
-   * Chosen first, then by how much each would narrow the list.
-   *
-   * Two sorts in one: a tag you have already acted on is pinned to the front so
-   * it never falls off the end of its row, and the rest are ranked by their
-   * count in what is currently shown. Ties break on name so the bar does not
-   * reshuffle itself between two renders that mean the same thing.
-   */
-  const ranked = withTags.map((category) => ({
-    ...category,
-    tags: [...category.tags].sort((a, b) => {
-      const chosenA = selected.includes(a.id) || excluded.includes(a.id) ? 1 : 0;
-      const chosenB = selected.includes(b.id) || excluded.includes(b.id) ? 1 : 0;
-      return (
-        chosenB - chosenA ||
-        (counts[b.id] ?? 0) - (counts[a.id] ?? 0) ||
-        a.name.localeCompare(b.name)
-      );
-    }),
-  }));
-
-  const allowed = allotTags(
-    ranked.map((category) => category.tags.length),
-    TAG_BUDGET,
+      )
+      .map((tag) => ({ ...tag, category: category.name })),
   );
 
+  if (live.length === 0) return null;
+
+  /*
+   * Which names need their category to be told apart. Compared the way
+   * `resolveParty` and the tag matcher compare — case and space insensitively —
+   * so "Pay At Pump" and "payatpump" count as the same word colliding.
+   */
+  const seen = new Map<string, Set<string>>();
+  for (const tag of live) {
+    const key = tag.name.toLowerCase().replace(/\s+/g, '');
+    seen.set(key, (seen.get(key) ?? new Set()).add(tag.category));
+  }
+
+  const ambiguous = (name: string) =>
+    (seen.get(name.toLowerCase().replace(/\s+/g, ''))?.size ?? 0) > 1;
+
+  const ranked = [...live].sort((a, b) => {
+    const chosenA = selected.includes(a.id) || excluded.includes(a.id) ? 1 : 0;
+    const chosenB = selected.includes(b.id) || excluded.includes(b.id) ? 1 : 0;
+    return (
+      chosenB - chosenA ||
+      (counts[b.id] ?? 0) - (counts[a.id] ?? 0) ||
+      // Ties break on name so the bar doesn't reshuffle itself between two
+      // renders that mean the same thing.
+      a.name.localeCompare(b.name)
+    );
+  });
+
+  const quick = ranked.slice(0, QUICK_TAGS);
+  const rest = ranked.length - quick.length;
+
   return (
-    <div className="flex flex-col gap-1">
-      {ranked.map((category, index) => {
-        const shown = category.tags.slice(0, allowed[index]);
-        const hidden = category.tags.length - shown.length;
+    <div className="flex flex-wrap items-baseline gap-1">
+      {quick.map((tag) => {
+        const state = selected.includes(tag.id)
+          ? 'include'
+          : excluded.includes(tag.id)
+            ? 'exclude'
+            : 'off';
 
         return (
-          /* `relative`, because the picker hangs off the row rather than off
-             the button that opens it — see `TagPicker` for why. */
-          <div key={category.id} className="relative flex flex-wrap items-baseline gap-1">
-            <span className="mr-1 shrink-0 text-[10px] uppercase tracking-wider text-grey-400">
-              {category.name}
-            </span>
-
-            {shown.map((tag) => {
-              const state = selected.includes(tag.id)
-                ? 'include'
-                : excluded.includes(tag.id)
-                  ? 'exclude'
-                  : 'off';
-
-              return (
-                <FilterChip
-                  key={tag.id}
-                  label={tag.name}
-                  /* What you'd be left with. Worth the space: it turns the bar
-                     from a list of labels into a picture of what's in the box. */
-                  count={counts[tag.id] ?? 0}
-                  state={state}
-                  includeHref={filterHref(
-                    base,
-                    searchParams,
-                    'tag',
-                    'nottag',
-                    tag.id,
-                    // Click is a toggle to and from off; excluding is the other gesture, so
-                    // clicking a struck-through chip clears it rather than flipping it.
-                    state === 'off' ? 'include' : 'off',
-                  )}
-                  excludeHref={filterHref(
-                    base,
-                    searchParams,
-                    'tag',
-                    'nottag',
-                    tag.id,
-                    state === 'exclude' ? 'off' : 'exclude',
-                  )}
-                />
-              );
-            })}
-
-            {hidden > 0 ? (
-              <TagPicker
-                categoryName={category.name}
-                tags={category.tags}
-                counts={counts}
-                selected={selected}
-                excluded={excluded}
-                hiddenCount={hidden}
-                base={base}
-                params={searchParams}
-              />
-            ) : null}
-          </div>
+          <FilterChip
+            key={tag.id}
+            label={ambiguous(tag.name) ? `${tag.category}: ${tag.name}` : tag.name}
+            /* What you'd be left with. Worth the space: it turns the bar from a
+               list of labels into a picture of what's in the box. */
+            count={counts[tag.id] ?? 0}
+            state={state}
+            includeHref={filterHref(
+              base,
+              searchParams,
+              'tag',
+              'nottag',
+              tag.id,
+              // Click toggles to and from off; excluding is the other gesture,
+              // so clicking a struck-through chip clears it rather than
+              // flipping it.
+              state === 'off' ? 'include' : 'off',
+            )}
+            excludeHref={filterHref(
+              base,
+              searchParams,
+              'tag',
+              'nottag',
+              tag.id,
+              state === 'exclude' ? 'off' : 'exclude',
+            )}
+          />
         );
       })}
 
-      {selected.length > 0 || excluded.length > 0 ? (
-        <Link
-          href={clearedHref(boxId, searchParams)}
-          className="self-start text-[11px] text-grey-500 underline underline-offset-2"
-        >
-          Clear tags
-        </Link>
-      ) : null}
+      <button
+        type="button"
+        onClick={() => slot.setOpen(true)}
+        title="Every tag in this box, by category"
+        className="shrink-0 rounded-sm bg-grey-150 px-1.5 py-px text-[11px] text-grey-500 hover:bg-grey-300 hover:text-grey-800"
+      >
+        {/* Says how many are not on the bar when there are any, because "+37"
+            is a fact about this box and "All tags" is a fact about every box. */}
+        {rest > 0 ? `+${rest} more` : 'All tags'}
+      </button>
     </div>
   );
-}
-
-/** Drop the tags, both kinds, and keep everything else — the dates included. */
-function clearedHref(boxId: string, params: URLSearchParams): string {
-  const next = new URLSearchParams(params);
-  next.delete('tag');
-  next.delete('nottag');
-  next.delete('doc');
-  const query = next.toString();
-  return query ? `/box/${boxId}?${query}` : `/box/${boxId}`;
 }

@@ -4,6 +4,7 @@ import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { usePathname, useSearchParams } from 'next/navigation';
 import { PreviewPane, useFilePreview, useOpenPreview } from './file-preview';
 import { MobileBar } from './mobile-bar';
+import { SidebarSlotTarget, useSidebarSlot } from './sidebar-slot';
 import { IconMenu } from './icons';
 
 /**
@@ -36,6 +37,7 @@ export function AppShell({
   const preview = useOpenPreview();
   const { close, focused } = useFilePreview();
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const { open: tagsOpen, setOpen: setTagsOpen } = useSidebarSlot();
   const pathname = usePathname();
   const params = useSearchParams();
   const track = useRef<HTMLElement>(null);
@@ -160,7 +162,10 @@ export function AppShell({
     if (lastSection.current === section) return;
     lastSection.current = section;
     close();
-  }, [section, close]);
+    // The sidebar goes back too. A tag panel for a box you have left is a
+    // panel about nothing, sitting on top of the navigation you need next.
+    setTagsOpen(false);
+  }, [section, close, setTagsOpen]);
 
   /**
    * Back closes the preview instead of leaving the app.
@@ -217,26 +222,54 @@ export function AppShell({
          * the act of choosing rather than on the route changing afterwards.
          * Tying it to the route would also leave it open when you tap the view
          * you are already on — nothing changes, so nothing would close it.
+         *
+         * A takeover is exempt: its links are filters, and choosing two or
+         * three in a row is the normal way to use it.
          */
         onClick={(event) => {
+          if (tagsOpen) return;
           if ((event.target as Element).closest('a')) setDrawerOpen(false);
         }}
         className={[
-          'z-50 shrink-0',
-          'max-md:fixed max-md:inset-y-0 max-md:left-0 max-md:w-72 max-md:transition-transform',
-          drawerOpen ? 'max-md:translate-x-0' : 'max-md:-translate-x-full',
+          'relative z-50 shrink-0',
+          'max-md:fixed max-md:inset-y-0 max-md:left-0 max-md:transition-transform',
+          /*
+           * Wider while it is lent out. A navigation drawer wants to leave some
+           * of the pane behind it visible, so you can see what you are leaving;
+           * a panel you are reading and typing into wants the screen. Same
+           * element, two jobs, and the width is the honest difference between
+           * them.
+           */
+          tagsOpen ? 'max-md:w-[88vw]' : 'max-md:w-72',
+          drawerOpen || tagsOpen
+            ? 'max-md:translate-x-0'
+            : 'max-md:-translate-x-full',
         ].join(' ')}
       >
         {sidebar}
+
+        {/*
+          Where a takeover panel portals to.
+
+          A sibling of the navigation rather than a replacement for it: the panel
+          covers it with an opaque background, so nothing has to be unmounted and
+          the sidebar's own scroll position survives being borrowed. Empty and
+          inert the rest of the time.
+        */}
+        <SidebarSlotTarget />
       </div>
 
       {/* Tapping away closes it — the standard way out of a drawer, and the
-          one people try first. */}
-      {drawerOpen ? (
+          one people try first. A takeover closes the same way, which is what
+          makes it feel like the modal it is on a phone. */}
+      {drawerOpen || tagsOpen ? (
         <button
           type="button"
-          aria-label="Close menu"
-          onClick={() => setDrawerOpen(false)}
+          aria-label={tagsOpen ? 'Close tags' : 'Close menu'}
+          onClick={() => {
+            setDrawerOpen(false);
+            setTagsOpen(false);
+          }}
           className="z-40 bg-ink/40 max-md:fixed max-md:inset-0 md:hidden"
         />
       ) : null}

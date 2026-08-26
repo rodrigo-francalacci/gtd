@@ -9,6 +9,7 @@ import { DateRange } from '@/components/date-range';
 import { DocumentGalleryRow } from '@/components/document-gallery-row';
 import { DocumentRow } from '@/components/document-row';
 import { ReadWaiting } from '@/components/read-waiting';
+import { TagBrowser } from '@/components/tag-browser';
 import { TagFilter } from '@/components/tag-filter';
 import { TypeFilter } from '@/components/type-filter';
 import { DetailPane, EmptyDetail, EmptyList, ListPane } from '@/components/panes';
@@ -206,7 +207,7 @@ export default async function BoxPage(props: PageProps<'/box/[id]'>) {
               href={`/box?box=${id}`}
               className="text-[11px] text-grey-500 underline underline-offset-2 hover:text-grey-800"
             >
-              Tags
+              Manage tags
             </Link>
           </>
         }
@@ -238,6 +239,20 @@ export default async function BoxPage(props: PageProps<'/box/[id]'>) {
               selected={tagIds}
               excluded={excludedTags}
               counts={tagCounts}
+            />
+            {/*
+              Renders nothing here. It portals into the sidebar when opened,
+              because the thing that knows what the tags are is this page and
+              the column it wants is four route segments above it.
+            */}
+            <TagBrowser
+              boxId={id}
+              boxName={box.name}
+              categories={categories}
+              selected={tagIds}
+              excluded={excludedTags}
+              counts={tagCounts}
+              showing={shown.length}
             />
           </div>
         }

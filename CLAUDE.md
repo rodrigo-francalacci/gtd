@@ -967,32 +967,49 @@ to be kept. They meet at `box_item_links` and nowhere else.
   `apple-touch-icon`, then the first real image on the page (a masthead or a
   logo, which is what makes a site recognisable), then the favicon. Both links
   in the first real test had no `og:image` and both now have a picture.
-- **The tag bar has a budget, because a box's vocabulary has none.** Document
-  types stay at half a dozen forever; locations become every town you have
-  bought fuel in and vendors every shop you have kept a receipt from. Unbounded,
-  the bar ends up taller than the list it filters, which is the one thing a
-  filter must never be. `allotTags` shares `TAG_BUDGET` (15) across the
-  categories and **hands back what the small ones do not need** — a flat cap per
-  category is the obvious answer and the wrong one, because it truncates a
-  category of four as readily as one of four hundred. It also never folds a
-  single tag away: a "+1" costs the same width as the chip it hides and says
-  less.
-- **Which tags survive the fold moves as you filter, and that is the point.**
-  The ranking is the current count, which is already taken from the rows on
-  screen — so after choosing Tesco the vendors offered next are the ones that
-  still co-occur with it, not the box's all-time favourites. Anything selected
-  or excluded is pinned to the front of its row whatever its rank: an excluded
-  tag has a count of zero by definition, and folding it away would leave no way
-  to undo it.
-- **The overflow is a search field, not a longer list.** Past twenty tags you
-  are not scanning, you are looking for one you already have in mind, and typing
-  three letters beats reading two hundred chips however they are arranged. The
-  panel lists the category's *whole* vocabulary including the tags already on
-  the bar — hiding those would make the search lie, returning nothing for a tag
-  that was on screen three chips to the left. It hangs off the *row*, not off
-  the button that opens it: the button sits at the end of a wrapping row, so its
-  position is whatever the chips before it left, and a panel anchored there
-  opens off the edge of a narrow pane about half the time.
+- **The quick tag bar is flat; the categories live in the browser.** It was a
+  row per category with a heading on each, which cost a line per category
+  before a single tag was shown — three lines for four chips, and worse the
+  more categories a box grows. The heading was rarely the thing you needed:
+  "Tesco", "Swindon" and "Receipt" say which axis they are on by being
+  themselves. So the bar is one wrapping row of the fifteen tags that would
+  narrow the list most, and the question *what tags are there* is answered
+  somewhere with room to answer it.
+  The exception is a name in two categories — a Shell that is both a vendor
+  and a place — and only *those* carry their category, matched case- and
+  space-insensitively like every other tag comparison. Labelling every chip to
+  cover a collision that usually doesn't exist is what the old layout was
+  paying for.
+- **What survives the cut is the current count, so the bar moves as you
+  filter.** The counts already come from the rows on screen, so after choosing
+  Tesco the tags offered next are the ones that still co-occur with it, not the
+  box's all-time favourites. Anything chosen is pinned to the front whatever
+  its rank: an excluded tag has a count of zero by definition, and dropping it
+  would leave no way to undo it.
+- **The tag browser borrows the sidebar, and that is one component doing two
+  jobs on purpose.** The first column is navigation, and while you are
+  filtering a box it is the one column doing nothing — it is already tall,
+  narrow and scrollable, which is the shape of a grouped vocabulary. More
+  importantly **it is already a drawer on a phone**, so a panel rendered there
+  is a modal on a phone and a column on a desktop without either being written
+  twice. It widens to `88vw` while lent out: a navigation drawer wants to leave
+  the pane behind it visible, a panel you read and type into wants the screen.
+  Opening the list over the *list* was the alternative and is wrong — the list
+  is what you are filtering, and covering it means choosing tags blind.
+- **`SidebarSlotProvider` holds the state; the panel portals in from the box
+  page.** The thing that knows what the tags are is four route segments below
+  the column it wants, which is the same problem `FilePreviewProvider` solves
+  the same way. The portal target is a `display: contents` div rendered by
+  `SidebarSlotTarget` rather than a `ref={slot.attach}` in the shell: the
+  compiler reasonably concludes that an object handed to a `ref` is ref-like,
+  and then every read of `slot.open` during the shell render is a ref access
+  during render, which it refuses.
+- **Choosing in the browser does not close it.** A popover that shuts on the
+  first click is right for a quick action and wrong here: narrowing a box is
+  two or three tags and you want to see each one land before picking the next.
+  The counts update in place because the page re-renders on the server and they
+  are its props. Leaving the section hands the sidebar back, for the same
+  reason it closes the preview.
 - **The filter offers only what would still find something.** Once Tesco is
   selected, a tag on none of the remaining receipts leads to an empty list, and
   a bar full of dead ends is a bar you stop reading. Counts come from the rows

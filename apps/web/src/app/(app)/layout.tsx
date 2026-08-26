@@ -2,6 +2,7 @@ import { AppShell } from '@/components/app-shell';
 import { CaptureHotkey } from '@/components/capture-hotkey';
 import { FilePreviewProvider } from '@/components/file-preview';
 import { SidebarNav } from '@/components/sidebar';
+import { SidebarSlotProvider } from '@/components/sidebar-slot';
 import { UsageTracker } from '@/components/usage-tracker';
 import { requireSession } from '@/lib/auth/session';
 import { getBoxes, getLists, getSidebarCounts } from '@/lib/queries';
@@ -29,23 +30,25 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     /* Preview state only — `AppShell` decides where the pane goes, because
        that differs between the two layouts and nothing else does. */
     <FilePreviewProvider>
-      {/* Both render nothing. One listens for `c` so a thought can be captured
-          from wherever you are; the other counts what gets opened. */}
-      <CaptureHotkey />
-      <UsageTracker />
+      <SidebarSlotProvider>
+        {/* Both render nothing. One listens for `c` so a thought can be captured
+            from wherever you are; the other counts what gets opened. */}
+        <CaptureHotkey />
+        <UsageTracker />
 
-      <AppShell
-        sidebar={
-          <SidebarNav
-            counts={counts}
-            lists={lists}
-            boxes={boxes}
-            theme={prefs.theme}
-          />
-        }
-      >
-        {children}
-      </AppShell>
+        <AppShell
+          sidebar={
+            <SidebarNav
+              counts={counts}
+              lists={lists}
+              boxes={boxes}
+              theme={prefs.theme}
+            />
+          }
+        >
+          {children}
+        </AppShell>
+      </SidebarSlotProvider>
     </FilePreviewProvider>
   );
 }
