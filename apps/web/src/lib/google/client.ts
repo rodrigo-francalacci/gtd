@@ -293,6 +293,101 @@ export async function createGoogleFile(
 }
 
 /**
+ * Create a real file with real bytes, in one request.
+ *
+ * The counterpart to `createGoogleFile` for the formats that are not Google's:
+ * a `.md`, a `.tex`, a `.html`. They are ordinary files with content, so unlike
+ * a Docs-editor file there *is* something to upload — but it is a few hundred
+ * bytes of starter text, not a scan, so the three-step resumable dance that
+ * exists to keep large uploads out of our function would be pure ceremony here.
+ * One multipart request creates the metadata and the content together.
+ *
+ * `multipart/related` with a hand-written boundary because that is the shape
+ * Drive's upload endpoint takes and there is no SDK in this app to hide it.
+ */
+export async function createTextFile(
+  name: string,
+  mimeType: string,
+  parentId: string,
+  content: string,
+): Promise<DriveFile> {
+  const token = await getAccessToken();
+  const boundary = `gtd-${crypto.randomUUID()}`;
+
+  const body =
+    `--${boundary}\r\n` +
+    'Content-Type: application/json; charset=UTF-8\r\n\r\n' +
+    `${JSON.stringify({ name, mimeType, parents: [parentId] })}\r\n` +
+    `--${boundary}\r\n` +
+    `Content-Type: ${mimeType}; charset=UTF-8\r\n\r\n` +
+    `${content}\r\n` +
+    `--${boundary}--`;
+
+  const response = await fetch(
+    'https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,name,size,mimeType',
+    {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': `multipart/related; boundary=${boundary}`,
+      },
+      body,
+    },
+  );
+
+  if (!response.ok) {
+    throw new GoogleApiError(
+      `create ${mimeType} failed: ${response.status} ${await response.text()}`,
+      response.status,
+    );
+  }
+
+  return (await response.json()) as DriveFile;
+}
+
+/**
+ * Replace a file's contents, leaving its id, name and place alone.
+ *
+ * What makes the preview pane an editor rather than a viewer. `drive.file` is
+ * enough on its own: the scope covers files this app created, and creating
+ * includes writing to them afterwards — the same reasoning that lets
+ * `renameBoxFiles` retitle a scan.
+ *
+ * `PATCH` on the upload host with `uploadType=media` is the whole of it. There
+ * is deliberately no revision handling: Drive keeps its own version history for
+ * the file, which is a better record than anything this app would invent, and
+ * is reachable from the Drive link every pane already carries.
+ */
+export async function updateFileContent(
+  fileId: string,
+  mimeType: string,
+  content: string,
+): Promise<DriveFile> {
+  const token = await getAccessToken();
+
+  const response = await fetch(
+    `https://www.googleapis.com/upload/drive/v3/files/${fileId}?uploadType=media&fields=id,name,size,mimeType`,
+    {
+      method: 'PATCH',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': `${mimeType}; charset=UTF-8`,
+      },
+      body: content,
+    },
+  );
+
+  if (!response.ok) {
+    throw new GoogleApiError(
+      `update ${fileId} failed: ${response.status} ${await response.text()}`,
+      response.status,
+    );
+  }
+
+  return (await response.json()) as DriveFile;
+}
+
+/**
  * Export a Docs-editor file to a real format.
  *
  * `alt=media` refuses these outright — there is no binary to fetch — so

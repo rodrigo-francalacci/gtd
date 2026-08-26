@@ -47,7 +47,7 @@ import {
   createGoogleDocument,
   removeAttachment,
 } from './google/attachments';
-import { deleteBoxItem } from './google/boxes';
+import { createBoxDocument, deleteBoxItem } from './google/boxes';
 import { enqueueSync } from './google/queue';
 import { enqueueBoxJob } from './box/queue';
 import { canClassify } from './box/classify';
@@ -1941,6 +1941,21 @@ export async function moveDocument(itemId: string, boxId: string) {
    * by hand — "Read it again" is right there when it is what you meant.
    */
   revalidateShell();
+}
+
+/**
+ * Make a new document in a box and hand back enough to open it.
+ *
+ * The pane needs the Drive id as well as the row id, because a Google format
+ * is previewed by embedding Google’s own editor and that addresses Drive
+ * directly. Returning it here saves the caller a second read of a row it has
+ * just caused to exist.
+ */
+export async function createBoxFile(boxId: string, mimeType: string, name: string) {
+  await requireSession();
+  const row = await createBoxDocument(boxId, mimeType, name);
+  revalidateShell();
+  return row;
 }
 
 /**

@@ -13,20 +13,21 @@ import {
   isStale,
 } from '@/lib/queries';
 import { getPreferences, paneWidth } from '@/lib/view-mode';
-import { densityKeys, getDensity } from '@/lib/view-prefs';
+import { densityKeys, getView } from '@/lib/view-prefs';
 
 export default async function WaitingPage(props: PageProps<'/waiting'>) {
   const searchParams = await props.searchParams;
   const selectedId = typeof searchParams.action === 'string' ? searchParams.action : null;
 
-  const [rows, groups, selected, prefs] = await Promise.all([
+  const viewKey = densityKeys.path('/waiting');
+  const [rows, groups, selected, prefs, view] = await Promise.all([
     getWaitingActions(),
     getContextsByDimension(),
     selectedId ? getAction(selectedId) : Promise.resolve(null),
     getPreferences(),
+    getView(viewKey),
   ]);
-  const viewKey = densityKeys.path('/waiting');
-  const viewMode = await getDensity(viewKey, prefs.viewMode);
+  const viewMode = view.density ?? prefs.viewMode;
 
   const staleCount = rows.filter((r) => isStale(r.waitingSince)).length;
 

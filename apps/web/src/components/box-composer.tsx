@@ -2,11 +2,14 @@
 
 import { useRouter } from 'next/navigation';
 import { useRef, useState, useTransition } from 'react';
-import { postBoxLink, postBoxLocation, postBoxNote } from '@/lib/actions';
+import { createBoxFile, postBoxLink, postBoxLocation, postBoxNote } from '@/lib/actions';
 import { uploadToBox } from '@/lib/box-upload';
+import { driveFileUrl } from '@/lib/google/sync';
 import { soleUrl } from '@/lib/sole-url';
 import { AudioRecorder } from './audio-recorder';
+import { useFilePreview } from './file-preview';
 import { IconAudio, IconCamera, IconPaperclip, IconPlace } from './icons';
+import { NewDocumentMenu } from './new-document-menu';
 
 /**
  * Writing into a box.
@@ -25,6 +28,7 @@ export function BoxComposer({ boxId }: { boxId: string }) {
   const [, startTransition] = useTransition();
   const input = useRef<HTMLInputElement>(null);
   const camera = useRef<HTMLInputElement>(null);
+  const preview = useFilePreview();
 
   const [text, setText] = useState('');
   const [busy, setBusy] = useState<string | null>(null);
@@ -42,7 +46,46 @@ export function BoxComposer({ boxId }: { boxId: string }) {
    */
   const [useFileDate, setUseFileDate] = useState(false);
   const [recording, setRecording] = useState(false);
+  const [creating, setCreating] = useState(false);
   const [over, setOver] = useState(false);
+
+  /**
+   * A new document, filed here and opened straight away.
+   *
+   * Opened rather than merely created, for the reason the attachments pane
+   * gives: making a document and then leaving you to go and find it in the feed
+   * you are already looking at would be a strange way round. Which editor
+   * appears is the file's business — Google's formats embed Google's, and
+   * markdown, LaTeX and HTML get the preview pane's own.
+   */
+  const create = async (mimeType: string, label: string) => {
+    setError(null);
+    setCreating(true);
+
+    try {
+      const row = await createBoxFile(
+        boxId,
+        mimeType,
+        `${label} — ${new Date().toLocaleDateString('en-GB')}`,
+      );
+
+      preview.open({
+        id: row.id,
+        name: row.name,
+        src: `/api/box/${row.id}/file`,
+        transcriptUrl: `/api/box/${row.id}/transcript`,
+        mimeType: row.mimeType,
+        driveFileId: row.driveFileId,
+        driveUrl: driveFileUrl(row.driveFileId),
+      });
+
+      router.refresh();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Could not make that document.');
+    } finally {
+      setCreating(false);
+    }
+  };
 
   const post = () => {
     const body = text.trim();
@@ -262,6 +305,23 @@ export function BoxComposer({ boxId }: { boxId: string }) {
         >
           <IconPlace />
         </button>
+
+        {/*
+          One control, six choices — which is the only shape this row can take
+          another button in. The composer's whole argument is that a journal
+          needing a form filled in is a journal you stop keeping, and it already
+          carries four buttons, a date checkbox and a status line. Six visible
+          "new …" buttons would settle the argument the wrong way.
+
+          A document made here is filed the moment it exists and written
+          afterwards, which is the order a box wants: the alternative is
+          composing it somewhere else and remembering to come back.
+        */}
+        <NewDocumentMenu
+          disabled={creating}
+          label="New doc"
+          onChoose={(kind) => void create(kind.mimeType, kind.label)}
+        />
 
         <label
           className="flex shrink-0 items-center gap-1 text-[11px] text-grey-500"

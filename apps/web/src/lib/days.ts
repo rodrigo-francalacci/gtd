@@ -29,6 +29,30 @@ const dayKey = new Intl.DateTimeFormat('en-CA');
 
 const DAY_MS = 86_400_000;
 
+/** Today, spelled out in full: "Wednesday 26 August 2026". */
+const fullDate = new Intl.DateTimeFormat('en-GB', {
+  weekday: 'long',
+  day: 'numeric',
+  month: 'long',
+  year: 'numeric',
+});
+
+/**
+ * What day it is now.
+ *
+ * Formatted here rather than in the component that shows it, so it is cut
+ * in the same timezone as every heading in the app — a calendar announcing
+ * one date while the day chip under the first event says another would be
+ * the app disagreeing with itself in a single glance.
+ *
+ * Takes `now` so a caller can be a Server Component and hand the answer
+ * down. A client computing it in render is both impure and a hydration
+ * mismatch waiting for midnight.
+ */
+export function todayLabel(now = new Date()): string {
+  return fullDate.format(now);
+}
+
 export type Day<T> = { key: string; label: string; items: T[] };
 
 export function dayLabel(date: Date, now = new Date()): string {

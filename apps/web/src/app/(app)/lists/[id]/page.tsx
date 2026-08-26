@@ -17,7 +17,7 @@ import {
   getProjectOptions,
 } from '@/lib/queries';
 import { getPreferences, paneWidth } from '@/lib/view-mode';
-import { densityKeys, getDensity, getLayout } from '@/lib/view-prefs';
+import { densityKeys, getView } from '@/lib/view-prefs';
 import { DayHeading } from '@/components/day-heading';
 import { LayoutToggle } from '@/components/layout-toggle';
 import { ListItemRow } from '@/components/list-item-row';
@@ -53,15 +53,16 @@ export default async function ListPage(props: PageProps<'/lists/[id]'>) {
     typeof searchParams.impact === 'string' ? searchParams.impact : undefined;
   const where = typeof searchParams.where === 'string' ? searchParams.where : undefined;
 
-  const [allItems, selected, projectOptions, prefs] = await Promise.all([
+  const viewKey = densityKeys.list(id);
+  const [allItems, selected, projectOptions, prefs, view] = await Promise.all([
     getListItems(id),
     selectedId ? getListItem(selectedId) : Promise.resolve(null),
     isPurchases ? getProjectOptions() : Promise.resolve([]),
     getPreferences(),
+    getView(viewKey),
   ]);
-  const viewKey = densityKeys.list(id);
-  const viewMode = await getDensity(viewKey, prefs.viewMode);
-  const layout = await getLayout(viewKey);
+  const viewMode = view.density ?? prefs.viewMode;
+  const layout = view.layout;
 
   // Filters narrow the list, but the budget totals stay over the whole list —
   // a filtered subtotal masquerading as the budget would be misleading.

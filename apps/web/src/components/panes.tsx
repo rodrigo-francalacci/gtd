@@ -5,22 +5,31 @@ import { ResizablePane } from './resizable-pane';
 import { ViewToggle } from './view-toggle';
 
 /**
- * What the third pane gives up once the file preview is open.
+ * What the detail pane gives up once the file preview is open.
  *
- * `0 1 41rem`: no longer grows, so the preview takes everything left over;
+ * `0 1 38rem`: no longer grows, so the preview takes everything left over;
  * still shrinks, so a narrow window squeezes this rather than overflowing.
- * 41rem is the note column's own measure (38rem) plus its padding, so nothing
- * inside the pane reflows — it stops stretching empty background it wasn't
- * using. With no preview open the class doesn't apply and the pane fills the
- * window exactly as before.
  *
- * This used to need a matching rule on the shell's `<main>`, which wrapped
+ * 38rem because that is exactly what the pane’s contents are: the inner
+ * column is `max-w-[38rem] px-7`, and `box-sizing: border-box` means the
+ * padding is *inside* that figure, not added to it. It was 41rem on the
+ * arithmetic of a content box — 38 plus 3.5 of padding, rounded — which left a
+ * 3rem strip down the right of the pane that nothing could ever be drawn in
+ * and that the preview was not allowed to use. Dead space is bad enough on
+ * its own; dead space taken *from* the pane you opened to look at something
+ * is the wrong way round.
+ *
+ * With no preview open the class does not apply and the pane fills the window
+ * as before — the empty room to the right of the text is then the window’s,
+ * not something withheld from another pane.
+ *
+ * This used to need a matching rule on the shell’s `<main>`, which wrapped
  * panes 2 and 3 — capping only the pane inside it moved the empty space one
  * level up and still left the preview with half the window. That wrapper is
  * gone: `<main>` is now the pane track itself, so every pane is a direct
  * child of one flex container and the cap lands where it is written.
  */
-const CAPPED_BY_PREVIEW = 'group-data-[preview=open]/shell:flex-[0_1_41rem]';
+const CAPPED_BY_PREVIEW = 'group-data-[preview=open]/shell:flex-[0_1_38rem]';
 
 /**
  * The middle pane: a scrolling list with a sticky header.
@@ -31,6 +40,7 @@ const CAPPED_BY_PREVIEW = 'group-data-[preview=open]/shell:flex-[0_1_41rem]';
  */
 export function ListPane({
   title,
+  titleNote,
   subtitle,
   actions,
   fill = false,
@@ -42,6 +52,15 @@ export function ListPane({
   children,
 }: {
   title: string;
+  /**
+   * A fact about the pane that sits beside its name rather than under it.
+   *
+   * Distinct from `subtitle`, which describes the *contents* and changes as
+   * they do ("14 coming up", "Nothing booked"). This is for something as
+   * fixed as the heading itself — today’s date over a calendar — and it is
+   * set in the heading’s own line so it reads as part of the name.
+   */
+  titleNote?: string;
   subtitle?: ReactNode;
   actions?: ReactNode;
   /** Take the remaining space instead of a fixed, resizable width. */
@@ -85,8 +104,15 @@ export function ListPane({
       */}
       <header className="relative z-10 border-b border-grey-200 px-4 py-3">
         <div className="flex items-baseline justify-between gap-2">
-          <h1 className="text-[13px] font-semibold uppercase tracking-wide text-grey-700">
+          <h1 className="min-w-0 truncate text-[13px] font-semibold uppercase tracking-wide text-grey-700">
             {title}
+            {titleNote ? (
+              // Same line, lighter weight: it is a caption on the name, not a
+              // second heading competing with it.
+              <span className="ml-2 font-normal tracking-normal text-grey-400">
+                {titleNote}
+              </span>
+            ) : null}
           </h1>
           <div className="flex items-center gap-2">
             {actions}

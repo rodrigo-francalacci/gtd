@@ -6,10 +6,12 @@ import { and, eq, isNotNull, ne, sql } from 'drizzle-orm';
 import { getGrant } from '@/lib/auth/token';
 import { hasSyncScopes } from '@/lib/auth/google';
 import { enqueueEnrichment } from '@/lib/enrich/queue';
+import { FORMAT_BY_MIME } from '@/lib/text-formats';
 import { MAX_UPLOAD_BYTES } from '@/lib/upload';
 import {
   createGoogleFile,
   createResumableSession,
+  createTextFile,
   ensureFolder,
   getFile,
   renameFile,
@@ -238,11 +240,18 @@ export async function completeUpload(
 }
 
 /**
- * Make an empty Google Doc or Sheet on this project, action or list item.
+ * Make an empty document on this project, action or list item.
  *
- * The counterpart to uploading: there are no bytes, so nothing has to squeeze
- * through a request body, and the result is editable in the preview pane
- * rather than only readable. It lands in the same folder an upload would.
+ * The counterpart to uploading, and it now covers two kinds of empty. A Google
+ * Doc, Sheet or deck has no bytes at all — it is metadata and whatever Google
+ * keeps behind it — so `createGoogleFile` is the whole call. A markdown, LaTeX
+ * or HTML file is an ordinary file that happens to be nearly empty, so it is
+ * created *with* its starter text in one multipart request.
+ *
+ * Both land in the same folder an upload would, and both come back as an
+ * attachment row indistinguishable from any other. What differs afterwards is
+ * only where they are edited: Google's formats open their own editor in the
+ * preview pane, and these open ours.
  */
 export async function createGoogleDocument(
   parentType: AttachmentParentType,
@@ -257,9 +266,23 @@ export async function createGoogleDocument(
     );
   }
 
-  const title = safeName(name) || 'Untitled';
+  const format = FORMAT_BY_MIME[mimeType];
+
+  /*
+   * The extension is part of the name for a text file and meaningless for a
+   * Google one. It matters more than it looks: `formatOf` reads the name first
+   * precisely because a type header cannot be trusted, so a `.tex` created
+   * without its extension would come back from Drive as an unrecognised file
+   * and open in the wrong view.
+   */
+  const base = safeName(name) || 'Untitled';
+  const title = format ? `${base}.${format.extension}` : base;
+
   const folderId = await destinationFolder(parentType, parentId);
-  const created = await createGoogleFile(title, mimeType, folderId);
+
+  const created = format
+    ? await createTextFile(title, format.mime, folderId, format.starter)
+    : await createGoogleFile(title, mimeType, folderId);
 
   const [row] = await db
     .insert(attachments)
@@ -271,8 +294,11 @@ export async function createGoogleDocument(
       name: created.name ?? title,
       driveName: created.name ?? title,
       mimeType,
-      // Google stores it; there is no size on our side to record.
-      sizeBytes: null,
+      // A Docs-editor file has no size on our side — Google stores it. A text
+      // file has exactly the starter text in it, which is what Drive reports
+      // back, so the row is right from the moment it is written rather than
+      // saying "—" until something else happens to touch it.
+      sizeBytes: format ? new TextEncoder().encode(format.starter).length : null,
     })
     .returning({
       id: attachments.id,

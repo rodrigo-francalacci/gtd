@@ -11,7 +11,7 @@ import {
   getProjectActions,
 } from '@/lib/queries';
 import { getPreferences, paneWidth } from '@/lib/view-mode';
-import { densityKeys, getDensity } from '@/lib/view-prefs';
+import { densityKeys, getView } from '@/lib/view-prefs';
 
 const dateFormat = new Intl.DateTimeFormat('en-GB', {
   day: 'numeric',
@@ -30,15 +30,16 @@ export default async function ArchivePage(props: PageProps<'/archive'>) {
     typeof searchParams.project === 'string' ? searchParams.project : null;
   const showDropped = searchParams.dropped === '1';
 
-  const viewKey = densityKeys.path('/archive');
 
-  const [archived, selected, prefs] = await Promise.all([
+  const viewKey = densityKeys.path('/archive');
+  const [archived, selected, prefs, view] = await Promise.all([
     getArchivedProjects(),
     selectedId ? getProject(selectedId) : Promise.resolve(null),
     getPreferences(),
+    getView(viewKey),
   ]);
 
-  const viewMode = await getDensity(viewKey, prefs.viewMode);
+  const viewMode = view.density ?? prefs.viewMode;
 
   const [selectedActions, horizons] = selected
     ? await Promise.all([getProjectActions(selected.id), getAreasAndGoals()])

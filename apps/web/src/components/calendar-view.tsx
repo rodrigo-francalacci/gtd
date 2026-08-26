@@ -72,11 +72,21 @@ export function CalendarView({
   paneWidth,
   viewMode,
   viewKey,
+  today,
 }: {
   paneWidth: number;
   viewMode: ViewMode;
   /** Which list this is, so its density is remembered per list. */
   viewKey?: string;
+  /**
+   * Today, already written out.
+   *
+   * Passed in rather than computed here for two reasons that point the
+   * same way: `new Date()` in a render is impure, and a client formatting
+   * it would use the browser’s timezone while every day chip below uses
+   * the server’s.
+   */
+  today: string;
 }) {
   const [state, setState] = useState<Payload | null>(null);
   const [failed, setFailed] = useState<string | null>(null);
@@ -145,6 +155,7 @@ export function CalendarView({
     <>
       <ListPane
         title="Calendar"
+        titleNote={today}
         viewMode={viewMode}
         viewKey={viewKey}
         paneWidth={paneWidth}

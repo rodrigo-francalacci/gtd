@@ -5,12 +5,7 @@ import { useRouter } from 'next/navigation';
 import type { AttachmentParentType } from '@gtd/db';
 import { createDocument, detachAttachment, renameAttachment } from '@/lib/actions';
 import { UploadError, uploadToDrive } from '@/lib/drive-upload';
-import {
-  GOOGLE_DOC,
-  GOOGLE_SHEET,
-  GOOGLE_SLIDES,
-  driveFileUrl,
-} from '@/lib/google/sync';
+import { driveFileUrl } from '@/lib/google/sync';
 import type { AttachmentRow } from '@/lib/queries.shared';
 import type { SortChoice } from '@/lib/sort';
 import { AudioRecorder } from './audio-recorder';
@@ -19,6 +14,7 @@ import { useFilePreview } from './file-preview';
 import { FileMeta } from './file-meta';
 import { GroupHeading } from './group-heading';
 import { IconDocument, IconImage } from './icons';
+import { NewDocumentMenu } from './new-document-menu';
 import { SortControl } from './sort-control';
 
 /**
@@ -74,9 +70,12 @@ export function Attachments({
   const [, startTransition] = useTransition();
 
   /**
-   * A new Doc or Sheet opens in the preview pane the moment it exists —
-   * making a document and then leaving you to go and find it would be a
-   * strange way round.
+   * A new document opens in the preview pane the moment it exists — making
+   * one and then leaving you to go and find it would be a strange way round.
+   *
+   * Which editor opens is decided by the file, not here: a Google format
+   * embeds Google’s editor and a markdown, LaTeX or HTML file gets the
+   * pane’s own. The button is the same button either way.
    */
   const create = async (mimeType: string, label: string) => {
     setErrors([]);
@@ -165,7 +164,7 @@ export function Attachments({
   return (
     <section className="mt-8 border-t border-grey-150 pt-5">
       {/*
-        Wraps, because six controls do not fit beside a heading on a phone.
+        Wraps, because these controls do not fit beside a heading on a phone.
 
         They used to be `shrink-0` in a row that could not wrap, which on a
         390px pane put 367px of buttons into 280px of space. The overflow was
@@ -194,30 +193,10 @@ export function Attachments({
             // a single attachment.
             <SortControl viewKey={sortKey} choice={sort} />
           ) : null}
-          <button
-            type="button"
+          <NewDocumentMenu
             disabled={creating}
-            onClick={() => create(GOOGLE_DOC, 'Doc')}
-            className="text-[11px] text-grey-500 underline underline-offset-2 hover:text-grey-800 disabled:opacity-40"
-          >
-            New doc
-          </button>
-          <button
-            type="button"
-            disabled={creating}
-            onClick={() => create(GOOGLE_SHEET, 'Sheet')}
-            className="text-[11px] text-grey-500 underline underline-offset-2 hover:text-grey-800 disabled:opacity-40"
-          >
-            New sheet
-          </button>
-          <button
-            type="button"
-            disabled={creating}
-            onClick={() => create(GOOGLE_SLIDES, 'Slides')}
-            className="text-[11px] text-grey-500 underline underline-offset-2 hover:text-grey-800 disabled:opacity-40"
-          >
-            New slides
-          </button>
+            onChoose={(kind) => void create(kind.mimeType, kind.label)}
+          />
           <button
             type="button"
             onClick={() => setRecording(true)}

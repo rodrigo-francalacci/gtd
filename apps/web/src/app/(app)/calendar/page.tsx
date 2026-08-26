@@ -1,6 +1,7 @@
 import { CalendarView } from '@/components/calendar-view';
+import { todayLabel } from '@/lib/days';
 import { getPreferences, paneWidth } from '@/lib/view-mode';
-import { densityKeys, getDensity } from '@/lib/view-prefs';
+import { densityKeys, getView } from '@/lib/view-prefs';
 
 /**
  * What is booked, today first.
@@ -15,15 +16,18 @@ import { densityKeys, getDensity } from '@/lib/view-prefs';
  * panes are on screen before Google has been asked anything.
  */
 export default async function CalendarPage() {
-  const prefs = await getPreferences();
-
   const viewKey = densityKeys.path('/calendar');
+  const [prefs, view] = await Promise.all([getPreferences(), getView(viewKey)]);
 
   return (
     <CalendarView
       paneWidth={paneWidth(prefs)}
-      viewMode={await getDensity(viewKey, prefs.viewMode)}
+      viewMode={view.density ?? prefs.viewMode}
       viewKey={viewKey}
+      /* Formatted on the server, which is where every other date in the app
+         is formatted — and which is also what stops the heading disagreeing
+         with the day chips underneath it, or with itself across midnight. */
+      today={todayLabel()}
     />
   );
 }

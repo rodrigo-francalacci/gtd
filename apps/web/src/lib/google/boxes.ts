@@ -6,8 +6,11 @@ import { hasSyncScopes } from '@/lib/auth/google';
 import { getGrant } from '@/lib/auth/token';
 import { canClassify } from '@/lib/box/classify';
 import { enqueueBoxJob } from '@/lib/box/queue';
+import { FORMAT_BY_MIME } from '@/lib/text-formats';
 import {
+  createGoogleFile,
   createResumableSession,
+  createTextFile,
   ensureFolder,
   getFile,
   renameFile,
@@ -174,6 +177,68 @@ export async function completeBoxUpload(
   if (readable) await enqueueBoxJob(row.id);
 
   return row;
+}
+
+/**
+ * Make an empty document straight into a box.
+ *
+ * A box is where you keep things, so almost everything in one arrives from
+ * somewhere else — a scanner, a share sheet, a paste. This is the exception
+ * that turned out to matter: a page of notes, a spreadsheet of figures, a
+ * letter you are about to write. Filing it *first* and writing it afterwards
+ * is the order a box wants, because the alternative is composing it somewhere
+ * else and remembering to put it here.
+ *
+ * Written as `ready` with no job queued, which is the same call
+ * `createGoogleDocument` makes on the other side of the app: an empty document
+ * has nothing to read, and paying a model to confirm that is a strange way to
+ * spend money. It gets read the first time anything asks for it to be, by
+ * which point there will be something in it.
+ */
+export async function createBoxDocument(
+  boxId: string,
+  mimeType: string,
+  name: string,
+): Promise<{ id: string; name: string; driveFileId: string; mimeType: string }> {
+  await requireDrive();
+
+  const format = FORMAT_BY_MIME[mimeType];
+
+  // The extension is what `formatOf` reads first, so a `.tex` without one
+  // opens as an unrecognised file in the very pane that just created it.
+  const base = safeName(name) || 'Untitled';
+  const title = format ? `${base}.${format.extension}` : base;
+
+  const folderId = await ensureBoxFolder(boxId);
+
+  const created = format
+    ? await createTextFile(title, format.mime, folderId, format.starter)
+    : await createGoogleFile(title, mimeType, folderId);
+
+  const [row] = await db
+    .insert(boxItems)
+    .values({
+      boxId,
+      kind: 'document',
+      driveFileId: created.id,
+      // `name` *is* the name Drive holds — that is the whole basis on which
+      // `renameBoxFiles` decides a title has drifted from the file. Setting it
+      // to what Drive just told us is what keeps the sweep quiet until the
+      // document is actually retitled.
+      name: created.name ?? title,
+      mimeType: format ? format.mime : mimeType,
+      sizeBytes: format ? new TextEncoder().encode(format.starter).length : null,
+      status: 'ready',
+      title: base,
+    })
+    .returning({ id: boxItems.id, name: boxItems.name });
+
+  return {
+    id: row.id,
+    name: row.name ?? title,
+    driveFileId: created.id,
+    mimeType: format ? format.mime : mimeType,
+  };
 }
 
 /**

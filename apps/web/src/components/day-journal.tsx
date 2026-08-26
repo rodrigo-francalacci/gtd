@@ -19,6 +19,12 @@ import { setBoxDayNote } from '@/lib/actions';
  *
  * Optional by construction. Most days will never have one, and a journal you
  * are nagged into keeping is one you stop keeping.
+ *
+ * It carries the app’s fourth semantic colour, and the reason is the same
+ * one that keeps the other three: this is the only line in a box you wrote
+ * yourself. Everything under it was filed, sent, scanned or pasted. Greyscale
+ * can make it louder or quieter than the entries, which is the one thing it
+ * is not — it is a caption on the day, not a stronger or weaker entry.
  */
 export function DayJournal({
   day,
@@ -62,7 +68,7 @@ export function DayJournal({
         rows={2}
         placeholder="What happened today…"
         aria-label={`Journal for ${day}`}
-        className="mx-4 mb-1 w-[calc(100%-2rem)] resize-none rounded-sm border border-grey-300 bg-paper px-2 py-1 text-[12px] leading-relaxed text-grey-800 placeholder:text-grey-400 focus:border-selected focus:outline-none"
+        className="mx-4 mb-1 w-[calc(100%-2rem)] resize-none rounded-sm border border-journal/30 bg-journal-bg px-2 py-1 text-[12px] leading-relaxed text-journal placeholder:text-journal/50 focus:border-journal focus:outline-none"
       />
     );
   }
@@ -72,7 +78,7 @@ export function DayJournal({
       <button
         type="button"
         onClick={() => setEditing(true)}
-        className="mx-4 mb-1 block text-left text-[11px] text-transparent hover:text-grey-400 focus:text-grey-400 focus:outline-none"
+        className="mx-4 mb-1 block text-left text-[11px] text-transparent hover:text-journal/60 focus:text-journal/60 focus:outline-none"
       >
         Add a line about this day
       </button>
@@ -85,8 +91,11 @@ export function DayJournal({
       onClick={() => setEditing(true)}
       title="Click to edit"
       className={[
-        'mx-4 mb-1.5 block w-[calc(100%-2rem)] whitespace-pre-wrap text-left text-[12px] leading-relaxed',
-        'text-grey-600 hover:text-grey-800',
+        'mx-4 mb-1.5 block w-[calc(100%-2rem)] whitespace-pre-wrap rounded-sm px-2 py-1 text-left text-[12px] leading-relaxed',
+        // A soft ground rather than only a text colour: the line has to read
+        // as a different kind of thing from the rows under it at a glance,
+        // and at 12px a hue on its own is barely a signal.
+        'bg-journal-bg text-journal/90 hover:text-journal',
         pending ? 'opacity-60' : '',
       ].join(' ')}
     >

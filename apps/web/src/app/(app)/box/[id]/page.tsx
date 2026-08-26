@@ -27,7 +27,7 @@ import {
 } from '@/lib/queries';
 import { ENTRY_TYPE_ORDER, entryTypeOf, type EntryType } from '@/lib/queries.shared';
 import { getPreferences, paneWidth } from '@/lib/view-mode';
-import { densityKeys, getDensity } from '@/lib/view-prefs';
+import { densityKeys, getView } from '@/lib/view-prefs';
 
 /**
  * One box, read from the top.
@@ -81,17 +81,18 @@ export default async function BoxPage(props: PageProps<'/box/[id]'>) {
 
   const range = { from: day(searchParams.from), to: day(searchParams.to) };
 
-  const [matched, categories, dayNotes, prefs, boxList, span] = await Promise.all([
+  const viewKey = densityKeys.box(id);
+  const [matched, categories, dayNotes, prefs, boxList, span, view] = await Promise.all([
     getBoxItems(id, tagIds, range),
     getBoxCategories(id),
     getBoxDayNotes(),
     getPreferences(),
     getBoxes(),
     getBoxRange(id),
+    getView(viewKey),
   ]);
 
-  const viewKey = densityKeys.box(id);
-  const viewMode = await getDensity(viewKey, prefs.viewMode);
+  const viewMode = view.density ?? prefs.viewMode;
 
   /*
    * Exclusions are applied in memory, where the positive tags were matched in

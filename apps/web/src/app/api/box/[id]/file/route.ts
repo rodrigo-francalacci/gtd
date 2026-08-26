@@ -2,7 +2,9 @@ import { boxItems, db } from '@gtd/db';
 import { eq } from 'drizzle-orm';
 import { NextResponse } from 'next/server';
 import { requireSession } from '@/lib/auth/session';
+import { saveTextRoute } from '@/lib/google/save-route';
 import { serveDriveFile } from '@/lib/google/serve';
+import { saveBoxItemText } from '@/lib/google/text-files';
 
 export const dynamic = 'force-dynamic';
 
@@ -34,4 +36,26 @@ export async function GET(
   }
 
   return serveDriveFile({ ...row, driveFileId: row.driveFileId }, request);
+}
+
+/**
+ * Write a document's text back, for the formats the preview pane can edit.
+ *
+ * Same route shape as an attachment, one table along. A box is for keeping
+ * things rather than working on them, so this will be used far less here —
+ * but a note written into a box as markdown is exactly the kind of thing you
+ * come back and add a line to, and refusing that would make the box the one
+ * place a document goes to be read-only.
+ */
+export async function PUT(
+  request: Request,
+  { params }: { params: Promise<{ id: string }> },
+) {
+  const { id } = await params;
+
+  return saveTextRoute(
+    request,
+    (text) => saveBoxItemText(id, text),
+    'No such document.',
+  );
 }

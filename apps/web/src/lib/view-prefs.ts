@@ -93,19 +93,6 @@ export const densityKeys = {
 
 const MODES = ['comfortable', 'compact', 'simple'] as const;
 
-/** This list's density, or the app-wide default when it has never been set. */
-export async function getDensity(key: string, fallback: ViewMode): Promise<ViewMode> {
-  const [row] = await db
-    .select({ density: viewPrefs.density })
-    .from(viewPrefs)
-    .where(eq(viewPrefs.key, key))
-    .limit(1);
-
-  return (MODES as readonly string[]).includes(row?.density ?? '')
-    ? (row!.density as ViewMode)
-    : fallback;
-}
-
 /**
  * Remember a density for one list.
  *
@@ -122,24 +109,14 @@ export async function setDensity(key: string, mode: ViewMode): Promise<void> {
     });
 }
 
-export type ListLayout = 'list' | 'timeline';
-
 /**
- * Whether this list is read in your order or in date order.
+ * Whether a list is read in your order or in date order.
  *
  * Stored beside the density in the same row, because both are answers to
- * "how do I want to look at this particular list" and splitting them across
- * tables would be two lookups for one question.
+ * "how do I want to look at this particular list" — which is also why one
+ * read (`getView`) answers both.
  */
-export async function getLayout(key: string): Promise<ListLayout> {
-  const [row] = await db
-    .select({ layout: viewPrefs.layout })
-    .from(viewPrefs)
-    .where(eq(viewPrefs.key, key))
-    .limit(1);
-
-  return row?.layout === 'timeline' ? 'timeline' : 'list';
-}
+export type ListLayout = 'list' | 'timeline';
 
 export async function setLayout(key: string, layout: ListLayout): Promise<void> {
   await db
@@ -149,4 +126,32 @@ export async function setLayout(key: string, layout: ListLayout): Promise<void> 
       target: viewPrefs.key,
       set: { layout, updatedAt: sql`now()` },
     });
+}
+
+/**
+ * How this list is laid out, in one read.
+ *
+ * Density and layout live in the same row, so asking for them separately is
+ * two round trips for one question — and the pages that want both were making
+ * them one after the other. It returns the *stored* density rather than
+ * resolving the fallback, which is the point: the query never needed
+ * `preferences` to run, so waiting for that row before starting it made the
+ * page-wide default cost a whole extra trip. Callers fetch both in parallel
+ * and pick the fallback afterwards, which is free.
+ */
+export async function getView(
+  key: string,
+): Promise<{ density: ViewMode | null; layout: ListLayout }> {
+  const [row] = await db
+    .select({ density: viewPrefs.density, layout: viewPrefs.layout })
+    .from(viewPrefs)
+    .where(eq(viewPrefs.key, key))
+    .limit(1);
+
+  return {
+    density: (MODES as readonly string[]).includes(row?.density ?? '')
+      ? (row!.density as ViewMode)
+      : null,
+    layout: row?.layout === 'timeline' ? 'timeline' : 'list',
+  };
 }

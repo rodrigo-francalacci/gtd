@@ -20,7 +20,7 @@ import { INBOX_COLUMNS } from '@/lib/columns';
 import { groupByDay } from '@/lib/days';
 import { captureHasNote, captureLabel } from '@/lib/queries.shared';
 import { getPreferences, paneWidth } from '@/lib/view-mode';
-import { densityKeys, getDensity } from '@/lib/view-prefs';
+import { densityKeys, getView } from '@/lib/view-prefs';
 
 const stamp = new Intl.DateTimeFormat('en-GB', {
   day: 'numeric',
@@ -37,9 +37,13 @@ export default async function InboxPage(props: PageProps<'/inbox'>) {
   const searchParams = await props.searchParams;
   const selectedId = typeof searchParams.item === 'string' ? searchParams.item : null;
 
-  const [items, prefs] = await Promise.all([getInboxItems(), getPreferences()]);
   const viewKey = densityKeys.path('/inbox');
-  const viewMode = await getDensity(viewKey, prefs.viewMode);
+  const [items, prefs, view] = await Promise.all([
+    getInboxItems(),
+    getPreferences(),
+    getView(viewKey),
+  ]);
+  const viewMode = view.density ?? prefs.viewMode;
   const simple = viewMode === 'simple';
 
   // The queue is oldest-first, which is the right way to *process* an inbox.

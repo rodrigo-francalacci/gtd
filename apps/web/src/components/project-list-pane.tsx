@@ -5,7 +5,7 @@ import { SortableProjectList } from '@/components/sortable-project-list';
 import { PROJECT_COLUMNS } from '@/lib/columns';
 import { getProjects, isStalled } from '@/lib/queries';
 import { getPreferences, paneWidth } from '@/lib/view-mode';
-import { densityKeys, getDensity } from '@/lib/view-prefs';
+import { densityKeys, getView } from '@/lib/view-prefs';
 
 /**
  * The middle pane for the Projects section. Rendered by both `/projects` and
@@ -19,9 +19,13 @@ export async function ProjectListPane({
   selectedId: string | null;
   filter: string | null;
 }) {
-  const [all, prefs] = await Promise.all([getProjects(), getPreferences()]);
   const viewKey = densityKeys.path('/projects');
-  const viewMode = await getDensity(viewKey, prefs.viewMode);
+  const [all, prefs, view] = await Promise.all([
+    getProjects(),
+    getPreferences(),
+    getView(viewKey),
+  ]);
+  const viewMode = view.density ?? prefs.viewMode;
   const stalledOnly = filter === 'stalled';
   const rows = stalledOnly ? all.filter(isStalled) : all;
 

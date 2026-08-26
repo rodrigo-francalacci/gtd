@@ -166,13 +166,17 @@ Turbopack is the default; `middleware` is now `proxy`.
   threaded through five pages that each own their own panes.
 - **The preview takes the space rather than having a width.** It's the thing
   you opened the pane to look at. The shell row carries `data-preview`, and the
-  third pane reads it as a group to stop growing (`flex-[0_1_41rem]`, the note
-  column's own measure) — read rather than passed, because that pane is
+  third pane reads it as a group to stop growing (`flex-[0_1_38rem]`, the note
+  column’s own measure) — read rather than passed, because that pane is
   rendered five route segments away and "there is something to the right of
   you" isn't worth threading through all of them. `(app)/layout.tsx`'s `<main>`
   needs the same rule: it wraps panes 2 and 3, so capping only the pane inside
   it moves the empty space up one level and still leaves the preview with half
   the window.
+  **38rem, not 41.** The inner column is `max-w-[38rem] px-7` and
+  `box-sizing: border-box` puts the padding *inside* that figure rather than
+  adding to it. Capping at 41 left a 3rem strip down the right of the pane
+  that nothing could be drawn in and the preview was not allowed to use.
 - **Docs and Sheets are made, not uploaded.** A Docs-editor file has no bytes,
   so `createGoogleFile` is metadata only — the one kind of file the app can
   create with nothing to send. `drive.file` covers it because the app made it.
@@ -267,6 +271,13 @@ Turbopack is the default; `middleware` is now `proxy`.
   is worse than one that shows too much. Granted separately from `SYNC_SCOPES`
   via `?scopes=calendar`, so the calendar stays optional and first sign-in never
   bundles it.
+- **The calendar heading carries today's date, formatted on the server.**
+  Every other date in the app is cut in the server’s timezone, and a heading
+  announcing one day while the chip under the first event says another is the
+  app disagreeing with itself in a single glance. A client computing it would
+  also be impure in render and a hydration mismatch waiting for midnight.
+  `ListPane`’s `titleNote` is for facts as fixed as the heading itself;
+  `subtitle` is for what the contents happen to be.
 - **`singleEvents=true` is not optional.** Without it a recurring event comes
   back as the *rule* rather than its instances, so a weekly stand-up appears
   once, dated whenever the series began — usually in the past. It is also what
@@ -454,31 +465,133 @@ Turbopack is the default; `middleware` is now `proxy`.
   Routes rather than Server Actions because the pane has to *read* the text and
   is client state with no server component above it; fetching on open is also
   what keeps transcripts out of every list payload.
-- **Two of the microphone's three filters are off; automatic gain is on.**
-  `{ audio: true }` accepts the browser's defaults, a voice-call processing
-  chain — echo cancellation, noise suppression, automatic gain — and the three
-  are not the same kind of thing. The first two change the *sound*: AEC brings
-  a high-pass and takes the bottom out, suppression gates the quiet detail at
-  the top. Both are destructive and nothing downstream can undo them, so both
-  stay off; that is what makes messaging-app voice notes unpleasant to hear
-  twice. Automatic gain changes only the *level* and leaves the frequency
-  response alone, so it is on: without it a quiet mic simply records quietly,
-  and the only fix after the fact is decoding and re-encoding the whole file.
-  (True normalisation — one constant gain, computed once the clip ends — was
-  considered and dropped: it can't be worked out until you stop, so it forces a
-  re-encode, and browsers can't re-encode to Opus quickly. WAV output would
-  cost ~6× the size; a WebCodecs path would need a hand-written Ogg muxer.)
-  The readout says "full range" rather than "raw" for exactly this reason — it
-  reports the frequency response, which is what is worth knowing, not the
-  level. 48 kHz, and the bitrate is set explicitly (128 kbps against a
-  messaging app's 16–32) because `MediaRecorder`'s default is neither
-  documented nor generous.
+- **A voice note is levelled before it is encoded, not after.** The microphone
+  used to go straight into `MediaRecorder` with `autoGainControl` doing the
+  only levelling there was, and it was not enough — the recordings came out
+  quiet enough to need the volume turned up, which is the one thing a voice
+  note must not need. `lib/voice-chain.ts` now sits between the two: a gentle
+  65 Hz high-pass, +14 dB of drive, two `DynamicsCompressorNode`s, makeup, and
+  a limiter at −1.2 dBFS, with `MediaRecorder` handed the output of a
+  `MediaStreamAudioDestinationNode` rather than the microphone. That ordering
+  is what makes it affordable: the processed signal is the only one ever
+  encoded, so nothing is decoded and re-encoded and no Ogg muxer is needed —
+  which was the reason proper levelling was dropped the first time.
+  **It cannot peak-normalise and does not claim to.** Normalising means scaling
+  by the loudest sample, and you cannot know that until the recording stops. A
+  limiter with a fixed ceiling delivers what normalising was *for* — a known,
+  consistent peak — and the first of the two offline normalise passes becomes a
+  gain stage with a number on it, which is `DRIVE_DB`.
+  **Two compressors, because an optical one releases in two stages.** The
+  LA-2A's attack is fixed at about 10 ms and its release is program-dependent:
+  roughly half the reduction recovers in a twentieth of a second and the rest
+  takes a second or more, which is why it levels a sentence without pumping.
+  `DynamicsCompressorNode` has one release time, so two in series approximate
+  it — a slow stage setting the average and a fast one catching what pokes
+  through, attacking together at the same 10 ms.
+  **The numbers were checked against the spec's static curve, not guessed.** At
+  −25 dBFS in, the chain gives about 6 dB of reduction and lands near −4 dBFS;
+  a first attempt at +18 dB of drive took fifteen decibels off the same input,
+  which is a different effect wearing the same name. Re-tune by running that
+  curve, not by ear alone.
+  **`autoGainControl` is now off, and that is the point.** Two automatic gain
+  systems in series fight: AGC moves under the compressor, the compressor
+  answers, and the result breathes. Whichever is going to set the level has to
+  be the only thing setting it. Noise suppression stays on and echo
+  cancellation stays off — AEC exists for a loudspeaker problem a voice note
+  does not have, and it is the harshest of the three on the low end.
+  The recorder shows a live peak meter and a gain-reduction meter, which is how
+  a bad recording is diagnosed afterwards: a bar that never left the left-hand
+  end means the microphone, and one pinned at the right with ten decibels of
+  reduction means the chain was working and the problem is elsewhere.
   Constraints are plain values, never `exact`: a device that can't honour one
   should degrade, not throw `OverconstrainedError` and leave you with nothing.
-  `channelCount` is unconstrained on purpose — a built-in mic is mono, an
-  interface is stereo, and taking what the hardware offers is more faithful
-  than insisting. The recorder shows the settings it was actually granted, so a
-  device ignoring them is visible rather than a mystery.
+  48 kHz mono, and the bitrate is set explicitly (32 kbps — a voice note at the
+  size Telegram sends one) because `MediaRecorder`'s default is neither
+  documented nor generous.
+- **Markdown, LaTeX and HTML are read *and written* in the preview pane.**
+  These are the files where the text *is* the document — nothing is lost by
+  showing the source, because the source is all there is — which is what makes
+  an editor over the bytes honest here and dishonest over a PDF. `formatOf` in
+  `lib/text-formats.ts` decides which format a file is, **from the name first
+  and the type second**: Drive types a `.md` as whatever the browser claimed
+  when it went up, and the extension is the thing the author actually chose.
+  Two views, never nested: Reading is what the file means, Source is what it
+  is, and moving between them is the whole activity of writing in these
+  formats.
+- **The rendered view is a sandboxed frame with everything inlined.**
+  `sandbox=""` denies scripts, forms, popups and top-level navigation and gives
+  the frame an opaque origin — which is what lets an arbitrary `.html` be shown
+  as *itself*, script tags and all, without either running them or quietly
+  deleting the author's own markup. An opaque origin cannot fetch our
+  stylesheet and a font requested from one fails CORS, so the whole page is
+  built as one string. Printing that frame is how a PDF gets made: the
+  browser's own dialogue has "Save as PDF" on every platform this runs on, and
+  it is a better PDF engine than anything worth writing.
+- **A new `srcdoc` on a live iframe does not reliably navigate it.** React sets
+  the attribute, Chrome keeps the document it already has, and the pane shows
+  the previous rendering — or nothing, if the first render was still empty. It
+  looks exactly like a renderer producing no output; the HTML is correct and
+  sitting in the attribute the whole time. The frame is therefore keyed on a
+  sequence number that changes per rendering, so a fresh element mounts and
+  always loads. Anything else that writes `srcdoc` from React needs the same.
+- **Maths is MathML, via `temml`, and needs no font shipped with it.** Every
+  browser this app runs in renders MathML natively, and it stays *text* — so a
+  printed PDF has selectable equations and a screen reader can say them. KaTeX
+  was the alternative and would have meant hosting sixty font files out of
+  `node_modules`. Both `marked` and `temml` are imported dynamically: they are
+  a quarter of a megabyte between them, wanted by one pane, only when a
+  document of the right kind is opened in it.
+- **Maths comes out of the source before anything else touches it.** In LaTeX
+  every character in a maths span is an operator; in markdown, `_i_` inside
+  `$x_i$` is read as emphasis and the underscores are eaten. Both renderers
+  replace each span with a marker fenced in U+0001 — a character that cannot
+  be in the source, unlike any clever sentinel you might pick — and fill it in
+  afterwards. Verbatim goes one step earlier still — *before* the comment
+  stripper, because a `%` in a code sample is a percent sign and stripping
+  comments first ate the rest of every such line.
+- **`lib/latex-html.ts` is a reading view, not TeX, and says so on screen.**
+  TeX breaks paragraphs by minimising badness, hyphenates from a dictionary,
+  kerns from metrics, floats figures and resolves references in two passes.
+  None of that happens here and none of it can without shipping a TeX
+  distribution — tens of megabytes of WebAssembly plus a texlive tree. What it
+  does is answer *what does this file say*: structure, emphasis, lists, tables,
+  verbatim, and real maths. Unrecognised commands degrade to their argument
+  rather than vanishing, because silently dropping content would make the
+  preview lie about what is in the file.
+- **`PUT …/file` writes the bytes that `GET …/file` reads**, on an attachment
+  and a Big Box document alike — the same symmetry `/transcript` already had
+  beside it. The body is the document itself, not JSON wrapping it. Saving is a
+  Google call inside a request, under the same exception an upload is: the
+  payload *is* the call, and queueing it would mean answering "is it saved?"
+  with "not yet". `drive.file` covers writing to a file the app created, the
+  same way it covers renaming one.
+- **A plain `fetch` is not a Server Action and nothing re-renders after it.**
+  `revalidatePath` on the route is not enough on its own — the saved file's
+  size sat stale in the list beside the document it belonged to until the
+  editor started calling `router.refresh()` itself.
+- **Header values are ByteStrings, and `new Headers()` throws rather than
+  sanitising.** A file with an em dash in its name took the whole response down
+  with a `TypeError` from `Content-Disposition`, which reached the pane as a
+  bare 500 reading "that file would not load". Every file in the app with an
+  accent, a curly quote or a dash was fine and none of them would open.
+  `filenameParams` in `google/serve.ts` emits both RFC 6266 forms: an ASCII
+  `filename` and the RFC 5987 `filename*`.
+- **Documents are made from one menu, and the grouping in it is the real
+  distinction.** Google's three formats are files Google owns and edits; the
+  other three are files this app owns and edits in the preview pane, and which
+  you pick decides where you will be typing a moment later. Six buttons in a
+  pane header is also what overflowed a phone pane and broke the carousel
+  swipe once already. A text format is created *with* its starter content by
+  `createTextFile` (one multipart request — the payload is a few hundred bytes,
+  so the resumable three-step dance would be ceremony); a Google format has no
+  bytes and stays `createGoogleFile`. **The extension is part of the name**, or
+  `formatOf` cannot recognise the file the app has just created.
+- **A day's journal line carries the app's fourth semantic colour.** It is the
+  only line in a box you *wrote* — everything around it was filed, sent,
+  scanned or pasted — and greyscale can only make it louder or quieter than the
+  entries, which is the one thing it is not. Violet because the other three
+  meanings are spoken for. The test for a fifth is the same: name a kind of
+  content greyscale cannot distinguish, in a comment beside the token.
 - **`/capture` is the phone, and sits outside `(app)`.** That route group *is*
   the three-pane desktop shell, and none of it belongs on a phone held in one
   hand — so this is a sibling of `/signin`, gating on `requireSession()` itself
@@ -577,6 +690,30 @@ Turbopack is the default; `middleware` is now `proxy`.
   route, so a fresh `notes` object arrives on every autosave; calling
   `setContent` with it resets the document mid-sentence and discards
   unsaved typing. Switching items is handled by `key={id}` at the call site.
+- **Every `await` on the Neon driver is its own HTTP round trip, and the layout
+  is on the critical path of every navigation.** Nothing renders until
+  `(app)/layout.tsx` answers, so a query added there is added to every click in
+  the app. `getSidebarCounts` was five `count()` statements plus a whole
+  `getProjects()`, each waiting for the last: 194 ms measured against the real
+  database, 11 ms as one statement with seven scalar subqueries. Its stalled
+  count must agree exactly with `isStalled` over `getProjects()`, and the
+  obvious correlated subquery *does not* — `not exists` against a join of the
+  two tables silently counts nothing. Verify a rewrite against `getProjects()`
+  on live rows before trusting it.
+- **`getProjects` is wrapped in React `cache()`.** It is the most expensive read
+  here — two grouped subqueries joined onto every project — and the weekly
+  review asks for it three times in one render. Per-request and per-render, so
+  nothing is held between navigations and no answer can go stale.
+- **A fallback applied *after* a query must not be awaited *before* it.** Nine
+  pages did `await getPreferences()` and then `await getDensity(...)`, but the
+  density query never needed the preferences row to run — so the app-wide
+  default was costing a whole extra round trip on every page. `getView` returns
+  the stored density and the layout from the one row they share; callers fetch
+  it in parallel with the preferences and pick the fallback afterwards.
+- **The database is in London and the functions default to Washington.** That
+  turns every round trip from ~10 ms into ~80. It is set in Vercel's project
+  settings, not in `vercel.json` — a rejected value there fails deployments
+  silently, which has already cost this project eighteen consecutive pushes.
 - **`queries.ts` is `server-only`.** Types and pure helpers that Client
   Components need live in `queries.shared.ts`.
 - **Manual order is a float, not a rank.** Dropping between two rows writes the

@@ -3,7 +3,13 @@
 /*
  * Palette discipline (from the brief):
  *   Base is black / white / greyscale. Colour is SEMANTIC ONLY —
- *   waiting-for, stale/blocked, and selection state. Never decorative.
+ *   waiting-for, stale/blocked, selection state, and a day’s own journal
+ *   line. Never decorative.
+ *
+ * The test for adding one is not "would this look nice" but "is there a kind
+ * of content here that greyscale can only make louder or quieter, when what
+ * it is, is different". Four have passed it. A fifth needs the same argument
+ * made out loud, in a comment beside the token.
  */
 @theme {
   --color-paper: #ffffff;
@@ -29,6 +35,22 @@
   --color-stale-bg: #fdefec;
   --color-selected: #1d4ed8;
   --color-selected-bg: #eaf0fe;
+
+  /*
+   * The fourth semantic colour, and it earns the name the same way the other
+   * three do: it marks a kind of content, not a decoration. A day's journal
+   * line is the one thing in a box you *wrote* — everything around it was
+   * filed, sent or scanned. Greyscale alone could only make it quieter or
+   * louder than the entries, when what it actually is, is different from
+   * them.
+   *
+   * Violet because the other three are spoken for and none of their meanings
+   * fit: this is not waiting, not stale, and not selection. Soft on purpose —
+   * a feed shows dozens of days at once, and a saturated band down the left of
+   * every one of them would shout over the documents it is there to caption.
+   */
+  --color-journal: #5b4a86;
+  --color-journal-bg: #f3f0fb;
 
   /* Source Sans — Evernote's UI typeface of the era this layout copies. */
   --font-sans: var(--font-source-sans), ui-sans-serif, system-ui, -apple-system,
@@ -76,6 +98,10 @@
   --color-stale-bg: #33201d;
   --color-selected: #7aa2f7;
   --color-selected-bg: #1e2740;
+
+  /* Same hue, dark-ground contrast — the rule the other three follow. */
+  --color-journal: #b3a4dd;
+  --color-journal-bg: #242036;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -108,6 +134,10 @@
   --color-stale-bg: #33201d;
   --color-selected: #7aa2f7;
   --color-selected-bg: #1e2740;
+
+  /* Same hue, dark-ground contrast — the rule the other three follow. */
+  --color-journal: #b3a4dd;
+  --color-journal-bg: #242036;
   }
 }
 

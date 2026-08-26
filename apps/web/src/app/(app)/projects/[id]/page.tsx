@@ -16,16 +16,26 @@ export default async function ProjectPage(props: PageProps<'/projects/[id]'>) {
   const searchParams = await props.searchParams;
   const filter = typeof searchParams.filter === 'string' ? searchParams.filter : null;
 
-  const project = await getProject(id);
+  /*
+   * The project is fetched *with* everything hanging off it, not before it.
+   * Each of these is its own HTTP round trip on the Neon driver, so gating them
+   * on the existence check made the pane wait twice for what it could wait for
+   * once. Against an id that isn't there the four extra queries return nothing
+   * and are thrown away by `notFound` a line later, which costs less than the
+   * extra trip did on every project that does exist.
+   */
+  const [project, projectActions, horizons, files, docs, documentOptions] =
+    await Promise.all([
+      getProject(id),
+      getProjectActions(id),
+      getAreasAndGoals(),
+      attachmentsFor('project', id),
+      documentsFor('project', id),
+      getLinkableDocuments('project', id, ''),
+    ]);
+
   if (!project) notFound();
 
-  const [projectActions, horizons, files, docs, documentOptions] = await Promise.all([
-    getProjectActions(id),
-    getAreasAndGoals(),
-    attachmentsFor('project', id),
-    documentsFor('project', id),
-    getLinkableDocuments('project', id, ''),
-  ]);
   const stalled =
     project.status === 'active' && !projectActions.some((a) => a.status === 'next');
 

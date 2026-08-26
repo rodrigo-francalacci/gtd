@@ -13,7 +13,7 @@ import {
   getLinkableDocuments,
 } from '@/lib/queries';
 import { getPreferences, paneWidth } from '@/lib/view-mode';
-import { densityKeys, getDensity } from '@/lib/view-prefs';
+import { densityKeys, getView } from '@/lib/view-prefs';
 
 export default async function NowPage(props: PageProps<'/now'>) {
   const searchParams = await props.searchParams;
@@ -22,14 +22,15 @@ export default async function NowPage(props: PageProps<'/now'>) {
   const contextIds = raw === undefined ? [] : Array.isArray(raw) ? raw : [raw];
   const selectedId = typeof searchParams.action === 'string' ? searchParams.action : null;
 
-  const [groups, rows, selected, prefs] = await Promise.all([
+  const viewKey = densityKeys.path('/now');
+  const [groups, rows, selected, prefs, view] = await Promise.all([
     getContextsByDimension(),
     getNowActions(contextIds),
     selectedId ? getAction(selectedId) : Promise.resolve(null),
     getPreferences(),
+    getView(viewKey),
   ]);
-  const viewKey = densityKeys.path('/now');
-  const viewMode = await getDensity(viewKey, prefs.viewMode);
+  const viewMode = view.density ?? prefs.viewMode;
 
   const qs = (id: string) => {
     const p = new URLSearchParams();

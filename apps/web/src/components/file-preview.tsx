@@ -12,7 +12,9 @@ import {
 } from 'react';
 import { embedUrl, isGoogleNative } from '@/lib/google/sync';
 import { reasonFor, useMediaBlob } from '@/lib/preview-media';
+import { formatOf } from '@/lib/text-formats';
 import { AudioTranscript } from './audio-transcript';
+import { TextDocument } from './text-document';
 
 export type PreviewFile = {
   id: string;
@@ -178,6 +180,14 @@ export function PreviewPane({ file, onClose }: { file: PreviewFile; onClose: () 
   const src = file.src;
   const type = file.mimeType ?? '';
 
+  /*
+   * Decided from the name as well as the type, because Drive types a `.md`
+   * as whatever the browser said when it went up, which is often nothing
+   * useful. Null for everything that is not editable text, which is most
+   * files.
+   */
+  const textFormat = formatOf(file.mimeType, file.name);
+
   return (
     <div className="flex min-w-0 flex-1 flex-col border-l border-grey-200 bg-grey-50">
       <header className="flex items-center gap-2 border-b border-grey-200 px-3 py-2">
@@ -219,6 +229,18 @@ export function PreviewPane({ file, onClose }: { file: PreviewFile; onClose: () 
             src={embedUrl(type, file.driveFileId ?? '')}
             title={file.name}
             className="h-full w-full border-0 bg-paper"
+          />
+        ) : textFormat ? (
+          /* key: the editor seeds its state from a fetch, so without it the
+             pane would show the previous file's text under the new file's
+             name — and then save it over the top. Every panel in this app
+             that seeds state from a row needs this; one that seeds it from a
+             *file* needs it more, because the mistake writes to Drive. */
+          <TextDocument
+            key={file.id}
+            src={src}
+            format={textFormat}
+            name={file.name}
           />
         ) : type.startsWith('image/') ? (
           <ImageViewer src={src} alt={file.name} onFail={() => void reasonFor(src).then(setFailed)} />

@@ -5,6 +5,29 @@ import { GoogleAuthError } from '../auth/token';
 import { downloadFile } from './client';
 
 /**
+ * A filename a header can actually carry.
+ *
+ * HTTP header values are ByteStrings — every character has to fit in a byte —
+ * and `new Headers()` does not sanitise, it *throws*. So a file with an em dash
+ * in its name took down the whole response with a `TypeError`, which reached
+ * the preview pane as a bare 500 and read as "that file would not load". The
+ * file was fine. Every file in the app with an accent, a curly quote or a dash
+ * in its name was fine, and none of them would open.
+ *
+ * RFC 6266 has the answer and it is two parameters, not one: `filename` for
+ * anything that predates the fix, stripped down to ASCII, and `filename*` in
+ * the RFC 5987 form, which every browser in use has preferred for a decade.
+ * Between them the name survives intact and the header stays legal.
+ */
+function filenameParams(name: string): string {
+  // Quotes end the parameter and control characters are not allowed in one.
+  // eslint-disable-next-line no-control-regex
+  const ascii = name.replace(/[^\x20-\x7e]/g, '_').replace(/["\\]/g, '');
+
+  return `filename="${ascii}"; filename*=UTF-8''${encodeURIComponent(name)}`;
+}
+
+/**
  * Serve a Drive file's bytes from Drive, through us.
  *
  * Drive is not a CDN and its download URLs are not embeddable — they want
@@ -62,7 +85,7 @@ export async function serveDriveFile(
     'Content-Type': file.mimeType || 'application/octet-stream',
     // `inline` so the browser renders it in the pane rather than downloading
     // it. The filename is quoted because it is user input.
-    'Content-Disposition': `inline; filename="${file.name.replace(/"/g, '')}"`,
+    'Content-Disposition': `inline; ${filenameParams(file.name)}`,
     // Private: this is one person's file behind one person's session, and it
     // must never be held by a shared cache.
     'Cache-Control': 'private, max-age=3600',
