@@ -8,6 +8,7 @@ import { linkDocument, unlinkDocument } from '@/lib/actions';
 import { driveFileUrl } from '@/lib/google/sync';
 import { documentLabel, type LinkedDocumentRow } from '@/lib/queries.shared';
 import type { SortChoice } from '@/lib/sort';
+import { AskForEmail } from './ask-for-email';
 import { useFilePreview } from './file-preview';
 import { FileMeta } from './file-meta';
 import { GroupHeading } from './group-heading';
@@ -104,6 +105,12 @@ export function LinkedDocuments({
           {sort && sortKey && !emails && shown.length > 1 ? (
             <SortControl viewKey={sortKey} choice={sort} />
           ) : null}
+          {/* Two controls, and the pair is the point: cite one you already
+              have, or go and get one. Only the first existed, which meant
+              pasting a Gmail address into a box, waiting, and coming back
+              here to find it. */}
+          {emails ? <AskForEmail parentType={parentType} parentId={parentId} /> : null}
+
           <button
             type="button"
             onClick={() => setAdding((v) => !v)}

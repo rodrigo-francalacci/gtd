@@ -51,6 +51,7 @@ import {
   createEmailRequest,
   forgetEmailRequest,
   readEmailQuery,
+  type RequestParent,
 } from './box/email-requests';
 import { createBoxDocument, deleteBoxItem } from './google/boxes';
 import { enqueueSync } from './google/queue';
@@ -1976,16 +1977,56 @@ export async function createBoxFile(boxId: string, mimeType: string, name: strin
  * hour later inside a script, because the id in it is one only Gmail’s own
  * interface understands.
  */
-export async function requestEmail(boxId: string, raw: string) {
+export async function requestEmail(
+  /**
+   * Which box it lands in, or null to use the default one.
+   *
+   * Null is what a project pane passes. A message asked for from a project is
+   * still a document and still belongs in a box — one that existed only as a
+   * project’s evidence would disappear with the project — but *which* box is
+   * not a question worth asking at that moment, and the default box is the
+   * same answer the scanner bridge gives to the same question.
+   */
+  boxId: string | null,
+  raw: string,
+  /** What to cite it on once it arrives, when you asked from a pane. */
+  parent?: RequestParent,
+) {
   await requireSession();
 
   const read = readEmailQuery(raw);
   if ('refuse' in read) return { ok: false as const, error: read.refuse };
 
-  await createEmailRequest(boxId, read.query);
+  const box = boxId ?? (await defaultBox());
+  if (!box) {
+    return {
+      ok: false as const,
+      error: 'There is no box to file it in. Set one up on the Big Box page first.',
+    };
+  }
+
+  await createEmailRequest(box, read.query, parent);
   revalidateShell();
 
   return { ok: true as const };
+}
+
+/**
+ * The box a message goes to when nobody chose one.
+ *
+ * Read rather than created, unlike `createDefaultBox`: this runs on a paste
+ * into a project pane, and quietly making a box because you pasted a URL is
+ * not a thing to do behind someone’s back. Null means there is no Big Box yet
+ * and the caller says so.
+ */
+async function defaultBox(): Promise<string | null> {
+  const [row] = await db
+    .select({ id: boxes.id })
+    .from(boxes)
+    .where(eq(boxes.isDefault, true))
+    .limit(1);
+
+  return row?.id ?? null;
 }
 
 /** Clear a request you have read the failure of. */

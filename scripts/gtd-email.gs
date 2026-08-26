@@ -113,7 +113,13 @@ function fetchRequestedEmails() {
     }
 
     const request = requests[i];
-    var filed = 0;
+    /*
+     * The ids, not a count. A request asked for from a project has to be
+     * cited on it once the message exists, and that linking happens in the
+     * app — this script knows about Gmail and Drive, not about which project
+     * a message is evidence for.
+     */
+    var itemIds = [];
     var note = null;
 
     try {
@@ -123,7 +129,8 @@ function fetchRequestedEmails() {
         note = 'Gmail found nothing for that.';
       } else {
         for (var m = 0; m < messages.length && m < 20; m++) {
-          if (fileMessage(origin, secret, messages[m], request.box)) filed++;
+          const id = fileMessage(origin, secret, messages[m], request.box);
+          if (id && typeof id === 'string') itemIds.push(id);
         }
         if (messages.length > 20) note = 'Matched ' + messages.length + ' messages; filed the first 20.';
       }
@@ -135,11 +142,11 @@ function fetchRequestedEmails() {
     postTo(origin, secret, '/api/box/email', {
       step: 'resolve',
       id: request.id,
-      filed: filed,
+      itemIds: itemIds,
       note: note,
     });
 
-    Logger.log('  ' + request.query + ' -> ' + filed + ' filed' + (note ? ' (' + note + ')' : ''));
+    Logger.log('  ' + request.query + ' -> ' + itemIds.length + ' filed' + (note ? ' (' + note + ')' : ''));
   }
 }
 
@@ -330,7 +337,9 @@ function fileMessage(origin, secret, message, box) {
   if (!done.ok) throw new Error('complete failed: ' + JSON.stringify(done));
 
   Logger.log('  filed ' + name);
-  return true;
+  // The row id, so a request asked for from a project can be linked to it.
+  // A count would close the request and leave the citation unwritten.
+  return done.id || true;
 }
 
 /**

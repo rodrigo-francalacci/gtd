@@ -1054,6 +1054,21 @@ export const emailRequests = pgTable(
       .references(() => boxes.id, { onDelete: 'cascade' }),
     /** Whatever you pasted, verbatim. */
     query: text('query').notNull(),
+    /**
+     * What to cite the message on once it arrives, if you asked from a pane
+     * rather than from a box.
+     *
+     * The message still goes into a box — that is where documents live, and a
+     * message that existed only as a project’s evidence would vanish with the
+     * project. This only says that a `box_item_links` row should be written
+     * too, so asking for it from the thing it is about does not then require
+     * finding it again and linking it by hand.
+     *
+     * Nullable, and null is the ordinary case: pasting into a box composer is
+     * asking for a message, full stop.
+     */
+    parentType: attachmentParentType('parent_type'),
+    parentId: uuid('parent_id'),
     status: emailRequestStatus('status').notNull().default('pending'),
     /**
      * How many messages it turned into, or why it turned into none.

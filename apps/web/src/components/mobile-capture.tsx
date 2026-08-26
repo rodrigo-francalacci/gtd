@@ -6,6 +6,7 @@ import {
   captureInboxItem,
   postBoxLink,
   postBoxNote,
+  requestEmail,
   setDocumentExpiry,
   suggestPurchase,
   addPurchase,
@@ -18,6 +19,7 @@ import {
   registerShareWorker,
   sweepAbandonedShares,
 } from '@/lib/shared-files';
+import { readEmailPaste } from '@/lib/email-paste';
 import { soleUrl } from '@/lib/sole-url';
 import { CaptureDestination, type Destination } from './capture-destination';
 import { LifetimePicker, expiryFor } from './lifetime-picker';
@@ -287,14 +289,37 @@ export function MobileCapture({
     }
 
     if (boxId) {
+      /** Asked for rather than filed, so the confirmation can say so. */
+      let requested = false;
+
       try {
         if (note) {
-          const bare = soleUrl(note);
-          const id = bare
-            ? await postBoxLink(boxId, bare, '')
-            : await postBoxNote(boxId, note);
-          const expires = expiryFor(keepFor);
-          if (expires && id) await setDocumentExpiry(id, expires);
+          /*
+           * A Gmail address is a request for the message, not a link to a
+           * page. Filed as a link it becomes an entry whose picture and
+           * summary come from Gmail’s sign-in screen, because that is what
+           * anything without your cookies sees when it follows one.
+           */
+          const wanted = readEmailPaste(note);
+
+          if (wanted) {
+            /*
+             * No early return: anything staged alongside still has to go up,
+             * and the screen still has to say what happened and reset itself.
+             * Returning here left the field full and the confirmation unsaid,
+             * which reads as a capture that was swallowed.
+             */
+            const asked = await requestEmail(boxId, wanted);
+            if (!asked.ok) throw new Error(asked.error);
+            requested = true;
+          } else {
+            const bare = soleUrl(note);
+            const id = bare
+              ? await postBoxLink(boxId, bare, '')
+              : await postBoxNote(boxId, note);
+            const expires = expiryFor(keepFor);
+            if (expires && id) await setDocumentExpiry(id, expires);
+          }
         }
 
         if (files.length > 0) {
@@ -324,7 +349,15 @@ export function MobileCapture({
         }
 
         const box = boxes.find((b) => b.id === boxId);
-        setFlash(`Filed in ${box ? box.name : 'the box'}.`);
+        const where = box ? box.name : 'the box';
+
+        // A request is not a filing, and saying it was would be the screen
+        // lying about the one thing it exists to confirm.
+        setFlash(
+          requested
+            ? `Asked for. It will appear in ${where} once the bridge runs.`
+            : `Filed in ${where}.`,
+        );
         setDest({ kind: 'inbox' });
         router.refresh();
         dismissIfPopup();

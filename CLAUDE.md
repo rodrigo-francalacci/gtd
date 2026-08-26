@@ -1196,6 +1196,41 @@ settings.
   looking for a message that was never filed. Pending ones cannot be dismissed:
   that would race the script, which may be fetching as you press.
 
+- **A request can name what to cite the message on.** Asking from a box is
+  asking for a message, full stop; asking from a project is asking for it
+  *because of* that project, and making you go and find it afterwards to link it
+  by hand was two steps too many for the commonest case. `email_requests` carries
+  an optional `parent_type` / `parent_id`, and the app writes the
+  `box_item_links` row when the bridge reports back.
+- **The message still goes into a box, always.** One that existed only as a
+  project's evidence would vanish with the project, and outliving the reason you
+  filed it is the whole point of a box. The link is what is *extra*. Which box is
+  not a question worth stopping for when you asked from a project, so the default
+  box answers it — the same answer the scanner bridge gives to the same question.
+  `defaultBox` reads and never creates: quietly making a box because someone
+  pasted a URL is not a thing to do behind their back.
+- **The script reports ids, not a count.** A count is enough to close a request
+  and not enough to cite the message, which is most of the point of asking from a
+  pane. The linking then happens in the app, where "this message is evidence for
+  that project" already means something — the script knows about Gmail and Drive
+  and has no business knowing about `box_item_links`. The links are written
+  *before* the request is marked done: a link missing from a request that claims
+  success is a message you would hunt for and not find, whereas a pending request
+  whose links already exist simply resolves next run and writes them again, which
+  `onConflictDoNothing` makes free.
+- **`readEmailQuery` strips the `email:` prefix too, not just `readEmailPaste`.**
+  The prefix exists so a *composer* can tell a search from a note. A field
+  labelled "find an email" needs no such thing, but people type it anyway because
+  it is what they were told to type elsewhere — and left on, it reaches Gmail as
+  part of the search and matches nothing. Two entry points, one normalisation.
+- **The phone screen and the extension route through `readEmailPaste` as well.**
+  Both previously turned a pasted Gmail address into a link entry, whose picture
+  and summary come from Gmail's sign-in page — because that is what anything
+  without your cookies sees when it follows one. A box full of identical entries
+  called "Gmail". On the phone the request must *not* return early either: files
+  staged alongside still have to go up, and the screen still has to say what
+  happened and reset itself, or a capture looks swallowed.
+
 ## Enrichment
 
 Attachments are read in the background so search can reach inside them.

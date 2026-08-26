@@ -1,6 +1,7 @@
 import 'server-only';
 
-import { boxes, db, emailRequests } from '@gtd/db';
+import { boxItemLinks, boxes, db, emailRequests } from '@gtd/db';
+import type { AttachmentParentType } from '@gtd/db';
 import { and, asc, desc, eq, inArray, sql } from 'drizzle-orm';
 
 /**
@@ -49,7 +50,16 @@ export type EmailRequestRow = {
  * which is which happens in the script where Gmail can actually be asked.
  */
 export function readEmailQuery(raw: string): { query: string } | { refuse: string } {
-  const text = raw.trim();
+  /*
+   * The `email:` prefix is stripped here as well as in `readEmailPaste`.
+   *
+   * That prefix exists so a composer can tell a search from a note; a field
+   * labelled "find an email" needs no such thing, but people type it anyway
+   * because it is what they were told to type elsewhere. Left on, it reaches
+   * Gmail as part of the search and matches nothing — a request that fails for
+   * a reason nobody could see. Two entry points, one normalisation.
+   */
+  const text = raw.trim().replace(/^e?mail:\s*/i, '').trim();
   if (!text) return { refuse: 'Nothing to look up.' };
 
   const gmail = /^https?:\/\/mail\.google\.com\/.*#[^/]+\/([^/?&#]+)/i.exec(text);
@@ -72,14 +82,29 @@ export function readEmailQuery(raw: string): { query: string } | { refuse: strin
   return { query: text };
 }
 
+/**
+ * Where a fetched message should be cited, when it was asked for from a pane
+ * rather than from a box.
+ */
+export type RequestParent = {
+  parentType: AttachmentParentType;
+  parentId: string;
+};
+
 /** Write down that a message was asked for. */
 export async function createEmailRequest(
   boxId: string,
   query: string,
+  parent?: RequestParent,
 ): Promise<{ id: string }> {
   const [row] = await db
     .insert(emailRequests)
-    .values({ boxId, query })
+    .values({
+      boxId,
+      query,
+      parentType: parent?.parentType ?? null,
+      parentId: parent?.parentId ?? null,
+    })
     .returning({ id: emailRequests.id });
 
   return row;
@@ -158,19 +183,54 @@ export async function claimEmailRequests(limit = 10) {
 /** Three, because a request that has failed three times will fail again. */
 const MAX_ATTEMPTS = 3;
 
-/** The script reports what happened. */
+/**
+ * The script reports what happened.
+ *
+ * It sends the ids of the entries it filed rather than only a count, which
+ * is what lets the linking happen *here*. The script has no business
+ * knowing about `box_item_links` — it knows about Gmail and Drive — and the
+ * app is where "this message is evidence for that project" already means
+ * something.
+ */
 export async function resolveEmailRequest(
   id: string,
-  filed: number,
+  itemIds: string[],
   note: string | null,
 ): Promise<void> {
   const [row] = await db
-    .select({ attempts: emailRequests.attempts })
+    .select({
+      attempts: emailRequests.attempts,
+      parentType: emailRequests.parentType,
+      parentId: emailRequests.parentId,
+    })
     .from(emailRequests)
     .where(eq(emailRequests.id, id))
     .limit(1);
 
   if (!row) return;
+
+  const filed = itemIds.length;
+
+  /*
+   * Cited on the thing you asked from, if you asked from one. Written before
+   * the request is marked done: a link missing from a request that says it
+   * succeeded is a message you would go looking for on a project and not
+   * find, whereas a request still pending with the links already in place
+   * simply resolves on the next run and writes them again — which
+   * `onConflictDoNothing` makes free.
+   */
+  if (filed > 0 && row.parentType && row.parentId) {
+    await db
+      .insert(boxItemLinks)
+      .values(
+        itemIds.map((itemId) => ({
+          itemId,
+          parentType: row.parentType!,
+          parentId: row.parentId!,
+        })),
+      )
+      .onConflictDoNothing();
+  }
 
   /*
    * Filed anything at all and it is done. Nothing, and it goes back in the

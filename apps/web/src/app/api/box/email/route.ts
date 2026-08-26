@@ -31,7 +31,14 @@ export async function POST(request: Request) {
     step: 'claim' | 'resolve';
     limit: number;
     id: string;
-    filed: number;
+    /**
+     * The entries the script filed, not merely how many.
+     *
+     * A count is enough to close the request and not enough to cite the
+     * message on the thing it was asked from, which is most of the point of
+     * asking from there.
+     */
+    itemIds: string[];
     note: string;
   }>;
 
@@ -49,7 +56,7 @@ export async function POST(request: Request) {
 
     await resolveEmailRequest(
       body.id,
-      Number.isFinite(body.filed) ? Number(body.filed) : 0,
+      Array.isArray(body.itemIds) ? body.itemIds.filter((v) => typeof v === 'string') : [],
       body.note?.slice(0, 500) ?? null,
     );
 
