@@ -3,7 +3,9 @@
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import type { BoxCategoryRow } from '@/lib/queries.shared';
+import { TAG_BUDGET, allotTags } from '@/lib/tag-budget';
 import { FilterChip, filterHref } from './filter-chip';
+import { TagPicker } from './tag-picker';
 
 /**
  * Narrow a box by its own tags.
@@ -25,6 +27,22 @@ import { FilterChip, filterHref } from './filter-chip';
  * it is offering a dead end — the bar fills up with roads that go nowhere and
  * you stop reading it. The counts come from the rows on screen, so what is
  * listed is exactly what would still find something.
+ *
+ * **The bar has a budget, and the budget is what makes it survive a real
+ * vocabulary.** Document types stay at half a dozen forever; locations become
+ * every town you have bought fuel in, and vendors every shop you have kept a
+ * receipt from. Unbounded, the bar ends up taller than the list it filters,
+ * which is the one thing a filter must never be. So each category shows as many
+ * as its share of `TAG_BUDGET` allows and folds the rest into a searchable
+ * panel — see `lib/tag-budget.ts` for why the share is not simply an equal cut.
+ *
+ * **Which ones survive the fold is decided by the current counts, so it moves
+ * as you filter.** That is the point rather than a side effect: after choosing
+ * Tesco, the vendors worth offering next are the ones that still co-occur with
+ * it, and a bar frozen on the box's all-time favourites would be showing you
+ * the wrong five. Anything selected or excluded is kept on the bar whatever its
+ * rank — it has a count of zero by definition once excluded, and folding it
+ * away would leave no way to undo it.
  */
 export function TagFilter({
   boxId,
@@ -61,51 +79,98 @@ export function TagFilter({
 
   if (withTags.length === 0) return null;
 
+  /**
+   * Chosen first, then by how much each would narrow the list.
+   *
+   * Two sorts in one: a tag you have already acted on is pinned to the front so
+   * it never falls off the end of its row, and the rest are ranked by their
+   * count in what is currently shown. Ties break on name so the bar does not
+   * reshuffle itself between two renders that mean the same thing.
+   */
+  const ranked = withTags.map((category) => ({
+    ...category,
+    tags: [...category.tags].sort((a, b) => {
+      const chosenA = selected.includes(a.id) || excluded.includes(a.id) ? 1 : 0;
+      const chosenB = selected.includes(b.id) || excluded.includes(b.id) ? 1 : 0;
+      return (
+        chosenB - chosenA ||
+        (counts[b.id] ?? 0) - (counts[a.id] ?? 0) ||
+        a.name.localeCompare(b.name)
+      );
+    }),
+  }));
+
+  const allowed = allotTags(
+    ranked.map((category) => category.tags.length),
+    TAG_BUDGET,
+  );
+
   return (
     <div className="flex flex-col gap-1">
-      {withTags.map((category) => (
-        <div key={category.id} className="flex flex-wrap items-baseline gap-1">
-          <span className="mr-1 shrink-0 text-[10px] uppercase tracking-wider text-grey-400">
-            {category.name}
-          </span>
-          {category.tags.map((tag) => {
-            const state = selected.includes(tag.id)
-              ? 'include'
-              : excluded.includes(tag.id)
-                ? 'exclude'
-                : 'off';
+      {ranked.map((category, index) => {
+        const shown = category.tags.slice(0, allowed[index]);
+        const hidden = category.tags.length - shown.length;
 
-            return (
-              <FilterChip
-                key={tag.id}
-                label={tag.name}
-                /* What you'd be left with. Worth the space: it turns the bar
-                   from a list of labels into a picture of what's in the box. */
-                count={counts[tag.id] ?? 0}
-                state={state}
-                includeHref={filterHref(
-                  base,
-                  searchParams,
-                  'tag',
-                  'nottag',
-                  tag.id,
-                  // Click is a toggle to and from off; excluding is the other gesture, so
-                  // clicking a struck-through chip clears it rather than flipping it.
-                  state === 'off' ? 'include' : 'off',
-                )}
-                excludeHref={filterHref(
-                  base,
-                  searchParams,
-                  'tag',
-                  'nottag',
-                  tag.id,
-                  state === 'exclude' ? 'off' : 'exclude',
-                )}
+        return (
+          /* `relative`, because the picker hangs off the row rather than off
+             the button that opens it — see `TagPicker` for why. */
+          <div key={category.id} className="relative flex flex-wrap items-baseline gap-1">
+            <span className="mr-1 shrink-0 text-[10px] uppercase tracking-wider text-grey-400">
+              {category.name}
+            </span>
+
+            {shown.map((tag) => {
+              const state = selected.includes(tag.id)
+                ? 'include'
+                : excluded.includes(tag.id)
+                  ? 'exclude'
+                  : 'off';
+
+              return (
+                <FilterChip
+                  key={tag.id}
+                  label={tag.name}
+                  /* What you'd be left with. Worth the space: it turns the bar
+                     from a list of labels into a picture of what's in the box. */
+                  count={counts[tag.id] ?? 0}
+                  state={state}
+                  includeHref={filterHref(
+                    base,
+                    searchParams,
+                    'tag',
+                    'nottag',
+                    tag.id,
+                    // Click is a toggle to and from off; excluding is the other gesture, so
+                    // clicking a struck-through chip clears it rather than flipping it.
+                    state === 'off' ? 'include' : 'off',
+                  )}
+                  excludeHref={filterHref(
+                    base,
+                    searchParams,
+                    'tag',
+                    'nottag',
+                    tag.id,
+                    state === 'exclude' ? 'off' : 'exclude',
+                  )}
+                />
+              );
+            })}
+
+            {hidden > 0 ? (
+              <TagPicker
+                categoryName={category.name}
+                tags={category.tags}
+                counts={counts}
+                selected={selected}
+                excluded={excluded}
+                hiddenCount={hidden}
+                base={base}
+                params={searchParams}
               />
-            );
-          })}
-        </div>
-      ))}
+            ) : null}
+          </div>
+        );
+      })}
 
       {selected.length > 0 || excluded.length > 0 ? (
         <Link

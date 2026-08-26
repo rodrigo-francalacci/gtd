@@ -21,29 +21,34 @@ import {
  */
 
 /**
- * A voice note, the way Telegram makes one.
+ * All three of the browser's filters are off. The chain does the work instead.
  *
- * This reverses an earlier decision, on purpose and with the trade understood.
- * The chain used to run with noise suppression off, on the reasoning that it is
- * destructive and cannot be undone: AEC brings a high-pass and takes the bottom
- * out, suppression gates the quiet detail at the top, and that is exactly what
- * makes a messaging app's voice notes unpleasant to hear twice. All of that is
- * still true. It was weighed against how the result actually sounds in use and
- * lost — a spoken note is a message to yourself, not a recording of a room, and
- * Telegram's are the ones worth copying.
+ * `{ audio: true }` accepts a voice-call processing chain — echo cancellation,
+ * noise suppression, automatic gain — and every one of them is now refused, for
+ * one reason with two halves.
  *
- * So: suppression on, echo cancellation still off. AEC is the one that exists
- * for a *loudspeaker* problem a voice note does not have, and it is the harshest
- * of the three on the low end.
+ * The first half is that two of them are destructive and nothing downstream can
+ * undo them. AEC brings a high-pass and takes the bottom out; suppression is a
+ * spectral gate that shuts the quiet detail at the top, which is what makes a
+ * messaging app's voice notes unpleasant to hear twice. Suppression was on for
+ * a while on the argument that a spoken note is a message rather than a
+ * recording of a room. That argument was worth testing and it lost: what it
+ * removes is breath, room and the tail of a word, and none of that comes back.
  *
- * `autoGainControl` is now **off**, which is a change and not an oversight. It
- * was the only thing setting the level, and it was not enough — the recordings
- * came out quiet enough to need the volume turned up, which is the one thing a
- * voice note must not need. The level is now set deliberately in
- * `lib/voice-chain.ts`, and two automatic gain systems in series do not add up:
- * AGC moves under the compressor, the compressor answers, and the result
- * breathes. Whichever is going to decide the level has to be the only one
- * deciding it.
+ * The second half is the one that settles it. All three are *dynamic* — their
+ * gain moves with the signal — and they sit in front of a compressor whose
+ * whole job is to respond to the signal's level. Feeding a compressor something
+ * that is already being modulated means it is chasing a thing that is chasing
+ * it, which is exactly why `autoGainControl` had to go, and suppression is the
+ * same mechanism aimed at frequency rather than level. Whatever is going to
+ * shape the dynamics has to be the only thing shaping them, and that is now
+ * `lib/voice-chain.ts`, where the numbers are written down and can be argued
+ * with.
+ *
+ * What is left is the microphone as it hears the room, gain-staged
+ * deliberately. Noisier than a phone call, and that is the trade: a bit of room
+ * behind a voice is what makes a recording sound like a place rather than a
+ * telephone.
  *
  * Mono, because a voice note is one voice and the second channel is a copy of
  * the first with a different noise floor.
@@ -55,7 +60,7 @@ import {
  */
 const VOICE_INPUT: MediaTrackConstraints = {
   echoCancellation: false,
-  noiseSuppression: true,
+  noiseSuppression: false,
   autoGainControl: false,
   sampleRate: 48_000,
   channelCount: 1,
@@ -201,8 +206,16 @@ export function AudioRecorder({
             settings.sampleRate ? `${Math.round(settings.sampleRate / 1000)} kHz` : null,
             settings.channelCount === 2 ? 'stereo' : 'mono',
             `${Math.round(BITRATE / 1000)} kbps`,
+            /*
+             * This now reports a *disagreement* rather than a setting. All
+             * three filters are asked for as off, so anything other than "full
+             * range" means the device refused — some phone microphones apply
+             * their processing below the browser and cannot be talked out of
+             * it. Worth naming plainly, because it is the first thing to
+             * suspect when one recording sounds unlike the rest.
+             */
             settings.noiseSuppression || settings.echoCancellation
-              ? 'voice'
+              ? 'device filtering'
               : 'full range',
             built.processed ? VOICE_CHAIN_LABEL : 'unprocessed',
           ]

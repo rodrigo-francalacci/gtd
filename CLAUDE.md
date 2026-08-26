@@ -493,12 +493,18 @@ Turbopack is the default; `middleware` is now `proxy`.
   a first attempt at +18 dB of drive took fifteen decibels off the same input,
   which is a different effect wearing the same name. Re-tune by running that
   curve, not by ear alone.
-  **`autoGainControl` is now off, and that is the point.** Two automatic gain
-  systems in series fight: AGC moves under the compressor, the compressor
-  answers, and the result breathes. Whichever is going to set the level has to
-  be the only thing setting it. Noise suppression stays on and echo
-  cancellation stays off — AEC exists for a loudspeaker problem a voice note
-  does not have, and it is the harshest of the three on the low end.
+  **All three of the browser’s filters are off, and that is the point.** They
+  are all *dynamic* — their gain moves with the signal — and they sit in front
+  of a compressor whose whole job is to respond to level. Feeding it something
+  already being modulated means it is chasing a thing that is chasing it: AGC
+  moves under the compressor, the compressor answers, and the result breathes.
+  Noise suppression is the same mechanism aimed at frequency rather than
+  level, and what it removes — breath, room, the tail of a word — does not
+  come back. Whatever shapes the dynamics has to be the only thing shaping
+  them. The readout now reports a *disagreement*: anything but "full range"
+  means a device applied its processing below the browser and would not be
+  talked out of it, which is the first thing to suspect when one recording
+  sounds unlike the rest.
   The recorder shows a live peak meter and a gain-reduction meter, which is how
   a bad recording is diagnosed afterwards: a bar that never left the left-hand
   end means the microphone, and one pinned at the right with ten decibels of
@@ -961,6 +967,32 @@ to be kept. They meet at `box_item_links` and nowhere else.
   `apple-touch-icon`, then the first real image on the page (a masthead or a
   logo, which is what makes a site recognisable), then the favicon. Both links
   in the first real test had no `og:image` and both now have a picture.
+- **The tag bar has a budget, because a box's vocabulary has none.** Document
+  types stay at half a dozen forever; locations become every town you have
+  bought fuel in and vendors every shop you have kept a receipt from. Unbounded,
+  the bar ends up taller than the list it filters, which is the one thing a
+  filter must never be. `allotTags` shares `TAG_BUDGET` (15) across the
+  categories and **hands back what the small ones do not need** — a flat cap per
+  category is the obvious answer and the wrong one, because it truncates a
+  category of four as readily as one of four hundred. It also never folds a
+  single tag away: a "+1" costs the same width as the chip it hides and says
+  less.
+- **Which tags survive the fold moves as you filter, and that is the point.**
+  The ranking is the current count, which is already taken from the rows on
+  screen — so after choosing Tesco the vendors offered next are the ones that
+  still co-occur with it, not the box's all-time favourites. Anything selected
+  or excluded is pinned to the front of its row whatever its rank: an excluded
+  tag has a count of zero by definition, and folding it away would leave no way
+  to undo it.
+- **The overflow is a search field, not a longer list.** Past twenty tags you
+  are not scanning, you are looking for one you already have in mind, and typing
+  three letters beats reading two hundred chips however they are arranged. The
+  panel lists the category's *whole* vocabulary including the tags already on
+  the bar — hiding those would make the search lie, returning nothing for a tag
+  that was on screen three chips to the left. It hangs off the *row*, not off
+  the button that opens it: the button sits at the end of a wrapping row, so its
+  position is whatever the chips before it left, and a panel anchored there
+  opens off the edge of a narrow pane about half the time.
 - **The filter offers only what would still find something.** Once Tesco is
   selected, a tag on none of the remaining receipts leads to an empty list, and
   a bar full of dead ends is a bar you stop reading. Counts come from the rows

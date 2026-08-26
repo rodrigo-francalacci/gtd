@@ -20,8 +20,8 @@ import { downloadFile } from './client';
  * Between them the name survives intact and the header stays legal.
  */
 function filenameParams(name: string): string {
-  // Quotes end the parameter and control characters are not allowed in one.
-  // eslint-disable-next-line no-control-regex
+  // Anything outside printable ASCII cannot go in the plain parameter; quotes
+  // and backslashes would end it early.
   const ascii = name.replace(/[^\x20-\x7e]/g, '_').replace(/["\\]/g, '');
 
   return `filename="${ascii}"; filename*=UTF-8''${encodeURIComponent(name)}`;
