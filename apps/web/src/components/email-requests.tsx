@@ -31,6 +31,14 @@ export function EmailRequests({ requests }: { requests: EmailRequestRow[] }) {
     <ul className="flex flex-col gap-1 px-4 pb-2">
       {requests.map((request) => {
         const failed = request.status === 'failed';
+        /*
+         * Anything that is not still pending can be cleared, not only a
+         * failure. A request can finish and still have something to say —
+         * filed, but not linked, because the bridge is out of date — and a
+         * line you have read and cannot get rid of is its own small
+         * annoyance.
+         */
+        const settled = request.status !== 'pending';
 
         return (
           <li
@@ -49,15 +57,16 @@ export function EmailRequests({ requests }: { requests: EmailRequestRow[] }) {
                 {request.query}
               </span>
               <span className="block opacity-80">
-                {failed
-                  ? (request.note ?? 'The bridge could not find that.')
-                  : 'Waiting for the bridge to fetch this.'}
+                {request.note ??
+                  (failed
+                    ? 'The bridge could not find that.'
+                    : 'Waiting for the bridge to fetch this.')}
               </span>
             </span>
 
-            {/* Only a failure can be dismissed. Dropping a pending one would
-                race the script, which may be fetching it as you press. */}
-            {failed ? (
+            {/* A pending one cannot be dropped: that would race the script,
+                which may be fetching it as you press. */}
+            {settled ? (
               <button
                 type="button"
                 disabled={pending}

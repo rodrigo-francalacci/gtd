@@ -39,6 +39,8 @@ export async function POST(request: Request) {
      * asking from there.
      */
     itemIds: string[];
+    /** What an older bridge sends instead. Kept so it is noticed, not lost. */
+    filed: number;
     note: string;
   }>;
 
@@ -58,6 +60,7 @@ export async function POST(request: Request) {
       body.id,
       Array.isArray(body.itemIds) ? body.itemIds.filter((v) => typeof v === 'string') : [],
       body.note?.slice(0, 500) ?? null,
+      Number.isFinite(body.filed) ? Number(body.filed) : 0,
     );
 
     return NextResponse.json({ ok: true });

@@ -2,7 +2,7 @@ import 'server-only';
 
 import { boxItemLinks, boxes, db, emailRequests } from '@gtd/db';
 import type { AttachmentParentType } from '@gtd/db';
-import { and, asc, desc, eq, inArray, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, inArray, isNotNull, or, sql } from 'drizzle-orm';
 
 /**
  * Asking the bridge for a message you have not labelled.
@@ -146,7 +146,18 @@ export async function getEmailRequests(boxId: string): Promise<EmailRequestRow[]
     .where(
       and(
         eq(emailRequests.boxId, boxId),
-        inArray(emailRequests.status, ['pending', 'failed']),
+        /*
+         * Pending, failed, or done-but-with-something-to-say.
+         *
+         * A `done` request normally disappears, which is right — it worked
+         * and the message is in the feed below. But a note on a done request
+         * means it worked *and* something about it needs saying, and hiding
+         * that was how the one case it exists for stayed invisible.
+         */
+        or(
+          inArray(emailRequests.status, ['pending', 'failed']),
+          isNotNull(emailRequests.note),
+        ),
       ),
     )
     .orderBy(desc(emailRequests.createdAt));
@@ -210,6 +221,21 @@ export async function resolveEmailRequest(
   id: string,
   itemIds: string[],
   note: string | null,
+  /**
+   * The count an older bridge sends instead of the ids.
+   *
+   * `scripts/gtd-email.gs` used to report only how many messages it filed,
+   * which is enough to close a request and not enough to cite one. Without
+   * this the app saw nothing filed, left the request pending, and wrote no
+   * link — the message sitting in its box the whole time, correctly filed,
+   * with the pane it was asked from showing nothing. Silent, and it looked
+   * exactly like the fetch had failed.
+   *
+   * A mismatched bridge is not a thing the app can fix, so it says so
+   * instead: the request closes, because it genuinely worked, and the note
+   * explains why the link is missing and what to do about it.
+   */
+  legacyFiled = 0,
 ): Promise<void> {
   const [row] = await db
     .select({
@@ -223,7 +249,11 @@ export async function resolveEmailRequest(
 
   if (!row) return;
 
-  const filed = itemIds.length;
+  const filed = itemIds.length || legacyFiled;
+
+  /** Filed something, but would not say what. */
+  const blind = itemIds.length === 0 && legacyFiled > 0;
+  const wanted = Boolean(row.parentType && row.parentId);
 
   /*
    * Cited on the thing you asked from, if you asked from one. Written before
@@ -233,7 +263,13 @@ export async function resolveEmailRequest(
    * simply resolves on the next run and writes them again — which
    * `onConflictDoNothing` makes free.
    */
-  if (filed > 0 && row.parentType && row.parentId) {
+  /*
+   * `itemIds.length`, not `filed` — the two stopped being the same number
+   * the moment a legacy count could stand in for the ids. Guarding on the
+   * count would hand Drizzle an empty `values([])`, which is the same trap
+   * as `inArray` with an empty array: a statement Postgres refuses.
+   */
+  if (itemIds.length > 0 && row.parentType && row.parentId) {
     await db
       .insert(boxItemLinks)
       .values(
@@ -261,11 +297,13 @@ export async function resolveEmailRequest(
       filed,
       note:
         note ??
-        (done
-          ? null
-          : exhausted
-            ? 'Gmail found nothing for that, after three tries.'
-            : null),
+        (blind && wanted
+          ? 'Filed in the box, but the bridge did not say which message it was, so it could not be linked here. Update scripts/gtd-email.gs in Apps Script and link this one by hand.'
+          : done
+            ? null
+            : exhausted
+              ? 'Gmail found nothing for that, after three tries.'
+              : null),
       resolvedAt: done || exhausted ? new Date() : null,
     })
     .where(eq(emailRequests.id, id));
