@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { playableAudio } from './audio-repair';
 
 /**
  * The bits of the preview pane that more than one viewer needs.
@@ -72,7 +73,14 @@ export function useMediaBlob(src: string): {
           return;
         }
 
-        const blob = await response.blob();
+        /*
+         * Repaired on the way past, if it needs it and only if it needs it.
+         *
+         * Having the whole file in hand is what makes this possible at all: a
+         * defect in the first frame cannot be fixed by an element streaming
+         * from a URL, which is already committed by the time it finds one.
+         */
+        const blob = await playableAudio(await response.blob());
         if (!live) return;
 
         url = URL.createObjectURL(blob);

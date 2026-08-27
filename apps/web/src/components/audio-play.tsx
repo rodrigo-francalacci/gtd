@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
+import { playableAudio } from '@/lib/audio-repair';
 import { IconAudio, IconPlay, IconStop } from './icons';
 
 /**
@@ -78,7 +79,12 @@ export function AudioPlay({ src, name }: { src: string; name: string }) {
           throw new Error(body?.error ?? 'That file would not play.');
         }
 
-        const url = URL.createObjectURL(await response.blob());
+        // Repaired on the way past, if it needs it — see `lib/audio-repair`.
+        // The bytes are already here, which is the only place the fix can be
+        // made: an element streaming from a URL is committed before it finds
+        // the bad frame.
+        const playable = await playableAudio(await response.blob());
+        const url = URL.createObjectURL(playable);
         objectUrl.current = url;
 
         /**

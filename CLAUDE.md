@@ -514,6 +514,25 @@ Turbopack is the default; `middleware` is now `proxy`.
   `duration` reads `Infinity` and the scrubber has no scale, for exactly the
   files the record button produces. Seeking past any plausible end makes the
   browser settle on a real figure. Guarded, not assumed.
+- **A file Chrome refuses is not always a broken file, and one frame can cost
+  you all of them.** Some recorders write the decoder's configuration into the
+  media data as if it were the first frame of audio and list it in the sample
+  table as a two-byte sample. `ffmpeg` and VLC log a line and carry on; Chrome
+  meets it as the very first thing it decodes and abandons the whole file, so a
+  forty-five-second recording that is perfect from frame two onward becomes a
+  file the app can only apologise for. `lib/audio-repair.ts` replaces that one
+  sample with an empty `raw_data_block` (`E0 00` — three bits saying the block
+  has ended, then padding), **in place**: same length, so the sample table,
+  every chunk offset and the file's own size stay true. The condition to act is
+  a proof rather than a heuristic — the leading sample must be exactly as long
+  as the `esds` decoder configuration *and* byte-for-byte equal to it, which
+  real audio never is. It runs where the bytes already are, in `useMediaBlob`
+  and `AudioPlay`, and nowhere near Drive: the stored file is what the user
+  handed us and stays that, the same rule raw capture follows. An element
+  streaming from a URL could not be fixed anyway — it is already committed by
+  the time it reaches the bad frame. `scripts/check-audio-repair.mjs` builds
+  MP4s of each shape and checks the nine that must be left alone as well as the
+  two that must not; run it before touching the module.
 - **A transcript is stored in two places with two different rules, and the
   difference is not cosmetic.** `attachments.search_vector` is generated from
   `transcription`, so writing that column is enough. `box_items.search_vector`
