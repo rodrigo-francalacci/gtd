@@ -235,6 +235,45 @@ Turbopack is the default; `middleware` is now `proxy`.
   app *created*, creating includes renaming, and every box document is
   app-created — the bridge re-uploads through the app's credentials precisely
   so it is. Verified against the live API before it was built on.
+- **Drive is renamed when the title is written, not on the next tick.**
+  `drainBoxQueue` writes the model's title and then pushes it straight out to
+  Drive. It used to leave that entirely to `renameBoxFiles` on the cron — which
+  on a Hobby account runs **daily** — so a receipt scanned at two in the
+  afternoon, read a second later and correctly titled in the app, sat in Drive
+  under the scanner's filename until the following morning. Nothing was broken
+  and everything looked broken, which is the worst combination: opening the
+  Drive folder showed none of the work the app had just done.
+  A Google call inside a request, under the same exception the read itself is:
+  that function has already downloaded the file and spent a model call on it, so
+  one metadata write is not what makes it slow.
+- **`renameBoxFiles` stays, as the backstop.** It catches anything the read path
+  missed — a rename that failed, a title corrected by hand afterwards, a document
+  read before this existed. A failure at read time is deliberately quiet in the
+  caller for the same reason: the title is already saved, and a filename must
+  never take a read down with it and cost a model call to redo.
+- **The sweep caps renames, not candidates.** `.limit(50)` on the *query* bounded
+  the wrong thing — the first fifty rows with a title and a file, in whatever
+  order Postgres felt like, most of which are already correct. Past fifty
+  documents it could spend its whole budget confirming good names and never
+  reach the drifted one, quietly, and more so the fuller the box got. Every
+  candidate is fetched now and the loop breaks after `limit` actual renames. The
+  cost is five columns over every document once a tick; the alternative is
+  writing `driveNameFor` a second time in SQL, which is the two-definitions trap
+  this file already warns about.
+- **A failed rename is logged, not swallowed.** It was a bare `continue`, so a
+  rename that could never succeed — a withdrawn grant, a file trashed in Drive —
+  failed silently on every tick for ever, and the only symptom was a folder whose
+  names never caught up.
+- **`driveNameFor` lives in `sync.ts` now**, beside `safeName`, which it calls
+  and which is where the naming rules were always supposed to live. Moving it is
+  what let the read path use it without `box/queue.ts` and `google/boxes.ts`
+  importing each other. Re-exported from `boxes.ts` so existing callers are
+  unaffected.
+- **There is no manifest and no Apps Script in any of this.** That was considered
+  and rejected: `drive.file` grants per-file access to files the app created,
+  creating includes renaming, and every box document is app-created — the bridge
+  re-uploads through the app's own credentials precisely so that it is. Verified
+  against the live API before it was built on.
 - **Drift is found without asking Google.** `box_items.name` is by definition
   the name Drive holds, so a title disagreeing with it is the whole test — no
   per-file read, and a tick where nothing was retitled makes no calls at all.

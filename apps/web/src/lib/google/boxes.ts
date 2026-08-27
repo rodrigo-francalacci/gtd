@@ -17,7 +17,9 @@ import {
   renameFolder,
   trashFile,
 } from './client';
-import { ROOT, safeName } from './sync';
+import { ROOT, driveNameFor, safeName } from './sync';
+
+export { driveNameFor };
 
 export class BoxError extends Error {}
 
@@ -375,44 +377,6 @@ export async function expireBoxItems(limit = 50): Promise<number> {
 }
 
 /**
- * The name a box document should carry in Drive.
- *
- * The title is what the box calls it — the model's, or whatever you corrected
- * it to. The extension comes from the name Drive currently holds, because
- * dropping it would leave a file the operating system no longer knows how to
- * open; it is not doubled if the title already ends in it.
- *
- * The printed date goes in front when there is one, and that is not decoration.
- * The scanner bridge already names its uploads `2026-01-30 Fuel Receipt — …`,
- * so a bare title would have been a regression against a convention already
- * sitting in the folder: a document folder is read in date order, and a
- * hundred receipts sorted by the first letter of a summary is not a filing
- * system. It is also the one fact those generated names carry that a title
- * often doesn't, and Drive has nowhere else to put it.
- *
- * `doc_date` rather than arrival, matching the feed: what the paper says,
- * which is the date you would look for.
- */
-export function driveNameFor(
-  title: string,
-  current: string,
-  docDate: string | null,
-): string | null {
-  const base = safeName(title);
-  if (!base) return null;
-
-  // Already led by an ISO date — the model repeating it, or a title that has
-  // been through here before. Prefixing again would stutter.
-  const dated =
-    docDate && !/^\d{4}-\d{2}-\d{2}/.test(base) ? `${docDate} ${base}` : base;
-
-  const ext = /\.[A-Za-z0-9]{1,8}$/.exec(current)?.[0] ?? '';
-  if (!ext) return dated;
-
-  return dated.toLowerCase().endsWith(ext.toLowerCase()) ? dated : `${dated}${ext}`;
-}
-
-/**
  * Make Drive call a document what the box calls it.
  *
  * A scan arrives named by whatever produced it — a camera's timestamp, a
@@ -459,18 +423,43 @@ export async function renameBoxFiles(limit = 50): Promise<number> {
         // Google's to name. See above.
         sql`coalesce(${boxItems.mimeType}, '') not like 'application/vnd.google-apps.%'`,
       ),
-    )
-    .limit(limit);
+    );
 
+  /*
+   * Every candidate is fetched and the *renames* are what is capped, which
+   * is the other way round from how this started.
+   *
+   * `.limit(50)` on the query bounded the wrong thing: it took the first
+   * fifty rows with a title and a file, in whatever order Postgres felt
+   * like, and most of those are already named correctly. Past fifty
+   * documents the sweep could spend its whole budget confirming names that
+   * were fine and never reach the one that had drifted — quietly, and more
+   * so the fuller the box got.
+   *
+   * The cost is five columns over every document in every box, once a tick.
+   * The alternative is expressing `driveNameFor` a second time in SQL, and
+   * two definitions of one name is the trap this file already warns about.
+   */
   let renamed = 0;
 
   for (const row of rows) {
     const wanted = driveNameFor(row.title!, row.name, row.docDate);
     if (!wanted || wanted === row.name) continue;
+    if (renamed >= limit) break;
 
     try {
       await renameFile(row.driveFileId!, wanted);
-    } catch {
+    } catch (error) {
+      /*
+       * Reported, not swallowed.
+       *
+       * This was a bare `continue`, so a rename that could never succeed —
+       * a withdrawn grant, a file trashed in Drive — failed silently on
+       * every tick for ever, and the only symptom was a folder whose names
+       * never caught up. A log line is not much, but it is the difference
+       * between a thing you can find and a thing you cannot.
+       */
+      console.error('rename failed for box item', row.id, error);
       continue;
     }
 

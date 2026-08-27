@@ -94,6 +94,44 @@ export function safeName(title: string): string {
   return title.replace(/[\\/]/g, '-').replace(/\s+/g, ' ').trim().slice(0, 100);
 }
 
+/**
+ * The name a box document should carry in Drive.
+ *
+ * The title is what the box calls it — the model's, or whatever you corrected
+ * it to. The extension comes from the name Drive currently holds, because
+ * dropping it would leave a file the operating system no longer knows how to
+ * open; it is not doubled if the title already ends in it.
+ *
+ * The printed date goes in front when there is one, and that is not decoration.
+ * The scanner bridge already names its uploads `2026-01-30 Fuel Receipt — …`,
+ * so a bare title would have been a regression against a convention already
+ * sitting in the folder: a document folder is read in date order, and a
+ * hundred receipts sorted by the first letter of a summary is not a filing
+ * system. It is also the one fact those generated names carry that a title
+ * often doesn't, and Drive has nowhere else to put it.
+ *
+ * `doc_date` rather than arrival, matching the feed: what the paper says,
+ * which is the date you would look for.
+ */
+export function driveNameFor(
+  title: string,
+  current: string,
+  docDate: string | null,
+): string | null {
+  const base = safeName(title);
+  if (!base) return null;
+
+  // Already led by an ISO date — the model repeating it, or a title that has
+  // been through here before. Prefixing again would stutter.
+  const dated =
+    docDate && !/^\d{4}-\d{2}-\d{2}/.test(base) ? `${docDate} ${base}` : base;
+
+  const ext = /\.[A-Za-z0-9]{1,8}$/.exec(current)?.[0] ?? '';
+  if (!ext) return dated;
+
+  return dated.toLowerCase().endsWith(ext.toLowerCase()) ? dated : `${dated}${ext}`;
+}
+
 /** The full Gmail label a project should have, e.g. `GTD/Archive/2026/Thing`. */
 export function projectLabelName(
   status: ProjectStatus,

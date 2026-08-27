@@ -10,8 +10,13 @@ import {
 } from '@gtd/db';
 import { eq, sql } from 'drizzle-orm';
 import { GoogleAuthError } from '@/lib/auth/token';
-import { GoogleApiError, downloadFile, exportFile } from '@/lib/google/client';
-import { exportTypeFor, isGoogleNative } from '@/lib/google/sync';
+import {
+  GoogleApiError,
+  downloadFile,
+  exportFile,
+  renameFile,
+} from '@/lib/google/client';
+import { driveNameFor, exportTypeFor, isGoogleNative } from '@/lib/google/sync';
 import { getBoxCategories } from '@/lib/queries';
 import {
   MAX_CLASSIFY_BYTES,
@@ -310,6 +315,29 @@ async function runJob(model: Classifier | null, itemId: string) {
       updatedAt: new Date(),
     })
     .where(eq(boxItems.id, itemId));
+
+  /**
+   * Drive is told the new name here, at the moment the old one became wrong.
+   *
+   * It used to wait for `renameBoxFiles` on the cron tick — which on a Hobby
+   * account is *daily*. So a receipt scanned at two in the afternoon, read a
+   * second later and correctly titled in the app, sat in Drive under the
+   * scanner’s filename until the following morning. Nothing was broken and
+   * everything looked broken, which is the worst combination: opening the
+   * Drive folder showed none of the work the app had just done.
+   *
+   * This is a Google call inside a request, which the app otherwise refuses.
+   * It sits under the same exception the read itself does: this function has
+   * already downloaded the file from Drive and spent a model call on it, so
+   * one metadata write is not what makes it slow. `drive.file` covers it,
+   * because the app created the file.
+   *
+   * Failing is survivable and deliberately quiet in the caller: the title is
+   * already saved, and `renameBoxFiles` is still there as the backstop that
+   * catches it on the next tick. What must not happen is the rename taking
+   * the *read* down with it — that would cost a model call to fix a filename.
+   */
+  await renameInDrive(itemId, result.title, result.date);
 }
 
 /**
@@ -546,4 +574,50 @@ export async function countWaitingDocuments(): Promise<number> {
     .where(sql`${boxJobs.status} = 'pending'`);
 
   return row?.n ?? 0;
+}
+
+/**
+ * Push one document’s title out to Drive.
+ *
+ * Reads the row back rather than trusting what was just written, because the
+ * *extension* comes from the name Drive currently holds and only the row
+ * knows it — and because a Docs-editor file must be left alone, which is a
+ * fact about the row rather than about the title.
+ */
+async function renameInDrive(
+  itemId: string,
+  title: string | null | undefined,
+  docDate: string | null,
+): Promise<void> {
+  if (!title) return;
+
+  try {
+    const [row] = await db
+      .select({
+        name: boxItems.name,
+        mimeType: boxItems.mimeType,
+        driveFileId: boxItems.driveFileId,
+      })
+      .from(boxItems)
+      .where(eq(boxItems.id, itemId))
+      .limit(1);
+
+    if (!row?.driveFileId) return;
+    // Google names its own editor files; you rename one by typing in its
+    // title bar, and the app holding a copy of that name would be pretending
+    // to own something it does not.
+    if (isGoogleNative(row.mimeType)) return;
+
+    const wanted = driveNameFor(title, row.name, docDate);
+    if (!wanted || wanted === row.name) return;
+
+    await renameFile(row.driveFileId, wanted);
+
+    // Written only once Drive agrees. Writing first would leave the app
+    // certain of a name that was never applied, and never retrying, because
+    // the disagreement the sweep looks for would be gone.
+    await db.update(boxItems).set({ name: wanted }).where(eq(boxItems.id, itemId));
+  } catch (error) {
+    console.error('could not rename in Drive after reading', itemId, error);
+  }
 }
