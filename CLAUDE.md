@@ -177,6 +177,30 @@ Turbopack is the default; `middleware` is now `proxy`.
   `box-sizing: border-box` puts the padding *inside* that figure rather than
   adding to it. Capping at 41 left a 3rem strip down the right of the pane
   that nothing could be drawn in and the preview was not allowed to use.
+- **The preview pane can hold a page, not only a file.** `PreviewFile.embedUrl`
+  renders a frame instead of fetching bytes, and the Apps Script panel is the
+  first thing to use it: a tab is a place you have to come back from, and what
+  you are doing with that panel is watching for something to arrive in the app
+  behind it. Press Run, and the count in the sidebar moves.
+- **That frame is deliberately *not* sandboxed**, which is the opposite of the
+  rule for a `.html` file and for the opposite reason. A file might be anything
+  and must not be allowed to run; this is one page, from one origin the app
+  checked before storing the address, and its whole purpose is to run something
+  when you press a button. The `script.google.com` check on save is what makes
+  that bounded — without it, a saved URL would be a page the app frames with
+  scripts enabled and vouches for.
+- **A modified click still opens the tab, and that is load-bearing.** A Google
+  login redirect inside a frame is a blank rectangle with nothing in it to press,
+  so the way out cannot be offered only once the frame has failed — by then there
+  is nothing to click. The header carries "Open in a tab" whenever a page is
+  being shown, not just when something has gone wrong.
+- **`scrollToPane` clamps to the last pane there is.** The target for an open
+  preview is 2, which assumes a page renders a list *and* a detail. The Google
+  page renders one pane, so the preview was child 1, index 2 found nothing, and
+  the carousel did nothing at all: the panel was rendered correctly, off screen,
+  with no gesture that would take you to it. Clamped here rather than counted at
+  the call site, because the number of panes is a fact about the DOM at that
+  moment and this is the only code that reads it.
 - **Docs and Sheets are made, not uploaded.** A Docs-editor file has no bytes,
   so `createGoogleFile` is metadata only — the one kind of file the app can
   create with nothing to send. `drive.file` covers it because the app made it.

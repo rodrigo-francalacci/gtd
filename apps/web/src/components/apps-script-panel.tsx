@@ -3,6 +3,7 @@
 import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { setAppsScriptUrl } from '@/lib/actions';
+import { useFilePreview } from './file-preview';
 
 /**
  * A way to the bridges, from the app they feed.
@@ -22,13 +23,19 @@ import { setAppsScriptUrl } from '@/lib/actions';
  * version of an existing one gives a different address, and a setting can be
  * corrected on the page it is used from.
  *
- * Opened in a tab rather than embedded. The page can be framed — it sets
- * `ALLOWALL` — but a web app on another origin has its own sign-in behaviour,
- * and a Google login redirect inside an iframe is a blank rectangle with
- * nothing in it to click.
+ * Opened in the preview pane, which is what the fourth column is for. A tab is a
+ * place you have to come back from, and what you are doing here is watching for
+ * something to arrive in the app behind it — press Run, and the count in the
+ * sidebar moves.
+ *
+ * The tab is still one modified click away, and that matters rather than being a
+ * courtesy: a Google login redirect inside a frame is a blank rectangle with
+ * nothing in it to press, so there has to be a way out that does not depend on
+ * the frame having rendered.
  */
 export function AppsScriptPanel({ url }: { url: string | null }) {
   const router = useRouter();
+  const preview = useFilePreview();
   const [editing, setEditing] = useState(false);
   const [text, setText] = useState(url ?? '');
   const [error, setError] = useState<string | null>(null);
@@ -64,13 +71,43 @@ export function AppsScriptPanel({ url }: { url: string | null }) {
 
       {url && !editing ? (
         <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2">
+          {/*
+            Opened in the pane, not a tab.
+
+            A tab is a place you have to come back from, and what you are doing
+            here is watching for something to arrive in the app behind it. The
+            pane keeps both on screen: press Run, and the count in the sidebar
+            moves.
+
+            A plain click only — a modified click still opens the tab, the way
+            every other link on the machine behaves, and that is also the way
+            out if the frame ever comes back blank.
+          */}
           <a
             href={url}
             target="_blank"
             rel="noreferrer"
+            onClick={(event) => {
+              if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+              event.preventDefault();
+              preview.open({
+                /*
+                 * A fixed id: there is one panel and opening it twice is
+                 * opening the same thing, which is what stops the pane
+                 * remounting the frame and losing whatever a job has printed.
+                 */
+                id: 'apps-script-panel',
+                name: 'GTD bridges',
+                mimeType: null,
+                src: '',
+                driveFileId: null,
+                driveUrl: null,
+                embedUrl: url,
+              });
+            }}
             className="rounded-sm bg-grey-800 px-3 py-1.5 text-[12px] text-paper hover:bg-grey-900"
           >
-            Open the panel ↗
+            Open the panel
           </a>
           <button
             type="button"

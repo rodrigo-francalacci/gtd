@@ -44,6 +44,20 @@ export type PreviewFile = {
    * that silently discards what you type into it.
    */
   transcriptUrl?: string | null;
+  /**
+   * A page to show, instead of bytes to fetch.
+   *
+   * The pane is the fourth column, and a file is only the commonest thing to
+   * put in it. The Apps Script panel is the first that is not one: a page of
+   * buttons for the two bridges, which belongs beside the app rather than in a
+   * tab you have to come back from.
+   *
+   * Rendered in a frame with no sandbox, which is the opposite of what a `.html`
+   * *file* gets — and deliberately. A file might be anything; this is one page,
+   * from one origin the app checked before storing the address, and it needs
+   * scripts to work at all: the buttons on it call back into Apps Script.
+   */
+  embedUrl?: string | null;
 };
 
 type PreviewApi = {
@@ -195,6 +209,23 @@ export function PreviewPane({ file, onClose }: { file: PreviewFile; onClose: () 
           {file.name}
         </h2>
 
+        {/*
+          A frame is not always enough for a page that signs you in: a Google
+          login redirect inside one is a blank rectangle with nothing to press.
+          So the way out is always on the header, not offered only once it has
+          already failed — by then there is nothing to click.
+        */}
+        {file.embedUrl ? (
+          <a
+            href={file.embedUrl}
+            target="_blank"
+            rel="noreferrer"
+            className="shrink-0 text-[11px] text-grey-500 underline underline-offset-2 hover:text-grey-800"
+          >
+            Open in a tab ↗
+          </a>
+        ) : null}
+
         {file.driveUrl ? (
           <a
             href={file.driveUrl}
@@ -219,6 +250,20 @@ export function PreviewPane({ file, onClose }: { file: PreviewFile; onClose: () 
       <div className="min-h-0 flex-1 overflow-auto bg-grey-100">
         {failed ? (
           <Unsupported file={file} src={src} reason={failed} />
+        ) : file.embedUrl ? (
+          /*
+           * A page, not a file — so nothing is fetched and nothing is typed.
+           *
+           * No `sandbox`, unlike the frame a `.html` file gets. That one is
+           * showing arbitrary bytes and must not be allowed to run them; this
+           * is a page the app checked the origin of before storing it, and its
+           * whole purpose is to run something when you press a button.
+           */
+          <iframe
+            src={file.embedUrl}
+            title={file.name}
+            className="h-full w-full border-0 bg-paper"
+          />
         ) : isGoogleNative(type) ? (
           // Straight to Google's own editor, not through our proxy — a Docs
           // file has no bytes to fetch, and embedding the editor is what makes

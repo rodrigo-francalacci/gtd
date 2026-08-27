@@ -309,7 +309,21 @@ export function AppShell({
 function scrollToPane(track: HTMLElement | null, index: number): void {
   if (!track) return;
 
-  const pane = track.children[index] as HTMLElement | undefined;
+  /*
+   * Clamped to the last pane there is.
+   *
+   * The target for an open preview is 2, which assumes a page renders a list
+   * and a detail. Not every page does — the Google page is a single pane — so
+   * on those the preview is child 1 and asking for 2 found nothing and did
+   * nothing: the pane was rendered off screen, correct in every respect except
+   * that no gesture had taken you to it.
+   *
+   * Clamping rather than counting at the call site, because the number of panes
+   * is a fact about the DOM at this moment and this is the only code that reads
+   * it. An index past the end can only ever mean the last one.
+   */
+  const last = track.children.length - 1;
+  const pane = track.children[Math.min(index, last)] as HTMLElement | undefined;
   if (!pane) return;
 
   track.scrollTo({ left: pane.offsetLeft - track.offsetLeft, behavior: 'auto' });
