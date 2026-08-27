@@ -489,6 +489,49 @@ Turbopack is the default; `middleware` is now `proxy`.
   Routes rather than Server Actions because the pane has to *read* the text and
   is client state with no server component above it; fetching on open is also
   what keeps transcripts out of every list payload.
+- **The levelling is an `AudioWorklet`, and the compressor nodes were the wrong
+  tool.** `public/voice-leveller.js` replaced a pair of
+  `DynamicsCompressorNode`s that had been tuned three times and could not be
+  made right, because four of the things a broadcast leveller does are outside
+  what that node can express at any setting:
+  **no lookahead**, so a transient is through the output before the gain moves
+  and lands on the safety clipper instead — which is what an acoustic guitar
+  sounded like; **no cap on gain reduction**, so a guitar peaking at −9 dBFS
+  collected nineteen decibels of it; **no idea whether anyone is speaking**; and
+  therefore **no way to freeze in a silence**, so a long release wound the gain
+  back up between sentences and brought the room noise with it.
+- **Freezing on silence is the one people hear.** A voice-activity check against
+  an *adaptive* noise floor — falling fast toward whatever quiet it finds, rising
+  very slowly so speech cannot drag it up — decides whether to release at all.
+  Measured: 0.00 dB of noise swell across 1.5 s of silence, where the old chain
+  wound the gain back the whole way. The 250 ms hangover matters as much as the
+  detection: speech is full of stops and breaths, and freezing inside one would
+  modulate the level *within* a sentence, which is worse than not freezing.
+- **Lookahead is one delay line, used twice.** The detector reads the incoming
+  sample while the output is read ten milliseconds behind it, so the gain is
+  already down when the peak arrives. That is also what lets the attack be gentle
+  enough not to grab at the front of every word.
+- **Levelling and protection are two followers, not one.** They want opposite
+  time constants — levelling a gentle attack, the ceiling one fast enough to be
+  down before the peak — and sharing a single follower is what let a cold
+  transient through at +0.7 dBFS on the first attempt. The ceiling term is also
+  the one thing allowed past the 12 dB cap, because holding the output below full
+  scale is protection rather than levelling, and it is never frozen: protection
+  that held after one loud noise would hold the rest of the recording down.
+- **The numbers come from `scripts/check-leveller.mjs`, not from listening.** It
+  stubs the two globals a worklet gets and runs the real file against generated
+  signal. Speech arriving between −30 and −12 dBFS leaves between −5.5 and −1.4:
+  eighteen decibels of variation reduced to four. **Run it before changing any
+  constant.**
+- **Below about −35 dBFS it stays quiet, and that is the cap being honest.**
+  Telegram gets away with a 12 dB limit because it also reaches down and turns
+  the microphone's own analogue gain up — a step a web page has no access to at
+  all. Everything here happens after the converter, so the choice is a hard cap
+  with a quiet floor or unbounded gain with the distortion that follows.
+- **The safety clipper should now never engage**, which is the point of it
+  changing from the thing that caught every plosive to a formality at the end of
+  the chain. It stays because a `WaveShaper` is a lookup table and cannot be
+  late.
 - **A voice note is levelled before it is encoded, not after.** The microphone
   used to go straight into `MediaRecorder` with `autoGainControl` doing the
   only levelling there was, and it was not enough — the recordings came out

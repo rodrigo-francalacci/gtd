@@ -161,7 +161,7 @@ export function AudioRecorder({
   /** What the microphone actually gave us, shown so the setting is checkable. */
   const [quality, setQuality] = useState<string | null>(null);
   /** Live level and gain reduction, so the chain is visible while it works. */
-  const [meter, setMeter] = useState<VoiceMeter>({ peak: -Infinity, reduction: 0 });
+  const [meter, setMeter] = useState<VoiceMeter>({ peak: -Infinity, reduction: 0, voiced: false });
   /**
    * Levelled for speech, or left alone.
    *
@@ -219,7 +219,7 @@ export function AudioRecorder({
          * microphone's — that is what makes the levelling free, since the
          * processed signal is the only one that is ever encoded.
          */
-        const built = buildVoiceChain(media, profileRef.current);
+        const built = await buildVoiceChain(media, profileRef.current);
         chain.current = built;
 
         /**
@@ -250,11 +250,17 @@ export function AudioRecorder({
             settings.noiseSuppression || settings.echoCancellation
               ? 'device filtering'
               : 'full range',
-            built.processed ? null : 'unprocessed',
+            built.processed ? (built.levelled ? null : 'no leveller') : 'unprocessed',
           ]
             .filter(Boolean)
             .join(' · '),
         );
+
+        if (stopped) {
+          void built.close();
+          media.getTracks().forEach((t) => t.stop());
+          return;
+        }
 
         const mimeType = bestMimeType();
         const mr = new MediaRecorder(built.stream, {
@@ -335,7 +341,7 @@ export function AudioRecorder({
   useEffect(() => {
     let raf = 0;
     let publishedAt = 0;
-    let held: VoiceMeter = { peak: -Infinity, reduction: 0 };
+    let held: VoiceMeter = { peak: -Infinity, reduction: 0, voiced: false };
 
     const tick = (now: number) => {
       raf = requestAnimationFrame(tick);
@@ -348,12 +354,16 @@ export function AudioRecorder({
       held = {
         peak: Math.max(held.peak, current.peak),
         reduction: Math.max(held.reduction, current.reduction),
+        // Latched, not maximised: what is worth showing is whether any of
+        // the window had speech in it, and holding it steadies a light that
+        // would otherwise flicker on every consonant.
+        voiced: held.voiced || current.voiced,
       };
 
       if (now - publishedAt < 90) return;
       publishedAt = now;
       setMeter(held);
-      held = { peak: -Infinity, reduction: 0 };
+      held = { peak: -Infinity, reduction: 0, voiced: false };
     };
 
     raf = requestAnimationFrame(tick);
