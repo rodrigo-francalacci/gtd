@@ -48,6 +48,11 @@ export type Preferences = {
   listPaneWidth: number | null;
   theme: Theme;
   /**
+   * The Apps Script panel, if one has been deployed. Null is the ordinary
+   * state — the bridges run perfectly well from the script editor.
+   */
+  appsScriptUrl: string | null;
+  /**
    * Google calendars to leave out. Null means no choice has been made here and
    * Google's own ticked state decides — see the column comment in the schema.
    */

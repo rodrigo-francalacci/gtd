@@ -1,0 +1,1 @@
+ALTER TABLE "preferences" ADD COLUMN "apps_script_url" text;

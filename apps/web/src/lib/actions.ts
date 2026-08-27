@@ -2052,6 +2052,57 @@ export async function setBoxItemListed(id: string, listed: boolean) {
   revalidateShell();
 }
 
+/**
+ * Remember where the Apps Script panel is deployed.
+ *
+ * Typed in rather than committed: a deployment URL names one person’s script
+ * in one person’s Google account, and this repository is public. It is also
+ * the sort of thing that changes — a fresh deployment rather than a new
+ * version of an existing one gives a different URL — and a setting can be
+ * corrected on the page it is used from.
+ *
+ * Only an Apps Script address is accepted. The button opens in a new tab and
+ * runs with your Google session, so an arbitrary URL saved here would be a
+ * link the app vouches for and should not.
+ */
+export async function setAppsScriptUrl(raw: string) {
+  await requireSession();
+
+  const url = raw.trim();
+
+  if (url === "") {
+    await db
+      .insert(preferences)
+      .values({ id: SINGLETON, appsScriptUrl: null })
+      .onConflictDoUpdate({
+        target: preferences.id,
+        set: { appsScriptUrl: null, updatedAt: new Date() },
+      });
+
+    revalidateShell();
+    return { ok: true as const };
+  }
+
+  if (!/^https:\/\/script\.google\.com\/[^\s]+$/i.test(url)) {
+    return {
+      ok: false as const,
+      error:
+        'That is not an Apps Script address. Deploy the panel as a web app and paste the /exec URL, which begins https://script.google.com/.',
+    };
+  }
+
+  await db
+    .insert(preferences)
+    .values({ id: SINGLETON, appsScriptUrl: url })
+    .onConflictDoUpdate({
+      target: preferences.id,
+      set: { appsScriptUrl: url, updatedAt: new Date() },
+    });
+
+  revalidateShell();
+  return { ok: true as const };
+}
+
 /** Clear a request you have read the failure of. */
 export async function forgetEmail(id: string) {
   await requireSession();

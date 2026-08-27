@@ -1,3 +1,4 @@
+import { AppsScriptPanel } from '@/components/apps-script-panel';
 import {
   BackfillLinks,
   EnrichmentControls,
@@ -7,6 +8,7 @@ import {
 import { SYNC_SCOPES, hasCalendarScope, hasSyncScopes } from '@/lib/auth/google';
 import { getGrant } from '@/lib/auth/token';
 import { getEnrichmentStatus } from '@/lib/enrich/queue';
+import { getPreferences } from '@/lib/view-mode';
 import { countUnlinkedProjects, getSyncQueueStatus } from '@/lib/google/queue';
 
 const SCOPE_LABELS: Record<string, string> = {
@@ -18,11 +20,12 @@ const SCOPE_LABELS: Record<string, string> = {
 };
 
 export default async function ConnectionsPage() {
-  const [grant, queue, unlinked, enrichment] = await Promise.all([
+  const [grant, queue, unlinked, enrichment, prefs] = await Promise.all([
     getGrant(),
     getSyncQueueStatus(),
     countUnlinkedProjects(),
     getEnrichmentStatus(),
+    getPreferences(),
   ]);
   const connected = Boolean(grant?.refreshToken);
   const syncReady = connected && hasSyncScopes(grant?.scope);
@@ -231,6 +234,8 @@ export default async function ConnectionsPage() {
           </p>
           <VerifyLinks />
         </section>
+
+        <AppsScriptPanel url={prefs.appsScriptUrl} />
       </div>
     </div>
   );

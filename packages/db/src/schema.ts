@@ -1146,6 +1146,18 @@ export const preferences = pgTable('preferences', {
   /** 'light' | 'dark'. Null means "whatever the operating system says". */
   theme: text('theme'),
   /**
+   * Where the Apps Script panel is deployed, so the Google page can link to it.
+   *
+   * A setting rather than a constant, and not because it might change: a
+   * deployment URL identifies one person’s script in one person’s account, and
+   * this repository is public. Typed in once on the page it is used from,
+   * where it can also be corrected after a redeployment without a commit.
+   *
+   * Null means the panel has not been deployed, which is the honest starting
+   * state — the scripts work perfectly well from the editor’s Run button.
+   */
+  appsScriptUrl: text('apps_script_url'),
+  /**
    * Google calendars to leave *out* of the calendar view.
    *
    * Stored as what to hide rather than what to show, and the asymmetry is the
