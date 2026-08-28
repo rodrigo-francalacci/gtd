@@ -1,5 +1,20 @@
 'use client';
 
+/*
+ * The numbers live in `record-profiles.ts` rather than here, because the
+ * Chrome sidebar records into the same boxes and needs them without a Web
+ * Audio graph or a `'use client'` boundary. It fetches them from
+ * `/api/record-profiles`; a second copy would be two definitions to keep in
+ * agreement, which is how one recording ends up sounding unlike the rest.
+ */
+import {
+  HIGHPASS_HZ,
+  LEVELLER,
+  SAMPLE_RATE,
+  clipCurve,
+  type RecordProfile,
+} from './record-profiles';
+
 /**
  * The signal chain a recording goes through on its way to the encoder.
  *
@@ -28,135 +43,9 @@
  * gain, so everything happens after the converter.
  */
 
-/**
- * What the chain is being asked to do.
- *
- * `voice` levels hard: a spoken note is a message to yourself, recorded at
- * whatever distance you happened to be holding the phone, and the only wrong
- * answer is one you cannot hear. `music` gets out of the way entirely — the
- * leveller is bypassed and only the ceiling remains, as a safety net it should
- * never touch.
- *
- * Not remembered between recordings, deliberately — the same rule the capture
- * screen's destination chips follow. A remembered profile is how you get a
- * squashed guitar or a voice note nobody can hear, and you find out on playback.
- */
-export type RecordProfile = 'voice' | 'music';
-
-/**
- * Rumble, removed before anything is multiplied.
- *
- * 100 Hz for speech, which is where a broadcast chain puts it: a male voice's
- * fundamental sits above it, and everything below is handling noise, pocket
- * thumps and the low-frequency mud that sixteen decibels of drive would
- * otherwise spend the ceiling's headroom on.
- *
- * 30 Hz for music, and the number matters: a bass guitar's low E is 41 Hz and a
- * six-string acoustic's is 82, so anything higher is not filtering rumble, it is
- * removing the instrument.
- */
-const HIGHPASS_HZ = { voice: 100, music: 30 } as const;
-
-/**
- * How the leveller is set, per profile.
- *
- * The numbers were chosen against a simulation of the worklet's own maths
- * rather than by ear, and the shape is what matters: speech arriving anywhere
- * between −30 and −12 dBFS comes out between −5.5 and −1.4, which is eighteen
- * decibels of variation reduced to four. Quieter than −35 stays quieter, and
- * that is the honest consequence of the twelve-decibel cap.
- *
- * `maxReductionDb` is twelve because past that a leveller stops levelling and
- * starts generating intermodulation — the sound of speech being squeezed
- * through something. The ceiling term inside the worklet is allowed past it,
- * because holding the output below full scale is protection rather than
- * levelling and refusing to do it would be the cap defeating its own purpose.
- */
-const LEVELLER = {
-  voice: {
-    compress: true,
-    driveDb: 16,
-    thresholdDb: -18,
-    kneeDb: 10,
-    ratio: 8,
-    maxReductionDb: 12,
-    makeupDb: 12,
-    ceilingDb: -1.5,
-    attack: 0.003,
-    release: 0.25,
-    ceilingRelease: 0.08,
-    envRelease: 0.05,
-    /**
-     * Ten milliseconds of latency, which nothing here can notice: this is a
-     * recorder, not a monitor. It buys a ceiling that is already down before
-     * the peak arrives rather than chasing it afterwards.
-     */
-    lookahead: 0.01,
-    /**
-     * How far above the room a frame has to be to count as speech, and how long
-     * it stays counted afterwards. The hangover matters as much as the
-     * threshold: speech is full of stops and breaths, and freezing inside one
-     * would modulate the level within a sentence.
-     */
-    voiceMarginDb: 8,
-    holdSeconds: 0.25,
-  },
-  music: {
-    compress: false,
-    driveDb: 0,
-    thresholdDb: -18,
-    kneeDb: 10,
-    ratio: 8,
-    maxReductionDb: 12,
-    makeupDb: 0,
-    ceilingDb: -1.5,
-    attack: 0.003,
-    release: 0.25,
-    ceilingRelease: 0.08,
-    envRelease: 0.05,
-    lookahead: 0.01,
-    voiceMarginDb: 8,
-    holdSeconds: 0.25,
-  },
-} as const;
-
-/**
- * The safety clipper, after everything.
- *
- * With the worklet's lookahead in front of it this should now never engage —
- * which is the point, and a change from the version where it was catching every
- * plosive and audibly distorting them. It stays because a `WaveShaper` is a
- * lookup table and cannot be late, and a mathematical guarantee at the end of a
- * chain costs nothing when it is never reached.
- *
- * Linear below the knee and a `tanh` bend above, joined so that both value and
- * slope are continuous: below −4.4 dBFS the signal is untouched. A plain `tanh`
- * over the whole range pulls a −6 dBFS signal down by nearly a decibel, which is
- * a compressor pretending to be a clipper.
- */
-const CLIP_KNEE = 0.6;
-/** −1.0 dBFS, below the worklet's own ceiling so it is the last word, not the first. */
-const CLIP_CEILING = 0.891;
-
-function clipCurve(points = 4096): Float32Array<ArrayBuffer> {
-  // Backed by an explicit ArrayBuffer: `WaveShaperNode.curve` is typed as one.
-  const curve = new Float32Array(new ArrayBuffer(points * 4));
-  const span = CLIP_CEILING - CLIP_KNEE;
-
-  for (let i = 0; i < points; i++) {
-    // Sampled across [−2, 2]: a table stopping at 1 makes the browser clamp to
-    // its last entry, which is a hard clip with aliasing.
-    const x = (i / (points - 1)) * 4 - 2;
-    const magnitude = Math.abs(x);
-
-    curve[i] =
-      magnitude <= CLIP_KNEE
-        ? x
-        : Math.sign(x) * (CLIP_KNEE + span * Math.tanh((magnitude - CLIP_KNEE) / span));
-  }
-
-  return curve;
-}
+// Re-exported so the recorder keeps importing its profile type from the
+// module it builds its chain with.
+export type { RecordProfile };
 
 export type VoiceMeter = {
   /** Peak of the last frame, in dBFS. `-Infinity` for silence. */
@@ -223,7 +112,7 @@ export async function buildVoiceChain(
 
   if (!Ctor) return passthrough(source);
 
-  const context = new Ctor({ sampleRate: 48_000 });
+  const context = new Ctor({ sampleRate: SAMPLE_RATE });
 
   /*
    * An `AudioContext` built outside a user gesture starts suspended, and a

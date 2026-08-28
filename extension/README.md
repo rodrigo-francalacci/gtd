@@ -1,7 +1,8 @@
 # GTD Capture — Chrome extension
 
 Sends the page you're on, or the text you've selected, to your GTD inbox — or
-files a note, a link, a file, a recording or a place into one of your boxes.
+files a note, a link, an email, a file, a levelled recording or a place into one
+of your boxes.
 
 ## Installing
 
@@ -65,21 +66,73 @@ Pick a box, then:
 - **Type and press Enter.** A message that is *only* a web address is kept as a
   link and read for its title, summary and picture; anything with words around
   it stays a note. The server decides which, using the same rule the app's own
-  composer uses — in one place, so the two cannot disagree.
+  composer uses — in one place, so the two cannot disagree. That is also where a
+  pasted email is recognised, below.
 - **Add files**, drop them on the panel, or paste a screenshot. Same path as the
   inbox: straight to Drive, so the ceiling is Drive's.
-- **Record** a voice note. Echo cancellation and noise suppression are off,
-  because those change the *sound* — one takes the bottom out, the other gates
-  the quiet detail at the top, and between them they are why messaging-app
-  voice notes are unpleasant to hear twice. Automatic gain is on, because it
-  only changes the *level*: the recording arrives usable with its full
-  bandwidth intact. 48 kHz, 128 kbps. The recording is staged rather than sent,
-  so you can write a line about it first.
+- **Paste a message identifier** — a Gmail address, a sixteen-character message
+  id, an RFC822 `Message-ID` in angle brackets, or `email:` followed by a search
+  — and the app writes down that you want that message. The Apps Script bridge
+  fetches it on its next run. The panel says *asked for*, not *filed*, because
+  nothing has arrived yet.
+
+  A Gmail *permalink* is refused on the spot, with a sentence saying what does
+  work: the `FMfcg…` id on the end of one belongs to Gmail's own interface, and
+  no API accepts it. Being told immediately beats a link entry called "Gmail"
+  with a picture of a login form, which is what a permalink used to become —
+  anything following a Gmail address without your cookies sees the sign-in page.
+- **Record** a voice note, through the same chain the app records through: a
+  high-pass, a levelling `AudioWorklet` with lookahead and a voice-activity gate,
+  and a safety clipper. Speech arriving anywhere between −30 and −12 dBFS comes
+  out between −5.5 and −1.4.
+
+  All three of the browser's own filters are off, and that is the point. They are
+  all *dynamic* — their gain moves with the signal — and they would sit in front
+  of a compressor whose whole job is to respond to level, so it ends up chasing a
+  thing that is chasing it and the result breathes. Automatic gain comes back on
+  only in the fallback below, where nothing better follows it.
+
+  **Voice or Music**, switchable mid-take and never remembered. Music is a true
+  bypass with a 30 Hz rumble filter and the limiter left as a safety net —
+  because an instrument is not asking the question a leveller answers, and
+  pointing one at an acoustic guitar costs nineteen decibels of gain reduction
+  and a distorted pick attack. Not remembered, because it is the one setting that
+  can ruin a take and you find out on playback.
+
+  A peak and a gain-reduction figure run while you record, which is how a bad
+  recording is diagnosed afterwards: a peak that never leaves the floor means the
+  microphone; one pinned at the top with ten decibels of reduction means the
+  chain was working and the problem is elsewhere.
+
+  48 kHz, 128 kbps, staged rather than sent so you can write a line about it
+  first. If the app cannot be reached the recording still happens, unprocessed,
+  and the panel says so — a voice note quieter than it should be is worth having,
+  and one you were misled about is not.
 - **Add where I am** files a place. Asked for per entry and never watched.
 - **Keep this page** files the page you're reading as a link.
 
 The box list is fetched from the app rather than configured here, so boxes you
 create or rename appear without touching the extension.
+
+### Why the recording settings are fetched
+
+The sidebar files into the same boxes as the app's composer, so a voice note made
+here and one made there had better be the same sound. They were not: the app grew
+a leveller and this recorded the bare microphone, which is precisely the quiet,
+uneven recording the app had just stopped producing.
+
+A copy of the chain would be two definitions of a thing that has been retuned
+three times, and they disagree the first time either moves — with no symptom
+except one recording that sounds unlike the rest. So the split follows the line
+Manifest V3 draws:
+
+- **The settings are fetched** from `/api/record-profiles`. They are numbers, not
+  code, so they still live in exactly one place.
+- **The worklet is local, and has to be.** Extension pages are pinned to
+  `script-src 'self'`, an `AudioWorklet` module is script, and loading one from
+  the app would be remote code — which MV3 forbids. `voice-leveller.js` here is a
+  byte-identical copy of the app's, and `scripts/check-extension-sync.mjs` fails
+  the moment it stops being one. Run it after touching either.
 
 ## How it stays signed in
 

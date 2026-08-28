@@ -118,6 +118,22 @@ button.quiet {
   border: 1px solid var(--grey-300);
 }
 
+/*
+ * The chain the recording is going through, while it is going through it.
+ *
+ * A pressed state rather than a highlight colour: which chain is running is a
+ * fact about the control, and the sidebar has the app's palette discipline —
+ * colour is semantic, and "voice or music" is not one of the meanings that has
+ * earned one.
+ */
+button[data-profile][aria-pressed='true'] {
+  color: var(--grey-800);
+  border-color: var(--grey-500);
+  font-weight: 600;
+}
+
+#box-profiles[hidden] { display: none; }
+
 #status { font-size: 12px; min-height: 1.2em; margin: 0.6rem 0 0; }
 #status.ok { color: var(--ok); }
 #status.bad { color: var(--stale); }

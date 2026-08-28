@@ -75,13 +75,26 @@
         <button id="box-attach" class="quiet">Add files</button>
         <button id="box-record" class="quiet">Record</button>
       </div>
+
+      <!-- Shown only while a levelled recording is running, because it is the
+           only time it means anything: switchable mid-take, since the moment
+           you discover the chain is wrong for what you are playing is the
+           moment you have started playing it. Never remembered — a remembered
+           profile is how you get a squashed guitar, and you find out on
+           playback. -->
+      <div class="row" id="box-profiles" hidden>
+        <button class="quiet" data-profile="voice" aria-pressed="true">Voice</button>
+        <button class="quiet" data-profile="music" aria-pressed="false">Music</button>
+      </div>
       <div class="row">
         <button id="box-place" class="quiet">Add where I am</button>
         <button id="box-page" class="quiet">Keep this page</button>
       </div>
 
       <p class="hint">A message that is only a link is kept as one, and read
-        for its title and picture. Drop files here or paste a screenshot.</p>
+        for its title and picture. Paste a Gmail address, a Message-ID or
+        <code>email:</code> and a search, and the bridge fetches that message
+        instead. Drop files here or paste a screenshot.</p>
     </section>
 
     <!-- One picker per tab: sharing it would mean a file chosen on one tab

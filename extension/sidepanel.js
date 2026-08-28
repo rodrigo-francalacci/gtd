@@ -48,6 +48,7 @@ const els = {
   boxPost: document.getElementById('box-post'),
   boxAttach: document.getElementById('box-attach'),
   boxRecord: document.getElementById('box-record'),
+  boxProfiles: document.getElementById('box-profiles'),
   boxPlace: document.getElementById('box-place'),
   boxPage: document.getElementById('box-page'),
   boxFilePicker: document.getElementById('box-picker-file'),
@@ -854,9 +855,25 @@ els.boxPlace.addEventListener('click', () => {
 const RAW_AUDIO = {
   echoCancellation: false,
   noiseSuppression: false,
+  /*
+   * On, and only here. Automatic gain is the wrong tool when something better
+   * follows it and the only tool when nothing does — this object is what the
+   * panel falls back to when the app's chain could not be fetched.
+   */
   autoGainControl: true,
   sampleRate: 48000,
 };
+
+/**
+ * Which chain the recording goes through, and never remembered.
+ *
+ * The same rule the app follows: a remembered profile is how you get a squashed
+ * guitar or a voice note nobody can hear, and you find out on playback. It
+ * resets to voice every time the panel opens.
+ */
+let recordProfile = 'voice';
+let chain = null;
+let meterTimer = null;
 
 /** 128 kbps, against a messaging app's 16–32. Uploads go straight to Drive. */
 const BITRATE = 128000;
@@ -878,21 +895,48 @@ let recordedChunks = [];
 let micStream = null;
 
 async function startRecording() {
-  let media;
+  const base = await origin();
+
+  let media = null;
+  chain = null;
+
+  /*
+   * The app's chain first: a high-pass, the levelling worklet and a safety
+   * clipper, none of which is defined here — the module fetches the worklet and
+   * the numbers from the app, so the sidebar cannot drift from the composer.
+   *
+   * Imported here rather than at the top of the file so the panel does not pay
+   * for it until somebody records, and so a failure to load it is a quiet
+   * fallback rather than a sidebar that will not open.
+   */
   try {
-    media = await navigator.mediaDevices.getUserMedia({ audio: RAW_AUDIO });
+    const audio = await import('./voice-chain.js');
+    media = await navigator.mediaDevices.getUserMedia({ audio: audio.PROCESSED_AUDIO });
+    chain = await audio.buildVoiceChain(base, media, recordProfile);
   } catch {
-    say('No microphone, or permission was refused.', 'bad');
-    return;
+    media?.getTracks().forEach((t) => t.stop());
+    media = null;
+    chain = null;
+  }
+
+  if (!chain) {
+    // Unprocessed, and said out loud: a recording that is quieter than it
+    // should be is worth having, and one you were misled about is not.
+    try {
+      media = await navigator.mediaDevices.getUserMedia({ audio: RAW_AUDIO });
+    } catch {
+      say('No microphone, or permission was refused.', 'bad');
+      return;
+    }
   }
 
   micStream = media;
   recordedChunks = [];
 
   const mimeType = bestMimeType();
-  recorder = new MediaRecorder(media, {
+  recorder = new MediaRecorder(chain ? chain.stream : media, {
     ...(mimeType ? { mimeType } : {}),
-    audioBitsPerSecond: BITRATE,
+    audioBitsPerSecond: chain?.bitrate ?? BITRATE,
   });
 
   recorder.ondataavailable = (event) => {
@@ -904,6 +948,12 @@ async function startRecording() {
     // it lit after a voice note is its own small betrayal.
     micStream?.getTracks().forEach((t) => t.stop());
     micStream = null;
+
+    clearInterval(meterTimer);
+    meterTimer = null;
+    void chain?.close();
+    chain = null;
+    els.boxProfiles.hidden = true;
 
     const type = recorder.mimeType || 'audio/webm';
     const blob = new Blob(recordedChunks, { type });
@@ -934,8 +984,40 @@ async function startRecording() {
   recorder.start();
   els.boxRecord.textContent = 'Stop';
   els.boxRecord.classList.add('recording');
-  say('Recording…');
+  els.boxProfiles.hidden = !chain;
+
+  if (!chain) {
+    say('Recording, unprocessed — the app could not be reached for the chain.');
+    return;
+  }
+
+  /*
+   * A peak and a gain-reduction figure, which is how a bad recording is
+   * diagnosed afterwards: a peak that never leaves the floor means the
+   * microphone, and one pinned at the top with ten decibels of reduction means
+   * the chain was working and the problem is elsewhere.
+   */
+  meterTimer = setInterval(() => {
+    const { peak, reduction } = chain.read();
+    const level = peak === -Infinity ? '−∞' : peak.toFixed(0);
+    say(`Recording… ${level} dB peak, ${reduction.toFixed(0)} dB reduction`);
+  }, 100);
 }
+
+/** Switch chain mid-take; every node stays put and only its parameters move. */
+function setRecordProfile(next) {
+  recordProfile = next;
+  chain?.setProfile(next);
+
+  for (const button of els.boxProfiles.querySelectorAll('button')) {
+    button.setAttribute('aria-pressed', String(button.dataset.profile === next));
+  }
+}
+
+els.boxProfiles.addEventListener('click', (event) => {
+  const button = event.target.closest('button[data-profile]');
+  if (button) setRecordProfile(button.dataset.profile);
+});
 
 els.boxRecord.addEventListener('click', () => {
   if (recorder) recorder.stop();

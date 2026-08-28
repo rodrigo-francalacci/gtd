@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "GTD Capture",
-  "version": "1.2.0",
-  "description": "Capture to your GTD inbox, or file into a box — notes, links, files, recordings and places — from a sidebar that stays open while you read.",
+  "version": "1.3.0",
+  "description": "Capture to your GTD inbox, or file into a box — notes, links, emails, files, levelled recordings and places — from a sidebar that stays open while you read.",
   "permissions": [
     "contextMenus",
     "activeTab",
