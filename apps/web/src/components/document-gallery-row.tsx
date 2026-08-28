@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { useState } from 'react';
 import { documentLabel, mapUrl, type BoxItemRow } from '@/lib/queries.shared';
+import { AudioClip } from './audio-clip';
 import { IconAudio, IconDocument, IconLink, IconPlace } from './icons';
 import { Linkified } from './linkified';
 
@@ -146,7 +147,7 @@ export function DocumentGalleryRow({
           // Above the overlay, so pressing play doesn't also select the row
           // and scroll the pane out from under what you are listening to.
           <span className="relative z-10 mt-1 block">
-            <audio src={audio} controls preload="none" className="h-8 w-full max-w-sm" />
+            <AudioClip src={audio} className="h-8 w-full max-w-sm" />
           </span>
         ) : null}
 

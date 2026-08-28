@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { BOX_COLUMNS } from '@/lib/columns';
 import type { ViewMode } from '@/lib/pane';
 import { documentLabel, mapUrl, type BoxItemRow } from '@/lib/queries.shared';
+import { AudioClip } from './audio-clip';
 import { EntryTypeIcon } from './entry-type-icon';
 import { IconLink, IconPlace } from './icons';
 import { Linkified } from './linkified';
@@ -135,7 +136,7 @@ export function DocumentRow({
         // Not a link: clicking the transport must not also select the row and
         // scroll the pane out from under the thing you are listening to.
         <div className="relative z-10 mt-1.5">
-          <audio src={audio} controls preload="none" className="h-8 w-full max-w-sm" />
+          <AudioClip src={audio} className="h-8 w-full max-w-sm" />
         </div>
       ) : null}
 
