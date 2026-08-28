@@ -85,7 +85,7 @@ export function TagBrowser({
 
   const chosen = selected.length + excluded.length;
 
-  if (!slot.open || !slot.node) return null;
+  if (slot.owner !== 'tag-browser' || !slot.node) return null;
 
   return createPortal(
     <div className="absolute inset-0 z-10 flex flex-col bg-grey-50">
@@ -95,7 +95,7 @@ export function TagBrowser({
         </h2>
         <button
           type="button"
-          onClick={() => slot.setOpen(false)}
+          onClick={() => slot.claim(null)}
           className="shrink-0 text-[11px] text-grey-500 underline underline-offset-2 hover:text-grey-800"
         >
           Done

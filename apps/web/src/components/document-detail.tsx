@@ -1,6 +1,8 @@
 'use client';
 
 import Link from 'next/link';
+import { TagEditor, TagEditorButton } from './tag-editor';
+import { useSidebarSlot } from './sidebar-slot';
 import { EmojiPicker } from './emoji-picker';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState, useTransition } from 'react';
@@ -81,6 +83,7 @@ export function DocumentDetail({
   projects: { id: string; title: string }[];
 }) {
   const router = useRouter();
+  const slot = useSidebarSlot();
   const preview = useFilePreview();
   const [pending, startTransition] = useTransition();
 
@@ -438,45 +441,69 @@ export function DocumentDetail({
 
       {categories.length > 0 ? (
         <section className="flex flex-col gap-2">
-          <span className="text-[10px] uppercase tracking-wider text-grey-500">
-            Tags
-          </span>
+          <div className="flex items-baseline justify-between gap-2">
+            <span className="text-[10px] uppercase tracking-wider text-grey-500">
+              Tags
+            </span>
+            <TagEditorButton itemId={item.id} />
+          </div>
 
-          {categories.map((category) => (
-            <div key={category.id} className="flex flex-wrap items-baseline gap-1">
-              <span className="mr-1 w-24 shrink-0 text-[11px] text-grey-500">
-                {category.name}
-              </span>
-              {category.tags.length === 0 ? (
-                <span className="text-[11px] text-grey-400">no tags yet</span>
-              ) : (
-                category.tags.map((tag) => {
-                  const on = applied.has(tag.id);
-                  return (
+          {/*
+            What this document *is* tagged, and nothing else.
+
+            The whole vocabulary used to be drawn here, every category and every
+            tag whether it was on this document or not. That works for a box
+            with nine tags and falls apart at two hundred: a detail pane is a
+            column of fixed width, and a wall of chips in it pushes everything
+            the document actually says off the bottom of the screen. The
+            question moved to the sidebar; this is the answer.
+          */}
+          {applied.size === 0 ? (
+            <p className="text-[12px] text-grey-500">
+              No tags yet.{' '}
+              <button
+                type="button"
+                onClick={() => slot.claim(`tag-editor:${item.id}`)}
+                className="underline underline-offset-2 hover:text-grey-800"
+              >
+                Add some
+              </button>
+              .
+            </p>
+          ) : (
+            <div className="flex flex-wrap gap-1">
+              {categories.flatMap((category) =>
+                category.tags
+                  .filter((tag) => applied.has(tag.id))
+                  .map((tag) => (
                     <button
                       key={tag.id}
                       type="button"
                       disabled={pending}
+                      /* Clicking a tag here takes it off, which is the only
+                         thing you can want from a tag that is already on. */
+                      title={`Remove ${tag.name}`}
                       onClick={() =>
                         startTransition(async () => {
                           await toggleDocumentTag(item.id, tag.id);
                           router.refresh();
                         })
                       }
-                      className={[
-                        'rounded-sm px-1.5 py-px text-[11px] disabled:opacity-50',
-                        on
-                          ? 'bg-selected-bg font-medium text-selected'
-                          : 'bg-grey-200 text-grey-600 hover:bg-grey-300',
-                      ].join(' ')}
+                      className="rounded-sm bg-selected-bg px-1.5 py-px text-[11px] font-medium text-selected hover:line-through disabled:opacity-50"
                     >
                       {tag.name}
                     </button>
-                  );
-                })
+                  )),
               )}
             </div>
-          ))}
+          )}
+
+          <TagEditor
+            itemId={item.id}
+            itemName={documentLabel(item)}
+            categories={categories}
+            applied={[...applied]}
+          />
         </section>
       ) : null}
 

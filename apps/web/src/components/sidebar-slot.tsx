@@ -35,15 +35,21 @@ type SidebarSlot = {
   /** `AppShell` attaches this to the element panels render into. */
   attach: (node: HTMLElement | null) => void;
   /**
-   * Whether the sidebar is currently lent out.
+   * *Which* panel has the sidebar, or null when nobody does.
    *
-   * The shell reads it to reveal the drawer on a phone — a panel portalled into
-   * a column that is translated off screen is a panel nobody can see. Only one
-   * takeover exists at a time, the same assumption the preview pane makes about
-   * the file it is showing.
+   * A boolean was enough while browsing a box's tags was the only thing that
+   * ever wanted this column. It stopped being enough the moment a second panel
+   * existed: two takeovers on the same page would both see `open` as true and
+   * both portal into the same node, stacked on top of each other. A name says
+   * whose turn it is, and each panel renders only for its own.
+   *
+   * The shell reads `open` to reveal the drawer on a phone — a panel portalled
+   * into a column translated off screen is a panel nobody can see.
    */
+  owner: string | null;
+  claim: (owner: string | null) => void;
+  /** Derived: somebody has it. */
   open: boolean;
-  setOpen: (open: boolean) => void;
 };
 
 const Context = createContext<SidebarSlot | null>(null);
@@ -57,13 +63,14 @@ export function SidebarSlotProvider({ children }: { children: ReactNode }) {
    * the `set-state-in-effect` shape: it runs on attach, not on every commit.
    */
   const [node, setNode] = useState<HTMLElement | null>(null);
-  const [open, setOpen] = useState(false);
+  const [owner, setOwner] = useState<string | null>(null);
 
   const attach = useCallback((next: HTMLElement | null) => setNode(next), []);
+  const claim = useCallback((next: string | null) => setOwner(next), []);
 
   const value = useMemo(
-    () => ({ node, attach, open, setOpen }),
-    [node, attach, open],
+    () => ({ node, attach, owner, claim, open: owner !== null }),
+    [node, attach, owner, claim],
   );
 
   return <Context.Provider value={value}>{children}</Context.Provider>;

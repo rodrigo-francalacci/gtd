@@ -37,7 +37,7 @@ export function AppShell({
   const preview = useOpenPreview();
   const { close, focused } = useFilePreview();
   const [drawerOpen, setDrawerOpen] = useState(false);
-  const { open: tagsOpen, setOpen: setTagsOpen } = useSidebarSlot();
+  const { open: tagsOpen, claim: claimSidebar } = useSidebarSlot();
   const pathname = usePathname();
   const params = useSearchParams();
   const track = useRef<HTMLElement>(null);
@@ -164,8 +164,8 @@ export function AppShell({
     close();
     // The sidebar goes back too. A tag panel for a box you have left is a
     // panel about nothing, sitting on top of the navigation you need next.
-    setTagsOpen(false);
-  }, [section, close, setTagsOpen]);
+    claimSidebar(null);
+  }, [section, close, claimSidebar]);
 
   /**
    * Back closes the preview instead of leaving the app.
@@ -268,7 +268,7 @@ export function AppShell({
           aria-label={tagsOpen ? 'Close tags' : 'Close menu'}
           onClick={() => {
             setDrawerOpen(false);
-            setTagsOpen(false);
+            claimSidebar(null);
           }}
           className="z-40 bg-ink/40 max-md:fixed max-md:inset-0 md:hidden"
         />

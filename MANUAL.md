@@ -385,6 +385,11 @@ with it rather than the box's all-time favourites. Anything you have chosen is
 pinned to the front whatever its count — an excluded tag has a count of zero by
 definition, and dropping it would leave no way to undo it.
 
+**Edit tags** on a document opens the vocabulary in the same place, and the
+document's pane keeps only the tags it actually has — clicking one there takes it
+off. The whole list used to sit in the pane, which works until a box has a
+hundred tags and then buries the document under them.
+
 **Browse all tags** opens the full vocabulary, grouped by category, in the place
 the left sidebar usually is — a column on a desktop and a drawer on a phone, so
 it is a panel and a modal without being written twice. It opens over the

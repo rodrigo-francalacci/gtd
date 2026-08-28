@@ -151,7 +151,7 @@ export function TagFilter({
 
       <button
         type="button"
-        onClick={() => slot.setOpen(true)}
+        onClick={() => slot.claim('tag-browser')}
         title="Every tag in this box, by category"
         className="shrink-0 rounded-sm bg-grey-150 px-1.5 py-px text-[11px] text-grey-500 hover:bg-grey-300 hover:text-grey-800"
       >

@@ -1286,6 +1286,20 @@ to be kept. They meet at `box_item_links` and nowhere else.
   compiler reasonably concludes that an object handed to a `ref` is ref-like,
   and then every read of `slot.open` during the shell render is a ref access
   during render, which it refuses.
+- **The sidebar slot names its borrower.** `owner: string | null` replaced a
+  boolean the moment a second panel wanted that column: two takeovers on one
+  page both read `open` as true and both portalled into the same node, stacked.
+  Each panel renders only for its own name, and the editor's is keyed on the
+  item (`tag-editor:<id>`) so selecting a different document does not leave the
+  previous one's panel standing.
+- **Putting tags *on* a document borrows the sidebar too, and the pane keeps
+  only the answer.** The detail pane used to draw the whole vocabulary — every
+  category, every tag, applied or not — which is fine at nine tags and
+  unreadable at two hundred: a third pane is a fixed-width column, and a wall of
+  chips pushes everything the document actually says off the bottom. So the pane
+  shows the tags it *has* (clicking one takes it off, the only thing you can
+  want from a tag already on) and the question moves to `TagEditor`, the same
+  trade `TagBrowser` makes for filtering.
 - **Choosing in the browser does not close it.** A popover that shuts on the
   first click is right for a quick action and wrong here: narrowing a box is
   two or three tags and you want to see each one land before picking the next.
