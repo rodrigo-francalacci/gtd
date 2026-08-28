@@ -1,5 +1,6 @@
 import { ActionDetail } from '@/components/action-detail';
 import { SortableActionList } from '@/components/sortable-action-list';
+import { EmojifyButton } from '@/components/emojify-button';
 import { ContextFilter } from '@/components/context-filter';
 import { DetailPane, EmptyDetail, EmptyList, ListPane } from '@/components/panes';
 import { QuickAddAction } from '@/components/quick-add';
@@ -55,6 +56,19 @@ export default async function NowPage(props: PageProps<'/now'>) {
         paneWidth={paneWidth(prefs)}
         columns={ACTION_COLUMNS}
         subtitle={<ContextFilter groups={groups} />}
+        /*
+         * The ids are the rows the context filter has left, not every action in
+         * the table — what you asked to mark is what you were looking at, and
+         * re-reading the table here would quietly bill you for the ones you
+         * filtered out.
+         */
+        actions={
+          <EmojifyButton
+            target="actions"
+            ids={rows.map((a) => a.id)}
+            marked={rows.filter((a) => a.emoji).length}
+          />
+        }
       >
         <QuickAddAction />
         <SortableActionList

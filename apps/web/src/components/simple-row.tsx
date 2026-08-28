@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import type { HTMLAttributes, ReactNode } from 'react';
 import { DragGrip } from './sortable';
+import { RowEmoji } from './row-emoji';
 
 /**
  * One row in the titles-only view.
@@ -23,6 +24,7 @@ import { DragGrip } from './sortable';
 export function SimpleRow({
   href,
   title,
+  emoji,
   selected,
   muted = false,
   struck,
@@ -35,6 +37,16 @@ export function SimpleRow({
 }: {
   href: string;
   title: ReactNode;
+  /**
+   * One emoji in front of the title, in a slot of fixed width.
+   *
+   * `undefined` means this list has no emoji at all and there is no slot;
+   * `null` means this row has none but its neighbours do, so the space is still
+   * held. Reserved rather than conditional, for the same reason the flags above
+   * are trailing — a glyph on only some rows leaves the left edge ragged, which
+   * in a column of titles is the one thing there is to get right.
+   */
+  emoji?: string | null;
   selected: boolean;
   /** Finished: greyed back, as in the other views. */
   muted?: boolean;
@@ -83,6 +95,7 @@ export function SimpleRow({
     >
       {grip ? <DragGrip /> : null}
       {control}
+      <RowEmoji emoji={emoji} />
 
       {/* draggable={false}: an <a> drags itself by default, which would hijack
           the row's own drag with a link drag. */}

@@ -162,6 +162,7 @@ const waitingParty = alias(contexts, 'waiting_party');
 const actionSelect = {
   id: actions.id,
   title: actions.title,
+  emoji: actions.emoji,
   status: actions.status,
   waitingSince: actions.waitingSince,
   waitingOn: waitingParty.name,
@@ -410,6 +411,7 @@ export async function getAction(id: string) {
     .select({
       id: actions.id,
       title: actions.title,
+      emoji: actions.emoji,
       status: actions.status,
       waitingSince: actions.waitingSince,
       waitingOn: waitingParty.name,
@@ -559,6 +561,13 @@ export type InboxRow = {
   rawType: 'text' | 'photo' | 'audio';
   rawText: string | null;
   aiSuggestion: AiSuggestion | null;
+  /**
+   * One emoji in front of the title, once the list has been emojified.
+   *
+   * Null means this row has none while its neighbours may — the slot is still
+   * held, or the titles stop starting on one line.
+   */
+  emoji: string | null;
   createdAt: Date;
   /**
    * How many files the capture carries. A photo captured with no note has no
@@ -593,6 +602,7 @@ export async function getInboxItems(): Promise<InboxRow[]> {
       rawType: inboxItems.rawType,
       rawText: inboxItems.rawText,
       aiSuggestion: inboxItems.aiSuggestion,
+      emoji: inboxItems.emoji,
       createdAt: inboxItems.createdAt,
       attachmentCount: sql<number>`coalesce(${inboxAttachmentCount.n}, 0)`,
     })
@@ -619,6 +629,7 @@ export async function getRecentCaptures(limit = 5): Promise<InboxRow[]> {
       rawType: inboxItems.rawType,
       rawText: inboxItems.rawText,
       aiSuggestion: inboxItems.aiSuggestion,
+      emoji: inboxItems.emoji,
       createdAt: inboxItems.createdAt,
       attachmentCount: sql<number>`coalesce(${inboxAttachmentCount.n}, 0)`,
     })
@@ -638,6 +649,7 @@ export async function getInboxItem(id: string): Promise<InboxRow | null> {
       rawType: inboxItems.rawType,
       rawText: inboxItems.rawText,
       aiSuggestion: inboxItems.aiSuggestion,
+      emoji: inboxItems.emoji,
       createdAt: inboxItems.createdAt,
       attachmentCount: sql<number>`coalesce(${inboxAttachmentCount.n}, 0)`,
     })

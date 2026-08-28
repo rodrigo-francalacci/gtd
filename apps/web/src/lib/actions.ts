@@ -41,6 +41,7 @@ import {
 } from './pane';
 import { suggester } from './ai/suggest';
 import { readPurchase, type PurchaseRead } from './ai/purchase';
+import { pickEmoji } from './ai/emoji';
 import { requireSession } from './auth/session';
 import type { ReviewStep } from './review';
 import {
@@ -2524,4 +2525,104 @@ export async function addPurchase(
 
   revalidateShell();
   return row.id;
+}
+
+// ---------------------------------------------------------------------------
+// Emoji
+// ---------------------------------------------------------------------------
+
+/** Which list is being marked. Only the two you scan to empty have one. */
+export type EmojiTarget = 'inbox' | 'actions';
+
+/**
+ * Put an emoji in front of each of these rows.
+ *
+ * Pressed, never automatic. It costs a model call, and a list that quietly
+ * spent money every time it rendered would be the opposite of what a queue is
+ * for — so this runs over the ids the page had on screen when you pressed it,
+ * once, and writes the answers down.
+ *
+ * The ids come from the caller rather than being re-queried here, and that is
+ * deliberate: what you asked to mark is what you were looking at, filters and
+ * all. Re-reading the table would silently mark a hundred rows you had scrolled
+ * past a filter to exclude, and bill you for them.
+ *
+ * Rows the model skipped keep whatever they had. Clearing a good emoji because
+ * one answer came back as a word would make pressing the button a risk.
+ */
+export async function emojifyRows(target: EmojiTarget, ids: string[]) {
+  await requireSession();
+
+  const wanted = [...new Set(ids)].filter(Boolean);
+  if (wanted.length === 0) return { ok: true as const, marked: 0 };
+
+  const rows =
+    target === 'inbox'
+      ? await db
+          .select({ id: inboxItems.id, title: inboxItems.rawText })
+          .from(inboxItems)
+          .where(inArray(inboxItems.id, wanted))
+      : await db
+          .select({ id: actions.id, title: actions.title })
+          .from(actions)
+          .where(inArray(actions.id, wanted));
+
+  /*
+   * The first line only, which is the title everywhere else in the app — a
+   * capture is one `raw_text` with the note under a blank line, and sending the
+   * note would spend tokens on the paragraph explaining *why* you wrote the
+   * thing down rather than on what it is.
+   */
+  const asked = rows.map((row) => ({
+    id: row.id,
+    title: (row.title ?? '').split('\n')[0].trim(),
+  }));
+
+  const found = await pickEmoji(asked);
+  if (found.size === 0) {
+    return {
+      ok: false as const,
+      error:
+        'No emoji came back. That usually means CHATGPT_API_KEY is not set — ' +
+        'without it nothing here can choose one.',
+    };
+  }
+
+  /*
+   * One statement rather than a write per row. Every await on the Neon driver
+   * is its own HTTP round trip, so forty rows would be forty of them for a
+   * column three characters wide.
+   */
+  const table = target === 'inbox' ? inboxItems : actions;
+  const cases = sql.join(
+    [...found].map(([id, emoji]) => sql`when ${id}::uuid then ${emoji}`),
+    sql` `,
+  );
+
+  await db
+    .update(table)
+    .set({ emoji: sql`case ${table.id} ${cases} end` })
+    .where(inArray(table.id, [...found.keys()]));
+
+  revalidateShell();
+  return { ok: true as const, marked: found.size };
+}
+
+/**
+ * Take them off again.
+ *
+ * The way back, and the reason the emoji is its own column rather than a prefix
+ * on the title: prefixed into the text it would have reached search, Drive
+ * filenames and every export, and there would be nothing to undo it with.
+ */
+export async function clearEmoji(target: EmojiTarget, ids: string[]) {
+  await requireSession();
+
+  const wanted = [...new Set(ids)].filter(Boolean);
+  if (wanted.length === 0) return;
+
+  const table = target === 'inbox' ? inboxItems : actions;
+  await db.update(table).set({ emoji: null }).where(inArray(table.id, wanted));
+
+  revalidateShell();
 }

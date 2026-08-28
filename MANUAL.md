@@ -23,6 +23,7 @@ than the behaviour, look there.
 - [Files](#files) — attachments, documents, previews
 - [Search](#search)
 - [Views and preferences](#views-and-preferences)
+- [Emoji](#emoji) — making a list scannable
 - [The Chrome extension](#the-chrome-extension)
 - [The phone](#the-phone) — the whole app, one screen at a time
 - [Google](#google)
@@ -413,7 +414,10 @@ Each facet's counts are taken with the *other* filters applied but not its own,
 so picking Audio never leaves Audio as the only type on offer. The filter only
 offers tags that would still find something.
 
-**Gallery view** puts a thumbnail on the left of each row and the text on the
+**Gallery view** is remembered *per box*, like the density beside it — a box of
+scans wants the pictures and a box of filed correspondence has none to show. A
+box you have never switched follows the app-wide default. It puts a thumbnail on
+the left of each row and the text on the
 right, one entry per row. Drive renders the first page of a PDF, so a scan is
 recognisable by its shape long before its title is read.
 
@@ -841,6 +845,46 @@ you *process* a queue.
 
 All of these live in the database rather than in the browser, so they follow the
 account and the server can render the right one without a flash.
+
+---
+
+## Emoji
+
+**Emojify** puts one emoji in front of every row in the inbox or a to-do list, so
+you can find the boiler item by its shape instead of reading along the titles.
+It is on the inbox and on *What can I do now*.
+
+It is a button, never automatic. Choosing costs a call to the model, and a list
+that spent money each time it drew itself would be the wrong thing entirely for
+a queue you open twenty times a day. Press it, and the whole visible list is
+marked at once.
+
+**What it marks is what you are looking at.** On a filtered list — the Now view
+with a context chosen, say — it marks the rows the filter left, not the whole
+table.
+
+The whole list goes to the model in one request, which is both cheaper and
+better: something that can see all the rows gives the two shopping errands the
+same trolley, and that consistency is most of what makes a list scannable.
+Asked one row at a time it could not know the others existed.
+
+It picks for the **subject**, not the verb — "ring the plumber about the boiler"
+is about the boiler — so the same thing looks the same every time you see it.
+
+**Redo emoji** asks again, which is worth doing after you have edited some
+titles. **Clear** takes them off. Nothing is lost either way, because the emoji
+lives in its own column rather than being pasted onto the front of the title:
+prefixed into the text it would have ended up in search, in Drive filenames and
+in every export, with no way back.
+
+A row the model skips — a photo capture with no words, most often — keeps its
+place. Once any row in a list has an emoji, every row reserves the same space
+for one, so the titles all still start on the same line. A blank there is the
+point, not an oversight: a glyph on only some rows leaves the left edge ragged,
+which in a column of titles is the one thing worth getting right.
+
+It needs `CHATGPT_API_KEY`. Without it the button says so rather than doing
+nothing.
 
 ---
 

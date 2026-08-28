@@ -12,6 +12,7 @@ import type { ViewMode } from '@/lib/pane';
 import { daysSince, isStale, type ActionRow } from '@/lib/queries.shared';
 import { DragGrip } from './sortable';
 import { SimpleRow } from './simple-row';
+import { RowEmoji } from './row-emoji';
 
 /**
  * One row in the middle pane. The checkbox completes; the row body selects.
@@ -28,6 +29,7 @@ export function ActionItem({
   isDragging = false,
   mode = 'comfortable',
   variant = 'default',
+  emojified = false,
 }: {
   action: ActionRow;
   href: string;
@@ -37,6 +39,14 @@ export function ActionItem({
   mode?: ViewMode;
   /** 'waiting' swaps the contexts column for who you're waiting on. */
   variant?: 'default' | 'waiting';
+  /**
+   * Whether *this list* has been emojified — not whether this row has an emoji.
+   *
+   * A row with none still holds the slot when its neighbours have one, or the
+   * titles stop starting on the same line. So the answer has to come from the
+   * list, which is the only thing that can see the other rows.
+   */
+  emojified?: boolean;
 }) {
   const [pending, startTransition] = useTransition();
 
@@ -80,6 +90,7 @@ export function ActionItem({
       <SimpleRow
         href={href}
         title={action.title}
+        emoji={emojified ? action.emoji : undefined}
         selected={selected}
         muted={done}
         /* Greyed but not crossed out — a finished step is the record of how
@@ -111,6 +122,7 @@ export function ActionItem({
         <div className="flex min-w-0 items-center gap-1.5">
           <DragGrip />
           {checkbox}
+          <RowEmoji emoji={emojified ? action.emoji : undefined} />
           <Link
             href={href}
             draggable={false}
@@ -155,6 +167,9 @@ export function ActionItem({
     >
       <DragGrip />
       <span className="mt-0.5">{checkbox}</span>
+      <span className="mt-0.5">
+        <RowEmoji emoji={emojified ? action.emoji : undefined} />
+      </span>
 
       {/* draggable={false}: an <a> is natively draggable and would hijack the
           row's drag with a link drag instead. */}

@@ -75,6 +75,33 @@ Turbopack is the default; `middleware` is now `proxy`.
   title indents the rows that have one and leaves the left edge ragged, which
   in a view whose entire content is a column of titles is the one thing there
   is to get right.
+- **An emoji is the exception, and pays for it with a reserved slot.** It has to
+  lead the title — being seen *before* the words is the entire point — so the
+  rule above is satisfied the other way: once any row in a list has one,
+  `RowEmoji` renders a fixed `w-5` box on *every* row, empty where there is no
+  glyph. `undefined` means the list has never been emojified and there is no
+  slot at all; `null` means this row has none but its neighbours do. That
+  distinction is the whole component, and the flag comes from the *list*
+  (`actions.some(a => a.emoji)`) because a row cannot see its neighbours.
+- **The emoji is stored, and is its own column.** Derived at render time it
+  would change between drawings, and recognising a row by its shape before
+  reading it is exactly what that breaks. Prefixed into `title` it would reach
+  search, Drive filenames and every export with nothing to undo it with — so
+  `actions.emoji` and `inbox_items.emoji` are a layer over the text, the same
+  shape `inbox_items.ai_suggestion` already is.
+- **Emojify is pressed, never automatic, and asks about the whole list at
+  once.** A list that called a model each time it rendered would spend money on
+  a queue you open twenty times a day. One request for forty rows is also the
+  *better* question: a model that can see the list gives the two shopping
+  errands the same trolley, which is the consistency that makes it scannable at
+  all — asked one at a time it cannot know the other rows exist. Ids come from
+  the caller rather than being re-queried, so a filtered list marks what the
+  filter left rather than quietly billing for the rows you excluded. Replies are
+  matched back **by id**, never by position: an array in order is a promise the
+  model has no way to keep, and a silent misalignment puts the wrong glyph on
+  every row. `oneEmoji` then throws away anything that is not a single glyph —
+  the model proposes and code disposes, as with the box tags — counting code
+  points after dropping joiners, because `'🔥'.length` is 2 and a flag is 4.
 - **UI preferences live in the `preferences` table**, one row pinned to
   `SINGLETON` — not a cookie or localStorage. The server needs them to render
   without a flash, and in the database they follow the account rather than the
@@ -1102,6 +1129,13 @@ to be kept. They meet at `box_item_links` and nowhere else.
   the things listed have a picture, and a scan is recognised by its shape long
   before its title is read. Day headings survive it — arrival is the filing
   system, and a wall of thumbnails with no sense of when is a folder.
+  **Per box, in `view_prefs` beside that box's density**, which is where it
+  moved from the singleton `preferences` row: one answer for every box is the
+  mistake density made and had corrected. A box of scans wants the pictures and
+  a box of correspondence has none to show, and turning them on for the first
+  turned them on for the second. Null still means "follow the app-wide value",
+  so the old global became the seed a new box starts from, and the page that
+  already reads the box's density gets this in the same trip.
 - **Three filters, and they combine.** Tags are AND (all of them), types are
   OR (nothing is both audio and a place, so requiring both would always return
   nothing), and the date range narrows both. Each facet's counts are taken with

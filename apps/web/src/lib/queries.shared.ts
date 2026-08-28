@@ -16,6 +16,14 @@ import type {
 export type ActionRow = {
   id: string;
   title: string;
+  /**
+   * One emoji in front of the title, once the list has been emojified.
+   *
+   * Null means this row has none while its neighbours may — the slot is still
+   * held, or the titles stop starting on one line.
+   */
+  emoji: string | null;
+
   status: ActionStatus;
   waitingSince: string | null;
   /** Who or what you're waiting on — null when unrecorded. */

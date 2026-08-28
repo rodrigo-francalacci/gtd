@@ -243,6 +243,24 @@ export const actions = pgTable(
     id: uuid('id').primaryKey().defaultRandom(),
     projectId: uuid('project_id').references(() => projects.id, { onDelete: 'cascade' }),
     title: text('title').notNull(),
+    /**
+     * One emoji in front of the title, so a list can be scanned rather than
+     * read.
+     *
+     * Chosen by a model when you press the button and stored, never derived on
+     * the fly: the same row must show the same glyph every time it is drawn, or
+     * the thing that makes a list scannable — recognising a row by its shape
+     * before reading it — is exactly what breaks. It also means no list costs a
+     * model call to render.
+     *
+     * Beside the title rather than inside it. Prefixed into `title` it would
+     * reach search, Drive filenames and every export, and could not be undone;
+     * in its own column it is a layer you can add, redo or clear, which is the
+     * same rule the AI suggestion on a capture follows.
+     *
+     * Null is the normal state and means no emoji has been asked for.
+     */
+    emoji: text('emoji'),
     status: actionStatus('status').notNull().default('next'),
     /** Stamped when status becomes 'waiting'; drives the staleness surface. */
     waitingSince: date('waiting_since'),
@@ -473,6 +491,24 @@ export const inboxItems = pgTable(
     rawText: text('raw_text'),
     /** Suggestion layer only — sits on top of the raw artefact. */
     aiSuggestion: jsonb('ai_suggestion').$type<AiSuggestion>(),
+    /**
+     * One emoji in front of the title, so a list can be scanned rather than
+     * read.
+     *
+     * Chosen by a model when you press the button and stored, never derived on
+     * the fly: the same row must show the same glyph every time it is drawn, or
+     * the thing that makes a list scannable — recognising a row by its shape
+     * before reading it — is exactly what breaks. It also means no list costs a
+     * model call to render.
+     *
+     * Beside the title rather than inside it. Prefixed into `title` it would
+     * reach search, Drive filenames and every export, and could not be undone;
+     * in its own column it is a layer you can add, redo or clear, which is the
+     * same rule the AI suggestion on a capture follows.
+     *
+     * Null is the normal state and means no emoji has been asked for.
+     */
+    emoji: text('emoji'),
     status: inboxStatus('status').notNull().default('pending'),
     /**
      * What clarifying produced. The raw capture above is never edited or

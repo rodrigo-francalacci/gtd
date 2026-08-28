@@ -19,6 +19,8 @@ import { DragCapture } from '@/components/drag-capture';
 import { INBOX_COLUMNS } from '@/lib/columns';
 import { groupByDay } from '@/lib/days';
 import { captureHasNote, captureLabel } from '@/lib/queries.shared';
+import { EmojifyButton } from '@/components/emojify-button';
+import { RowEmoji } from '@/components/row-emoji';
 import { getPreferences, paneWidth } from '@/lib/view-mode';
 import { densityKeys, getView } from '@/lib/view-prefs';
 
@@ -50,6 +52,14 @@ export default async function InboxPage(props: PageProps<'/inbox'>) {
   // Grouped by day it reads the other way round — the most recent day belongs
   // at the top, where a day-grouped list is always read from.
   const ordered = simple ? [...items].reverse() : items;
+
+  /*
+   * One capture with an emoji puts the slot on all of them — a slot that
+   * appears only where there is a glyph indents those rows and leaves the left
+   * edge ragged, which in a column of titles is the whole thing to get right.
+   */
+  const marked = items.filter((item) => item.emoji).length;
+  const emojified = marked > 0;
 
   // `items` is pending-only, so an id that isn't in it has just been clarified.
   // Falling back to the head of the list makes processing advance by itself:
@@ -85,6 +95,15 @@ export default async function InboxPage(props: PageProps<'/inbox'>) {
             ? 'Empty — nothing waiting to be clarified'
             : `${items.length} to clarify · ${simple ? 'newest first' : 'oldest first'}`
         }
+        /* The ids it is given are the ones on screen: what you asked to mark is
+           what you were looking at. */
+        actions={
+          <EmojifyButton
+            target="inbox"
+            ids={ordered.map((item) => item.id)}
+            marked={marked}
+          />
+        }
       >
         <InboxCapture />
 
@@ -115,6 +134,7 @@ export default async function InboxPage(props: PageProps<'/inbox'>) {
                         ) : null}
                       </>
                     }
+                    emoji={emojified ? item.emoji : undefined}
                     title={
                       <span className={item.rawText ? '' : 'italic text-grey-500'}>
                         {captureLabel(item)}
@@ -148,6 +168,7 @@ export default async function InboxPage(props: PageProps<'/inbox'>) {
                       item.rawText ? '' : 'italic text-grey-500',
                     ].join(' ')}
                   >
+                    <RowEmoji emoji={emojified ? item.emoji : undefined} />
                     {item.attachmentCount > 0 ? (
                       <span className="shrink-0 text-grey-400">
                         <IconPaperclip />
@@ -180,14 +201,15 @@ export default async function InboxPage(props: PageProps<'/inbox'>) {
                     note in as well made every row a paragraph. */}
                   <span
                     className={[
-                      'block truncate text-[13px]',
+                      'flex items-center gap-1.5 text-[13px]',
                       item.id === targetId
                         ? 'font-medium text-grey-900'
                         : 'text-grey-800',
                       item.rawText ? '' : 'italic text-grey-500',
                     ].join(' ')}
                   >
-                    {captureLabel(item)}
+                    <RowEmoji emoji={emojified ? item.emoji : undefined} />
+                    <span className="truncate">{captureLabel(item)}</span>
                   </span>
                   <span className="mt-1 flex items-center gap-2 text-[11px] text-grey-500">
                     {stamp.format(item.createdAt)}
