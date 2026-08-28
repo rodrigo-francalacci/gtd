@@ -8,6 +8,7 @@ import type { ViewMode } from '@/lib/pane';
 import { isStalled, type ProjectRow as Row } from '@/lib/queries.shared';
 import { DRAG_ACTION, DragGrip, dragPayload, hasDragType } from './sortable';
 import { SimpleRow } from './simple-row';
+import { RowEmoji } from './row-emoji';
 
 /**
  * A project row. Doubles as a drop target: dragging an action onto it files
@@ -20,6 +21,7 @@ export function ProjectRow({
   isDragging = false,
   acceptsActions = true,
   mode = 'comfortable',
+  emojified = false,
 }: {
   project: Row;
   href: string;
@@ -27,6 +29,14 @@ export function ProjectRow({
   isDragging?: boolean;
   acceptsActions?: boolean;
   mode?: ViewMode;
+  /**
+   * Whether *this list* has been emojified — not whether this row has one.
+   *
+   * A row with none still holds the slot when its neighbours have one, or the
+   * titles stop starting on the same line. Only the list can see the other
+   * rows, so only the list can answer it.
+   */
+  emojified?: boolean;
 }) {
   const [over, setOver] = useState(false);
   const [pending, startTransition] = useTransition();
@@ -57,6 +67,7 @@ export function ProjectRow({
   if (mode === 'simple') {
     return (
       <SimpleRow
+        emoji={emojified ? project.emoji : undefined}
         {...dropHandlers}
         href={href}
         title={project.title}
@@ -84,6 +95,7 @@ export function ProjectRow({
       >
         <div className="flex min-w-0 items-center gap-1.5">
           <DragGrip />
+          <RowEmoji emoji={emojified ? project.emoji : undefined} />
           <Link
             href={href}
             draggable={false}
@@ -126,6 +138,9 @@ export function ProjectRow({
         ].join(' ')}
       >
         <DragGrip />
+        <span className="mt-0.5">
+          <RowEmoji emoji={emojified ? project.emoji : undefined} />
+        </span>
 
         <Link href={href} draggable={false} className="min-w-0 flex-1">
           <span

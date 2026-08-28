@@ -46,10 +46,35 @@ const GLYPHS: Record<EntryType, typeof IconDocument> = {
 export function EntryTypeIcon({
   item,
 }: {
-  item: { kind: BoxItemKind; mimeType: string | null };
+  item: { kind: BoxItemKind; mimeType: string | null; emoji?: string | null };
 }) {
   const type = entryTypeOf(item);
   const Glyph = GLYPHS[type];
+
+  /*
+   * The document's own emoji, where it has one, in the slot the glyph was
+   * using.
+   *
+   * Replacing rather than joining is the whole design. The glyph slot is
+   * already on every row, so nothing moves and no left edge goes ragged — and
+   * the emoji is strictly the better answer to the same question: the glyph can
+   * only say "a PDF", where a receipt, a boarding pass and a letter from the
+   * council are three things you would open for different reasons.
+   *
+   * The label still says what the file *is*, because that is the fact the emoji
+   * has stopped showing and a screen reader has nothing else to go on.
+   */
+  if (item.emoji) {
+    return (
+      <span
+        className="w-4 shrink-0 select-none text-center leading-none"
+        title={ENTRY_TYPE_LABELS[type]}
+        aria-label={ENTRY_TYPE_LABELS[type]}
+      >
+        {item.emoji}
+      </span>
+    );
+  }
 
   return (
     <span

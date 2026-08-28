@@ -20,6 +20,7 @@ import { getPreferences, paneWidth } from '@/lib/view-mode';
 import { densityKeys, getView } from '@/lib/view-prefs';
 import { DayHeading } from '@/components/day-heading';
 import { LayoutToggle } from '@/components/layout-toggle';
+import { EmojifyButton } from '@/components/emojify-button';
 import { ListItemRow } from '@/components/list-item-row';
 import { groupByDay } from '@/lib/days';
 
@@ -123,6 +124,13 @@ export default async function ListPage(props: PageProps<'/lists/[id]'>) {
            always on screen, whichever pane you are looking at. */
         actions={
           <>
+            {/* The rows on screen, so a filtered list marks what the filter
+                left rather than the whole list. */}
+            <EmojifyButton
+              target="list_items"
+              ids={items.map((i) => i.id)}
+              marked={items.filter((i) => i.emoji).length}
+            />
             <LayoutToggle layout={layout} viewKey={viewKey} />
             {isPurchases ? (
               <Link

@@ -82,7 +82,38 @@ Turbopack is the default; `middleware` is now `proxy`.
   glyph. `undefined` means the list has never been emojified and there is no
   slot at all; `null` means this row has none but its neighbours do. That
   distinction is the whole component, and the flag comes from the *list*
-  (`actions.some(a => a.emoji)`) because a row cannot see its neighbours.
+  (`actions.some(a => a.emoji)`) because a row cannot see its neighbours. On
+  `/projects` it is derived from all three buckets at once, or Active and
+  Someday would indent differently and the column would step sideways at every
+  heading.
+- **A box document's emoji *replaces* the type glyph rather than joining it.**
+  That slot is already on every row, so nothing moves and no left edge can go
+  ragged — and it is strictly the better answer to the same question, because
+  the glyph can only say "a PDF" where a receipt, a boarding pass and a letter
+  from the council are three things you would open for different reasons. The
+  `title`/`aria-label` still says what the file *is*: that is the fact the emoji
+  has stopped showing, and a screen reader has nothing else to go on. Nothing in
+  `document-row.tsx` changed — it already handed the whole row to
+  `EntryTypeIcon`, which is what made this a two-line change rather than a column.
+- **A document's emoji is chosen while it is being read, and asks a different
+  question.** The classifier is already looking at the file, already titling it
+  and already summarising it, so one more field is free — which is why `emoji`
+  is in `Classification` rather than something the box queue asks for
+  separately. And it is asked for the document's *kind*, not its subject:
+  `EmojiFlavour` is `'task' | 'document'` because a to-do is found by what it is
+  about (the boiler item should look like a boiler) while a filed document is
+  found by what it is. In a box of two hundred, "another receipt" is the useful
+  signal and which shop it came from is not, so two receipts wanting the same
+  glyph is the right answer rather than a failure of imagination. Verified on
+  real rows: four fuel receipts all came back with the same one.
+- **The box button marks from stored titles, never by re-reading.** A re-read
+  costs a document apiece and a PDF bills as its text *and* an image of every
+  page, which is a great deal to spend on a glyph. New documents get theirs from
+  the classifier where it is free; the button is how the ones filed earlier catch
+  up. It reads `coalesce(title, description, name)`, because a *note* has no
+  title at all and keeps its text in `description`, and a document not yet read
+  has neither and only a filename — asking for `title` alone silently skipped a
+  fifth of the box.
 - **The emoji is stored, and is its own column.** Derived at render time it
   would change between drawings, and recognising a row by its shape before
   reading it is exactly what that breaks. Prefixed into `title` it would reach

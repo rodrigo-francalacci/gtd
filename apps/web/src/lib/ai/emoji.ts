@@ -56,22 +56,54 @@ const SCHEMA = {
   },
 } as const;
 
-const INSTRUCTION = [
-  'Each line below is one item from a personal to-do list or inbox, given as an',
-  'id and a title. Choose one emoji for each that makes it recognisable at a',
-  'glance in a long list.',
+/**
+ * What kind of list this is, which changes what a good emoji is *for*.
+ *
+ * A task is found by its subject — the boiler item should look like a boiler —
+ * because that is what you are scanning for. A filed document is found by its
+ * *kind*: in a box of two hundred, "another receipt" is the useful signal and
+ * which shop it came from is not, so two receipts wanting the same glyph is the
+ * right answer rather than a failure of imagination. The document emoji also
+ * stands in for the type icon, which is a statement about kind by construction.
+ */
+export type EmojiFlavour = 'task' | 'document';
+
+const COMMON = [
   '',
-  'Pick for the *subject* of the item — what it is about — rather than the verb.',
-  '"Ring the plumber about the boiler" is about the boiler, not about ringing.',
-  'That is what makes a list scannable: the boiler item looks like a boiler',
-  'every time you see it.',
-  '',
-  'Be consistent within the list. If two items are both shopping, give them the',
-  'same emoji; if two are about the same person, project or place, match them.',
-  'Prefer a plain, widely recognised emoji over a clever or obscure one.',
+  'Be consistent within the list. Prefer a plain, widely recognised emoji over',
+  'a clever or obscure one.',
   '',
   'Return exactly one entry per id, using the id exactly as given.',
-].join('\n');
+];
+
+const INSTRUCTIONS: Record<EmojiFlavour, string> = {
+  task: [
+    'Each line below is one item from a personal to-do list or inbox, given as',
+    'an id and a title. Choose one emoji for each that makes it recognisable at',
+    'a glance in a long list.',
+    '',
+    'Pick for the *subject* of the item — what it is about — rather than the',
+    'verb. "Ring the plumber about the boiler" is about the boiler, not about',
+    'ringing. That is what makes a list scannable: the boiler item looks like a',
+    'boiler every time you see it.',
+    '',
+    'If two items are both shopping, give them the same emoji; if two are about',
+    'the same person, project or place, match them.',
+    ...COMMON,
+  ].join('\n'),
+
+  document: [
+    'Each line below is one document filed in a personal archive, given as an id',
+    'and the title it was filed under. Choose one emoji for each saying what',
+    'kind of document it is, so it can be picked out of a long list at a glance.',
+    '',
+    'Prefer the *kind* over the subject. Two receipts should get the same emoji',
+    'as each other and a different one from a letter, a ticket, a bill, a',
+    'contract or a photograph — in a list of two hundred, "another receipt" is',
+    'the useful thing to see and which shop it came from is not.',
+    ...COMMON,
+  ].join('\n'),
+};
 
 /**
  * A single emoji, or nothing.
@@ -88,7 +120,7 @@ const INSTRUCTION = [
  * which is what lets a family or a waving hand with a skin tone through as the
  * single glyph a reader sees.
  */
-function oneEmoji(raw: unknown): string | null {
+export function oneEmoji(raw: unknown): string | null {
   if (typeof raw !== 'string') return null;
 
   const trimmed = raw.trim();
@@ -109,6 +141,7 @@ function oneEmoji(raw: unknown): string | null {
 async function askForBatch(
   key: string,
   batch: EmojiRequest[],
+  flavour: EmojiFlavour,
 ): Promise<Map<string, string>> {
   const found = new Map<string, string>();
 
@@ -126,7 +159,7 @@ async function askForBatch(
             {
               type: 'input_text',
               text:
-                INSTRUCTION +
+                INSTRUCTIONS[flavour] +
                 '\n\n' +
                 batch
                   .map((item) => `${item.id}\t${item.title.slice(0, TITLE_LIMIT)}`)
@@ -186,7 +219,10 @@ async function askForBatch(
  * app follows everywhere else — never schedule a job nothing can run — becomes,
  * for something you pressed a button for, "say nothing happened".
  */
-export async function pickEmoji(items: EmojiRequest[]): Promise<Map<string, string>> {
+export async function pickEmoji(
+  items: EmojiRequest[],
+  flavour: EmojiFlavour = 'task',
+): Promise<Map<string, string>> {
   const key = process.env.CHATGPT_API_KEY ?? process.env.OPENAI_API_KEY;
   const found = new Map<string, string>();
 
@@ -196,7 +232,7 @@ export async function pickEmoji(items: EmojiRequest[]): Promise<Map<string, stri
 
   for (let at = 0; at < usable.length; at += BATCH) {
     try {
-      for (const [id, emoji] of await askForBatch(key, usable.slice(at, at + BATCH))) {
+      for (const [id, emoji] of await askForBatch(key, usable.slice(at, at + BATCH), flavour)) {
         found.set(id, emoji);
       }
     } catch {

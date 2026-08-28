@@ -1,6 +1,7 @@
 import 'server-only';
 
 import type { BoxCategoryRow } from '@/lib/queries.shared';
+import { oneEmoji } from '../ai/emoji';
 import { isGoogleNative } from '@/lib/google/sync';
 
 /**
@@ -19,6 +20,12 @@ export type ProposedTag = { category: string; tag: string };
 
 export type Classification = {
   title: string;
+  /**
+   * One emoji for what this is, or null when the model did not offer a usable
+   * one. Free to ask for: the document is already being read, already being
+   * titled and already being summarised.
+   */
+  emoji: string | null;
   description: string;
   /** The date printed on the document, `YYYY-MM-DD`, or null if there isn't one. */
   date: string | null;
@@ -173,9 +180,15 @@ export function validateTags(
 const SCHEMA = {
   type: 'object',
   additionalProperties: false,
-  required: ['title', 'description', 'date', 'text', 'tags'],
+  required: ['title', 'emoji', 'description', 'date', 'text', 'tags'],
   properties: {
     title: { type: 'string' },
+    emoji: {
+      type: 'string',
+      description:
+        'A single emoji standing for what this document is. No text, no ' +
+        'numbers, no explanation.',
+    },
     description: { type: 'string' },
     date: { type: ['string', 'null'] },
     text: { type: 'string' },
@@ -206,6 +219,11 @@ function buildPrompt(
     '',
     'Return:',
     '- title: a short descriptive title, 10-15 words at most, suitable for a filename.',
+    // It stands in for the type icon in a list, so it wants to say what the
+    // document *is* — a receipt, a bill, a ticket — rather than decorate the
+    // subject. Two receipts from different shops should look alike; a receipt
+    // and a letter should not.
+    '- emoji: one emoji standing for what kind of document this is, so it can be recognised in a list at a glance. Prefer the kind of document over its subject: two receipts should get the same emoji as each other, and a different one from a letter or a ticket.',
     '- description: about four lines of prose saying what this is. Do not begin with "This document".',
     '- date: the most relevant date printed on the document, as YYYY-MM-DD. Null if there is no date on it — do not guess one from context.',
     // The transcription is what makes a scan searchable, and it is also the
@@ -355,6 +373,9 @@ export class OpenAiClassifier implements Classifier {
 
     return {
       title: (parsed.title ?? '').trim(),
+      // Through the same gate the list button uses, so "a receipt" and two
+      // emoji in a row are refused in one place rather than two that disagree.
+      emoji: oneEmoji(parsed.emoji),
       description: (parsed.description ?? '').trim(),
       date: normaliseDate(parsed.date),
       text: (parsed.text ?? '').trim(),

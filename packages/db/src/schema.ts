@@ -197,6 +197,12 @@ export const projects = pgTable(
   {
     id: uuid('id').primaryKey().defaultRandom(),
     title: text('title').notNull(),
+    /**
+     * One emoji in front of the title, so a list can be scanned rather than
+     * read. See `inbox_items.emoji` — same layer, same rules, and null is the
+     * normal state.
+     */
+    emoji: text('emoji'),
     areaId: uuid('area_id').references(() => areasOfFocus.id, { onDelete: 'set null' }),
     goalId: uuid('goal_id').references(() => goals.id, { onDelete: 'set null' }),
     status: projectStatus('status').notNull().default('active'),
@@ -378,6 +384,12 @@ export const listItems = pgTable(
       .notNull()
       .references(() => lists.id, { onDelete: 'cascade' }),
     title: text('title').notNull(),
+    /**
+     * One emoji in front of the title, so a list can be scanned rather than
+     * read. See `inbox_items.emoji` — same layer, same rules, and null is the
+     * normal state.
+     */
+    emoji: text('emoji'),
     /** Type-specific data, e.g. PurchaseFields for a 'purchases' list. */
     fields: jsonb('fields').$type<PurchaseFields & Record<string, unknown>>(),
     projectId: uuid('project_id').references(() => projects.id, { onDelete: 'set null' }),
@@ -885,6 +897,20 @@ export const boxItems = pgTable(
      * a note is not a summary of anything, it is the thing itself.
      */
     title: text('title'),
+    /**
+     * One emoji standing for what this document is.
+     *
+     * Chosen while the document is being read, because the model is already
+     * looking at it — a receipt, a boarding pass and a letter from the council
+     * are three things a type icon calls "a PDF", and by the time anything has
+     * read the file, telling them apart is free.
+     *
+     * It *replaces* the type glyph in a list rather than sitting beside it, so
+     * there is no second column and no ragged left edge: the slot is already on
+     * every row. A row without one keeps the glyph, which is why null is a
+     * perfectly good permanent state rather than a gap to backfill.
+     */
+    emoji: text('emoji'),
     description: text('description'),
     /**
      * Where you were, for a `location` entry. Two columns rather than a blob

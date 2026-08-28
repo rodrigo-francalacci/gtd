@@ -11,6 +11,7 @@ import {
 import type { ViewMode } from '@/lib/pane';
 import { DragGrip } from './sortable';
 import { SimpleRow } from './simple-row';
+import { RowEmoji } from './row-emoji';
 import { TrialTick } from './budget-trial';
 
 /**
@@ -24,6 +25,7 @@ export function ListItemRow({
   isPurchases,
   isDragging = false,
   mode = 'comfortable',
+  emojified = false,
 }: {
   item: Row;
   href: string;
@@ -31,6 +33,14 @@ export function ListItemRow({
   isPurchases: boolean;
   isDragging?: boolean;
   mode?: ViewMode;
+  /**
+   * Whether *this list* has been emojified — not whether this row has one.
+   *
+   * A row with none still holds the slot when its neighbours have one, or the
+   * titles stop starting on the same line. Only the list can see the other
+   * rows, so only the list can answer it.
+   */
+  emojified?: boolean;
 }) {
   const cost = item.fields?.cost;
   const impact = item.fields?.impact;
@@ -66,6 +76,7 @@ export function ListItemRow({
   if (mode === 'simple') {
     return (
       <SimpleRow
+        emoji={emojified ? item.emoji : undefined}
         href={href}
         title={item.title}
         selected={selected}
@@ -91,6 +102,7 @@ export function ListItemRow({
         <div className="flex min-w-0 items-center gap-1.5">
           <DragGrip />
           {tick}
+          <RowEmoji emoji={emojified ? item.emoji : undefined} />
           <Link
             href={href}
             draggable={false}
@@ -144,6 +156,9 @@ export function ListItemRow({
       {/* Nudged down to sit on the title's baseline rather than above it —
           the row aligns to `items-start` so the metadata line stays put. */}
       {tick ? <span className="mt-1 flex">{tick}</span> : null}
+      <span className="mt-0.5">
+        <RowEmoji emoji={emojified ? item.emoji : undefined} />
+      </span>
 
       <Link href={href} draggable={false} className="min-w-0 flex-1">
         <div className="flex items-baseline justify-between gap-2">

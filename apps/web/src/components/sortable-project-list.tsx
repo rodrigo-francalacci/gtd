@@ -48,6 +48,14 @@ export function SortableProjectList({
   const [reason, setReason] = useState('');
   const [error, setError] = useState<string | null>(null);
 
+  /*
+   * One project with an emoji puts the slot on every row, across all three
+   * buckets — decided from the whole set rather than per group, or Active and
+   * Someday would indent differently and the column would step sideways at each
+   * heading.
+   */
+  const emojified = projects.some((p) => p.emoji);
+
   const grouped = new Map<string, ProjectListItem[]>();
   for (const p of projects) {
     grouped.set(p.status, [...(grouped.get(p.status) ?? []), p]);
@@ -147,6 +155,7 @@ export function SortableProjectList({
             }
             renderItem={(project, isDragging) => (
               <ProjectRow
+                emojified={emojified}
                 project={project}
                 href={project.href}
                 selected={project.id === selectedId}

@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { EmptyList, ListPane } from '@/components/panes';
+import { EmojifyButton } from '@/components/emojify-button';
 import { QuickAddProject } from '@/components/quick-add';
 import { SortableProjectList } from '@/components/sortable-project-list';
 import { PROJECT_COLUMNS } from '@/lib/columns';
@@ -36,6 +37,15 @@ export async function ProjectListPane({
       viewKey={viewKey}
       paneWidth={paneWidth(prefs)}
       columns={PROJECT_COLUMNS}
+        /* The ids are the rows on screen — what you asked to mark is what
+           you were looking at, filters and all. */
+      actions={
+        <EmojifyButton
+          target="projects"
+          ids={rows.map((p) => p.id)}
+          marked={rows.filter((p) => p.emoji).length}
+        />
+      }
       subtitle={
         stalledOnly ? (
           <Link href="/projects" className="underline underline-offset-2">

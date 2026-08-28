@@ -24,6 +24,14 @@ export function SortableListItems({
   mode?: ViewMode;
   emptyState?: React.ReactNode;
 }) {
+  /*
+   * One row with an emoji puts the slot on all of them. Decided here rather
+   * than per row because a row cannot see its neighbours, and a slot that
+   * appears only where there is a glyph is the ragged left edge the whole
+   * arrangement exists to avoid.
+   */
+  const emojified = items.some((item) => item.emoji);
+
   return (
     <SortableList
       items={items}
@@ -32,6 +40,7 @@ export function SortableListItems({
       emptyState={emptyState}
       renderItem={(item, isDragging) => (
         <ListItemRow
+          emojified={emojified}
           item={item}
           href={item.href}
           selected={item.id === selectedId}

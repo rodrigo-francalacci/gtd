@@ -2531,8 +2531,49 @@ export async function addPurchase(
 // Emoji
 // ---------------------------------------------------------------------------
 
-/** Which list is being marked. Only the two you scan to empty have one. */
-export type EmojiTarget = 'inbox' | 'actions';
+/**
+ * Which list is being marked.
+ *
+ * Every one of these is a list you read down looking for a particular row,
+ * which is the only thing an emoji helps with. A detail pane has one row in it
+ * and needs no help finding it.
+ */
+export type EmojiTarget = 'inbox' | 'actions' | 'projects' | 'list_items' | 'box';
+
+/**
+ * The table behind each, and which column holds the words to judge by.
+ *
+ * A table rather than a switch in three places: adding the sixth list should be
+ * one line here, not a hunt through the read, the write and the clear for the
+ * three places that each name every target.
+ */
+const EMOJI_TABLES = {
+  inbox: { table: inboxItems, title: inboxItems.rawText },
+  actions: { table: actions, title: actions.title },
+  projects: { table: projects, title: projects.title },
+  list_items: { table: listItems, title: listItems.title },
+  /*
+   * A box document's title is written by the model that read it, so this marks
+   * from what the reading already produced rather than opening the file again.
+   * Re-reading would be the honest way to get the best answer and costs a
+   * document read apiece — a PDF bills as its text *and* an image of every
+   * page — to improve a glyph. New documents get theirs from the classifier,
+   * where it is free; this is how the ones already filed catch up.
+   */
+  box: {
+    table: boxItems,
+    /*
+     * Whatever this entry has words in, in the order they are worth reading.
+     *
+     * `title` is written by the model that read the document — but a *note* has
+     * no title at all and keeps its text in `description`, and a document not
+     * yet read has neither and only a filename. Asking for `title` alone
+     * silently skipped every note and every pending scan, which was a fifth of
+     * the box saying nothing.
+     */
+    title: sql<string>`coalesce(${boxItems.title}, ${boxItems.description}, ${boxItems.name})`,
+  },
+} as const;
 
 /**
  * Put an emoji in front of each of these rows.
@@ -2556,16 +2597,12 @@ export async function emojifyRows(target: EmojiTarget, ids: string[]) {
   const wanted = [...new Set(ids)].filter(Boolean);
   if (wanted.length === 0) return { ok: true as const, marked: 0 };
 
-  const rows =
-    target === 'inbox'
-      ? await db
-          .select({ id: inboxItems.id, title: inboxItems.rawText })
-          .from(inboxItems)
-          .where(inArray(inboxItems.id, wanted))
-      : await db
-          .select({ id: actions.id, title: actions.title })
-          .from(actions)
-          .where(inArray(actions.id, wanted));
+  const { table, title } = EMOJI_TABLES[target];
+
+  const rows = await db
+    .select({ id: table.id, title })
+    .from(table)
+    .where(inArray(table.id, wanted));
 
   /*
    * The first line only, which is the title everywhere else in the app — a
@@ -2578,7 +2615,8 @@ export async function emojifyRows(target: EmojiTarget, ids: string[]) {
     title: (row.title ?? '').split('\n')[0].trim(),
   }));
 
-  const found = await pickEmoji(asked);
+  const found = await pickEmoji(asked, target === 'box' ? 'document' : 'task');
+
   if (found.size === 0) {
     return {
       ok: false as const,
@@ -2593,7 +2631,6 @@ export async function emojifyRows(target: EmojiTarget, ids: string[]) {
    * is its own HTTP round trip, so forty rows would be forty of them for a
    * column three characters wide.
    */
-  const table = target === 'inbox' ? inboxItems : actions;
   const cases = sql.join(
     [...found].map(([id, emoji]) => sql`when ${id}::uuid then ${emoji}`),
     sql` `,
@@ -2621,7 +2658,7 @@ export async function clearEmoji(target: EmojiTarget, ids: string[]) {
   const wanted = [...new Set(ids)].filter(Boolean);
   if (wanted.length === 0) return;
 
-  const table = target === 'inbox' ? inboxItems : actions;
+  const { table } = EMOJI_TABLES[target];
   await db.update(table).set({ emoji: null }).where(inArray(table.id, wanted));
 
   revalidateShell();

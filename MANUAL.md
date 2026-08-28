@@ -850,9 +850,9 @@ account and the server can render the right one without a flash.
 
 ## Emoji
 
-**Emojify** puts one emoji in front of every row in the inbox or a to-do list, so
-you can find the boiler item by its shape instead of reading along the titles.
-It is on the inbox and on *What can I do now*.
+**Emojify** puts one emoji in front of every row, so you can find the boiler item
+by its shape instead of reading along the titles. It is on the inbox, *What can
+I do now*, *Waiting for*, projects, any list, and any box.
 
 It is a button, never automatic. Choosing costs a call to the model, and a list
 that spent money each time it drew itself would be the wrong thing entirely for
@@ -868,8 +868,27 @@ better: something that can see all the rows gives the two shopping errands the
 same trolley, and that consistency is most of what makes a list scannable.
 Asked one row at a time it could not know the others existed.
 
-It picks for the **subject**, not the verb — "ring the plumber about the boiler"
-is about the boiler — so the same thing looks the same every time you see it.
+On a to-do it picks for the **subject**, not the verb — "ring the plumber about
+the boiler" is about the boiler — so the same thing looks the same every time
+you see it.
+
+**In a box it picks for the kind of document instead**, which is the opposite
+choice and the right one there: in a box of two hundred, "another receipt" is
+the useful thing to see and which shop it came from is not. Four fuel receipts
+all come back with the same tag, and a letter, a ticket and a contract each get
+their own.
+
+**A box document's emoji replaces its type icon** rather than sitting beside it.
+The icon could only ever say "a PDF"; a receipt, a boarding pass and a letter
+from the council are three things you would open for different reasons. A
+document without one keeps the icon.
+
+Documents read from now on get their emoji **as they are read** — the model is
+already looking at the file, so it costs nothing extra. The button on a box is
+how the documents filed before that catch up, and it works from the titles the
+reading already produced rather than opening every file again: re-reading a box
+would cost a full document read apiece, and a PDF is billed as its text *and* a
+picture of every page.
 
 **Redo emoji** asks again, which is worth doing after you have edited some
 titles. **Clear** takes them off. Nothing is lost either way, because the emoji

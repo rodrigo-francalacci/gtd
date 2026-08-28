@@ -301,6 +301,7 @@ async function runJob(model: Classifier | null, itemId: string) {
     .update(boxItems)
     .set({
       title: result.title || null,
+      emoji: result.emoji,
       description: result.description || null,
       docDate: result.date,
       text: result.text ? result.text.slice(0, MAX_TEXT_CHARS) : null,

@@ -1,6 +1,7 @@
 import { ActionDetail } from '@/components/action-detail';
 import { attachmentsFor, documentsFor } from '@/lib/file-lists';
 import { SortableActionList } from '@/components/sortable-action-list';
+import { EmojifyButton } from '@/components/emojify-button';
 import { DetailPane, EmptyDetail, EmptyList, ListPane } from '@/components/panes';
 import { WAITING_COLUMNS } from '@/lib/columns';
 import {
@@ -52,6 +53,15 @@ export default async function WaitingPage(props: PageProps<'/waiting'>) {
             : `${rows.length} outstanding${
                 staleCount > 0 ? ` · ${staleCount} past ${WAITING_STALE_DAYS} days` : ''
               }`
+        }
+        /* The ids are the rows on screen — what you asked to mark is what
+           you were looking at, filters and all. */
+        actions={
+          <EmojifyButton
+            target="actions"
+            ids={rows.map((a) => a.id)}
+            marked={rows.filter((a) => a.emoji).length}
+          />
         }
       >
         <SortableActionList

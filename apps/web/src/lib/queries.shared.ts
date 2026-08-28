@@ -50,6 +50,14 @@ export function isStale(waitingSince: string | null): boolean {
 export type ProjectRow = {
   id: string;
   title: string;
+  /**
+   * One emoji in front of the title, once the list has been emojified.
+   *
+   * Null means this row has none while its neighbours may — the slot is still
+   * held, or the titles stop starting on one line.
+   */
+  emoji: string | null;
+
   status: ProjectStatus;
   standbyReason: string | null;
   areaId: string | null;
@@ -123,6 +131,14 @@ export type ListItemRow = {
   id: string;
   listId: string;
   title: string;
+  /**
+   * One emoji in front of the title, once the list has been emojified.
+   *
+   * Null means this row has none while its neighbours may — the slot is still
+   * held, or the titles stop starting on one line.
+   */
+  emoji: string | null;
+
   fields: PurchaseFields | null;
   projectId: string | null;
   projectTitle: string | null;
@@ -276,6 +292,12 @@ export type BoxItemRow = {
   id: string;
   boxId: string;
   kind: BoxItemKind;
+  /**
+   * One emoji standing for what the document is, replacing the type glyph in a
+   * list. Null keeps the glyph.
+   */
+  emoji: string | null;
+
   /** Null for a note or a place — there is no file. */
   driveFileId: string | null;
   name: string;
