@@ -118,6 +118,24 @@ export async function setDensity(key: string, mode: ViewMode): Promise<void> {
  */
 export type ListLayout = 'list' | 'timeline';
 
+/**
+ * Whether this box shows thumbnails.
+ *
+ * Per box, and in the same row as its density, because they are one question
+ * about one box: a box of scanned receipts is recognised by shape long before
+ * its title is read, and a box of filed correspondence is a column of subjects
+ * with nothing to look at.
+ */
+export async function setBoxViewFor(key: string, view: 'list' | 'gallery'): Promise<void> {
+  await db
+    .insert(viewPrefs)
+    .values({ key, boxView: view })
+    .onConflictDoUpdate({
+      target: viewPrefs.key,
+      set: { boxView: view, updatedAt: sql`now()` },
+    });
+}
+
 export async function setLayout(key: string, layout: ListLayout): Promise<void> {
   await db
     .insert(viewPrefs)
@@ -139,11 +157,18 @@ export async function setLayout(key: string, layout: ListLayout): Promise<void> 
  * page-wide default cost a whole extra trip. Callers fetch both in parallel
  * and pick the fallback afterwards, which is free.
  */
-export async function getView(
-  key: string,
-): Promise<{ density: ViewMode | null; layout: ListLayout }> {
+export async function getView(key: string): Promise<{
+  density: ViewMode | null;
+  layout: ListLayout;
+  /** Null means "follow the app-wide default", as with the density above. */
+  boxView: 'list' | 'gallery' | null;
+}> {
   const [row] = await db
-    .select({ density: viewPrefs.density, layout: viewPrefs.layout })
+    .select({
+      density: viewPrefs.density,
+      layout: viewPrefs.layout,
+      boxView: viewPrefs.boxView,
+    })
     .from(viewPrefs)
     .where(eq(viewPrefs.key, key))
     .limit(1);
@@ -153,5 +178,7 @@ export async function getView(
       ? (row!.density as ViewMode)
       : null,
     layout: row?.layout === 'timeline' ? 'timeline' : 'list',
+    boxView:
+      row?.boxView === 'gallery' ? 'gallery' : row?.boxView === 'list' ? 'list' : null,
   };
 }

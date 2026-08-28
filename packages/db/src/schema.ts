@@ -1230,6 +1230,22 @@ export const viewPrefs = pgTable('view_prefs', {
    * has always been.
    */
   layout: text('layout'),
+  /**
+   * `'list' | 'gallery'` — whether this box shows thumbnails, or null to follow
+   * the app-wide default in `preferences`.
+   *
+   * Per box for the same reason density is per list, and it took the same route
+   * to get here: one answer for every box is the wrong answer for most of them.
+   * A box of scanned receipts is recognised by shape long before its title is
+   * read and wants the pictures; a box of filed correspondence is a column of
+   * subjects and wants none. Choosing on one silently re-made the choice on the
+   * other.
+   *
+   * In this row rather than beside `boxView` in `preferences`, so the page that
+   * already reads a box's density gets this in the same trip — the two are one
+   * question about one box, asked once.
+   */
+  boxView: text('box_view'),
   /** 'manual' | 'arrival' | 'alpha' | 'usage'. */
   sort: text('sort'),
   /** Newest/Z-A/most-used first. Ignored by 'manual', which has no direction. */

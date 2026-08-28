@@ -59,7 +59,13 @@ import { enqueueBoxJob } from './box/queue';
 import { canClassify } from './box/classify';
 import { canGroup, type SortChoice } from './sort';
 import { setUsage, type UsableType } from './usage';
-import { setDensity, setLayout, setViewPref, type ListLayout } from './view-prefs';
+import {
+  setBoxViewFor,
+  setDensity,
+  setLayout,
+  setViewPref,
+  type ListLayout,
+} from './view-prefs';
 import { docFromText, extractText } from './tiptap';
 
 /**
@@ -1045,10 +1051,23 @@ async function savePreference(patch: {
     });
 }
 
-/** List or gallery, for every box. One choice, like the density. */
-export async function setBoxView(view: BoxView) {
+/**
+ * List or gallery, for one box — or, with no key, the default a new one starts
+ * from.
+ *
+ * It used to be a single choice for every box, which is the mistake density
+ * made and had corrected: one answer for all of them is the wrong answer for
+ * most of them. A box of scanned receipts is recognised by shape long before
+ * its title is read and wants the pictures; a box of filed correspondence is a
+ * column of subjects with nothing to look at, and turning the thumbnails on for
+ * the receipts turned them on there too.
+ */
+export async function setBoxView(view: BoxView, key?: string) {
   await requireSession();
-  await savePreference({ boxView: view });
+
+  if (key) await setBoxViewFor(key, view);
+  else await savePreference({ boxView: view });
+
   revalidateShell();
 }
 

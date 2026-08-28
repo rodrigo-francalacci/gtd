@@ -98,6 +98,9 @@ export default async function BoxPage(props: PageProps<'/box/[id]'>) {
     ]);
 
   const viewMode = view.density ?? prefs.viewMode;
+  // This box's own answer, or the default a box that has never been switched
+  // follows — exactly how the density above resolves.
+  const boxView = view.boxView ?? prefs.boxView;
 
   /*
    * Exclusions are applied in memory, where the positive tags were matched in
@@ -212,11 +215,11 @@ export default async function BoxPage(props: PageProps<'/box/[id]'>) {
         viewMode={viewMode}
         viewKey={viewKey}
         paneWidth={paneWidth(prefs)}
-        columns={prefs.boxView === 'gallery' ? undefined : BOX_COLUMNS}
+        columns={boxView === 'gallery' ? undefined : BOX_COLUMNS}
         actions={
           <>
             <ReadWaiting waiting={box.pendingCount} />
-            <BoxViewToggle view={prefs.boxView} />
+            <BoxViewToggle view={boxView} viewKey={viewKey} />
             <Link
               href={`/box?box=${id}`}
               className="text-[11px] text-grey-500 underline underline-offset-2 hover:text-grey-800"
@@ -296,7 +299,7 @@ export default async function BoxPage(props: PageProps<'/box/[id]'>) {
               {/* The day headings survive the gallery: arrival is the filing
                   system here, and a wall of thumbnails with no sense of when
                   is a folder, not a box. */}
-              {prefs.boxView === 'gallery' ? (
+              {boxView === 'gallery' ? (
                 day.items.map((item) => (
                   <DocumentGalleryRow
                     key={item.id}
