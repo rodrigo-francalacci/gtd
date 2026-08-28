@@ -316,6 +316,7 @@ export function ProjectDetail({
               In Drive and Gmail
             </h2>
             <BrowseGoogle
+              projectId={project.id}
               projectTitle={project.title}
               drive={tree.drive}
               gmail={tree.gmail}

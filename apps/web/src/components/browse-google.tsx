@@ -1,5 +1,6 @@
 'use client';
 
+import { useEffect } from 'react';
 import type { TreeNode } from '@gtd/db';
 import { GoogleTree } from './google-tree';
 import { useFilePreview } from './file-preview';
@@ -19,12 +20,14 @@ import { useFilePreview } from './file-preview';
  * pane is.
  */
 export function BrowseGoogle({
+  projectId,
   projectTitle,
   drive,
   gmail,
   fetchedAt,
   error,
 }: {
+  projectId: string;
   projectTitle: string;
   drive: TreeNode | null;
   gmail: TreeNode | null;
@@ -33,14 +36,58 @@ export function BrowseGoogle({
 }) {
   const preview = useFilePreview();
 
-  if (!drive && !gmail) return null;
+  const has = Boolean(drive || gmail);
+
+  /*
+   * Selecting a project loads its folder, without going to it.
+   *
+   * The same call a box entry makes about its scan, for the same reason: there
+   * is exactly one thing you could want in the pane beside a project, so making
+   * you ask for it only tells the app what it already knows. On a desktop the
+   * tree simply appears beside the project; on a phone the pane is ready before
+   * you swipe to it.
+   *
+   * `preload`, not `open` — the carousel must not travel. You asked to look at
+   * the project; the folder is the thing next to it.
+   */
+  const { preload } = preview;
+
+  useEffect(() => {
+    if (!has) return;
+
+    preload({
+      id: `tree:${projectId}`,
+      name: projectTitle,
+      mimeType: null,
+      src: '',
+      driveFileId: null,
+      driveUrl: null,
+      node: (
+        <GoogleTree
+          drive={drive}
+          gmail={gmail}
+          fetchedAt={fetchedAt ? new Date(fetchedAt) : null}
+          error={error}
+        />
+      ),
+    });
+    /*
+     * Keyed on the project, not on the tree object, which is rebuilt on every
+     * render. Deliberately *not* clearing on a project with no tree: that would
+     * empty a pane you had opened something else into, and "nothing to show" is
+     * not a reason to take away what is there.
+     */
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [projectId, has, preload]);
+
+  if (!has) return null;
 
   return (
     <button
       type="button"
       onClick={() =>
         preview.open({
-          id: `tree:${projectTitle}`,
+          id: `tree:${projectId}`,
           name: projectTitle,
           mimeType: null,
           src: '',
