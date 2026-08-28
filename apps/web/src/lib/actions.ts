@@ -121,6 +121,9 @@ export async function updateProjectTitle(projectId: string, title: string) {
  * Status changes carry two rules from the brief: standby requires a return
  * condition, and the Drive/Gmail containers follow the status.
  */
+/** The two statuses that mean a project is over. */
+const ARCHIVED: ProjectStatus[] = ['completed', 'dropped'];
+
 export async function setProjectStatus(
   projectId: string,
   status: ProjectStatus,
@@ -158,6 +161,17 @@ export async function setProjectStatus(
     .returning();
 
   await enqueueSync('move_project_links', project.id);
+
+  /*
+   * Any timeline this project is on has to hear about it.
+   *
+   * Archiving is the moment the "Concluded …" line becomes true, and reopening
+   * is the moment it stops being — so the mark is written and removed here
+   * rather than being something you remember to do. Cheap when the project is
+   * on no timeline at all, which is almost all of them: one indexed read that
+   * comes back empty.
+   */
+  await syncConclusionEvents(project.id, project.completedAt);
 
   revalidateShell();
 }
@@ -2729,4 +2743,155 @@ export async function setEmoji(target: EmojiTarget, id: string, emoji: string | 
 
   revalidateShell();
   return { ok: true as const };
+}
+
+// ---------------------------------------------------------------------------
+// Milestones on a box timeline
+// ---------------------------------------------------------------------------
+
+/**
+ * An event row carries almost nothing, and that is the design.
+ *
+ * A project id and a date. The title, and therefore every word a reader sees,
+ * is joined from the project when the feed is read — so renaming a project
+ * rewrites its history everywhere it appears, which is the only version of this
+ * that stays true. `name` is required by the table and is never shown for an
+ * event; it holds the moment rather than a filename, so a row inspected in the
+ * database still says what it is.
+ */
+async function writeEvent(
+  boxId: string,
+  projectId: string,
+  event: 'started' | 'concluded',
+  when: Date,
+) {
+  await db.insert(boxItems).values({
+    boxId,
+    projectId,
+    event,
+    kind: 'event',
+    name: event,
+    // Nothing here is queued or read: an event has no file and no words of its
+    // own, so there is nothing a model could add.
+    status: 'ready',
+    capturedAt: when,
+  });
+}
+
+/**
+ * Show a project's milestones on a box's timeline.
+ *
+ * A box is already read as a timeline, and what a project *did* belongs among
+ * the receipts and letters of the months it was happening in — "Started the
+ * kitchen" three lines above the first quote for it says something neither row
+ * says alone.
+ *
+ * The link is the events themselves rather than a table of its own. There is
+ * nothing a link would record that the presence of a started event does not
+ * already say, and a second place to keep in step is a second place to drift.
+ *
+ * A project already finished gets both marks at once, because the point is to
+ * see the shape of a year you have already had, not only the one you are in.
+ */
+export async function showProjectOnTimeline(projectId: string, boxId: string) {
+  await requireSession();
+
+  const [project] = await db
+    .select({
+      createdAt: projects.createdAt,
+      completedAt: projects.completedAt,
+      status: projects.status,
+    })
+    .from(projects)
+    .where(eq(projects.id, projectId))
+    .limit(1);
+
+  if (!project) return { ok: false as const, error: 'That project is gone.' };
+
+  // Already there: adding it twice would put two identical lines in the feed.
+  const [existing] = await db
+    .select({ id: boxItems.id })
+    .from(boxItems)
+    .where(
+      and(
+        eq(boxItems.boxId, boxId),
+        eq(boxItems.projectId, projectId),
+        eq(boxItems.kind, 'event'),
+      ),
+    )
+    .limit(1);
+
+  if (existing) return { ok: false as const, error: 'It is already on that timeline.' };
+
+  await writeEvent(boxId, projectId, 'started', project.createdAt);
+
+  if (ARCHIVED.includes(project.status) && project.completedAt) {
+    await writeEvent(boxId, projectId, 'concluded', project.completedAt);
+  }
+
+  revalidateShell();
+  return { ok: true as const };
+}
+
+/** Take a project off a timeline. Both marks go; the project is untouched. */
+export async function hideProjectFromTimeline(projectId: string, boxId: string) {
+  await requireSession();
+
+  await db
+    .delete(boxItems)
+    .where(
+      and(
+        eq(boxItems.boxId, boxId),
+        eq(boxItems.projectId, projectId),
+        eq(boxItems.kind, 'event'),
+      ),
+    );
+
+  revalidateShell();
+}
+
+/**
+ * Keep the conclusion marks in step with the project's actual status.
+ *
+ * Called from `setProjectStatus`, and it writes to *every* timeline the project
+ * is on rather than one — being on two is a thing you can do, and a conclusion
+ * appearing on one of them would be worse than it appearing on neither.
+ *
+ * Reopening deletes the mark rather than leaving it. A concluded line above a
+ * live project is a record of something that did not happen, and re-archiving
+ * writes it again with whatever date it really finished on.
+ */
+async function syncConclusionEvents(projectId: string, completedAt: Date | null) {
+  const rows = await db
+    .selectDistinct({ boxId: boxItems.boxId })
+    .from(boxItems)
+    .where(and(eq(boxItems.projectId, projectId), eq(boxItems.kind, 'event')));
+
+  if (rows.length === 0) return;
+
+  await db
+    .delete(boxItems)
+    .where(
+      and(
+        eq(boxItems.projectId, projectId),
+        eq(boxItems.kind, 'event'),
+        eq(boxItems.event, 'concluded'),
+      ),
+    );
+
+  if (!completedAt) return;
+
+  for (const row of rows) {
+    await writeEvent(row.boxId, projectId, 'concluded', completedAt);
+  }
+}
+
+/** Which boxes a project's milestones are on, for the control that sets them. */
+export async function timelinesFor(projectId: string): Promise<string[]> {
+  const rows = await db
+    .selectDistinct({ boxId: boxItems.boxId })
+    .from(boxItems)
+    .where(and(eq(boxItems.projectId, projectId), eq(boxItems.kind, 'event')));
+
+  return rows.map((row) => row.boxId);
 }

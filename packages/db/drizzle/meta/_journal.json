@@ -281,6 +281,13 @@
       "when": 1787911158795,
       "tag": "0039_crazy_scrambler",
       "breakpoints": true
+    },
+    {
+      "idx": 40,
+      "version": "7",
+      "when": 1787915285627,
+      "tag": "0040_normal_darkhawk",
+      "breakpoints": true
     }
   ]
 }

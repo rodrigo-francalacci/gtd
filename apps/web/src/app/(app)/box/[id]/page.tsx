@@ -11,13 +11,17 @@ import { DocumentRow } from '@/components/document-row';
 import { ReadWaiting } from '@/components/read-waiting';
 import { EmailRequests } from '@/components/email-requests';
 import { getEmailRequests } from '@/lib/box/email-requests';
+import { ProjectDetail } from '@/components/project-detail';
 import { TagBrowser } from '@/components/tag-browser';
 import { TagFilter } from '@/components/tag-filter';
 import { TypeFilter } from '@/components/type-filter';
 import { DetailPane, EmptyDetail, EmptyList, ListPane } from '@/components/panes';
 import { BOX_COLUMNS } from '@/lib/columns';
 import { groupByDay } from '@/lib/days';
+import { timelinesFor } from '@/lib/actions';
+import { attachmentsFor, documentsFor } from '@/lib/file-lists';
 import {
+  getAreasAndGoals,
   getBox,
   getBoxCategories,
   getBoxDayNotes,
@@ -26,6 +30,9 @@ import {
   getBoxRange,
   getBoxTagIds,
   getBoxes,
+  getLinkableDocuments,
+  getProject,
+  getProjectActions,
   getProjectOptions,
 } from '@/lib/queries';
 import { ENTRY_TYPE_ORDER, entryTypeOf, type EntryType } from '@/lib/queries.shared';
@@ -194,6 +201,33 @@ export default async function BoxPage(props: PageProps<'/box/[id]'>) {
     getProjectOptions(),
   ]);
 
+  /*
+   * A milestone opens the project itself, in the pane a document would have
+   * used.
+   *
+   * The row is a shortcut to the project and nothing more — there is no
+   * "milestone" to inspect, because everything it says is read off the project
+   * already. So selecting one shows exactly what clicking that project would
+   * show, without leaving the timeline that got you there.
+   *
+   * Fetched only for an event, and only when one is selected: on every other
+   * click these six queries do not happen at all.
+   */
+  const eventProjectId = selected?.kind === 'event' ? (selected.projectId ?? null) : null;
+
+  const timeline = eventProjectId
+    ? await Promise.all([
+        getProject(eventProjectId),
+        getProjectActions(eventProjectId),
+        getAreasAndGoals(),
+        attachmentsFor('project', eventProjectId),
+        documentsFor('project', eventProjectId),
+        getLinkableDocuments('project', eventProjectId, ''),
+        getBoxes(),
+        timelinesFor(eventProjectId),
+      ])
+    : null;
+
   const href = (docId: string) => {
     const params = new URLSearchParams();
     tagIds.forEach((t) => params.append('tag', t));
@@ -330,13 +364,34 @@ export default async function BoxPage(props: PageProps<'/box/[id]'>) {
               and `useState` initialisers only run on mount. Without it,
               clicking a second document would save the first one's title
               onto it. */}
-          <DocumentDetail
-            key={selected.id}
-            item={selected}
-            categories={categories}
-            boxes={boxList}
-            projects={projectOptions}
-          />
+          {timeline && timeline[0] ? (
+            <ProjectDetail
+              /* Keyed on the project, not the row: two milestones for the same
+                 project are two rows and one thing to look at. */
+              key={timeline[0].id}
+              project={timeline[0]}
+              attachments={timeline[3].rows}
+              fileOrder={timeline[3].order}
+              documents={timeline[4].rows}
+              docOrder={timeline[4].order}
+              documentOptions={timeline[5]}
+              stalled={
+                timeline[0].status === 'active' &&
+                !timeline[1].some((step: { status: string }) => step.status === 'next')
+              }
+              horizons={timeline[2]}
+              boxes={timeline[6]}
+              timelines={timeline[7]}
+            />
+          ) : (
+            <DocumentDetail
+              key={selected.id}
+              item={selected}
+              categories={categories}
+              boxes={boxList}
+              projects={projectOptions}
+            />
+          )}
         </DetailPane>
       ) : (
         <EmptyDetail message="Select a document" />

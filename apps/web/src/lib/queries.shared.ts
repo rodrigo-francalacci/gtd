@@ -2,6 +2,7 @@ import type {
   ActionStatus,
   AttachmentKind,
   AttachmentParentType,
+  BoxEventKind,
   BoxItemKind,
   BoxItemStatus,
   ProjectStatus,
@@ -292,6 +293,15 @@ export type BoxItemRow = {
   id: string;
   boxId: string;
   kind: BoxItemKind;
+  /** For an `event`: which project, and which moment in its life. */
+  projectId?: string | null;
+  event?: BoxEventKind | null;
+  /**
+   * The project's title *now*, joined at read time rather than stored — see the
+   * column comment. Null for every entry that is not an event.
+   */
+  projectTitle?: string | null;
+  projectStatus?: ProjectStatus | null;
   /**
    * One emoji standing for what the document is, replacing the type glyph in a
    * list. Null keeps the glyph.
@@ -367,6 +377,7 @@ export type EntryType =
   | 'link'
   | 'email'
   | 'location'
+  | 'event'
   | 'image'
   | 'audio'
   | 'video'
@@ -382,6 +393,7 @@ export const ENTRY_TYPE_LABELS: Record<EntryType, string> = {
   link: 'Links',
   email: 'Email',
   location: 'Places',
+  event: 'Milestones',
   image: 'Images',
   audio: 'Audio',
   video: 'Video',
@@ -395,6 +407,9 @@ export const ENTRY_TYPE_LABELS: Record<EntryType, string> = {
 
 /** The order they read in: what you made, then what you were sent. */
 export const ENTRY_TYPE_ORDER: EntryType[] = [
+  // First, because a milestone is the one entry that is about the shape of a
+  // year rather than a thing that arrived in it.
+  'event',
   'note',
   'link',
   'email',
@@ -414,8 +429,8 @@ export function entryTypeOf(item: {
   kind: BoxItemKind;
   mimeType: string | null;
 }): EntryType {
-  // A note, a place, a link and an email are what they are; only a document
-  // has to be identified by what is inside it.
+  // A note, a place, a link, an email and a milestone are what they are; only
+  // a document has to be identified by what is inside it.
   if (item.kind !== 'document') return item.kind;
 
   const mime = item.mimeType ?? '';
@@ -466,7 +481,21 @@ export function documentLabel(item: {
   kind?: BoxItemKind;
   description?: string | null;
   url?: string | null;
+  event?: BoxEventKind | null;
+  projectTitle?: string | null;
 }): string {
+  /*
+   * A milestone says itself, and says it from the project rather than from
+   * anything stored here. Renaming a project rewrites its whole history on
+   * every timeline it appears on, which is the point: a line saying "Started
+   * the kitchen" about a project now called something else would be a record
+   * of a thing that never happened under that name.
+   */
+  if (item.kind === 'event') {
+    const what = item.projectTitle?.trim() || 'a project';
+    return item.event === 'concluded' ? `Concluded ${what}` : `Started ${what}`;
+  }
+
   const title = item.title?.trim();
   if (title) return title;
 

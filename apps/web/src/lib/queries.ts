@@ -1084,12 +1084,25 @@ export async function getBoxItems(
       docDate: boxItems.docDate,
       status: boxItems.status,
       capturedAt: boxItems.capturedAt,
+      projectId: boxItems.projectId,
+      event: boxItems.event,
+      /*
+       * Read from the project, never copied onto the event.
+       *
+       * A milestone stored as "Started Renovate the kitchen" would go on saying
+       * that through every rename, and a timeline that disagrees with the thing
+       * it is a timeline of is worse than none. Left join, because everything
+       * that is not an event has no project and must still come back.
+       */
+      projectTitle: projects.title,
+      projectStatus: projects.status,
       tags: itemTags,
       linkCount: sql<number>`(
         select count(*)::int from ${boxItemLinks} l where l.item_id = ${boxItems.id}
       )`,
     })
     .from(boxItems)
+    .leftJoin(projects, eq(projects.id, boxItems.projectId))
     .where(
       and(
         eq(boxItems.boxId, boxId),
@@ -1141,6 +1154,15 @@ export async function getBoxItem(id: string): Promise<BoxItemDetail | null> {
       emoji: boxItems.emoji,
       description: boxItems.description,
       docDate: boxItems.docDate,
+      /*
+       * The two an event needs, and the reason this query has to know about
+       * them: it is what decides which detail pane opens. Selected in the feed
+       * query and not here, the row arrived as an event whose `projectId` was
+       * `undefined`, so a milestone silently opened an empty document pane —
+       * the same shape of bug as a row type that has drifted from its query.
+       */
+      projectId: boxItems.projectId,
+      event: boxItems.event,
       expiresAt: boxItems.expiresAt,
       text: boxItems.text,
       listed: boxItems.listed,

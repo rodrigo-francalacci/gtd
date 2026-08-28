@@ -421,6 +421,34 @@ the left of each row and the text on the
 right, one entry per row. Drive renders the first page of a PDF, so a scan is
 recognisable by its shape long before its title is read.
 
+### Milestones
+
+A box is read as a timeline, and what a project *did* belongs among the receipts
+and letters of the months it was happening in — "Started the kitchen" three lines
+above the first quote for it says something neither line says alone.
+
+On any project, **On a timeline** lists your boxes; pick one and the project's
+start appears in that box's feed, dated when the project really began rather than
+when you pressed the button. If it has already finished, its conclusion appears
+too — the point is to be able to read a year you have already had, not only the
+one you are in.
+
+After that the marks keep themselves. Archiving a project writes *Concluded …*
+into every timeline it is on; reopening takes that line away again, because a
+conclusion above a live project is a record of something that did not happen.
+
+**Clicking a milestone opens the project itself**, in the same pane a document
+would have used, without leaving the box. There is nothing else to look at — a
+milestone is a shortcut to the project and nothing more.
+
+The words come from the project every time the feed is read, never from a copy
+made when the mark was created. Rename a project and its whole history reads
+correctly, on every timeline it appears on. Deleting a project takes its
+milestones with it.
+
+They filter as **Milestones** under types, and have no tags — there is nothing in
+them to tag.
+
 ### Two dates, and they are different facts
 
 **Arrived** is when it reached you; **dated** is what the paper says. A bill

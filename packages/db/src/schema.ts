@@ -860,7 +860,24 @@ export const boxItemKind = pgEnum('box_item_kind', [
   'location',
   'link',
   'email',
+  /**
+   * A moment in a project's life, on a box's timeline.
+   *
+   * A box is already read as a timeline — that is what grouping by arrival is
+   * for — and the things that happen to a project are exactly the sort of thing
+   * you want to see *among* the receipts and letters of the months they
+   * happened in. "Started the kitchen" three lines above the first quote for it
+   * says something neither row says alone.
+   *
+   * It has no file, no tags and nothing to read. What it has is a project and a
+   * date, and everything a reader sees is derived from the project at read time
+   * — see `projectId`.
+   */
+  'event',
 ]);
+
+/** Which moment in a project's life an `event` row marks. */
+export const boxEventKind = pgEnum('box_event_kind', ['started', 'concluded']);
 
 /**
  * One document in a box.
@@ -885,6 +902,23 @@ export const boxItems = pgTable(
       .notNull()
       .references(() => boxes.id, { onDelete: 'restrict' }),
     kind: boxItemKind('kind').notNull().default('document'),
+    /**
+     * The project this event is about, for `kind: 'event'` and nothing else.
+     *
+     * **Everything shown is read through this, never copied beside it.** The
+     * row could perfectly well have stored "Started Renovate the kitchen" at
+     * the moment it was made, and then said that for ever — through the rename,
+     * through the retitle, and through whatever the project became. A timeline
+     * that disagrees with the thing it is a timeline *of* is worse than no
+     * timeline. So the title is joined at read time, and this column plus the
+     * date is the whole of what is stored.
+     *
+     * Cascades: a deleted project takes its events with it, because an event
+     * about nothing is not a thing anyone can act on or interpret.
+     */
+    projectId: uuid('project_id').references(() => projects.id, { onDelete: 'cascade' }),
+    /** Started or concluded. Null for everything that is not an event. */
+    event: boxEventKind('event'),
     /** Null for anything with no file — a note, a place. */
     driveFileId: text('drive_file_id'),
     /** The Drive filename. Empty for entries that aren't files. */
@@ -1357,4 +1391,5 @@ export type BoxTag = typeof boxTags.$inferSelect;
 export type BoxItem = typeof boxItems.$inferSelect;
 export type BoxItemStatus = (typeof boxItemStatus.enumValues)[number];
 export type BoxItemKind = (typeof boxItemKind.enumValues)[number];
+export type BoxEventKind = (typeof boxEventKind.enumValues)[number];
 export type ViewPref = typeof viewPrefs.$inferSelect;

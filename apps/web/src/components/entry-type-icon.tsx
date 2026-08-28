@@ -11,6 +11,7 @@ import {
   IconLink,
   IconNote,
   IconPlace,
+  IconProject,
   IconSheet,
   IconVideo,
 } from './icons';
@@ -20,6 +21,8 @@ const GLYPHS: Record<EntryType, typeof IconDocument> = {
   link: IconLink,
   email: IconEnvelope,
   location: IconPlace,
+  // A milestone is about a project, and the sidebar already teaches that mark.
+  event: IconProject,
   image: IconImage,
   audio: IconAudio,
   video: IconVideo,

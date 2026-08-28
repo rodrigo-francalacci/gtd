@@ -1073,6 +1073,33 @@ to be kept. They meet at `box_item_links` and nowhere else.
   first tried to write. Ordering does the work instead: tags are rewritten
   before the row, and `status: 'ready'` is written last, so a failure part-way
   leaves the document pending and the retry redoes all of it.
+- **A milestone is a real row whose every word is joined.** `kind: 'event'`
+  marks a project starting or concluding on a box's timeline, and stores only a
+  `project_id` and a date. It could have stored "Started Renovate the kitchen"
+  at the moment it was made and gone on saying that through every rename — a
+  timeline that disagrees with the thing it is a timeline *of* is worse than no
+  timeline, so `documentLabel` reads the title through a left join and a rename
+  rewrites the project's whole history everywhere it appears. A row rather than
+  a derived union because everything else in a box — the ordering, the day
+  grouping, the type facet, the range slider, the selection — already works on
+  rows, and deriving would have meant teaching all five about a second source.
+- **The link *is* the events.** There is no `project_boxes` table: a project is
+  on a timeline exactly when it has an event row there, so there is nothing to
+  keep in step and nothing to drift. `setProjectStatus` calls
+  `syncConclusionEvents`, which writes the conclusion to *every* timeline the
+  project is on and deletes it again on reopen — a concluded line above a live
+  project is a record of something that did not happen. Cheap for the projects
+  on no timeline, which is nearly all of them: one indexed read that comes back
+  empty.
+- **Selecting a milestone opens the project, in the pane a document would have
+  used.** There is no milestone to inspect — everything it says is read off the
+  project already — so it is a shortcut and behaves like one, without leaving
+  the timeline that got you there. The six queries behind that pane run only
+  when the selected row is an event. `getBoxItem` had to learn the two new
+  columns for this: selected in the feed query and not there, a milestone
+  arrived with `projectId: undefined` and silently opened an empty *document*
+  pane — the same shape of bug as a row type that has drifted from its query,
+  which this file already warns about twice.
 - **A box is a timeline, not only a filing cabinet.** `box_items.kind` is
   `document | note | location`: a thought about a document belongs beside the
   document, in the order it occurred, not in a separate system you have to

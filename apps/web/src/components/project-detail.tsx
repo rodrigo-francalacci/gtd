@@ -1,6 +1,8 @@
 'use client';
 
 import Link from 'next/link';
+import { TimelineBoxes } from './timeline-boxes';
+import type { BoxOption } from '@/lib/queries.shared';
 import { EmojiPicker } from './emoji-picker';
 
 import type { ListOrder } from '@/lib/file-lists';
@@ -64,6 +66,8 @@ export function ProjectDetail({
   documentOptions,
   stalled,
   horizons,
+  boxes = [],
+  timelines = [],
 }: {
   project: ProjectDetailData;
   attachments: AttachmentRow[];
@@ -74,6 +78,9 @@ export function ProjectDetail({
   documentOptions: LinkedDocumentRow[];
   stalled: boolean;
   horizons: HorizonOptions;
+  /** Every box, and which of them already carry this project's milestones. */
+  boxes?: BoxOption[];
+  timelines?: string[];
 }) {
   const [pending, startTransition] = useTransition();
   const [title, setTitle] = useState(project.title);
@@ -291,6 +298,8 @@ export function ProjectDetail({
         rows={documents}
         candidates={documentOptions}
       />
+
+      <TimelineBoxes projectId={project.id} boxes={boxes} on={timelines} />
 
       <footer className="mt-8 space-y-2 border-t border-grey-150 pt-3">
         {/* Says what is actually true of this project, rather than a fixed

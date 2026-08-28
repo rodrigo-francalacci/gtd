@@ -4,8 +4,10 @@ import { DetailPane } from '@/components/panes';
 import { ProjectActionsSection } from '@/components/project-actions-section';
 import { ProjectDetail } from '@/components/project-detail';
 import { ProjectListPane } from '@/components/project-list-pane';
+import { timelinesFor } from '@/lib/actions';
 import {
   getAreasAndGoals,
+  getBoxes,
   getLinkableDocuments,
   getProject,
   getProjectActions,
@@ -24,7 +26,7 @@ export default async function ProjectPage(props: PageProps<'/projects/[id]'>) {
    * and are thrown away by `notFound` a line later, which costs less than the
    * extra trip did on every project that does exist.
    */
-  const [project, projectActions, horizons, files, docs, documentOptions] =
+  const [project, projectActions, horizons, files, docs, documentOptions, boxes, timelines] =
     await Promise.all([
       getProject(id),
       getProjectActions(id),
@@ -32,6 +34,8 @@ export default async function ProjectPage(props: PageProps<'/projects/[id]'>) {
       attachmentsFor('project', id),
       documentsFor('project', id),
       getLinkableDocuments('project', id, ''),
+      getBoxes(),
+      timelinesFor(id),
     ]);
 
   if (!project) notFound();
@@ -57,6 +61,8 @@ export default async function ProjectPage(props: PageProps<'/projects/[id]'>) {
           documentOptions={documentOptions}
           stalled={stalled}
           horizons={horizons}
+          boxes={boxes}
+          timelines={timelines}
         />
         <ProjectActionsSection projectId={id} actions={projectActions} />
       </DetailPane>
