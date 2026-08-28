@@ -19,6 +19,7 @@ than the behaviour, look there.
 - [The weekly review](#the-weekly-review)
 - [Lists](#lists) — candidates, not commitments
 - [The Big Box](#the-big-box) — documents, filed by arriving
+- [Email](#email) — messages, labelled or asked for
 - [Files](#files) — attachments, documents, previews
 - [Search](#search)
 - [Views and preferences](#views-and-preferences)
@@ -371,6 +372,25 @@ say). The rule is in code rather than the prompt, because a prompt is a
 request: ask for one of five values often enough and you get a sixth, and by
 then it is in the database and your filter has two tags meaning the same thing.
 
+**The quick tag bar** across the top of a box is one flat wrapping row of the
+fifteen tags that would narrow the list most — no headings, because "Tesco",
+"Swindon" and "Receipt" say which axis they are on by being themselves. Only a
+name that appears in two categories carries its category, since that is the only
+time it is ambiguous.
+
+The counts come from the rows on screen, so **the bar moves as you filter**:
+after choosing Tesco, the tags offered next are the ones that still co-occur
+with it rather than the box's all-time favourites. Anything you have chosen is
+pinned to the front whatever its count — an excluded tag has a count of zero by
+definition, and dropping it would leave no way to undo it.
+
+**Browse all tags** opens the full vocabulary, grouped by category, in the place
+the left sidebar usually is — a column on a desktop and a drawer on a phone, so
+it is a panel and a modal without being written twice. It opens over the
+*navigation*, never over the list: the list is what you are filtering, and
+covering it would mean choosing tags blind. Choosing does not close it, because
+narrowing a box is two or three tags and you want to see each one land.
+
 Each box also has two prose fields, and they are not the same thing:
 
 - **Instruction** — what these documents *are*. This is what the tagging turns
@@ -435,6 +455,123 @@ It happens on the daily sync and on **run sync now**, which makes renaming the
 fix for a wrong name: correct the title in the box and Drive follows. Google
 Docs and Sheets are left alone — those you rename in their own title bar, and
 the app takes its name *from* Google for them.
+
+---
+
+## Email
+
+A message you label in Gmail becomes an entry in a box, where it is readable,
+searchable and citable like anything else you have filed.
+
+### Why a bridge, and not the app
+
+Reading a message body needs Gmail's `readonly` scope, which Google classes as
+*restricted*. Published, that means an annual security assessment; unpublished,
+Google expires the refresh token every seven days — and that is the same token
+Drive sync and the calendar run on, so the cost is not "email breaks weekly", it
+is "everything does".
+
+So the app's Gmail scope stays as narrow as it was, and an **Apps Script** does
+the reading. It is bound to your account, reading your own mail, and needs no
+verification at all. The app never sees your mailbox.
+
+The script runs on a time trigger. The **Bridges** panel on the Connections page
+runs it now instead, in the preview pane — press the button and watch the count
+in the sidebar move, without leaving the app.
+
+### Two ways to file a message
+
+**Label it in Gmail.** Anything under the label the bridge watches is collected
+on its next run. Two taps, in the app you are already reading the message in.
+
+**Paste what identifies it**, into a box composer, the phone screen, the Chrome
+sidebar, or the *Ask for an email* box on a project or action. Four shapes are
+recognised:
+
+- a Gmail address (`https://mail.google.com/…`)
+- a sixteen-character message id
+- an RFC822 `Message-ID` in angle brackets — from *Show original*
+- `email:` followed by a Gmail search, such as `email: from:sam worktop`
+
+The first three are unambiguous enough to take on sight. A *search* is not —
+`from:sam worktop` is unusual prose but "email Sam about the worktop" is not —
+so a search has to announce itself with the prefix. The cost of guessing wrong
+is a note silently turned into a query, which is a note you have lost.
+
+**A Gmail permalink is refused at the moment you paste it.** The `FMfcgz…` on
+the end of a Gmail URL is a permalink for Gmail's own interface: no API accepts
+it, and there is no way to convert it. Saying so immediately beats a request
+that sits pending until the script fails on it an hour later, and the message
+names the three things that do work.
+
+Pasting is the desk case — the message is in front of you and reaching for the
+label menu is more friction than pasting what you are already looking at.
+Labelling is still the main path.
+
+### What arrives
+
+**Every message in a labelled thread**, not just the last. The quote at the
+bottom of a reply is a rendering of what came before, not the thing itself, and
+it is routinely trimmed — filing each message is what lets search find whichever
+one actually said the thing.
+
+A message is filed **ready**, never queued for reading. Everything a scan is
+queued to discover, a message already states: the subject is a better title than
+a model would write, the sender and date are facts rather than readings, and
+Gmail's own snippet is a serviceable summary. Having a mailbox summarised message
+by message would be paying to learn what the message already said. Tags are the
+one thing it misses, and they are one press of **Read it again** away — whether a
+message is worth tagging is a judgement about that message.
+
+It is filed under **the date it was sent**, not the date you labelled it. A month
+of correspondence labelled in one sitting would otherwise land under today, which
+is the one arrangement that makes it impossible to find anything later.
+
+The body is stored as HTML in Drive, so it previews in the same frame as any
+other `.html` file — which means **remote images do not load**, and a tracking
+pixel in a filed message does not fire when you read it. That is a better outcome
+than it gets in most mail clients.
+
+**A modified click on a message goes to Gmail, not Drive.** The stored copy is a
+rendering kept for reading and searching; the message is the thing you reply to,
+and opening the wrong one is a mistake you notice after typing an answer into it.
+
+### Asking from a project or an action
+
+The **Relevant emails** section on a project or action has its own *Ask for an
+email* box, and a message asked for there is cited on that project the moment it
+arrives — you do not have to go and find it afterwards.
+
+It still goes into a box, always: one that existed only as a project's evidence
+would vanish with the project, and outliving the reason you filed it is the whole
+point of a box. Which box is not a question worth stopping for, so the default
+box answers it.
+
+But it does **not** appear in that box's feed. You asked for it on a project, you
+want it on the project, and having it also turn up in a list you read like a
+journal is the app filing something on your behalf that you never filed. It is
+still in the box, still searchable, still openable — just not listed. If you
+decide it belongs in the feed after all, the document pane offers **Add it to
+&lt;box&gt;**.
+
+The control only ever offers to *add*. A button offering to take things out of a
+feed would be an invitation to tidy a box, and a box is not for tidying.
+
+**Relevant emails** is the same list as **Documents**, split on kind. They are
+read for different reasons — a document is evidence you open to check something,
+a message is correspondence you open to see what was agreed — and mixing them
+gives a list where neither question is easy to ask.
+
+### Requests you can see
+
+A request you have made is visible until it is answered, so nothing is pending
+invisibly.
+
+**A failed request stays until you dismiss it.** The usual reason one fails is
+something you can act on, and a request that quietly disappeared would be
+indistinguishable from one that worked — you would find out months later, looking
+for a message that was never filed. **Pending** requests cannot be dismissed:
+that would race the script, which may be fetching as you press.
 
 ---
 
@@ -514,21 +651,80 @@ Bytes are served through the app rather than linked to directly — Drive's
 download URLs are not embeddable, which is the whole reason a PDF can render in
 a pane at all.
 
+**Markdown, LaTeX and HTML are read *and written* here.** These are the files
+where the text *is* the document — nothing is lost by showing the source,
+because the source is all there is — which is what makes an editor over the
+bytes honest for them and dishonest over a PDF. Two views, never nested:
+**Reading** is what the file means, **Source** is what it is, and moving between
+them is the whole activity of writing in these formats. **Ctrl/⌘-S** saves, and
+leaving with unsaved changes asks first.
+
+Maths is real MathML rather than pictures, so equations stay selectable text and
+a screen reader can say them. The LaTeX view is a *reading* view and says so on
+screen: it answers "what does this file say" — structure, emphasis, lists,
+tables, verbatim, maths — and does not attempt TeX's line breaking, hyphenation
+or floats, none of which is possible without shipping a TeX distribution.
+
+**Print / PDF** prints the document rather than the app around it, and your
+browser's own dialogue has "Save as PDF" on every platform this runs on — a
+better PDF engine than anything worth writing. The reading view shows the file
+with scripts denied, which is what lets an arbitrary `.html` be shown as
+*itself*, script tags and all, without either running them or silently deleting
+them; printing happens in a second frame allowed to do exactly one thing, where
+the file's own scripts still cannot run.
+
 ### Recording
 
 Wherever you can attach a file you can record one instead: attachments, the box
 composer, and the Chrome sidebar.
 
-The microphone is asked for with **echo cancellation and noise suppression
-off**, because those change the *sound* irreversibly — one takes the bottom
-out, the other gates the quiet detail at the top, and between them they are why
-messaging-app voice notes are unpleasant to hear twice. **Automatic gain is
-on**, because it only changes the *level* and leaves the frequency response
-alone.
+**All three of the browser's own filters are off**, and that is the point.
+Echo cancellation and noise suppression change the *sound* irreversibly — one
+takes the bottom out, the other gates the quiet detail at the top, and between
+them they are why messaging-app voice notes are unpleasant to hear twice. But
+automatic gain is off too, and for a different reason: all three are *dynamic*,
+their gain moving with the signal, and they sit in front of a compressor whose
+whole job is to respond to level. Feeding it something already being modulated
+means it is chasing a thing that is chasing it — the gain moves under the
+compressor, the compressor answers, and the result breathes.
 
-48 kHz, 128 kbps Opus, against a messaging app's 16–32. The recorder shows what
-your device actually granted (`48 kHz · mono · full range · auto level`), so a
-device quietly ignoring the settings is visible rather than a mystery.
+What levels the recording instead is a proper chain, before the encoder: a
+high-pass, a levelling `AudioWorklet` with ten milliseconds of lookahead and a
+voice-activity gate, and a safety clipper. Speech arriving anywhere between
+−30 and −12 dBFS comes out between −5.5 and −1.4 — eighteen decibels of
+variation reduced to four — and the gain **freezes in a silence** rather than
+winding up and bringing the room with it, which is the single most recognisable
+difference between a voice note that sounds produced and one that sounds like a
+bad phone call.
+
+Below about −35 dBFS it stays quiet, and that is the twelve-decibel cap being
+honest: past twelve, a leveller stops levelling and starts squeezing. Messaging
+apps get away with more because they also reach down and turn the microphone's
+own analogue gain up, which a web page has no access to at all.
+
+**Two profiles, switchable mid-take and never remembered.**
+
+- **Voice** is the chain above, and assumes the problem is that you are too
+  quiet and too uneven
+- **Music** is a true bypass — a 30 Hz rumble filter, no drive, no compression,
+  the limiter left as a safety net it should never touch. An instrument is not
+  asking the question a leveller answers: point one at an acoustic guitar and it
+  collects nineteen decibels of gain reduction and a distorted pick attack
+
+Switchable mid-recording because the moment you discover the chain is wrong for
+what you are playing is the moment you have started playing it. Never
+remembered, because it is the one setting that can ruin a take and you find out
+on playback.
+
+A **peak meter and a gain-reduction meter** run while you record, which is how a
+bad recording is diagnosed afterwards: a bar that never leaves the left-hand end
+means the microphone, and one pinned at the right with ten decibels of reduction
+means the chain was working and the problem is elsewhere.
+
+48 kHz, 128 kbps, stereo. The recorder also shows what your device actually
+granted, so a device quietly applying its own processing below the browser is
+visible rather than a mystery — that is the first thing to suspect when one
+recording sounds unlike the rest.
 
 Recordings are **staged, not sent** — you can write a line about one before
 posting it, which is the difference between a voice note and a voice note you
@@ -544,6 +740,15 @@ plays at a time across the whole page.
 In a box feed a recording *does* get a full player inline, because there it has
 no title and no summary and is the one entry you cannot judge without hearing
 it.
+
+**A file the browser refuses is not always a broken file.** Some recorders
+write the decoder's configuration into the audio data as if it were the first
+frame, and list it in the file's own table as a two-byte sample. `ffmpeg` and
+VLC shrug at it; Chrome meets it as the very first thing it decodes and abandons
+the whole file, so a forty-five-second recording that is perfect from frame two
+onward becomes one the app can only apologise for. The app now replaces that one
+frame with silence as the file is loaded for playing. The copy in Drive is
+untouched — it is what you handed us, and it stays that.
 
 There is still no speech-to-text provider, so nothing transcribes a recording
 for you and the queue deliberately does not schedule a job that nothing can
@@ -656,9 +861,23 @@ emptied; a box is a shelf to be kept. It opens on whichever you used last.
 
 - **Inbox tab** — selected text becomes the capture and the page URL goes in the
   note, so the title stays readable in the inbox list. **Ctrl+Enter** commits
-- **Box tab** — pick a box, then post a note, a link, files, a recording, your
-  location, or the page you are reading. The box list is fetched from the app,
-  so boxes you create or rename appear without touching the extension
+- **Box tab** — pick a box, then post a note, a link, an email, files, a
+  recording, your location, or the page you are reading. The box list is fetched
+  from the app, so boxes you create or rename appear without touching the
+  extension
+
+Pasting a message identifier into the Box tab asks for that email, exactly as
+the app's own composer does — the rule lives on the server, so the two cannot
+come to different conclusions about the same pasted string. The panel says
+*asked for* rather than *filed*, because the bridge has not run yet.
+
+Recording in the sidebar goes through **the same chain as the app**, profiles
+and meters included. The settings are fetched from the app so the tuning lives
+in one place; the worklet itself ships with the extension, because Chrome
+forbids an extension loading code from anywhere else, and
+`scripts/check-extension-sync.mjs` fails if that copy ever drifts. If the app
+cannot be reached the recording still happens, unprocessed, and the panel says
+so.
 
 Four ways to bring a file in: the picker, drop, paste, or right-click an image
 → *Capture this image to GTD*. Whatever fails stays in the list so pressing the
