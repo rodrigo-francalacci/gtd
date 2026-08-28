@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import {
   FORMAT_META,
   hasRenderedView,
+  printableDocument,
   renderDocument,
   type TextFormat,
 } from '@/lib/text-formats';
@@ -69,7 +70,6 @@ export function TextDocument({
   const [savedAt, setSavedAt] = useState<number | null>(null);
 
   const router = useRouter();
-  const frame = useRef<HTMLIFrameElement>(null);
   const area = useRef<HTMLTextAreaElement>(null);
 
   const dirty = loaded !== null && draft !== loaded;
@@ -235,16 +235,30 @@ export function TextDocument({
   /**
    * Print the rendered view, which is how a PDF gets made here.
    *
-   * The browser's print dialogue has "Save as PDF" in it on every platform this
-   * app runs on, and it is a real PDF engine — better than anything worth
-   * writing. Printing the *frame* rather than the page is what makes it print
-   * the document instead of three panes of application chrome.
+   * Printing the *document* rather than the page is what makes it print the
+   * document instead of three panes of application chrome — but it cannot be
+   * done by reaching into the frame on screen. That frame is `sandbox=""`, so
+   * it has an opaque origin and `print` is not among the handful of properties
+   * a cross-origin `Window` exposes; the call threw, silently, and the sandbox
+   * denies modals in any case. Both are deliberate and neither is worth giving
+   * up for a button.
+   *
+   * A second frame is mounted instead, off screen, holding the same rendering
+   * with a script that prints it on load — see `printableDocument`, which is
+   * also what stops the file's own scripts running in it. Keyed on a counter so
+   * that pressing Print twice mounts a fresh element and prints again; the last
+   * one stays mounted until the pane is closed, which costs one hidden copy of
+   * a document you have just asked to print.
    */
+  const [printing, setPrinting] = useState<{ html: string; seq: number } | null>(null);
+
   const print = () => {
-    const window_ = frame.current?.contentWindow;
-    if (!window_) return;
-    window_.focus();
-    window_.print();
+    if (!page) return;
+
+    setPrinting((previous) => ({
+      html: printableDocument(page.html),
+      seq: (previous?.seq ?? 0) + 1,
+    }));
   };
 
   if (failed) {
@@ -332,7 +346,6 @@ export function TextDocument({
       {view === 'read' ? (
         <iframe
           key={page?.seq ?? 0}
-          ref={frame}
           // `sandbox=""` — no permissions at all. Scripts, forms, popups and
           // top-level navigation are all denied and the frame gets an opaque
           // origin, which is what makes showing an arbitrary HTML file safe
@@ -358,6 +371,32 @@ export function TextDocument({
           className="min-h-0 w-full flex-1 resize-none whitespace-pre bg-paper p-3 font-mono text-[16px] leading-relaxed text-grey-800 focus:outline-none md:text-[12.5px]"
         />
       )}
+
+      {printing ? (
+        /*
+         * The frame that does the printing, off screen rather than hidden.
+         *
+         * `display: none` would be the obvious way to keep it out of sight and
+         * is the one thing that cannot work: a frame with no layout box has no
+         * document to lay out, and printing it produces a blank page. So it is
+         * given a real size — A4 at 96dpi, which is what the print engine will
+         * be re-laying it out for anyway — and moved off the side.
+         *
+         * `allow-modals` is what permits the dialogue at all, and
+         * `allow-scripts` is what lets it ask; the absence of
+         * `allow-same-origin` is what keeps the origin opaque, so the file's
+         * own markup still cannot reach anything of ours.
+         */
+        <iframe
+          key={printing.seq}
+          sandbox="allow-modals allow-scripts"
+          srcDoc={printing.html}
+          title={`Printing ${name}`}
+          aria-hidden
+          tabIndex={-1}
+          className="pointer-events-none fixed left-[-10000px] top-0 h-[1123px] w-[794px] border-0"
+        />
+      ) : null}
     </div>
   );
 }

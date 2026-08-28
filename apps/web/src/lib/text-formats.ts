@@ -333,6 +333,48 @@ function shell(body: string, dark: boolean, format: TextFormat): string {
 }
 
 /**
+ * The same page, in a frame that will print itself.
+ *
+ * Printing is how a PDF gets made here — the browser's own dialogue has "Save
+ * as PDF" on every platform this app runs on, and it is a better PDF engine
+ * than anything worth writing. Getting to it turns out to be the hard part.
+ *
+ * The reading frame is `sandbox=""`, which denies scripts and gives the frame
+ * an opaque origin, and that is what makes showing an arbitrary `.html` file as
+ * itself safe. It also makes printing it impossible twice over: `print` is not
+ * on the short list of properties a cross-origin `Window` exposes, so asking
+ * the frame to print from out here throws, and `sandbox=""` denies modals,
+ * which is what a print dialogue is. The button could never have worked.
+ *
+ * So printing happens in a *second*, throwaway frame that prints itself on
+ * load. It needs `allow-scripts` to do that, and the document being printed may
+ * be an arbitrary HTML file with scripts of its own — so a nonce is the whole
+ * design: `script-src 'nonce-…'` runs the one script injected here and refuses
+ * every script that came with the file. The sandbox is still the guarantee
+ * underneath it, opaque origin and all; the policy is the belt to its braces,
+ * and neither is trusted alone.
+ *
+ * Injected as early as the document allows, because a policy only governs what
+ * the parser meets after it.
+ */
+export function printableDocument(html: string): string {
+  const nonce = crypto.randomUUID().replace(/-/g, '');
+
+  const inject =
+    `<meta http-equiv="Content-Security-Policy" ` +
+    `content="script-src 'nonce-${nonce}'; object-src 'none'; base-uri 'none'">` +
+    `<script nonce="${nonce}">addEventListener('load', function () { print(); })</script>`;
+
+  // After `<head>` where there is one, then after the doctype, then the top —
+  // an `.html` file is its own document and may have any of the three.
+  const head = /<head[^>]*>/i.exec(html) ?? /<!doctype[^>]*>/i.exec(html);
+  if (!head) return inject + html;
+
+  const at = head.index + head[0].length;
+  return html.slice(0, at) + inject + html.slice(at);
+}
+
+/**
  * Turn a source file into the page the preview frame shows.
  *
  * Async because both the markdown parser and the maths converter are loaded on
