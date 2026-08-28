@@ -72,7 +72,21 @@ export function TagEditor({
   };
 
   return createPortal(
-    <div className="flex h-full min-h-0 flex-col bg-grey-50">
+    /*
+     * `absolute inset-0`, exactly as the tag browser does it, and not a detail.
+     *
+     * The slot's target is `display: contents`, so a panel in normal flow
+     * becomes an ordinary child of the sidebar column — it stacks *below* the
+     * nav, which is `h-full` and has already taken the height, and it stretches
+     * the column to its own intrinsic width because the column has no width of
+     * its own on a desktop (it takes the nav's `md:w-56`). What you get is the
+     * nav where it always was, a strip of empty column beside it, and the panel
+     * itself somewhere below the fold.
+     *
+     * Positioned against the column, which is `relative`, it covers the nav
+     * instead — which is what "borrowing the sidebar" has to mean.
+     */
+    <div className="absolute inset-0 z-10 flex flex-col bg-grey-50">
       <div className="border-b border-grey-200 px-4 py-3">
         <div className="flex items-baseline justify-between gap-2">
           <h2 className="min-w-0 truncate text-[13px] font-semibold uppercase tracking-wide text-grey-700">
