@@ -426,9 +426,14 @@ Turbopack is the default; `middleware` is now `proxy`.
   the app renders itself. A tree is the first thing that is none of the first
   two, and handing it over rendered keeps the pane ignorant of what it is
   showing — the same reason `src` is passed in rather than built from the id.
-  A file inside a tree opens through Drive's own `/preview` embed, which needs no
-  scope from us because it runs off the browser's Google session, exactly as the
-  Docs editor embed already does.
+  Everything *inside* a tree opens where it lives, in a new tab, as a real
+  anchor — not an embed and not `window.open`. On a phone, Android and iOS hand
+  a `drive.google.com` or `mail.google.com` navigation to the installed app, and
+  neither an iframe nor a scripted popup is a navigation they will claim. That is
+  the opposite answer to the attachment rule (plain click previews, modified
+  click leaves) from the same reasoning: there the app owns the bytes and can
+  show them, here it owns nothing — these are precisely the files it has no scope
+  to read — so no version of them belongs in our pane.
 - **Scopes stay narrow:** `drive.file` (only files this app created) and
   `gmail.labels` (no message access). Widening either would drag the app into
   Google's restricted-scope verification, and neither is needed.

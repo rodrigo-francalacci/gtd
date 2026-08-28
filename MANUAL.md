@@ -1133,9 +1133,9 @@ cron.
 
 A project's detail pane has **Browse files & email**, which opens its whole Drive
 folder and its Gmail label in the preview pane: folders and sub-folders, labels
-and sub-labels, sizes and dates. Clicking a file opens it *in the pane* through
-Drive's own viewer — you do not leave the app to look at a quote or a contract.
-A message opens in Gmail, which is where you would reply to it.
+and sub-labels, sizes and dates. Clicking anything opens it where it lives, in a new
+tab — a file in Drive, a message in Gmail. On a phone that means the Drive or
+Gmail app, because these are ordinary links and your phone hands them over.
 
 **It is an index, not a mirror, and it says how old it is.** The app cannot read
 either of these: listing a folder you have dropped things into needs Drive's

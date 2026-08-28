@@ -2,7 +2,6 @@
 
 import { useState } from 'react';
 import type { TreeNode } from '@gtd/db';
-import { useFilePreview } from './file-preview';
 import {
   IconDocument,
   IconEnvelope,
@@ -25,11 +24,17 @@ import {
  * snapshot posted by the Apps Script, so the age is shown, always, and anything
  * you open goes to Drive or Gmail — the copy that cannot be out of date.
  *
- * A file opens *in the pane* rather than a tab, through Drive's own preview
- * embed. That runs off the browser's Google session rather than the app's OAuth
- * token, which is exactly how the Docs editor already embeds here — and it is
- * what makes this worth building at all, because a navigator that sends you to
- * another tab for every file is a worse bookmark.
+ * **Everything opens where it lives**, in a new tab, as a real link. Not an
+ * embed: on a phone, Android and iOS hand a `drive.google.com` or
+ * `mail.google.com` navigation to the installed app, and neither an iframe nor
+ * `window.open` is a navigation they will claim. An anchor also behaves the way
+ * every other link on the machine does.
+ *
+ * That is the opposite of the attachment rule — plain click previews, modified
+ * click leaves — and it is the same reasoning reaching a different answer. There
+ * the app owns the bytes and can show them; here it owns nothing, because these
+ * are the files it has no scope to read. There is no version of them that
+ * belongs in our pane.
  */
 
 /**
@@ -59,40 +64,12 @@ function size(bytes: number | null | undefined): string | null {
 }
 
 function Row({ node, depth }: { node: TreeNode; depth: number }) {
-  const preview = useFilePreview();
   // Open at the top, closed below it: the first level is what you came to see,
   // and everything expanded is a wall.
   const [open, setOpen] = useState(depth === 0);
 
   const branch = node.kind === 'folder' || node.kind === 'label';
   const kids = node.children ?? [];
-
-  const openIt = () => {
-    if (!node.url) return;
-
-    if (node.kind === 'message') {
-      // A message is read in Gmail. There is no embed for one, and the stored
-      // copy this app keeps is of *filed* messages, which these are not.
-      window.open(node.url, '_blank', 'noopener,noreferrer');
-      return;
-    }
-
-    preview.open({
-      id: `drive:${node.id}`,
-      name: node.name,
-      mimeType: node.mimeType ?? null,
-      src: '',
-      driveFileId: node.id,
-      driveUrl: node.url,
-      /*
-       * Drive's own preview, which renders far more formats than a browser will
-       * and needs no scope from us — it runs off whichever Google account the
-       * browser is signed into. A permission prompt here is the wrong-account
-       * case, not a broken link.
-       */
-      embedUrl: `https://drive.google.com/file/d/${node.id}/preview`,
-    });
-  };
 
   return (
     <li>
@@ -118,17 +95,46 @@ function Row({ node, depth }: { node: TreeNode; depth: number }) {
         </span>
 
         {node.url && !branch ? (
-          <button
-            type="button"
-            onClick={openIt}
+          /*
+           * A real link, opened in a new tab — not an embed and not
+           * `window.open`, and the difference is what makes this work on a
+           * phone. Android and iOS hand a `drive.google.com` or
+           * `mail.google.com` navigation to the installed app; a scripted popup
+           * is not a navigation and an iframe is not either, so both stay in the
+           * browser. An anchor also behaves the way every other link on the
+           * machine does — middle-click, ctrl-click, open in a new window.
+           *
+           * This is deliberately the opposite of the attachment rule, where a
+           * plain click previews and only a modified one leaves. There, the app
+           * owns the bytes and can show them; here it owns nothing — these are
+           * files it has no scope to read — so there is no version of this file
+           * that belongs in our pane. Drive and Gmail are where it lives.
+           */
+          <a
+            href={node.url}
+            target="_blank"
+            rel="noopener noreferrer"
             className="min-w-0 flex-1 truncate text-left text-grey-800 hover:text-selected hover:underline"
             title={node.name}
           >
             {node.name}
-          </button>
+          </a>
         ) : (
           <span className="min-w-0 flex-1 truncate text-grey-700" title={node.name}>
             {node.name}
+            {node.url ? (
+              // A folder expands here and opens *there*: the arrow is the
+              // navigation, this is the way out to the real thing.
+              <a
+                href={node.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="ml-1.5 text-[10px] text-grey-400 opacity-0 hover:text-selected group-hover:opacity-100"
+                title={`Open ${node.name} in ${node.kind === 'label' ? 'Gmail' : 'Drive'}`}
+              >
+                ↗
+              </a>
+            ) : null}
           </span>
         )}
 
