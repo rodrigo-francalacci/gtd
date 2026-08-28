@@ -5,7 +5,6 @@ import { DayJournal } from '@/components/day-journal';
 import { DocumentDetail } from '@/components/document-detail';
 import { BoxComposer } from '@/components/box-composer';
 import { BoxViewToggle } from '@/components/box-view-toggle';
-import { EmojifyButton } from '@/components/emojify-button';
 import { DateRange } from '@/components/date-range';
 import { DocumentGalleryRow } from '@/components/document-gallery-row';
 import { DocumentRow } from '@/components/document-row';
@@ -219,20 +218,6 @@ export default async function BoxPage(props: PageProps<'/box/[id]'>) {
         columns={boxView === 'gallery' ? undefined : BOX_COLUMNS}
         actions={
           <>
-            {/*
-              A document read from now on gets its emoji from the classifier,
-              where it is free — the model is already looking at the file. This
-              is how the ones filed before that catch up, and it marks from the
-              titles the reading already produced rather than opening every
-              file again: a re-read costs a document apiece, and a PDF bills as
-              its text *and* an image of every page, which is a lot to spend on
-              a glyph.
-            */}
-            <EmojifyButton
-              target="box"
-              ids={shown.map((i) => i.id)}
-              marked={shown.filter((i) => i.emoji).length}
-            />
             <ReadWaiting waiting={box.pendingCount} />
             <BoxViewToggle view={boxView} viewKey={viewKey} />
             <Link

@@ -41,7 +41,7 @@ import {
 } from './pane';
 import { suggester } from './ai/suggest';
 import { readPurchase, type PurchaseRead } from './ai/purchase';
-import { pickEmoji } from './ai/emoji';
+import { oneEmoji, pickEmoji } from './ai/emoji';
 import { requireSession } from './auth/session';
 import type { ReviewStep } from './review';
 import {
@@ -2662,4 +2662,71 @@ export async function clearEmoji(target: EmojiTarget, ids: string[]) {
   await db.update(table).set({ emoji: null }).where(inArray(table.id, wanted));
 
   revalidateShell();
+}
+
+/**
+ * Emoji for a whole box, asked for from the sidebar.
+ *
+ * The list button takes its ids from the page, deliberately: what you asked to
+ * mark is what you were looking at, filters and all. From the sidebar there is
+ * nothing being looked at — you have named a *box*, not a view of one — so this
+ * resolves its own rows, and means every document in it whatever is on screen.
+ * That is the honest reading of "redo this box", and it is why it is a separate
+ * entry point rather than the same one with the ids left out.
+ *
+ * The header button is gone: a box pane already carries the pending count, the
+ * gallery switch and the tag link, and a fourth control there was crowding the
+ * one header with the most in it.
+ */
+export async function emojifyBox(boxId: string) {
+  await requireSession();
+
+  const rows = await db
+    .select({ id: boxItems.id })
+    .from(boxItems)
+    .where(eq(boxItems.boxId, boxId));
+
+  return emojifyRows(
+    'box',
+    rows.map((row) => row.id),
+  );
+}
+
+/** Take them off, for the whole box. The documents keep their type icons. */
+export async function clearBoxEmoji(boxId: string) {
+  await requireSession();
+
+  await db.update(boxItems).set({ emoji: null }).where(eq(boxItems.boxId, boxId));
+  revalidateShell();
+}
+
+/**
+ * Set one row's emoji by hand, or clear it.
+ *
+ * The model is a starting point and not an authority. It will call a project
+ * about a kitchen extension a saucepan, and you are the one who has to
+ * recognise that row at a glance for the next six months — so every emoji it
+ * chooses is editable, and any row can be given one without asking it at all.
+ *
+ * The same five tables the button knows about, through the same map, so a list
+ * that can be emojified can always be corrected and there is no third place
+ * naming the tables.
+ *
+ * `null` clears it. Passing something that is not a single glyph is refused
+ * rather than stored: the slot is a fixed width, and a word in it would push
+ * every title on the list sideways.
+ */
+export async function setEmoji(target: EmojiTarget, id: string, emoji: string | null) {
+  await requireSession();
+
+  const clean = emoji === null ? null : oneEmoji(emoji);
+  if (emoji !== null && clean === null) {
+    return { ok: false as const, error: 'That needs to be a single emoji.' };
+  }
+
+  const { table } = EMOJI_TABLES[target];
+  await db.update(table).set({ emoji: clean }).where(eq(table.id, id));
+
+  revalidateShell();
+  return { ok: true as const };
 }

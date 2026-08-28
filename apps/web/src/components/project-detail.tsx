@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { EmojiPicker } from './emoji-picker';
 
 import type { ListOrder } from '@/lib/file-lists';
 import type { ProjectStatus } from '@gtd/db';
@@ -26,6 +27,8 @@ import { LinkedDocuments } from './linked-documents';
 import { NoteEditor } from './note-editor';
 
 type ProjectDetailData = {
+  /** Its emoji, or null. Editable here whatever the model chose. */
+  emoji: string | null;
   id: string;
   title: string;
   status: ProjectStatus;
@@ -111,7 +114,12 @@ export function ProjectDetail({
 
   return (
     <div className={pending ? 'opacity-60' : ''}>
-      <input
+      {/* Beside the title, because it belongs to the row rather than to any of
+          the fields below it — and because this is where you are already
+          looking when you decide the model got it wrong. */}
+      <div className="flex items-center gap-2">
+        <EmojiPicker target="projects" id={project.id} emoji={project.emoji ?? null} label="project" />
+        <input
         value={title}
         onChange={(e) => setTitle(e.target.value)}
         onBlur={() => {
@@ -121,8 +129,9 @@ export function ProjectDetail({
             });
           }
         }}
-        className="w-full border-none bg-transparent text-xl font-semibold text-grey-900 focus:outline-none"
-      />
+        className="min-w-0 flex-1 border-none bg-transparent text-xl font-semibold text-grey-900 focus:outline-none"
+        />
+      </div>
 
       {/* Reassigning the horizon parents. Goals are filtered to the chosen
           area, because a goal belongs to an area — offering the rest would

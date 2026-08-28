@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { EmojiPicker } from './emoji-picker';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState, useTransition } from 'react';
 import {
@@ -202,12 +203,23 @@ export function DocumentDetail({
           {item.boxName} · {arrived.format(item.capturedAt)}
         </span>
 
-        <input
-          value={title}
-          onChange={(e) => edit({ title: e.target.value })}
-          placeholder={documentLabel(item)}
-          className="w-full border-0 border-b border-transparent bg-transparent pb-1 text-[17px] font-medium text-grey-900 placeholder:text-grey-400 focus:border-grey-300 focus:outline-none"
-        />
+        <div className="flex items-center gap-2">
+          {/* This one stands in for the type icon in the feed, so correcting it
+              is correcting what the row looks like — worth having beside the
+              title rather than buried below. */}
+          <EmojiPicker
+            target="box"
+            id={item.id}
+            emoji={item.emoji ?? null}
+            label="emoji"
+          />
+          <input
+            value={title}
+            onChange={(e) => edit({ title: e.target.value })}
+            placeholder={documentLabel(item)}
+            className="min-w-0 flex-1 border-0 border-b border-transparent bg-transparent pb-1 text-[17px] font-medium text-grey-900 placeholder:text-grey-400 focus:border-grey-300 focus:outline-none"
+          />
+        </div>
       </header>
 
       {/*

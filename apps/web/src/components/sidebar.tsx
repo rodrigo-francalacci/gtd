@@ -23,6 +23,7 @@ import {
 import type { Theme } from '@/lib/pane';
 import { ThemeToggle } from './theme-toggle';
 import type { ListRow } from '@/lib/queries.shared';
+import { BoxMenu } from './box-menu';
 import { SearchBox } from './search-box';
 import { CaptureTarget } from './drag-capture';
 import type { CaptureDrop } from '@/lib/actions';
@@ -51,6 +52,15 @@ type Item = {
    * drag would promise something they cannot do.
    */
   drop?: CaptureDrop;
+  /**
+   * A box, which has things you can do *to* it rather than only go to.
+   *
+   * Right-click, or hold on a touchscreen. Those two gestures already mean
+   * "tell me about this thing" everywhere else on the machine, so the actions
+   * behind them need no permanent space in a header — which is what choosing
+   * emoji was taking, in the one pane header that already had the most in it.
+   */
+  menu?: { boxId: string; name: string };
 };
 
 export function SidebarNav({
@@ -161,6 +171,7 @@ export function SidebarNav({
           icon: IconBox as Icon,
           count: b.pendingCount,
           drop: { kind: 'box' as const, boxId: b.id },
+          menu: { boxId: b.id, name: b.name },
         })),
         { href: '/box', label: 'Manage boxes', icon: IconBox, exact: true },
       ],
@@ -275,7 +286,18 @@ export function SidebarNav({
                     {/* Wrapped only where a drop means something, so the rest
                         of the sidebar stays plain markup and cannot light up
                         under a drag it could not honour. */}
-                    {item.drop ? (
+                    {/* Two wrappers, and the order matters: the menu is the
+                        outer one, so a drag that starts on a box still reaches
+                        the drop target inside it untouched. */}
+                    {item.menu ? (
+                      <BoxMenu boxId={item.menu.boxId} name={item.menu.name}>
+                        {item.drop ? (
+                          <CaptureTarget drop={item.drop}>{link}</CaptureTarget>
+                        ) : (
+                          link
+                        )}
+                      </BoxMenu>
+                    ) : item.drop ? (
                       <CaptureTarget drop={item.drop}>{link}</CaptureTarget>
                     ) : (
                       link

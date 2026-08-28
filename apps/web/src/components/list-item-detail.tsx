@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { EmojiPicker } from './emoji-picker';
 import { useState, useTransition } from 'react';
 import type { ListOrder } from '@/lib/file-lists';
 import {
@@ -63,7 +64,12 @@ export function ListItemDetail({
 
   return (
     <div className={pending ? 'opacity-60' : ''}>
-      <input
+      {/* Beside the title, because it belongs to the row rather than to any of
+          the fields below it — and because this is where you are already
+          looking when you decide the model got it wrong. */}
+      <div className="flex items-center gap-2">
+        <EmojiPicker target="list_items" id={item.id} emoji={item.emoji ?? null} label="item" />
+        <input
         value={title}
         onChange={(e) => setTitle(e.target.value)}
         onBlur={() => {
@@ -71,8 +77,9 @@ export function ListItemDetail({
             run(() => updateListItemTitle(item.id, title));
           }
         }}
-        className="w-full border-none bg-transparent text-xl font-semibold text-grey-900 focus:outline-none"
-      />
+        className="min-w-0 flex-1 border-none bg-transparent text-xl font-semibold text-grey-900 focus:outline-none"
+        />
+      </div>
 
       {/* The candidate/commitment distinction is the whole point of a list. */}
       <div className="mt-3 rounded-sm border border-grey-200 bg-grey-50 px-3 py-2.5">

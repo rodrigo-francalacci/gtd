@@ -1,6 +1,7 @@
 'use client';
 
 import type { ListOrder } from '@/lib/file-lists';
+import { EmojiPicker } from './emoji-picker';
 import type { Context } from '@gtd/db';
 import { useRouter } from 'next/navigation';
 import { useState, useTransition } from 'react';
@@ -27,6 +28,8 @@ import { TurnIntoNextAction } from './turn-into-next';
 import { WaitingOnField } from './waiting-on-field';
 
 type ActionDetailData = {
+  /** Its emoji, or null. Editable here whatever the model chose. */
+  emoji: string | null;
   id: string;
   title: string;
   status: 'next' | 'future' | 'waiting' | 'done';
@@ -94,7 +97,12 @@ export function ActionDetail({
 
   return (
     <div className={pending ? 'opacity-60' : ''}>
-      <input
+      {/* Beside the title, because it belongs to the row rather than to any of
+          the fields below it — and because this is where you are already
+          looking when you decide the model got it wrong. */}
+      <div className="flex items-center gap-2">
+        <EmojiPicker target="actions" id={action.id} emoji={action.emoji ?? null} label="action" />
+        <input
         value={title}
         onChange={(e) => setTitle(e.target.value)}
         onBlur={() => {
@@ -104,8 +112,9 @@ export function ActionDetail({
             });
           }
         }}
-        className="w-full border-none bg-transparent text-xl font-semibold text-grey-900 focus:outline-none"
-      />
+        className="min-w-0 flex-1 border-none bg-transparent text-xl font-semibold text-grey-900 focus:outline-none"
+        />
+      </div>
 
       {/* Filing was a drag onto a project row, which touch cannot do at all —
           so the project line is now also where you change it. Same Server

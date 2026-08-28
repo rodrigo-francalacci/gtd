@@ -891,7 +891,29 @@ would cost a full document read apiece, and a PDF is billed as its text *and* a
 picture of every page.
 
 **Redo emoji** asks again, which is worth doing after you have edited some
-titles. **Clear** takes them off. Nothing is lost either way, because the emoji
+titles. **Clear** takes them off.
+
+**A box asks from the sidebar instead.** Right-click a box in the left-hand
+column — or press and hold on a touchscreen — for *Redo emoji* and *Clear
+emoji*. That header already carries the pending count, the gallery switch and
+the tag link, and a fourth control there was crowding the one pane header with
+the most in it; choosing emoji is a thing you do to a box roughly once, which
+does not earn permanent space. From there it means every document in the box,
+not just what a filter has left on screen — you have named a box rather than a
+view of one.
+
+**You can always pick one by hand.** Every detail pane has the emoji beside the
+title: a dozen common ones to tap, and a field that takes any emoji you type,
+paste, or choose from your system's own emoji keyboard — Win+. on Windows,
+Ctrl+Cmd+Space on a Mac, the smiley key on a phone. There is no built-in grid of
+two thousand glyphs, because your operating system already has a better one a
+keystroke away. *Remove it* clears just that row.
+
+The model is a starting point, not an authority — it will call the kitchen
+extension a saucepan, and you are the one who has to recognise that row for the
+next six months. Anything but a single emoji is refused rather than stored,
+because the slot is a fixed width and a word in it would shift every title on
+the list. Nothing is lost either way, because the emoji
 lives in its own column rather than being pasted onto the front of the title:
 prefixed into the text it would have ended up in search, in Drive filenames and
 in every export, with no way back.

@@ -114,6 +114,26 @@ Turbopack is the default; `middleware` is now `proxy`.
   title at all and keeps its text in `description`, and a document not yet read
   has neither and only a filename — asking for `title` alone silently skipped a
   fifth of the box.
+- **A box is emojified from the sidebar, not from its own header.** That header
+  already carries the pending count, the gallery switch and the tag link, and a
+  fourth control was crowding the one pane header with the most in it — for
+  something you do to a box roughly once. `BoxMenu` puts it behind right-click
+  and press-and-hold, the two gestures that already mean "tell me about this
+  thing", following `filter-chip.tsx`'s pattern exactly: pointer type checked so
+  a slow mouse click is not a hold, a `consumed` ref to swallow the click a long
+  press produces, and `-webkit-touch-callout:none` because iOS shows its own
+  callout and never fires `contextmenu`. `emojifyBox` resolves its own ids, which
+  is the *opposite* of the list button's rule and right for the same reason:
+  from the sidebar you have named a box, not a view of one.
+- **Every emoji is editable, and any row can be given one by hand.** The model
+  will call a kitchen extension a saucepan, and the person who has to recognise
+  that row for six months is not it. `EmojiPicker` sits beside the title in each
+  detail pane; the *field is the picker*, because every platform already has an
+  emoji keyboard a keystroke away and shipping a searchable grid of eighteen
+  hundred glyphs to duplicate it would be a quarter of a megabyte for a worse
+  answer. `setEmoji` goes through `oneEmoji` like everything else, so a word is
+  refused rather than stored — the slot is a fixed width and a word in it shifts
+  every title on the list.
 - **The emoji is stored, and is its own column.** Derived at render time it
   would change between drawings, and recognising a row by its shape before
   reading it is exactly what that breaks. Prefixed into `title` it would reach
