@@ -70,6 +70,15 @@ function panelJobs() {
       needs: 'big-box-feed.gs',
     },
     {
+      id: 'syncDriveNames',
+      title: 'Sync filenames',
+      detail:
+        'Asks the app to push its titles out to Drive, so a document renamed in ' +
+        'the app is renamed in the folder too. Also drains the sync, enrichment ' +
+        'and reading queues — it is the same tick the daily cron runs.',
+      needs: 'this file',
+    },
+    {
       id: 'testConnection',
       title: 'Test the connection',
       detail:
@@ -116,6 +125,67 @@ function doGet() {
  * Whatever the page sends is a string from a browser, and `this[name]()` on an
  * unchecked string is a way to run any function in the project.
  */
+/**
+ * Ask the app to run the tick the cron would have run.
+ *
+ * The rename sweep lives in the *app*, not here — it is the app that knows what
+ * a document is called, and `drive.file` lets it rename what it created, so
+ * there was never a reason to give this script the job. What the panel adds is a
+ * way to say *now*, because on a Hobby plan the cron runs daily: a document
+ * retitled at two in the afternoon otherwise sits in Drive under its old name
+ * until the following morning.
+ *
+ * `CRON_SECRET` rather than `BOX_INGEST_SECRET`, because that endpoint checks
+ * the one Vercel sends. It is a second property to set and there is no way
+ * around that — the alternative is bolting a rename onto an endpoint that has
+ * nothing to do with renaming, so that one secret covers both.
+ */
+function syncDriveNames() {
+  const props = PropertiesService.getScriptProperties();
+  const origin = (props.getProperty('APP_ORIGIN') || '').replace(/\/+$/, '');
+  const secret = (props.getProperty('CRON_SECRET') || '').trim();
+
+  if (!origin) {
+    Logger.log('APP_ORIGIN is not set in this script’s properties.');
+    return;
+  }
+
+  if (!secret) {
+    Logger.log(
+      'CRON_SECRET is not set in this script’s properties. It is the same value ' +
+      'as CRON_SECRET in the app’s environment — the endpoint checks the token ' +
+      'Vercel sends, which is a different secret from BOX_INGEST_SECRET.',
+    );
+    return;
+  }
+
+  const response = UrlFetchApp.fetch(origin + '/api/cron/sync', {
+    method: 'get',
+    headers: { Authorization: 'Bearer ' + secret },
+    muteHttpExceptions: true,
+  });
+
+  const code = response.getResponseCode();
+  const body = response.getContentText();
+
+  if (code === 401) {
+    Logger.log('Refused: CRON_SECRET here does not match the app’s.');
+    return;
+  }
+
+  if (code !== 200) {
+    Logger.log('The app answered ' + code + ': ' + body.slice(0, 400));
+    return;
+  }
+
+  /*
+   * The reply is the tick's own tally — how many jobs drained, how many files
+   * were renamed. Printed rather than summarised, because when this is pressed
+   * it is usually to find out whether something happened.
+   */
+  Logger.log(body.slice(0, 1000));
+}
+
 function panelRun(id) {
   const jobs = panelJobs();
   var job = null;
