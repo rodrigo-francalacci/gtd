@@ -2,6 +2,8 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { SourceToolbar } from './source-toolbar';
+import { hasHighlighting, highlight } from '@/lib/source-highlight';
 import {
   FORMAT_META,
   hasRenderedView,
@@ -9,6 +11,21 @@ import {
   renderDocument,
   type TextFormat,
 } from '@/lib/text-formats';
+
+/**
+ * The typography the two editor layers share.
+ *
+ * Declared once and used by both, because the coloured `pre` and the
+ * transparent `textarea` on top of it have to wrap at exactly the same
+ * character or the colours drift out from under the words. Two class lists that
+ * happen to agree is a bug waiting for one of them to be tidied.
+ *
+ * 16px on a phone: iOS Safari zooms the page in when a smaller field takes
+ * focus, and the editor is one of the few places in this app you type at length
+ * on one.
+ */
+const SOURCE_TEXT =
+  'whitespace-pre-wrap break-words p-3 font-mono text-[16px] leading-relaxed md:text-[12.5px]';
 
 /**
  * Markdown, LaTeX and HTML, read and written in the preview pane.
@@ -252,6 +269,10 @@ export function TextDocument({
    */
   const [printing, setPrinting] = useState<{ html: string; seq: number } | null>(null);
 
+  /** The coloured layer, scrolled in step with the textarea above it. */
+  const colour = useRef<HTMLPreElement>(null);
+  const coloured = hasHighlighting(format);
+
   const print = () => {
     if (!page) return;
 
@@ -356,20 +377,64 @@ export function TextDocument({
           className="min-h-0 w-full flex-1 border-0 bg-paper"
         />
       ) : (
-        <textarea
-          ref={area}
-          value={draft}
-          onChange={(event) => setDraft(event.target.value)}
-          spellCheck={format === 'markdown'}
-          // Neither: source is code, and a machine guessing at the shape of a
-          // LaTeX command or an HTML attribute gets it wrong every time.
-          autoCorrect="off"
-          autoCapitalize="off"
-          /* 16px, or iOS Safari zooms the page in when it takes focus. The
-             editor is one of the few places in the app you type at length on a
-             phone, so this is the case the rule was written for. */
-          className="min-h-0 w-full flex-1 resize-none whitespace-pre bg-paper p-3 font-mono text-[16px] leading-relaxed text-grey-800 focus:outline-none md:text-[12.5px]"
-        />
+        <>
+          <SourceToolbar format={format} area={area} value={draft} onChange={setDraft} />
+
+          {/*
+            The editor is two layers: colour underneath, the real textarea on
+            top with transparent text and a visible caret.
+
+            There is no way to colour text *inside* a textarea — it renders one
+            uniform run and always has. Every editor that does this in a browser
+            stacks a highlighted copy behind a see-through input, and the whole
+            trick is that the two must lay out identically: same font, same
+            size, same line height, same padding, same wrapping. Anything that
+            differs on either side and the colours slide out from under the
+            words. Hence `SOURCE_TEXT`, which is one string used by both rather
+            than two lists that agree today.
+          */}
+          <div className="relative min-h-0 w-full flex-1 overflow-hidden bg-paper">
+            {coloured ? (
+              <pre
+                ref={colour}
+                aria-hidden
+                className={`pointer-events-none absolute inset-0 overflow-hidden ${SOURCE_TEXT}`}
+                dangerouslySetInnerHTML={{ __html: highlight(draft, format) }}
+              />
+            ) : null}
+
+            <textarea
+              ref={area}
+              value={draft}
+              onChange={(event) => setDraft(event.target.value)}
+              onScroll={(event) => {
+                /*
+                 * The layer under it has to move with it, and this is the one
+                 * place the illusion can break: a textarea scrolls itself and
+                 * the `pre` behind it does not know. Set directly rather than
+                 * through state — a scroll handler that re-renders on every
+                 * pixel is how a smooth scroll becomes a stuttering one.
+                 */
+                const layer = colour.current;
+                if (!layer) return;
+                layer.scrollTop = event.currentTarget.scrollTop;
+                layer.scrollLeft = event.currentTarget.scrollLeft;
+              }}
+              spellCheck={format === 'markdown'}
+              // Neither: source is code, and a machine guessing at the shape of
+              // a LaTeX command or an HTML attribute gets it wrong every time.
+              autoCorrect="off"
+              autoCapitalize="off"
+              className={[
+                'absolute inset-0 resize-none bg-transparent focus:outline-none',
+                SOURCE_TEXT,
+                // Transparent text over the coloured copy, but a caret you can
+                // still see — `caret-color` is what makes that possible at all.
+                coloured ? 'text-transparent caret-grey-800' : 'text-grey-800',
+              ].join(' ')}
+            />
+          </div>
+        </>
       )}
 
       {printing ? (

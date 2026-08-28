@@ -696,6 +696,17 @@ bytes honest for them and dishonest over a PDF. Two views, never nested:
 them is the whole activity of writing in these formats. **Ctrl/⌘-S** saves, and
 leaving with unsaved changes asks first.
 
+**Source view is coloured and has a block toolbar.** Headings, lists, tables,
+quotes, code, links, images and emphasis, per format — a markdown table is three
+lines of pipes with a rule about the alignment row and a LaTeX one wants a column
+specification, which is exactly the sort of thing a button should type for you.
+Each one drops the caret on the placeholder so your next keystroke replaces it,
+and with a word selected the bold and italic buttons wrap it rather than throwing
+it away.
+
+The colours are muted on purpose: this is a writing surface you look at for an
+hour, not a terminal.
+
 Maths is real MathML rather than pictures, so equations stay selectable text and
 a screen reader can say them. The LaTeX view is a *reading* view and says so on
 screen: it answers "what does this file say" — structure, emphasis, lists,

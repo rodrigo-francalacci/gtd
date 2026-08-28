@@ -788,6 +788,36 @@ Turbopack is the default; `middleware` is now `proxy`.
   sitting in the attribute the whole time. The frame is therefore keyed on a
   sequence number that changes per rendering, so a fresh element mounts and
   always loads. Anything else that writes `srcdoc` from React needs the same.
+- **The source view is two layers, and they must lay out identically.** There is
+  no way to colour text inside a `textarea` — it renders one uniform run and
+  always has — so a highlighted copy sits behind a transparent one, and the
+  whole trick is that both wrap at exactly the same character. `SOURCE_TEXT` is
+  one class string used by both rather than two lists that agree today; the
+  textarea's `onScroll` drives the layer directly rather than through state,
+  because a re-render per scrolled pixel is how a smooth scroll becomes a
+  stuttering one. `highlight()` must reconstruct its input character for
+  character — one added or lost slides the colours out from under the words from
+  there on, which `scripts/check-source-blocks.mjs` asserts for all three
+  formats. Everything is escaped on the way in: this is injected as HTML, and a
+  document containing a `<script>` tag must be coloured, never run.
+- **The highlighter is a tokeniser, not a parser, and that is the right size.**
+  A general highlighter is a grammar engine and several hundred kilobytes to
+  answer what three regular expressions answer, in a pane that already loads a
+  markdown parser and a maths converter on demand. It can be wrong about a `#`
+  inside a fenced block; the cost is one wrongly coloured line, because nothing
+  downstream reads it — the rendered view is what is authoritative about
+  meaning. Six semantic tokens (`--code-heading` and friends) rather than a
+  language's worth, redefined for dark like every other colour here.
+- **The block toolbar selects the placeholder it inserts.** A snippet that
+  leaves the caret past the end of a table is one you then navigate back into,
+  which is most of the work it was meant to save — so `applyBlock` returns a
+  range, not a position, and the next keystroke replaces the placeholder. It
+  wraps a selection where the block knows how (`B` over a highlighted word), and
+  a block-level snippet gets a newline *only* when it needs one, or a blank line
+  grows at the top of the document on every press. Pure, so the fiddly cases are
+  testable without a DOM. `onMouseDown` is prevented on every button: a button
+  takes focus, the selection collapses, and the block lands at the top of the
+  document instead of where you were.
 - **Maths is MathML, via `temml`, and needs no font shipped with it.** Every
   browser this app runs in renders MathML natively, and it stays *text* — so a
   printed PDF has selectable equations and a screen reader can say them. KaTeX

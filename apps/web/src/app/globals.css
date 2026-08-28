@@ -465,3 +465,55 @@ body {
    put while everything under it grows. */
 .text-lg { font-size: calc(1.125rem * var(--text-scale)); }
 .text-xl { font-size: calc(1.25rem * var(--text-scale)); }
+
+/* Source colours ---------------------------------------------------------- */
+
+/*
+ * The palette for the source view, as tokens rather than colours in the
+ * component — which is what lets the theme swap them without any component
+ * knowing which theme it is in, the same arrangement as the greyscale ramp.
+ *
+ * Six roles, not a language's worth: structure, markers, keywords, strings,
+ * comments and accents. Markdown, LaTeX and HTML map onto those between them,
+ * and a seventh would be a colour with no meaning attached — the same test the
+ * semantic palette has to pass.
+ *
+ * Deliberately muted. This is a writing surface you look at for an hour, not a
+ * terminal, and the greys around it are quiet enough that saturated syntax
+ * colours would be the loudest thing on the screen by a distance.
+ *
+ * This is the one place colour is *not* semantic in the app's sense, and it
+ * earns the exception the way a code block does anywhere: the colour is not
+ * decoration, it is the only thing distinguishing a heading from a paragraph in
+ * a view whose whole content is monospaced plain text.
+ */
+:root {
+  --code-heading: #1f4b8f;
+  --code-marker: #8a6a1f;
+  --code-keyword: #6b3fa0;
+  --code-string: #1f6b4f;
+  --code-comment: #8a8a8a;
+  --code-accent: #a8451f;
+}
+
+/* A null preference means "ask the operating system", exactly as above. */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    --code-heading: #7fa9e0;
+    --code-marker: #cfa94e;
+    --code-keyword: #b795dd;
+    --code-string: #6fbf98;
+    --code-comment: #7d7d7d;
+    --code-accent: #e08a66;
+  }
+}
+
+/* And an explicit choice beats the query, in both directions. */
+:root[data-theme='dark'] {
+  --code-heading: #7fa9e0;
+  --code-marker: #cfa94e;
+  --code-keyword: #b795dd;
+  --code-string: #6fbf98;
+  --code-comment: #7d7d7d;
+  --code-accent: #e08a66;
+}
