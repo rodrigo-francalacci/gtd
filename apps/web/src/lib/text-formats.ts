@@ -1,4 +1,9 @@
-import { mathMarker, readLatex, type MathSpan } from './latex-html';
+import {
+  mathMarker,
+  readLatex,
+  type MathSpan,
+  type PageShape,
+} from './latex-html';
 
 /**
  * The text formats the preview pane can read *and* write.
@@ -203,7 +208,7 @@ async function renderMarkdown(source: string): Promise<string> {
 }
 
 /** LaTeX, read for structure and handed its maths back. */
-async function renderLatex(source: string): Promise<string> {
+async function renderLatex(source: string): Promise<{ html: string; page: PageShape }> {
   const document = readLatex(source);
   const rendered = await renderMath(document.math);
 
@@ -226,7 +231,7 @@ async function renderLatex(source: string): Promise<string> {
       html;
   }
 
-  return html;
+  return { html, page: document.page };
 }
 
 /**
@@ -249,7 +254,68 @@ async function renderLatex(source: string): Promise<string> {
  * because the app's theme is a choice stored in the database and the frame can
  * only see the operating system's.
  */
-function shell(body: string, dark: boolean, format: TextFormat): string {
+/**
+ * The page a LaTeX document asked for, as far as CSS can honour it.
+ *
+ * Width and margin come from the class options and `geometry`; the base size
+ * from `10pt` and friends. A table laid out for 27cm of landscape A4 has
+ * nowhere to go in a portrait column, which is most of why the old view made
+ * these documents look nothing like themselves.
+ *
+ * `max-width` rather than `width`: the pane is often narrower than the paper,
+ * and a page that overflows its own frame is worse than one that is squeezed.
+ */
+function latexPage(page?: PageShape): string {
+  const width = page?.width ? `${page.width}mm` : '210mm';
+  const margin = page?.margin ?? '20mm';
+  const base = page?.base ? `${page.base}pt` : '10pt';
+  const stretch = page?.arraystretch ?? 1;
+
+  return `
+    body {
+      font-family: 'Latin Modern Roman', 'CMU Serif', 'Computer Modern',
+                   'Latin Modern', Georgia, 'Times New Roman', serif;
+      font-size: ${base};
+      /* TeX justifies. Without hyphenation the rivers are worse than ragged
+         right, so both are asked for and the browser does what it can. */
+      text-align: justify;
+      hyphens: auto;
+      padding: 0;
+    }
+    main {
+      max-width: ${width};
+      /* The margin the document asked for, inside the paper it asked for. */
+      padding: ${margin};
+      box-sizing: border-box;
+      margin: 0 auto;
+    }
+    /* A page, so it reads as one rather than as a web column. */
+    @media screen {
+      body { background: ${page ? 'color-mix(in srgb, currentColor 6%, transparent)' : 'transparent'}; }
+      main {
+        background: ${'inherit'};
+        box-shadow: 0 0 0 1px color-mix(in srgb, currentColor 12%, transparent);
+      }
+    }
+    table { width: 100%; font-size: 0.92em; border-collapse: collapse; display: table; }
+    td, th {
+      border: 0;
+      padding: ${(0.28 * stretch).toFixed(2)}em 0.5em;
+      vertical-align: top;
+    }
+    /* booktabs draws rules and never verticals; the weight difference between
+       the outer rules and the inner ones is most of why its tables read well. */
+    table.ruled-bottom { border-bottom: 1.1px solid currentColor; }
+    table tr:first-child td { border-top-width: 1.1px; }
+  `;
+}
+
+function shell(
+  body: string,
+  dark: boolean,
+  format: TextFormat,
+  page?: PageShape,
+): string {
   const ink = dark ? '#e6e6e4' : '#1a1a1a';
   const paper = dark ? '#17181a' : '#ffffff';
   const faint = dark ? '#94969d' : '#7a7a7a';
@@ -318,7 +384,26 @@ function shell(body: string, dark: boolean, format: TextFormat): string {
       body { padding: 0; background: #fff; color: #000; }
       main { max-width: none; }
       a { color: inherit; text-decoration: underline; }
+      /* A landscape document should print landscape. This is the one page
+         instruction the reading view can pass straight through. */
+      @page { size: ${page?.landscape ? 'landscape' : 'auto'}; }
     }
+
+    /*
+     * The LaTeX look, as far as a browser can give it.
+     *
+     * Not typesetting — nothing here breaks a paragraph by minimising badness
+     * or hyphenates from a dictionary — but the two things a reader recognises
+     * a LaTeX document by, before reading a word of it, are the typeface and
+     * the shape of the page. Both are free.
+     *
+     * Latin Modern is Computer Modern redrawn, and is what modern LaTeX sets by
+     * default. It is named first in the hope the machine has it; the fallbacks
+     * are the other Computer Modern packagings and then an ordinary serif,
+     * because a missing font that silently becomes sans-serif is the loudest
+     * possible way to look wrong.
+     */
+    ${format === 'latex' ? latexPage(page) : ''}
   `;
 
   // An `.html` file is its own document and gets the frame to itself. Wrapping
@@ -388,7 +473,10 @@ export async function renderDocument(
 ): Promise<string> {
   if (format === 'html') return shell(source, dark, 'html');
   if (format === 'markdown') return shell(await renderMarkdown(source), dark, format);
-  if (format === 'latex') return shell(await renderLatex(source), dark, format);
+  if (format === 'latex') {
+    const { html, page } = await renderLatex(source);
+    return shell(html, dark, format, page);
+  }
 
   return shell(`<pre class="scroll">${escapeHtml(source)}</pre>`, dark, format);
 }

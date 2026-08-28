@@ -871,6 +871,29 @@ Turbopack is the default; `middleware` is now `proxy`.
   afterwards. Verbatim goes one step earlier still — *before* the comment
   stripper, because a `%` in a code sample is a percent sign and stripping
   comments first ate the rest of every such line.
+- **The reading view is not TeX and never will be — but it can be the right
+  shape.** Real typesetting was tried and abandoned on evidence: SwiftLaTeX's
+  pdfTeX runs in the browser (no `SharedArrayBuffer`, so no COOP/COEP and the
+  Google embeds are safe), but its package and format server is dead in 2026 —
+  19-second timeouts, no CORS — and the maintained alternative ships a **498 MB**
+  TeX Live tree. The engine was never the problem; the distribution is. So the
+  reading view answers *what does this say*, and the page it says it on is now
+  taken from the preamble rather than ignored.
+- **A table is where the old reading view was furthest from the truth.** It split
+  on `&`, threw every rule away and called the first row a header — so a landscape
+  document whose whole content is one wide table came out as an unruled grid with
+  the wrong cells in the wrong places. `lib/latex-table.ts` reads what real
+  documents use: `booktabs` rules including `\cmidrule`'s column range, spans in
+  both directions, and `>{\columncolor{…}}` in the column specification.
+  The column spec is walked character by character rather than matched, because
+  `>{}`, `p{}`, `@{}` and `*{n}{…}` all carry braces and getting it wrong shifts
+  every colour one column sideways — which reads as a styling bug and is a parsing
+  one. **A `\multirow` must reserve its column in the rows below**, *and* consume
+  the empty field those rows still supply for it: track one without the other and
+  every cell beneath shifts a place, which is subtle enough to survive a glance
+  and makes the table state something false. Only an *empty* field is consumed —
+  eating a real one would move a value into the wrong column, and a wrong number
+  reads as data rather than as a rendering fault.
 - **`lib/latex-html.ts` is a reading view, not TeX, and says so on screen.**
   TeX breaks paragraphs by minimising badness, hyphenates from a dictionary,
   kerns from metrics, floats figures and resolves references in two passes.

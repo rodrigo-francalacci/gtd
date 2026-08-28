@@ -707,6 +707,18 @@ it away.
 The colours are muted on purpose: this is a writing surface you look at for an
 hour, not a terminal.
 
+The LaTeX view reads the preamble for the things it can honour: paper size and
+orientation, the `geometry` margin, the base font size, and `arraystretch`. A
+landscape A4 document is shown landscape and A4-wide, in Latin Modern — the
+typeface LaTeX sets by default — so it at least looks like the document it is.
+Tables get `booktabs` rules, `\multicolumn` and `\multirow` spans, and the
+column colours from `>{\columncolor{…}}`.
+
+It still is not typesetting and does not pretend to be: nothing here breaks a
+paragraph by minimising badness or hyphenates from a dictionary, and for that you
+still want a real TeX. What it will do is show you a document you can read and
+recognise.
+
 Maths is real MathML rather than pictures, so equations stay selectable text and
 a screen reader can say them. The LaTeX view is a *reading* view and says so on
 screen: it answers "what does this file say" — structure, emphasis, lists,

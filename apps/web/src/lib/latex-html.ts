@@ -1,3 +1,5 @@
+import { readPalette, renderTabular, type Palette } from './latex-table';
+
 /**
  * LaTeX, rendered well enough to read.
  *
@@ -29,14 +31,98 @@
 export type MathSpan = { tex: string; display: boolean };
 
 export type LatexDocument = {
-  /** HTML with `<n>` markers where the maths goes. */
+  /** HTML with `U+0001 n U+0001` markers where the maths goes. */
   html: string;
   /** The maths, in marker order. */
   math: MathSpan[];
   title: string | null;
   author: string | null;
   date: string | null;
+  /**
+   * What the preamble asked for about the *page*, which the reading view used
+   * to ignore entirely.
+   *
+   * It cannot typeset, but it can at least be the right shape. A landscape A4
+   * document rendered as a portrait column of prose is wrong in the one way a
+   * reader notices immediately, and a table laid out for 27cm of width has
+   * nowhere to go in 17.
+   */
+  page: PageShape;
 };
+
+export type PageShape = {
+  /** Millimetres of usable width, or null when nothing said. */
+  width: number | null;
+  landscape: boolean;
+  /** The class's base size, in points. */
+  base: number | null;
+  margin: string | null;
+  /** From `renewcommand arraystretch` — how tall table rows sit. */
+  arraystretch: number | null;
+};
+
+/** Paper sizes, in millimetres, for the ones a class option can name. */
+const PAPER: Record<string, [number, number]> = {
+  a4paper: [210, 297],
+  a5paper: [148, 210],
+  a3paper: [297, 420],
+  letterpaper: [216, 279],
+  legalpaper: [216, 356],
+  b5paper: [176, 250],
+};
+
+function toMillimetres(value: number, unit: string): number {
+  if (unit === 'cm') return value * 10;
+  if (unit === 'in') return value * 25.4;
+  return value;
+}
+
+/**
+ * What the preamble says about the page.
+ *
+ * Only the parts a reading view can honour: how wide the text may be, which way
+ * round the paper is, how big the base font is, and how tall table rows sit.
+ * Everything else a document class does — floats, headers, sectioning depth,
+ * the line breaking itself — is out of reach, and pretending otherwise would be
+ * the sort of half-measure that misleads rather than helps.
+ */
+function readPage(preamble: string): PageShape {
+  const shape: PageShape = {
+    width: null,
+    landscape: false,
+    base: null,
+    margin: null,
+    arraystretch: null,
+  };
+
+  const options = /\\documentclass\s*\[([^\]]*)\]/.exec(preamble)?.[1] ?? '';
+  const geometry = /\\usepackage\s*\[([^\]]*)\]\s*\{geometry\}/.exec(preamble)?.[1] ?? '';
+  const all = options + ',' + geometry;
+
+  shape.landscape = /\blandscape\b/.test(all);
+
+  for (const name of Object.keys(PAPER)) {
+    if (new RegExp('\\b' + name + '\\b').test(all)) {
+      const size = PAPER[name];
+      shape.width = shape.landscape ? size[1] : size[0];
+      break;
+    }
+  }
+
+  const paperwidth = /paperwidth\s*=\s*([\d.]+)\s*(mm|cm|in)/.exec(all);
+  if (paperwidth) shape.width = toMillimetres(Number(paperwidth[1]), paperwidth[2]);
+
+  const base = /\b(9|10|11|12|14|17|20)pt\b/.exec(options);
+  if (base) shape.base = Number(base[1]);
+
+  const margin = /\bmargin\s*=\s*([\d.]+)\s*(mm|cm|in)/.exec(all);
+  if (margin) shape.margin = toMillimetres(Number(margin[1]), margin[2]) + 'mm';
+
+  const stretch = /\\renewcommand\s*\{?\\arraystretch\}?\s*\{([\d.]+)\}/.exec(preamble);
+  if (stretch) shape.arraystretch = Number(stretch[1]);
+
+  return shape;
+}
 
 /** The marker character pair. Control characters cannot occur in source text. */
 const MARK = '\u0001';
@@ -219,6 +305,12 @@ const DROPPED = new Set([
   'bibliography',
   'centering',
   'noindent',
+  /*
+   * The `booktabs` rules stay listed for the case of one written outside a
+   * table, where there is nothing to draw it on. Inside one they are no longer
+   * dropped: `renderTabular` reads them off each row and turns them into
+   * borders, which is most of what makes a real document's table legible.
+   */
   'hline',
   'toprule',
   'midrule',
@@ -327,32 +419,6 @@ function inlineCommands(source: string): string {
   return out;
 }
 
-/** One `tabular` body to an HTML table. */
-function renderTable(body: string): string {
-  const rows = body
-    .split(/\\\\/)
-    .map((row) => row.replace(/\\(hline|toprule|midrule|bottomrule)\b/g, '').trim())
-    .filter(Boolean);
-
-  if (rows.length === 0) return '';
-
-  const cells = rows.map((row) => row.split('&').map((cell) => cell.trim()));
-
-  const head = cells[0]
-    .map((cell) => `<th>${inlineCommands(inlineText(cell))}</th>`)
-    .join('');
-
-  const rest = cells
-    .slice(1)
-    .map(
-      (row) =>
-        `<tr>${row.map((cell) => `<td>${inlineCommands(inlineText(cell))}</td>`).join('')}</tr>`,
-    )
-    .join('');
-
-  return `<div class="scroll"><table><thead><tr>${head}</tr></thead><tbody>${rest}</tbody></table></div>`;
-}
-
 /**
  * Block structure, walked line by line.
  *
@@ -360,7 +426,7 @@ function renderTable(body: string): string {
  * on lines of their own: `\section`, `\begin{itemize}`, `\item`, a blank line.
  * The inline pass above is where the nesting lives.
  */
-function blocks(source: string): string {
+function blocks(source: string, palette: Palette): string {
   const lines = source.split('\n');
   const out: string[] = [];
 
@@ -429,12 +495,25 @@ function blocks(source: string): string {
       }
 
       if (env === 'tabular' || env === 'tabularx' || env === 'longtable') {
-        // The column specification is an argument, not content.
-        let body = begin[2].replace(/^\{[^}]*\}/, '');
+        /*
+         * The column specification is an argument, and it is not throwaway:
+         * alignment per column and `>{\columncolor{...}}` both live in it, so
+         * it is read rather than skipped. `tabularx` puts a width in front of
+         * it, which is a measurement this view cannot honour and drops.
+         */
+        let rest = begin[2];
+        if (env === 'tabularx') rest = rest.replace(/^\s*\{[^}]*\}/, '');
+
+        const spec = readGroup(rest, rest.indexOf('{'));
+        let body = spec ? rest.slice(spec.end) : rest.replace(/^\s*\{[^}]*\}/, '');
+
         while (++i < lines.length && !/\\end\{tabular/.test(lines[i])) {
           body += '\n' + lines[i];
         }
-        out.push(renderTable(body));
+
+        out.push(renderTabular(body, spec?.body ?? '', palette, (text) =>
+          inlineCommands(inlineText(text)),
+        ));
         continue;
       }
 
@@ -508,6 +587,14 @@ export function readLatex(source: string): LatexDocument {
   // Only what is between `\begin{document}` and `\end{document}`, when the file
   // has a preamble at all. A fragment without one is a whole document here —
   // notes are written that way far more often than they are wrapped.
+  const preamble =
+    clean.indexOf('\\begin{document}') === -1
+      ? ''
+      : clean.slice(0, clean.indexOf('\\begin{document}'));
+
+  const page = readPage(preamble);
+  const palette = readPalette(preamble);
+
   const opened = clean.indexOf('\\begin{document}');
   const closed = clean.lastIndexOf('\\end{document}');
   const body =
@@ -517,7 +604,7 @@ export function readLatex(source: string): LatexDocument {
 
   const math: MathSpan[] = [];
 
-  let html = blocks(extractSpans(body, math));
+  let html = blocks(extractSpans(body, math), palette);
 
   html = html.replace(
     new RegExp(`${MARK}v(\\d+)${MARK}`, 'g'),
@@ -531,5 +618,6 @@ export function readLatex(source: string): LatexDocument {
     title: title ? inlineCommands(inlineText(title)) : null,
     author: author ? inlineCommands(inlineText(author)) : null,
     date: date ? inlineCommands(inlineText(date)) : null,
+    page,
   };
 }
