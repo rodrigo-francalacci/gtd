@@ -1,7 +1,7 @@
 'use client';
 
 import { ENTRY_TYPE_LABELS, entryTypeOf, type EntryType } from '@/lib/queries.shared';
-import type { BoxItemKind } from '@gtd/db';
+import type { BoxEventKind, BoxItemKind } from '@gtd/db';
 import {
   IconArchive2,
   IconAudio,
@@ -9,9 +9,10 @@ import {
   IconEnvelope,
   IconImage,
   IconLink,
+  IconConcluded,
   IconNote,
   IconPlace,
-  IconProject,
+  IconStarted,
   IconSheet,
   IconVideo,
 } from './icons';
@@ -21,8 +22,9 @@ const GLYPHS: Record<EntryType, typeof IconDocument> = {
   link: IconLink,
   email: IconEnvelope,
   location: IconPlace,
-  // A milestone is about a project, and the sidebar already teaches that mark.
-  event: IconProject,
+  // Overridden below for a milestone, which is the one type whose glyph
+  // depends on more than the type: a start and a finish are not the same news.
+  event: IconStarted,
   image: IconImage,
   audio: IconAudio,
   video: IconVideo,
@@ -49,10 +51,19 @@ const GLYPHS: Record<EntryType, typeof IconDocument> = {
 export function EntryTypeIcon({
   item,
 }: {
-  item: { kind: BoxItemKind; mimeType: string | null; emoji?: string | null };
+  item: {
+    kind: BoxItemKind;
+    mimeType: string | null;
+    emoji?: string | null;
+    event?: BoxEventKind | null;
+  };
 }) {
   const type = entryTypeOf(item);
-  const Glyph = GLYPHS[type];
+
+  // A flag going up and a flag with a tick: the two things a project does that
+  // are worth a line, told apart at the size the row draws them.
+  const Glyph =
+    item.event === 'concluded' ? IconConcluded : GLYPHS[type];
 
   /*
    * The document's own emoji, where it has one, in the slot the glyph was

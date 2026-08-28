@@ -82,6 +82,30 @@ export const IconProject = (p: IconProps) => (
   </Glyph>
 );
 
+/**
+ * A project beginning, on a timeline: a flag going up.
+ *
+ * Not the folder `IconProject` uses. That mark means "a project" as a *place* —
+ * somewhere to go, in a sidebar full of places — and a milestone is an event,
+ * which is a different kind of thing and reads wrongly with the same glyph
+ * beside a column of receipts.
+ */
+export const IconStarted = (p: IconProps) => (
+  <Glyph {...p}>
+    <path d="M4 14V2.6" />
+    <path d="M4 3.2h7.4l-1.6 2.5 1.6 2.5H4z" />
+  </Glyph>
+);
+
+/** A project concluding: the same flag, checked. */
+export const IconConcluded = (p: IconProps) => (
+  <Glyph {...p}>
+    <path d="M4 14V2.6" />
+    <path d="M4 3.2h7.4l-1.6 2.5 1.6 2.5H4z" />
+    <path d="M5.4 5.6l1.1 1.1 2.2-2.4" />
+  </Glyph>
+);
+
 /** Stalled — a warning triangle. */
 export const IconStalled = (p: IconProps) => (
   <Glyph {...p}>

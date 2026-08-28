@@ -325,3 +325,41 @@ export async function resolveEmailRequest(
     })
     .where(eq(emailRequests.id, id));
 }
+
+/**
+ * Forget what a request was asked *on behalf of*, without forgetting the ask.
+ *
+ * A request carries an optional parent — the project or action you asked from —
+ * and that parent can be deleted while the request is still pending, because
+ * `email_requests.parent_id` is a plain uuid addressing three tables and has no
+ * foreign key to stop it.
+ *
+ * Left alone, the bridge fetches the message an hour later and
+ * `resolveEmailRequest` writes a `box_item_links` row citing a project that no
+ * longer exists. Nothing errors: the link has no foreign key either. But the
+ * message is also marked `listed: false` *because* it had a parent — so it is
+ * kept out of the box's feed and cited on nothing, which is the one state where
+ * a filed message is invisible from every direction at once.
+ *
+ * The parent is cleared rather than the request deleted. You still want the
+ * message; what has gone is the reason you gave for wanting it. Without a
+ * parent it files into the box the ordinary way and appears in the feed, which
+ * is where you would look for it.
+ */
+export async function clearEmailRequestParents(
+  parentType: 'project' | 'action' | 'list_item',
+  parentIds: string[],
+): Promise<void> {
+  // `inArray` with nothing in it builds `in ()`, which Postgres refuses.
+  if (parentIds.length === 0) return;
+
+  await db
+    .update(emailRequests)
+    .set({ parentType: null, parentId: null })
+    .where(
+      and(
+        eq(emailRequests.parentType, parentType),
+        inArray(emailRequests.parentId, parentIds),
+      ),
+    );
+}

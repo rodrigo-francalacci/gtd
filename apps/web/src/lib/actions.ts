@@ -53,6 +53,7 @@ import {
   forgetEmailRequest,
   readEmailQuery,
   type RequestParent,
+  clearEmailRequestParents,
 } from './box/email-requests';
 import { createBoxDocument, deleteBoxItem } from './google/boxes';
 import { enqueueSync } from './google/queue';
@@ -213,6 +214,7 @@ export async function deleteProject(projectId: string) {
 
   await purgeActions(own.map((a) => a.id));
   await purgeFilesOf('project', [projectId]);
+  await clearEmailRequestParents('project', [projectId]);
 
   await db.delete(projects).where(eq(projects.id, projectId));
   revalidateShell();
@@ -470,6 +472,7 @@ async function purgeActions(ids: string[]): Promise<number> {
   if (ids.length === 0) return 0;
 
   const files = await purgeFilesOf('action', ids);
+  await clearEmailRequestParents('action', ids);
   await db.delete(actions).where(inArray(actions.id, ids));
 
   return files;
@@ -1327,6 +1330,21 @@ export async function unpromoteListItem(itemId: string) {
 
 export async function deleteListItem(itemId: string) {
   await requireSession();
+
+  /*
+   * The same clean-up an action gets, and for the same reason.
+   *
+   * `attachments.parent_id` is a plain uuid addressing four tables, so it has
+   * no foreign key and *nothing cascades*. This deleted the row and left every
+   * file hanging off it pointing at nothing, with its Drive file unreachable
+   * from anywhere in the app — the exact failure the project delete already
+   * had a comment about, on the one delete that had never been given the same
+   * treatment. `purgeFilesOf` trashes each Drive file and drops the citations
+   * with it.
+   */
+  await purgeFilesOf('list_item', [itemId]);
+  await clearEmailRequestParents('list_item', [itemId]);
+
   await db.delete(listItems).where(eq(listItems.id, itemId));
   revalidateShell();
 }

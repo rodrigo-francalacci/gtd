@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useState } from 'react';
 import { documentLabel, mapUrl, type BoxItemRow } from '@/lib/queries.shared';
 import { AudioClip } from './audio-clip';
+import { EntryTypeIcon } from './entry-type-icon';
 import { IconAudio, IconDocument, IconLink, IconPlace } from './icons';
 import { Linkified } from './linkified';
 
@@ -90,6 +91,16 @@ export function DocumentGalleryRow({
             // good recording look like something that had gone wrong.
             <span className="text-grey-500">
               <IconAudio />
+            </span>
+          ) : item.kind === 'event' ? (
+            /*
+             * A milestone has no file and so no thumbnail, and an empty frame
+             * in a wall of pictures reads as one that failed to load. The flag
+             * fills the tile instead — larger than a row icon, because here it
+             * is doing a picture's job.
+             */
+            <span className="flex h-full w-full items-center justify-center bg-grey-100 text-grey-500 [&>svg]:h-6 [&>svg]:w-6">
+              <EntryTypeIcon item={item} />
             </span>
           ) : failed ? (
             <span className="text-grey-400">
