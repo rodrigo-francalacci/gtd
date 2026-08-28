@@ -6,6 +6,8 @@ import {
   postBoxNote,
   setDocumentExpiry,
 } from '@/lib/actions';
+import { requestEmail } from '@/lib/actions';
+import { readEmailPaste } from '@/lib/email-paste';
 import { soleUrl } from '@/lib/sole-url';
 
 export const dynamic = 'force-dynamic';
@@ -52,6 +54,41 @@ export async function POST(request: Request) {
    * to different conclusions about the same pasted string.
    */
   const expires = (body.expires ?? '').trim() || null;
+
+  /**
+   * A pasted message identifier is a request for that message, not a link.
+   *
+   * The same rule and the same reasoning as the app's own composer: anything
+   * without your cookies that follows a Gmail address sees the sign-in page, so
+   * filing one as a link produces an entry called "Gmail" with a picture of a
+   * login form. The extension had no idea about any of this — `readEmailPaste`
+   * was wired into the composer and the phone screen and not into the one path
+   * the sidebar actually uses — so a message pasted into the sidebar was
+   * quietly turned into exactly that useless entry.
+   *
+   * Here rather than in the extension, for the reason the link rule is here:
+   * two places deciding what a pasted string means is two places that can come
+   * to different conclusions about it.
+   *
+   * "Keep this page" on an open message reaches this too, and is refused with a
+   * sentence saying what does work — a Gmail permalink holds an id no API
+   * accepts. Being told immediately beats a request that fails an hour later,
+   * and beats a link entry that never says anything at all.
+   */
+  const candidate =
+    body.url && /^https?:\/\/mail\.google\.com\//i.test(body.url) ? body.url : text;
+  const wanted = body.kind === 'location' ? null : readEmailPaste(candidate);
+
+  if (wanted) {
+    const asked = await requestEmail(boxId, wanted);
+
+    if (!asked.ok) {
+      return NextResponse.json({ error: asked.error }, { status: 400 });
+    }
+
+    return NextResponse.json({ ok: true, kind: 'email' });
+  }
+
   const kind = body.kind ?? (body.url ? 'link' : soleUrl(text) ? 'link' : 'note');
 
   try {

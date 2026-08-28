@@ -688,6 +688,7 @@ async function postToBox(extra = {}) {
 
   els.boxPost.disabled = true;
   const base = await origin();
+  let emailed = false;
 
   try {
     // The message first, so a slow upload never delays the thought. Whether a
@@ -715,6 +716,18 @@ async function postToBox(extra = {}) {
       const body = await response.json();
       if (!body.ok) throw new Error(body.error ?? 'That did not save.');
 
+      /*
+       * A message identifier is not filed, it is *asked for*.
+       *
+       * The server recognises a Gmail address, a message id, an RFC822
+       * Message-ID or an `email:` search and writes down that you want it; the
+       * Apps Script bridge fetches it on its next run, because reading a
+       * message body needs a scope this app deliberately does not hold. So the
+       * honest word is "asked for", not "filed" — nothing has arrived yet, and
+       * saying it had would have you looking for it.
+       */
+      emailed = body.kind === 'email';
+
       // Cleared only once it is actually written — the panel must not claim to
       // be finished while anything is still in flight.
       els.boxText.value = '';
@@ -737,7 +750,13 @@ async function postToBox(extra = {}) {
 
     if (failed === 0) {
       const box = boxes.find((b) => b.id === boxId);
-      say(`Filed in ${box ? box.name : 'the box'}.`, 'ok');
+      const where = box ? box.name : 'the box';
+      say(
+        emailed
+          ? `Asked for that email. It arrives in ${where} on the bridge's next run.`
+          : `Filed in ${where}.`,
+        'ok',
+      );
     }
   } catch (error) {
     say(error.message ?? 'That did not save.', 'bad');
