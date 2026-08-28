@@ -1,6 +1,8 @@
 'use client';
 
 import Link from 'next/link';
+import { BrowseGoogle } from './browse-google';
+import type { TreeNode } from '@gtd/db';
 import { TimelineBoxes } from './timeline-boxes';
 import type { BoxOption } from '@/lib/queries.shared';
 import { EmojiPicker } from './emoji-picker';
@@ -68,6 +70,7 @@ export function ProjectDetail({
   horizons,
   boxes = [],
   timelines = [],
+  tree = null,
 }: {
   project: ProjectDetailData;
   attachments: AttachmentRow[];
@@ -81,6 +84,13 @@ export function ProjectDetail({
   /** Every box, and which of them already carry this project's milestones. */
   boxes?: BoxOption[];
   timelines?: string[];
+  /** The Apps Script's snapshot of the Drive folder and Gmail label. */
+  tree?: {
+    drive: TreeNode | null;
+    gmail: TreeNode | null;
+    fetchedAt: string | null;
+    error: string | null;
+  } | null;
 }) {
   const [pending, startTransition] = useTransition();
   const [title, setTitle] = useState(project.title);
@@ -298,6 +308,27 @@ export function ProjectDetail({
         rows={documents}
         candidates={documentOptions}
       />
+
+      {tree ? (
+        <section className="mt-6 border-t border-grey-150 pt-4">
+          <div className="flex items-baseline justify-between gap-2">
+            <h2 className="text-[10px] font-semibold uppercase tracking-wider text-grey-500">
+              In Drive and Gmail
+            </h2>
+            <BrowseGoogle
+              projectTitle={project.title}
+              drive={tree.drive}
+              gmail={tree.gmail}
+              fetchedAt={tree.fetchedAt}
+              error={tree.error}
+            />
+          </div>
+          <p className="mt-1 text-[11px] leading-relaxed text-grey-500">
+            Everything in this project’s folder and under its label, walked by
+            the bridge — the app holds no scope that could read either.
+          </p>
+        </section>
+      ) : null}
 
       <TimelineBoxes projectId={project.id} boxes={boxes} on={timelines} />
 

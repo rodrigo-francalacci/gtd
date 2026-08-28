@@ -70,6 +70,15 @@ function panelJobs() {
       needs: 'big-box-feed.gs',
     },
     {
+      id: 'walkProjectTrees',
+      title: 'Project folders',
+      detail:
+        'Walks each project’s Drive folder and Gmail label and posts the listing ' +
+        'to the app, so you can navigate them in the preview pane. The app holds ' +
+        'no scope that could read either.',
+      needs: 'gtd-project-tree.gs',
+    },
+    {
       id: 'syncDriveNames',
       title: 'Sync filenames',
       detail:

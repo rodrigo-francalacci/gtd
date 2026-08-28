@@ -1129,6 +1129,30 @@ to do in the background.
 **Run sync now** drains the queue immediately, rather than waiting for the daily
 cron.
 
+### Browsing a project's files and email
+
+A project's detail pane has **Browse files & email**, which opens its whole Drive
+folder and its Gmail label in the preview pane: folders and sub-folders, labels
+and sub-labels, sizes and dates. Clicking a file opens it *in the pane* through
+Drive's own viewer — you do not leave the app to look at a quote or a contract.
+A message opens in Gmail, which is where you would reply to it.
+
+**It is an index, not a mirror, and it says how old it is.** The app cannot read
+either of these: listing a folder you have dropped things into needs Drive's
+read-everything scope, and listing messages under a label needs Gmail's — both
+are the restricted scopes this app refuses to take, because taking either would
+put Drive sync, the calendar and the box bridge into annual review and expire the
+shared refresh token every seven days.
+
+So the bridge walks them instead and posts back what it found. Run **Project
+folders** in the bridge panel, or leave it on a daily trigger. Anything you open
+goes to Drive or Gmail, which is the copy that cannot be out of date, and a walk
+that fails keeps the previous listing rather than replacing it with an empty one.
+
+Long folders are capped, and a folder that had more says so — *…and 12 more, not
+listed* — because there is no way to tell that from a folder that really holds
+four things.
+
 ### If Google disconnects
 
 A refresh token can be withdrawn without telling the app — months unused, a

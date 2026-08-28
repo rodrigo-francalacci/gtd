@@ -396,6 +396,39 @@ Turbopack is the default; `middleware` is now `proxy`.
   creates literally the name given, so `ensureLabel` walks the path and
   creates every ancestor; a rename into a new container ensures that
   container first.
+- **A project's folder and label are *indexed*, never mirrored.** Listing a
+  Drive folder the app did not fill needs `drive.readonly` and listing messages
+  under a label needs `gmail.readonly` — both restricted, both of which would put
+  Drive sync, the calendar and the box bridge into annual review with a
+  seven-day refresh token in the meantime. So `scripts/gtd-project-tree.gs`
+  walks them and posts a tree to `POST /api/projects/tree`, the same asymmetry
+  the scanner and email bridges already run on, used a third time.
+  Storing is *forced* here rather than chosen, which is why it does not
+  contradict the calendar's rule about never keeping a copy — and the design
+  answers for it: `project_trees.fetched_at` is shown wherever the tree is, and
+  opening anything goes to Drive or Gmail, which is the copy that cannot be
+  stale. A failed walk keeps the last good tree and records why, because an older
+  picture of a folder beats no picture as long as the pane says which it is.
+- **The tree route trusts the script with the account, not with the JSON.** It
+  is a program that can be edited by hand and its output is rendered into a
+  pane, so every field is taken by name and type, unknown keys are dropped, and
+  depth, breadth and total nodes are bounded — a cycle or a runaway folder would
+  otherwise be a row no page can render. A node's `url` must match
+  `https://*.google.com/`: a `javascript:` url in a tree is a script that runs
+  when clicked. A node whose url is refused still renders, as plain text — the
+  file is really in the folder; only the link is untrusted.
+- **One component draws both trees.** A folder holding folders and files and a
+  label holding sub-labels and messages are the same thing to somebody reading
+  down them. Gmail has no hierarchy of its own — `GTD/Projects/Kitchen/Quotes`
+  is a *label whose name contains slashes* — so the script rebuilds one from the
+  flat list, and by the time it reaches the app the two are one shape.
+- **`PreviewFile.node` is the pane's third kind.** Bytes, a page, or something
+  the app renders itself. A tree is the first thing that is none of the first
+  two, and handing it over rendered keeps the pane ignorant of what it is
+  showing — the same reason `src` is passed in rather than built from the id.
+  A file inside a tree opens through Drive's own `/preview` embed, which needs no
+  scope from us because it runs off the browser's Google session, exactly as the
+  Docs editor embed already does.
 - **Scopes stay narrow:** `drive.file` (only files this app created) and
   `gmail.labels` (no message access). Widening either would drag the app into
   Google's restricted-scope verification, and neither is needed.

@@ -16,6 +16,38 @@ import {
   uuid,
 } from 'drizzle-orm/pg-core';
 
+/**
+ * One node in a project's Drive or Gmail tree.
+ *
+ * The same shape for both, deliberately: a folder holding folders and files and
+ * a label holding sub-labels and messages are the same thing to a reader
+ * navigating them, and one shape means one component renders both.
+ */
+export type TreeNode = {
+  /** Drive file id, or the Gmail label name — whatever addresses it there. */
+  id: string;
+  name: string;
+  kind: 'folder' | 'file' | 'label' | 'message';
+  mimeType?: string | null;
+  /** Bytes, for a file. Gmail has no equivalent and omits it. */
+  size?: number | null;
+  /** ISO date, so the pane can say how old something is. */
+  modified?: string | null;
+  /** A message's sender, which is most of what identifies one in a list. */
+  from?: string | null;
+  /** Where it opens: a Drive link, or a Gmail permalink. */
+  url?: string | null;
+  children?: TreeNode[];
+  /**
+   * How many children were left out.
+   *
+   * A walk is capped — a project folder can hold thousands of files and nobody
+   * navigates a list that long — and a reader has to be told the difference
+   * between "this folder holds four things" and "here are four of them".
+   */
+  more?: number;
+};
+
 /** The one and only preferences row. */
 export const SINGLETON = 'singleton';
 
@@ -1294,6 +1326,55 @@ export const preferences = pgTable('preferences', {
  * any of this existed. Nothing is written until something is chosen, so an
  * untouched app has an empty table and behaves exactly as it always did.
  */
+/**
+ * What is inside a project's Drive folder and under its Gmail label.
+ *
+ * **A snapshot, and it says so.** Everywhere else this app reads from Google it
+ * either owns what it is reading (`drive.file`, files it created) or refuses to
+ * keep a copy at all — the calendar is fetched on every view precisely because a
+ * stored copy is a second version that can disagree with the real one. Neither
+ * is available here: listing a folder the app did not fill needs `drive.readonly`
+ * and listing messages under a label needs `gmail.readonly`, both restricted
+ * scopes that would drag every other integration into annual review. So an Apps
+ * Script bound to the account walks them and posts what it found, the same
+ * asymmetry the scanner and the email bridge already run on.
+ *
+ * Storing is therefore forced rather than chosen, and the design answers for it:
+ * `fetchedAt` is shown wherever the tree is, and nothing here is ever treated as
+ * authoritative. Opening anything goes to Drive or Gmail, which is the copy that
+ * cannot be stale. This is an index, not a mirror.
+ *
+ * One row per project, rewritten whole. There is nothing to merge: a walk either
+ * completed and describes the folder as it was, or it failed and the previous
+ * answer stands.
+ */
+export const projectTrees = pgTable('project_trees', {
+  projectId: uuid('project_id')
+    .primaryKey()
+    .references(() => projects.id, { onDelete: 'cascade' }),
+  /**
+   * The folder tree, as the script found it: nested `{ id, name, kind,
+   * mimeType, size, modified, children }`.
+   *
+   * JSON rather than a table of nodes. Nothing queries *into* this — it is read
+   * whole, by one pane, for one project — and a table would buy joins nobody
+   * makes at the price of a recursive delete on every refresh.
+   */
+  drive: jsonb('drive').$type<TreeNode | null>(),
+  /** The label tree, each node carrying its most recent messages. */
+  gmail: jsonb('gmail').$type<TreeNode | null>(),
+  /** When the script walked it. Shown, always. */
+  fetchedAt: timestamp('fetched_at', { withTimezone: true }).notNull().defaultNow(),
+  /**
+   * What went wrong, if anything did.
+   *
+   * A walk that fails leaves the last good tree in place and says why here,
+   * rather than replacing a useful answer with an empty one. The pane shows both:
+   * the folder as it was, and the fact that this is now the older picture.
+   */
+  error: text('error'),
+});
+
 export const viewPrefs = pgTable('view_prefs', {
   key: text('key').primaryKey(),
   /**
@@ -1392,4 +1473,5 @@ export type BoxItem = typeof boxItems.$inferSelect;
 export type BoxItemStatus = (typeof boxItemStatus.enumValues)[number];
 export type BoxItemKind = (typeof boxItemKind.enumValues)[number];
 export type BoxEventKind = (typeof boxEventKind.enumValues)[number];
+export type ProjectTree = typeof projectTrees.$inferSelect;
 export type ViewPref = typeof viewPrefs.$inferSelect;

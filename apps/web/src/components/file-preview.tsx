@@ -58,6 +58,17 @@ export type PreviewFile = {
    * scripts to work at all: the buttons on it call back into Apps Script.
    */
   embedUrl?: string | null;
+  /**
+   * Something the app renders itself, rather than bytes or a page.
+   *
+   * The third kind. The pane exists to give one thing a tall column, and not
+   * every such thing is a file — a project's Drive folder and Gmail label
+   * arrive as a tree the app already has and can draw, with nothing to fetch
+   * and nothing to embed. Handed over rendered, so the pane stays ignorant of
+   * what it is showing, which is the same reason `src` is passed in rather than
+   * built from the id.
+   */
+  node?: ReactNode;
 };
 
 type PreviewApi = {
@@ -250,6 +261,9 @@ export function PreviewPane({ file, onClose }: { file: PreviewFile; onClose: () 
       <div className="min-h-0 flex-1 overflow-auto bg-grey-100">
         {failed ? (
           <Unsupported file={file} src={src} reason={failed} />
+        ) : file.node ? (
+          // Ours to draw: no fetch, no frame, no failure mode of its own.
+          file.node
         ) : file.embedUrl ? (
           /*
            * A page, not a file — so nothing is fetched and nothing is typed.

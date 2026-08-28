@@ -21,6 +21,7 @@ import {
   inboxItems,
   listItems,
   lists,
+  projectTrees,
   projects,
   type AiSuggestion,
   type AttachmentParentType,
@@ -1336,4 +1337,22 @@ export async function getBoxDayNotes(): Promise<Map<string, string>> {
   const rows = await db.select({ day: boxDays.day, note: boxDays.note }).from(boxDays);
 
   return new Map(rows.filter((r) => r.note !== '').map((r) => [r.day, r.note]));
+}
+
+/**
+ * The snapshot of a project's Drive folder and Gmail label, if one has been
+ * taken.
+ *
+ * Null is the ordinary state, not a gap to repair: nothing walks a project
+ * until the Apps Script is set up and run, and a project that has never been
+ * walked simply has no index yet.
+ */
+export async function getProjectTree(projectId: string) {
+  const [row] = await db
+    .select()
+    .from(projectTrees)
+    .where(eq(projectTrees.projectId, projectId))
+    .limit(1);
+
+  return row ?? null;
 }

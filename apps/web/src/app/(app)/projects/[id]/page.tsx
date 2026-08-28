@@ -10,6 +10,7 @@ import {
   getBoxes,
   getLinkableDocuments,
   getProject,
+  getProjectTree,
   getProjectActions,
 } from '@/lib/queries';
 
@@ -26,7 +27,7 @@ export default async function ProjectPage(props: PageProps<'/projects/[id]'>) {
    * and are thrown away by `notFound` a line later, which costs less than the
    * extra trip did on every project that does exist.
    */
-  const [project, projectActions, horizons, files, docs, documentOptions, boxes, timelines] =
+  const [project, projectActions, horizons, files, docs, documentOptions, boxes, timelines, tree] =
     await Promise.all([
       getProject(id),
       getProjectActions(id),
@@ -36,6 +37,7 @@ export default async function ProjectPage(props: PageProps<'/projects/[id]'>) {
       getLinkableDocuments('project', id, ''),
       getBoxes(),
       timelinesFor(id),
+      getProjectTree(id),
     ]);
 
   if (!project) notFound();
@@ -63,6 +65,16 @@ export default async function ProjectPage(props: PageProps<'/projects/[id]'>) {
           horizons={horizons}
           boxes={boxes}
           timelines={timelines}
+          tree={
+            tree
+              ? {
+                  drive: tree.drive,
+                  gmail: tree.gmail,
+                  fetchedAt: tree.fetchedAt.toISOString(),
+                  error: tree.error,
+                }
+              : null
+          }
         />
         <ProjectActionsSection projectId={id} actions={projectActions} />
       </DetailPane>
