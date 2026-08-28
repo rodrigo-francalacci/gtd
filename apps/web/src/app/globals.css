@@ -394,3 +394,74 @@ body {
     display: none;
   }
 }
+
+/* Type scale ------------------------------------------------------------- */
+
+/*
+ * One number that makes every piece of text in the app bigger or smaller.
+ *
+ * The app sizes its type in explicit pixels — `text-[11px]` and its neighbours,
+ * five hundred and sixty-seven of them — because at this density a half-pixel
+ * matters and a named scale has nothing between 12 and 14. That is still right,
+ * and it is also why the usual lever does not work here: a root `font-size` is
+ * invisible to a pixel, so there was no way to answer "make it all a bit
+ * bigger" short of editing every one of them.
+ *
+ * There are only *eleven distinct sizes* among those five hundred, though, so
+ * redefining eleven classes reaches all of them and changes no component at
+ * all. Each keeps its own value and its relation to the others — this is a
+ * multiplier, not a flattening.
+ *
+ * **To revert, set this to 1.** That is pixel-for-pixel what the app was
+ * before, with no other change anywhere.
+ *
+ * Deliberately not `zoom` on the root, which would have been one line: the
+ * shell is sized in viewport units (`w-screen`, `max-md:w-[88vw]`) and those
+ * are not scaled by zoom, so every pane would come out wider than the screen
+ * it is on. That is the horizontal overflow the pane rules exist to prevent,
+ * and it would have broken the phone carousel — the one place this most needs
+ * testing.
+ */
+:root {
+  --text-scale: 1.125;
+}
+
+/*
+ * Unlayered on purpose. Tailwind's utilities live in `@layer utilities`, and
+ * an unlayered rule beats a layered one whatever the specificity — so these
+ * win without `!important` and without a specificity fight.
+ */
+.text-\[9px\] { font-size: calc(9px * var(--text-scale)); }
+.text-\[10px\] { font-size: calc(10px * var(--text-scale)); }
+.text-\[11px\] { font-size: calc(11px * var(--text-scale)); }
+.text-\[12px\] { font-size: calc(12px * var(--text-scale)); }
+.text-\[13px\] { font-size: calc(13px * var(--text-scale)); }
+.text-\[14px\] { font-size: calc(14px * var(--text-scale)); }
+.text-\[15px\] { font-size: calc(15px * var(--text-scale)); }
+.text-\[17px\] { font-size: calc(17px * var(--text-scale)); }
+.text-\[18px\] { font-size: calc(18px * var(--text-scale)); }
+
+/*
+ * The two that carry a rule of their own.
+ *
+ * 16px is the iOS Safari threshold: a field smaller than that zooms the page in
+ * when it takes focus. Scaling *up* keeps that promise, so these are safe — but
+ * they must never be given a scale below 1, which is the one direction this
+ * variable must not be pushed while these exist.
+ */
+.text-\[16px\] { font-size: calc(16px * var(--text-scale)); }
+.text-\[12\.5px\] { font-size: calc(12.5px * var(--text-scale)); }
+
+@media (min-width: 768px) {
+  .md\:text-\[12px\] { font-size: calc(12px * var(--text-scale)); }
+  .md\:text-\[12\.5px\] { font-size: calc(12.5px * var(--text-scale)); }
+}
+
+@media (max-width: 767px) {
+  .max-md\:text-\[15px\] { font-size: calc(15px * var(--text-scale)); }
+}
+
+/* The two named sizes the app uses, kept in step so a heading does not stay
+   put while everything under it grows. */
+.text-lg { font-size: calc(1.125rem * var(--text-scale)); }
+.text-xl { font-size: calc(1.25rem * var(--text-scale)); }
