@@ -199,7 +199,7 @@ export function SidebarNav({
 
       <div className="min-h-0 flex-1 overflow-y-auto py-2">
         {groups.map((group) => (
-          <div key={group.heading} className="mb-4">
+          <div key={group.heading} className="mb-4 md:mb-3">
             <h2 className="px-4 pb-1 text-[10px] font-semibold uppercase tracking-wider text-grey-500">
               {group.heading}
             </h2>
@@ -229,7 +229,22 @@ export function SidebarNav({
                        to be dragged away. */
                     draggable={false}
                     className={[
-                      'flex items-center gap-2 px-4 py-1.5 text-[13px]',
+                      /*
+                       * Tighter on a desktop than on a phone, which is the one
+                       * place the two disagree.
+                       *
+                       * This column is the only pane whose contents are fixed:
+                       * every other list grows and is expected to scroll, while
+                       * this one is the whole map of the app and is worth seeing
+                       * at once. It was overflowing by about thirty pixels — a
+                       * scrollbar to hide two entries — and four pixels a row
+                       * across nineteen rows buys back more than twice that.
+                       *
+                       * Not on the phone, where this is a drawer that scrolls
+                       * anyway and a row is a thumb target rather than a
+                       * glance.
+                       */
+                      'flex items-center gap-2 px-4 py-1.5 text-[13px] md:py-1',
                       active
                         ? 'bg-selected-bg font-medium text-selected'
                         : 'text-grey-700 hover:bg-grey-150',
