@@ -174,26 +174,36 @@
 :root[data-theme='paper'] {
   color-scheme: light;
 
-  --color-paper: #f2e8d0;
+  /*
+   * Taken from the thing it is copying, not invented.
+   *
+   * Sampling the Age of Empires II campaign scroll gives a mid-tone of #d6b393
+   * with a red-minus-blue spread of 67. A first attempt at "parchment" from
+   * memory produced #f2e8d0, spread 34 — half the warmth and far too pale,
+   * which is the mistake everybody makes: remembered paper is always lighter
+   * than real paper. This is three steps lighter than the measurement and no
+   * more, which buys the text a little contrast without losing the colour.
+   */
+  --color-paper: #d9b897;
   /*
    * Sepia, not black. Ink on real paper is never black either, and the
-   * difference between #1a1a1a and this is most of why a page of it is
-   * restful — the contrast is still ten to one, which is well past what
+   * difference is most of why a page of it is restful — this still leaves
+   * better than eight to one against the ground, which is well past what
    * anything needs to be legible.
    */
-  --color-ink: #3a2e1c;
+  --color-ink: #2c2118;
 
-  --color-grey-50: #ece0c4;
-  --color-grey-100: #e7dabb;
-  --color-grey-150: #e1d3b0;
-  --color-grey-200: #d8c79f;
-  --color-grey-300: #c9b487;
-  --color-grey-400: #a9906a;
-  --color-grey-500: #8a7350;
-  --color-grey-600: #6d5a3e;
-  --color-grey-700: #55462f;
-  --color-grey-800: #3f3423;
-  --color-grey-900: #2c2416;
+  --color-grey-50: #d3b08d;
+  --color-grey-100: #cca884;
+  --color-grey-150: #c6a17b;
+  --color-grey-200: #bc9770;
+  --color-grey-300: #ab8560;
+  --color-grey-400: #8c6a4a;
+  --color-grey-500: #715539;
+  --color-grey-600: #5a442d;
+  --color-grey-700: #463523;
+  --color-grey-800: #32261a;
+  --color-grey-900: #241b12;
 
   /*
    * The semantic four keep their hues, as they do in dark mode — but two of
@@ -201,29 +211,29 @@
    * and "waiting" is a warm ochre. So waiting goes deeper and browner than it
    * is on white, far enough from the paper to still read as a mark on it.
    */
-  --color-waiting: #7d5310;
-  --color-waiting-bg: #e6d3a4;
-  --color-stale: #96301d;
-  --color-stale-bg: #ecd2c4;
+  --color-waiting: #7a4a08;
+  --color-waiting-bg: #e6c58a;
+  --color-stale: #8f2c17;
+  --color-stale-bg: #e0a892;
   /*
    * Selection stays blue and stays cool, which is the point of it: it is the
    * one mark here that must not look like part of the paper. A blue mixed
    * gently into parchment turns grey-green and disappears, so this is a pale
    * blue laid *on* the sheet rather than tinted into it.
    */
-  --color-selected: #23517f;
-  --color-selected-bg: #d5dee6;
-  --color-journal: #5d4a80;
-  --color-journal-bg: #e3d8dd;
+  --color-selected: #1f4c7a;
+  --color-selected-bg: #b6c6d2;
+  --color-journal: #4f3d72;
+  --color-journal-bg: #c7bbc9;
 }
 
 :root[data-theme='paper'] {
-  --code-heading: #1c4372;
-  --code-marker: #7d5a10;
-  --code-keyword: #5c3689;
-  --code-string: #1d5c43;
-  --code-comment: #8d7a58;
-  --code-accent: #963c19;
+  --code-heading: #17406e;
+  --code-marker: #74520c;
+  --code-keyword: #56317f;
+  --code-string: #17553c;
+  --code-comment: #7d6644;
+  --code-accent: #8c3614;
 }
 
 /*
@@ -245,10 +255,17 @@
  * honestly, because `requestAnimationFrame` does not run in a hidden tab and
  * that is the only kind this was tested from.)
  *
- * So the grain is a 13 KB PNG of brown speckles, drawn once by
- * `scripts/make-paper-grain.mjs`, tiled and composited normally — no filter, no
- * blend, one static layer. A file rather than a data URI, because it should not
- * sit in the stylesheet of everyone who has never chosen this theme.
+ * So the grain is a PNG drawn once by `scripts/make-paper-grain.mjs`, tiled and
+ * composited normally — no filter, no blend, one static layer. A file rather
+ * than a data URI, because it should not sit in the stylesheet of everyone who
+ * has never chosen this theme.
+ *
+ * **Its shape was measured off the real thing.** Paper varies more over forty
+ * pixels than over one: the soft mottling is what an eye recognises, and
+ * per-pixel noise — which is what a first attempt produces — has all its energy
+ * at 1px and reads as a dusty screen. `scripts/check-paper-grain.mjs` asserts
+ * all three scales against the reference, and that broad still exceeds fine.
+ * Run it after touching any constant in the generator.
  *
  * The vignette stays a gradient — gradients are cheap, and letting the corners
  * fall away slightly is most of what makes this read as a sheet under a lamp
@@ -264,11 +281,28 @@
     url('/paper-grain.png'),
     radial-gradient(
       120% 90% at 50% 45%,
-      rgba(120, 96, 56, 0) 55%,
-      rgba(120, 96, 56, 0.14) 100%
+      rgba(90, 68, 38, 0) 55%,
+      rgba(90, 68, 38, 0.06) 100%
     );
   background-repeat: repeat, no-repeat;
-  background-size: 128px 128px, cover;
+  background-size: 256px 256px, cover;
+}
+
+/*
+ * The grain stops at the preview pane.
+ *
+ * That pane is a window onto a file — a PDF, a photograph, a rendered page —
+ * and laying parchment over it would be the app colouring somebody's document
+ * rather than decorating its own furniture. It is the one surface here that is
+ * not ours to age.
+ *
+ * Lifted above the overlay rather than the overlay being cut around it: a hole
+ * in a fixed layer would have to know where the pane is, and the pane is
+ * rendered five route segments from here.
+ */
+:root[data-theme='paper'] [data-pane='preview'] {
+  position: relative;
+  z-index: 10000;
 }
 
 /*

@@ -985,9 +985,16 @@ whole palette sits at a lower contrast than either of the others. A white page
 is a lamp pointed at your face; this is a surface with light falling on it.
 
 The grain and the faint fall-off at the corners are the smaller half of it, and
-they are there because a flat tan rectangle is a colour rather than a sheet.
-Under all of it the app is unchanged: the same ramp, walked the same direction
-as light mode, so every hairline and heading means exactly what it meant before.
+they are there because a flat tan rectangle is a colour rather than a sheet. The
+colour and the texture are both taken from the Age of Empires II campaign scroll
+— measured off it rather than guessed, including the way real paper mottles in
+soft patches rather than fine dust. Under all of it the app is unchanged: the
+same ramp, walked the same direction as light mode, so every hairline and
+heading means exactly what it meant before.
+
+**The grain stops at the preview pane.** That pane is a window onto a file, and
+ageing a PDF or a photograph would be the app colouring your document rather
+than decorating its own furniture.
 
 The three semantic colours keep their meanings. *Waiting* goes deeper and
 browner than it is on white, because the paper itself is a warm ochre and a

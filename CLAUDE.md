@@ -30,17 +30,33 @@ Turbopack is the default; `middleware` is now `proxy`.
   `light`: with three themes, "not light" silently included paper, and the paper
   block then had to win on source order. `color-scheme: light`, so the browser's
   own furniture is the nearer of the two it can be told about.
+  **The palette was sampled off the real thing, not remembered.** The Age of
+  Empires II campaign scroll measures `#d6b393`, red-minus-blue 67. A first
+  attempt from memory gave `#f2e8d0`, spread 34 — half the warmth and far too
+  pale, which is the mistake everyone makes: remembered paper is always lighter
+  than real paper.
   **The grain is a PNG, and neither a filter nor a blend.** The obvious build is
   `feTurbulence` behind `mix-blend-mode: multiply`, and over a whole viewport
   both halves are things to avoid — a blending layer that size forces the page
   to be composited into a texture and blended again on every paint, and an SVG
   filter used as a background can be re-rasterised while that happens.
-  `scripts/make-paper-grain.mjs` draws a 13 KB tile instead, deterministically,
-  so re-running it produces an empty diff. A static file rather than a data URI:
-  it must not sit in the stylesheet of everyone who has never chosen this theme.
+  `scripts/make-paper-grain.mjs` draws the tile instead, deterministically, so
+  re-running it produces an empty diff. A static file rather than a data URI: it
+  must not sit in the stylesheet of everyone who has never chosen this theme.
+  **Its *shape* was measured too, and that is the part that is easy to get
+  wrong.** Paper varies more over forty pixels than over one (10.9 against 5.0
+  in the reference): the soft mottling is what an eye recognises as paper, where
+  per-pixel noise — which is what a first attempt produces — puts all its energy
+  at 1px and reads as a dusty screen. Five octaves of tileable value noise plus
+  a grain term, swept against `scripts/check-paper-grain.mjs`, which asserts all
+  three scales and that broad still exceeds fine. Run it after touching any
+  constant in the generator.
   One fixed overlay rather than a background on each surface, because that is
   what keeps the grain falling across panes, hairlines and headings alike
-  without a single component knowing.
+  without a single component knowing — **and it stops at the preview pane**,
+  which is lifted above it. That pane is a window onto a file, and ageing a PDF
+  or a photograph would be the app colouring somebody's document rather than
+  decorating its own furniture.
 - **Colour is semantic only.** Base is greyscale (`grey-50`…`grey-900`,
   `paper`, `ink`). The only colour tokens are `waiting`, `stale`, and
   `selected`, plus their `-bg` pairs. Nothing decorative. Sidebar icons are

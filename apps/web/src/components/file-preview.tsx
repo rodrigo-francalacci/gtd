@@ -214,7 +214,16 @@ export function PreviewPane({ file, onClose }: { file: PreviewFile; onClose: () 
   const textFormat = formatOf(file.mimeType, file.name);
 
   return (
-    <div className="flex min-w-0 flex-1 flex-col border-l border-grey-200 bg-grey-50">
+    /*
+     * `data-pane` marks this as the window onto a file rather than as app
+     * chrome. Paper mode reads it to stop its grain at this edge — tinting a
+     * PDF or a photograph would be the app colouring somebody's document,
+     * which is a different thing from decorating its own furniture.
+     */
+    <div
+      data-pane="preview"
+      className="flex min-w-0 flex-1 flex-col border-l border-grey-200 bg-grey-50"
+    >
       <header className="flex items-center gap-2 border-b border-grey-200 px-3 py-2">
         <h2 className="min-w-0 flex-1 truncate text-[12px] font-medium text-grey-800">
           {file.name}
