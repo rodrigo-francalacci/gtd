@@ -1,9 +1,11 @@
 'use client';
 
 import { moveActionBetween } from '@/lib/actions';
+import { deleteAction, updateActionTitle } from '@/lib/actions';
 import type { ViewMode } from '@/lib/pane';
 import type { ActionRow } from '@/lib/queries.shared';
 import { ActionItem } from './action-item';
+import { RowMenu } from './row-menu';
 import { DRAG_ACTION, SortableList } from './sortable';
 
 /**
@@ -47,6 +49,12 @@ export function SortableActionList({
       onReorder={moveActionBetween}
       emptyState={emptyState}
       renderItem={(action, isDragging) => (
+        <RowMenu
+          name={action.title}
+          onRename={(next) => updateActionTitle(action.id, next)}
+          onDelete={() => deleteAction(action.id)}
+          deleteNote="Its files go to the Drive bin with it."
+        >
         <ActionItem
           emojified={emojified}
           action={action}
@@ -57,6 +65,7 @@ export function SortableActionList({
           mode={mode}
           variant={variant}
         />
+        </RowMenu>
       )}
     />
   );

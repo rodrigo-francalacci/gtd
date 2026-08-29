@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { attachmentsFor } from '@/lib/file-lists';
+import { CaptureMenu } from '@/components/entry-menu';
 import { ClarifyPanel } from '@/components/clarify-panel';
 import { InboxCapture } from '@/components/inbox-capture';
 import { DetailPane, EmptyDetail, EmptyList, ListPane } from '@/components/panes';
@@ -114,7 +115,8 @@ export default async function InboxPage(props: PageProps<'/inbox'>) {
             <section key={day.key}>
               <DayHeading label={day.label} />
               {day.items.map((item) => (
-                <DragCapture key={item.id} id={item.id}>
+                <CaptureMenu key={item.id} id={item.id} name={captureLabel(item)}>
+                  <DragCapture id={item.id}>
                   <SimpleRow
                     key={item.id}
                     href={`/inbox?item=${item.id}`}
@@ -141,13 +143,15 @@ export default async function InboxPage(props: PageProps<'/inbox'>) {
                       </span>
                     }
                   />
-                </DragCapture>
+                  </DragCapture>
+                </CaptureMenu>
               ))}
             </section>
           ))
         ) : (
           ordered.map((item) => (
-            <DragCapture key={item.id} id={item.id}>
+            <CaptureMenu key={item.id} id={item.id} name={captureLabel(item)}>
+              <DragCapture id={item.id}>
               {viewMode === 'compact' ? (
                 <Link
                   href={`/inbox?item=${item.id}`}
@@ -235,7 +239,8 @@ export default async function InboxPage(props: PageProps<'/inbox'>) {
                   </span>
                 </Link>
               )}
-            </DragCapture>
+              </DragCapture>
+            </CaptureMenu>
           ))
         )}
       </ListPane>

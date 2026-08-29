@@ -1,8 +1,9 @@
 'use client';
 
 import { useState, useTransition, type ReactNode } from 'react';
+import { RowMenu } from './row-menu';
 import type { ProjectStatus } from '@gtd/db';
-import { moveProjectBetween, setProjectStatus } from '@/lib/actions';
+import { deleteProject, moveProjectBetween, setProjectStatus, updateProjectTitle } from '@/lib/actions';
 import type { ViewMode } from '@/lib/pane';
 import {
   PROJECT_STATUS_LABELS,
@@ -154,6 +155,12 @@ export function SortableProjectList({
               </p>
             }
             renderItem={(project, isDragging) => (
+              <RowMenu
+                name={project.title}
+                onRename={(next) => updateProjectTitle(project.id, next)}
+                onDelete={() => deleteProject(project.id)}
+                deleteNote="Its actions and files go with it. Cited documents are only unlinked."
+              >
               <ProjectRow
                 emojified={emojified}
                 project={project}
@@ -162,6 +169,7 @@ export function SortableProjectList({
                 isDragging={isDragging}
                 mode={mode}
               />
+              </RowMenu>
             )}
           />
         </ProjectBucket>

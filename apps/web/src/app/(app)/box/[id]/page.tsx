@@ -1,5 +1,6 @@
 import { notFound } from 'next/navigation';
 import { DayHeading } from '@/components/day-heading';
+import { documentLabel } from '@/lib/queries.shared';
 import { DayJournal } from '@/components/day-journal';
 import { DocumentDetail } from '@/components/document-detail';
 import { BoxComposer } from '@/components/box-composer';
@@ -7,6 +8,7 @@ import { BoxViewToggle } from '@/components/box-view-toggle';
 import { DateRange } from '@/components/date-range';
 import { DocumentGalleryRow } from '@/components/document-gallery-row';
 import { DocumentRow } from '@/components/document-row';
+import { DocumentMenu } from '@/components/entry-menu';
 import { EmailRequests } from '@/components/email-requests';
 import { getEmailRequests } from '@/lib/box/email-requests';
 import { ProjectDetail } from '@/components/project-detail';
@@ -329,22 +331,34 @@ export default async function BoxPage(props: PageProps<'/box/[id]'>) {
                   is a folder, not a box. */}
               {boxView === 'gallery' ? (
                 day.items.map((item) => (
-                  <DocumentGalleryRow
+                  <DocumentMenu
                     key={item.id}
-                    item={item}
-                    href={href(item.id)}
-                    selected={item.id === targetId}
-                  />
+                    id={item.id}
+                    name={documentLabel(item)}
+                    description={item.description}
+                  >
+                    <DocumentGalleryRow
+                      item={item}
+                      href={href(item.id)}
+                      selected={item.id === targetId}
+                    />
+                  </DocumentMenu>
                 ))
               ) : (
                 day.items.map((item) => (
-                  <DocumentRow
+                  <DocumentMenu
                     key={item.id}
-                    item={item}
-                    href={href(item.id)}
-                    selected={item.id === targetId}
-                    mode={viewMode}
-                  />
+                    id={item.id}
+                    name={documentLabel(item)}
+                    description={item.description}
+                  >
+                    <DocumentRow
+                      item={item}
+                      href={href(item.id)}
+                      selected={item.id === targetId}
+                      mode={viewMode}
+                    />
+                  </DocumentMenu>
                 ))
               )}
             </section>

@@ -1,6 +1,8 @@
 'use client';
 
 import { moveListItemBetween } from '@/lib/actions';
+import { RowMenu } from './row-menu';
+import { deleteListItem, updateListItemTitle } from '@/lib/actions';
 import type { ViewMode } from '@/lib/pane';
 import type { ListItemRow as Row } from '@/lib/queries.shared';
 import { ListItemRow } from './list-item-row';
@@ -39,6 +41,12 @@ export function SortableListItems({
       onReorder={moveListItemBetween}
       emptyState={emptyState}
       renderItem={(item, isDragging) => (
+        <RowMenu
+          name={item.title}
+          onRename={(next) => updateListItemTitle(item.id, next)}
+          onDelete={() => deleteListItem(item.id)}
+          deleteNote="Its files go to the Drive bin with it."
+        >
         <ListItemRow
           emojified={emojified}
           item={item}
@@ -48,6 +56,7 @@ export function SortableListItems({
           isDragging={isDragging}
           mode={mode}
         />
+        </RowMenu>
       )}
     />
   );

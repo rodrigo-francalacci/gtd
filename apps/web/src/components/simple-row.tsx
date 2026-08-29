@@ -33,6 +33,7 @@ export function SimpleRow({
   control,
   after,
   highlight,
+  tone,
   ...handlers
 }: {
   href: string;
@@ -75,6 +76,12 @@ export function SimpleRow({
   after?: ReactNode;
   /** A live drop target, ringed the way the other densities ring it. */
   highlight?: boolean;
+  /**
+   * A background for rows that are a different *kind* of thing, not a different
+   * state. Selection and hover still win over it, because those are about what
+   * you are doing and this is about what the row is.
+   */
+  tone?: string;
   // The rest are the drop handlers a project row needs. `title` is omitted
   // because a div's own `title` is a string and ours is a node — without the
   // omit, the intersection quietly becomes `never` and every caller fails on
@@ -89,7 +96,7 @@ export function SimpleRow({
           ? 'bg-selected-bg ring-1 ring-inset ring-selected'
           : selected
             ? 'bg-selected-bg'
-            : 'hover:bg-grey-100',
+            : (tone ?? 'hover:bg-grey-100'),
         faded ? 'opacity-40' : '',
       ].join(' ')}
     >

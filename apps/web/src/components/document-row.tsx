@@ -47,6 +47,17 @@ export function DocumentRow({
    */
   const audio = item.mimeType?.startsWith('audio/') ? `/api/box/${item.id}/file` : null;
 
+  /*
+   * A note reads as a message, because that is what it is.
+   *
+   * Everything else in a box was filed, sent, scanned or pasted; a note is the
+   * line you *wrote*, and greyscale can only make it louder or quieter than its
+   * neighbours when what differs is what it *is*. That is the argument the day's
+   * journal line already won, so this takes the same token rather than inventing
+   * a fifth colour — one meaning, one hue, wherever it turns up.
+   */
+  const written = item.kind === 'note';
+
   if (mode === 'simple') {
     return (
       <SimpleRow
@@ -58,6 +69,7 @@ export function DocumentRow({
         // every row: a mark that some rows have and others don't is what makes
         // a column of titles ragged, and one that every row has does not.
         control={<EntryTypeIcon item={item} />}
+        tone={written ? 'bg-journal-bg' : undefined}
         after={
           item.linkCount > 0 ? (
             <span className="shrink-0 text-grey-400" title="Linked to something">
@@ -76,7 +88,11 @@ export function DocumentRow({
         style={{ gridTemplateColumns: BOX_COLUMNS.template }}
         className={[
           'grid items-center gap-2 px-4 py-1 text-[12px]',
-          selected ? 'bg-selected-bg' : 'hover:bg-grey-100',
+          selected
+            ? 'bg-selected-bg'
+            : written
+              ? 'bg-journal-bg'
+              : 'hover:bg-grey-100',
         ].join(' ')}
       >
         <span
@@ -108,7 +124,11 @@ export function DocumentRow({
     <div
       className={[
         'relative px-4 py-2.5',
-        selected ? 'bg-selected-bg' : 'hover:bg-grey-100',
+        selected
+          ? 'bg-selected-bg'
+          : written
+            ? 'bg-journal-bg hover:brightness-[0.98]'
+            : 'hover:bg-grey-100',
       ].join(' ')}
     >
       <Link href={href} aria-label={label} className="absolute inset-0" />
@@ -117,12 +137,14 @@ export function DocumentRow({
           'block text-[13px]',
           // A note is read, not scanned: it wraps to a few lines the way a
           // message does, where a filename is one line and truncates.
-          item.kind === 'note' ? 'line-clamp-4 whitespace-pre-wrap' : 'truncate',
+          written ? 'line-clamp-4 whitespace-pre-wrap' : 'truncate',
           unread
             ? 'italic text-grey-500'
             : selected
               ? 'font-medium text-grey-900'
-              : 'text-grey-800',
+              : written
+                ? 'text-journal'
+                : 'text-grey-800',
         ].join(' ')}
       >
         {item.kind === 'note' ? (

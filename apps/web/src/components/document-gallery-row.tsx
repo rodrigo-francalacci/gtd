@@ -68,7 +68,17 @@ export function DocumentGalleryRow({
     <div
       className={[
         'relative flex gap-3 border-b border-grey-150 px-3 py-2.5',
-        selected ? 'bg-selected-bg' : 'hover:bg-grey-100',
+        /*
+         * A note reads as a message here too. It is the line you *wrote*, where
+         * everything around it was filed, sent, scanned or pasted — the same
+         * distinction the day's journal line carries, so it takes the same
+         * token rather than a fifth colour.
+         */
+        selected
+          ? 'bg-selected-bg'
+          : item.kind === 'note'
+            ? 'bg-journal-bg'
+            : 'hover:bg-grey-100',
       ].join(' ')}
     >
       <Link href={href} aria-label={label} className="absolute inset-0" />
