@@ -76,9 +76,18 @@ export function BrowseGoogle({
      * render. Deliberately *not* clearing on a project with no tree: that would
      * empty a pane you had opened something else into, and "nothing to show" is
      * not a reason to take away what is there.
+     *
+     * **`preload` must not be in here**, and leaving it in was the whole of a
+     * bug that made this pane useless. The provider memoises its api on the
+     * open file, so opening *anything* hands out a new `preload` — which ran
+     * this effect again, which put the tree back. Clicking an attachment, a
+     * linked document or an email therefore replaced the tree for one frame
+     * and then lost to it, and the pane looked as though only the tree would
+     * ever load. A stale `preload` is not a hazard: every generation of it
+     * closes over nothing but `setState`, so they all behave identically.
      */
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [projectId, has, preload]);
+  }, [projectId, has]);
 
   if (!has) return null;
 
