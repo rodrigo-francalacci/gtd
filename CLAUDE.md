@@ -19,6 +19,28 @@ Turbopack is the default; `middleware` is now `proxy`.
   `data-theme` on `<html>` from the *root* layout and beats the query in both
   directions. That's also why `/signin` gets the theme: it renders outside the
   app shell.
+- **Paper is the third theme, and it is the same ramp again.** Warm ink on a
+  warm ground, walked in the light-mode direction, so `grey-800` still means
+  "prominent text" and no component knows it exists. What it is *for* is
+  fatigue, and the texture is not the part that does the work: nothing on screen
+  is pure white, nothing is pure black, and the whole palette sits at a lower
+  contrast than either of the others. One selector only — a paper preference is
+  always explicit, because no operating system asks for parchment — which is
+  also why the dark media query now excludes every named theme rather than only
+  `light`: with three themes, "not light" silently included paper, and the paper
+  block then had to win on source order. `color-scheme: light`, so the browser's
+  own furniture is the nearer of the two it can be told about.
+  **The grain is a PNG, and neither a filter nor a blend.** The obvious build is
+  `feTurbulence` behind `mix-blend-mode: multiply`, and over a whole viewport
+  both halves are things to avoid — a blending layer that size forces the page
+  to be composited into a texture and blended again on every paint, and an SVG
+  filter used as a background can be re-rasterised while that happens.
+  `scripts/make-paper-grain.mjs` draws a 13 KB tile instead, deterministically,
+  so re-running it produces an empty diff. A static file rather than a data URI:
+  it must not sit in the stylesheet of everyone who has never chosen this theme.
+  One fixed overlay rather than a background on each surface, because that is
+  what keeps the grain falling across panes, hairlines and headings alike
+  without a single component knowing.
 - **Colour is semantic only.** Base is greyscale (`grey-50`…`grey-900`,
   `paper`, `ink`). The only colour tokens are `waiting`, `stale`, and
   `selected`, plus their `-bg` pairs. Nothing decorative. Sidebar icons are
@@ -556,6 +578,12 @@ Turbopack is the default; `middleware` is now `proxy`.
   genuinely in flight. There is no server-side queue to resume from — the files
   live only in the tab — which is exactly why the tab must not lie about being
   done.
+- **The attachments list asks the same question the composer does.** A letter
+  photographed page by page belongs on the project as one document, not as eight
+  rows to open in order — so `attachments.tsx` carries the same offer, on the
+  same rule: several images arriving *together*, one prompt, both buttons act.
+  Three call sites now share `imagesToPdf`; the shape of the question differs
+  only where the screen differs, which is where the files are held.
 - **The box composer asks; the capture screen offers.** Same PDF, two shapes,
   because the two screens hold files differently: capture stages them, so a
   control over the staged list is where it belongs, while the composer's whole

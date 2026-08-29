@@ -668,6 +668,12 @@ rather than the app's — a large scan or a book is fine. There is a progress ba
 because a 20 MB file over a phone connection with no progress bar is
 indistinguishable from one that has stalled.
 
+**Several images that are one thing** can be attached as one document here too,
+exactly as at capture: choose or drop two or more pictures together and the list
+offers *Combine into one PDF* or *Keep separate*. One image per page, each page
+the size of its image, in the order you added them — a contract photographed page
+by page becomes one thing to scroll rather than eight rows to open in order.
+
 ### Making documents
 
 **New doc**, **New sheet** and **New slides** create an empty Google file
@@ -967,10 +973,29 @@ you *process* a queue.
 
 ### Everything else
 
-- **Theme** — light, dark, or follow the operating system. Dark mode is the
-  same greyscale walked backwards
+- **Theme** — light, dark, paper, or follow the operating system. The button is
+  in the bottom-left corner beside *Sign out* and cycles through the three; its
+  icon is always the one you would get by pressing it
 - **Pane width** — drag the divider; double-click to reset
 - **Gallery** — per box, list or thumbnails
+
+**Paper mode** is for tired eyes rather than for looks. Nothing on screen is
+pure white and nothing is pure black — parchment and sepia instead — and the
+whole palette sits at a lower contrast than either of the others. A white page
+is a lamp pointed at your face; this is a surface with light falling on it.
+
+The grain and the faint fall-off at the corners are the smaller half of it, and
+they are there because a flat tan rectangle is a colour rather than a sheet.
+Under all of it the app is unchanged: the same ramp, walked the same direction
+as light mode, so every hairline and heading means exactly what it meant before.
+
+The three semantic colours keep their meanings. *Waiting* goes deeper and
+browner than it is on white, because the paper itself is a warm ochre and a
+golden mark on a golden ground is no mark at all. Selection stays cool and blue
+on purpose: it is the one thing here that must not look like part of the page.
+
+If you have asked your system for reduced motion, the grain is left off and the
+palette stays — the palette is the part that does the work.
 
 All of these live in the database rather than in the browser, so they follow the
 account and the server can render the right one without a flash.

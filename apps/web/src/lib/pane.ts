@@ -18,7 +18,14 @@ export type ViewMode = 'comfortable' | 'compact' | 'simple';
  * operating system decides in CSS. Only an explicit pick is stored, so
  * changing the OS setting still moves an app that was never told otherwise.
  */
-export type Theme = 'light' | 'dark' | null;
+/**
+ * Which palette the app draws itself in.
+ *
+ * Null means "ask the operating system", which a media query answers before
+ * first paint. The other three are explicit choices and beat it — `paper` can
+ * only ever be one, because no operating system asks for parchment.
+ */
+export type Theme = 'light' | 'dark' | 'paper' | null;
 
 /** Bounds enforced both by the drag handle and by the server action. */
 export const MIN_PANE_WIDTH = 260;

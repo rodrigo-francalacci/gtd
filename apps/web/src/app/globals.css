@@ -105,7 +105,16 @@
 }
 
 @media (prefers-color-scheme: dark) {
-  :root:not([data-theme='light']) {
+  /*
+   * Every explicit choice is excluded by name, not just `light`.
+   *
+   * With only two themes, "not light" meant "dark or unset" and was the same
+   * thing as "unset or dark". A third theme broke that: a paper preference on
+   * a machine set to dark matched this rule, and the paper palette then had to
+   * win on source order alone — which is a rule that works until somebody
+   * moves a block.
+   */
+  :root:not([data-theme='light']):not([data-theme='paper']) {
   color-scheme: dark;
 
   --color-paper: #17181a;
@@ -138,6 +147,151 @@
   /* Same hue, dark-ground contrast — the rule the other three follow. */
   --color-journal: #b3a4dd;
   --color-journal-bg: #242036;
+  }
+}
+
+/* Paper mode ------------------------------------------------------------- */
+
+/*
+ * A third theme, and it is the same ramp again — walked in the light-mode
+ * direction, in warm ink on a warm ground.
+ *
+ * It exists for fatigue rather than for looks. Three things do the work, and
+ * none of them is the texture: nothing on screen is pure white, nothing is
+ * pure black, and the whole palette sits at a lower contrast than either of the
+ * other two. A white page is a lamp pointed at your face; parchment is a
+ * surface with light falling on it, which is what eyes are built to read.
+ *
+ * `grey-800` still means "prominent text" and `grey-200` still means "a
+ * hairline", so no component knows this theme exists — the same arrangement
+ * dark mode has always had. There is only one selector, because a paper
+ * preference is always explicit: no operating system asks for this.
+ *
+ * `color-scheme: light` so the browser's own furniture — scrollbars, date
+ * pickers, the PDF viewer — comes back light rather than dark. It cannot be
+ * told about parchment, and light is much the nearer of the two.
+ */
+:root[data-theme='paper'] {
+  color-scheme: light;
+
+  --color-paper: #f2e8d0;
+  /*
+   * Sepia, not black. Ink on real paper is never black either, and the
+   * difference between #1a1a1a and this is most of why a page of it is
+   * restful — the contrast is still ten to one, which is well past what
+   * anything needs to be legible.
+   */
+  --color-ink: #3a2e1c;
+
+  --color-grey-50: #ece0c4;
+  --color-grey-100: #e7dabb;
+  --color-grey-150: #e1d3b0;
+  --color-grey-200: #d8c79f;
+  --color-grey-300: #c9b487;
+  --color-grey-400: #a9906a;
+  --color-grey-500: #8a7350;
+  --color-grey-600: #6d5a3e;
+  --color-grey-700: #55462f;
+  --color-grey-800: #3f3423;
+  --color-grey-900: #2c2416;
+
+  /*
+   * The semantic four keep their hues, as they do in dark mode — but two of
+   * them have to work harder here, because the ground itself is a warm ochre
+   * and "waiting" is a warm ochre. So waiting goes deeper and browner than it
+   * is on white, far enough from the paper to still read as a mark on it.
+   */
+  --color-waiting: #7d5310;
+  --color-waiting-bg: #e6d3a4;
+  --color-stale: #96301d;
+  --color-stale-bg: #ecd2c4;
+  /*
+   * Selection stays blue and stays cool, which is the point of it: it is the
+   * one mark here that must not look like part of the paper. A blue mixed
+   * gently into parchment turns grey-green and disappears, so this is a pale
+   * blue laid *on* the sheet rather than tinted into it.
+   */
+  --color-selected: #23517f;
+  --color-selected-bg: #d5dee6;
+  --color-journal: #5d4a80;
+  --color-journal-bg: #e3d8dd;
+}
+
+:root[data-theme='paper'] {
+  --code-heading: #1c4372;
+  --code-marker: #7d5a10;
+  --code-keyword: #5c3689;
+  --code-string: #1d5c43;
+  --code-comment: #8d7a58;
+  --code-accent: #963c19;
+}
+
+/*
+ * The sheet itself.
+ *
+ * One fixed overlay rather than a background on every surface, which is what
+ * keeps the promise that no component knows which theme it is in: the grain
+ * falls across the panes, the hairlines and the headings alike because it is
+ * lying on top of all of them. `pointer-events: none`, so it is never in the
+ * way of a click.
+ *
+ * **It does not blend, and the noise is a file.** The obvious build of this is
+ * `feTurbulence` for the grain behind a `mix-blend-mode: multiply` overlay, and
+ * both halves are things to avoid over a whole viewport: a blending layer that
+ * size forces the entire page to be composited into a texture and blended again
+ * on every paint, and an SVG filter used as a background can be re-rasterised
+ * while that happens. Neither is needed to get this look, so neither is here.
+ * (Said as reasoning, not as a benchmark — the first version could not be timed
+ * honestly, because `requestAnimationFrame` does not run in a hidden tab and
+ * that is the only kind this was tested from.)
+ *
+ * So the grain is a 13 KB PNG of brown speckles, drawn once by
+ * `scripts/make-paper-grain.mjs`, tiled and composited normally — no filter, no
+ * blend, one static layer. A file rather than a data URI, because it should not
+ * sit in the stylesheet of everyone who has never chosen this theme.
+ *
+ * The vignette stays a gradient — gradients are cheap, and letting the corners
+ * fall away slightly is most of what makes this read as a sheet under a lamp
+ * rather than a coloured rectangle.
+ */
+:root[data-theme='paper'] body::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  pointer-events: none;
+  background-image:
+    url('/paper-grain.png'),
+    radial-gradient(
+      120% 90% at 50% 45%,
+      rgba(120, 96, 56, 0) 55%,
+      rgba(120, 96, 56, 0.14) 100%
+    );
+  background-repeat: repeat, no-repeat;
+  background-size: 128px 128px, cover;
+}
+
+/*
+ * Prose gets a little more room to breathe on a textured ground.
+ *
+ * The one typographic change, and it is deliberately small: grain under text
+ * costs a little legibility, and line-height is the cheapest way to give it
+ * back. The typeface does not change — Source Sans is the app's voice in every
+ * theme, and swapping it for something calligraphic would be a costume rather
+ * than a reading surface.
+ */
+:root[data-theme='paper'] .ProseMirror p {
+  line-height: 1.7;
+}
+
+/*
+ * Anyone who has asked for less movement is unlikely to want a grain overlay
+ * either — and on a low-powered machine this is the one rule here with a cost.
+ * The palette, which is the part that actually reduces fatigue, stays.
+ */
+@media (prefers-reduced-motion: reduce) {
+  :root[data-theme='paper'] body::after {
+    display: none;
   }
 }
 
@@ -498,7 +652,7 @@ body {
 
 /* A null preference means "ask the operating system", exactly as above. */
 @media (prefers-color-scheme: dark) {
-  :root:not([data-theme='light']) {
+  :root:not([data-theme='light']):not([data-theme='paper']) {
     --code-heading: #7fa9e0;
     --code-marker: #cfa94e;
     --code-keyword: #b795dd;

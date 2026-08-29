@@ -10,6 +10,7 @@ import type { AttachmentRow } from '@/lib/queries.shared';
 import type { SortChoice } from '@/lib/sort';
 import { AudioRecorder } from './audio-recorder';
 import { AudioPlay } from './audio-play';
+import { imagesToPdf, isImage, pdfNameFor } from '@/lib/images-to-pdf';
 import { useFilePreview } from './file-preview';
 import { FileMeta } from './file-meta';
 import { GroupHeading } from './group-heading';
@@ -65,6 +66,14 @@ export function Attachments({
   const [errors, setErrors] = useState<string[]>([]);
   const [creating, setCreating] = useState(false);
   const [recording, setRecording] = useState(false);
+  /**
+   * Images held back while the list asks whether they are one document.
+   *
+   * Only ever set when several pictures arrive *together*, which is the one
+   * moment the question means anything. It is not a staging tray: there is no
+   * way to leave things sitting in it, because both answers act.
+   */
+  const [offer, setOffer] = useState<File[] | null>(null);
   /** The row being renamed, or null. One at a time — this is a list, not a form. */
   const [renaming, setRenaming] = useState<string | null>(null);
   const [, startTransition] = useTransition();
@@ -142,6 +151,57 @@ export function Attachments({
   };
 
   /**
+   * What to do with files as they arrive.
+   *
+   * Every way in — the button, a drop, a recording — comes through here, so the
+   * question gets asked once rather than three times. The case it exists for is
+   * a letter or a contract photographed page by page and then attached to the
+   * project it belongs to: eight rows to open in order, against one document
+   * you scroll.
+   *
+   * Anything that is not several images at once goes straight up, as before.
+   */
+  const receive = (files: FileList | File[]) => {
+    const list = [...files];
+    if (list.length === 0) return;
+
+    if (list.length > 1 && list.every(isImage)) {
+      setErrors([]);
+      setOffer(list);
+      return;
+    }
+
+    void upload(list);
+  };
+
+  /**
+   * The answer: one document.
+   *
+   * Built in the browser and then handed to the ordinary upload path, so the
+   * PDF goes to Drive the same way every other file does — and lands in the
+   * project's folder, like everything else attached here.
+   */
+  const combine = async () => {
+    const list = offer;
+    if (!list) return;
+
+    setOffer(null);
+    setErrors([]);
+
+    try {
+      const pdf = await imagesToPdf(list, pdfNameFor(list.length, label));
+      await upload([pdf]);
+    } catch (error) {
+      setErrors([
+        error instanceof Error ? error.message : 'Those images would not combine.',
+      ]);
+      // Handed back rather than dropped: a failure here must not be the
+      // difference between having the pictures and not.
+      setOffer(list);
+    }
+  };
+
+  /**
    * The rows, with heading strings threaded in where the groups start.
    *
    * One flat list rather than a `<ul>` per group: the rows are separated by
@@ -215,6 +275,37 @@ export function Attachments({
         </div>
       </div>
 
+      {/*
+        Asked only when it has an answer worth giving. Both buttons act — there
+        is deliberately no dismiss, because dismissing would leave the pictures
+        nowhere while the pane looked as though it had taken them.
+      */}
+      {offer ? (
+        <div className="mb-2 flex flex-wrap items-center gap-2 rounded-sm border border-grey-200 bg-grey-50 px-2 py-1.5 text-[11px] text-grey-600">
+          <span className="min-w-0 flex-1 truncate">{offer.length} images</span>
+
+          <button
+            type="button"
+            onClick={() => void combine()}
+            className="shrink-0 rounded-sm bg-grey-800 px-2 py-1 text-[11px] text-paper"
+          >
+            Combine into one PDF
+          </button>
+
+          <button
+            type="button"
+            onClick={() => {
+              const list = offer;
+              setOffer(null);
+              void upload(list);
+            }}
+            className="shrink-0 rounded-sm px-2 py-1 text-[11px] text-grey-600 underline hover:text-grey-800"
+          >
+            Keep separate
+          </button>
+        </div>
+      ) : null}
+
       {recording ? (
         <AudioRecorder
           onDone={(file) => {
@@ -231,7 +322,7 @@ export function Attachments({
         multiple
         className="hidden"
         onChange={(e) => {
-          if (e.target.files) void upload(e.target.files);
+          if (e.target.files) receive(e.target.files);
           e.target.value = '';
         }}
       />
@@ -253,7 +344,7 @@ export function Attachments({
           e.preventDefault();
           e.stopPropagation();
           setOver(false);
-          void upload(e.dataTransfer.files);
+          receive(e.dataTransfer.files);
         }}
         className={[
           'rounded-sm border border-dashed transition-colors',

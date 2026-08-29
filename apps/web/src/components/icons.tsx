@@ -385,6 +385,22 @@ export const IconMoon = (p: IconProps) => (
   </Glyph>
 );
 
+/**
+ * Paper mode — a scroll, curled at both ends.
+ *
+ * A monochrome stroke like every other icon here: the theme it stands for is
+ * the one place the app is allowed a texture, and an icon that tried to show
+ * that would be the one coloured glyph in a sidebar of outlines.
+ */
+export const IconScroll = (p: IconProps) => (
+  <Glyph {...p}>
+    <path d="M4.4 3.2h7.8a1.4 1.4 0 0 1 1.4 1.4v6.8a1.4 1.4 0 0 1-1.4 1.4H4.4" />
+    <path d="M4.4 3.2A1.4 1.4 0 0 0 3 4.6v1.5h2.8V4.6a1.4 1.4 0 0 0-1.4-1.4z" />
+    <path d="M11.6 12.8a1.4 1.4 0 0 0 1.4-1.4" />
+    <path d="M6.4 6.4h4.4M6.4 8.6h4.4M6.4 10.8h2.6" />
+  </Glyph>
+);
+
 /** Sort — lines of decreasing length with an arrow, the universal mark. */
 export const IconSort = (p: IconProps) => (
   <Glyph {...p}>

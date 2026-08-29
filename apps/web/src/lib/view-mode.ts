@@ -4,6 +4,9 @@ import { SINGLETON, db, preferences } from '@gtd/db';
 import { eq } from 'drizzle-orm';
 import type { Preferences } from './pane';
 
+/** The themes there are. Anything else in the column is treated as no choice. */
+const THEMES = ['light', 'dark', 'paper'] as const;
+
 export type {
   BoxView,
   Preferences,
@@ -36,7 +39,14 @@ export async function getPreferences(): Promise<Preferences> {
         : 'comfortable',
     boxView: row?.boxView === 'gallery' ? 'gallery' : 'list',
     listPaneWidth: row?.listPaneWidth ?? null,
-    theme: row?.theme === 'dark' ? 'dark' : row?.theme === 'light' ? 'light' : null,
+    /*
+     * An allowlist, not a cast. The column is plain text, so a value that is
+     * not a theme this app has must come back as null — which means "ask the
+     * operating system" and is the one answer that is always safe. Written this
+     * way rather than as a chain of ternaries because there are three of them
+     * now and a fourth would not fit on the line.
+     */
+    theme: THEMES.find((t) => t === row?.theme) ?? null,
     appsScriptUrl: row?.appsScriptUrl ?? null,
     // Null and [] mean different things here — "never chosen" versus "chosen,
     // hide nothing" — so an absent value must not collapse to an empty array.
