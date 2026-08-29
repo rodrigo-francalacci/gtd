@@ -385,6 +385,16 @@ with it rather than the box's all-time favourites. Anything you have chosen is
 pinned to the front whatever its count — an excluded tag has a count of zero by
 definition, and dropping it would leave no way to undo it.
 
+**Right-click any row** — or press and hold on a touchscreen — to rename or
+delete it. That works on every list: the inbox, Now, Waiting for, projects, any
+list, and a box.
+
+Renaming a capture changes its first line, which is the title a list shows; the
+note underneath is left exactly as it was. Deleting a capture *trashes* it — it
+leaves the inbox marked as dealt with, which is what keeps the evidence and
+anything attached to it. Throwing away a box document sends the Drive file to the
+bin, where you can still get it back.
+
 **Edit tags** on a document opens the vocabulary in the same place, and the
 document's pane keeps only the tags it actually has — clicking one there takes it
 off. The whole list used to sit in the pane, which works until a box has a

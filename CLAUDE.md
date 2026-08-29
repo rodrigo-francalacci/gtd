@@ -481,11 +481,22 @@ Turbopack is the default; `middleware` is now `proxy`.
 - **Google calls must be idempotent.** The worker retries, and Drive will
   happily create a second folder with the same name — `ensureFolder` and
   `ensureLabel` look before creating.
-- **Raw capture is immutable.** AI output is a suggestion layer
-  (`inbox_items.ai_suggestion`), never a rewrite of `raw_text` /
-  `drive_file_id`. Clarifying doesn't edit or delete the row either: it marks
-  it clarified and stamps `outcome` / `outcome_id` beside the original,
-  `trashed` included.
+- **Raw capture is immutable *to the app*, which is not the same as immutable.**
+  AI output is a suggestion layer (`inbox_items.ai_suggestion`), never a rewrite
+  of `raw_text` / `drive_file_id`. Clarifying doesn't edit or delete the row
+  either: it marks it clarified and stamps `outcome` / `outcome_id` beside the
+  original, `trashed` included.
+  What this protects against is the *machine* quietly changing your words, so
+  that what you find in six months is what you actually typed. It was read once
+  as forbidding the author from fixing their own typo, and that is a different
+  thing and not what the rule is for — a queue you cannot correct a mis-tap in
+  has a permanent piece of grit in it. `renameCapture` edits the first line and
+  leaves the note under it alone. It normalises CRLF on the way through for the
+  reason `docFromText` does: rebuilding around a bare newline left `
+
+` in
+  the middle of the document, a stray carriage return that survives `trim()` and
+  surfaces later as a blank line nobody typed.
 - **Capture never blocks on enrichment.** `captureInboxItem` writes the row,
   then attempts a suggestion in a try/catch — a failing suggester must never
   cost you the thought. Suggestions pre-fill the clarify form and commit

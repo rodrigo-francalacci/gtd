@@ -2913,3 +2913,60 @@ export async function timelinesFor(projectId: string): Promise<string[]> {
 
   return rows.map((row) => row.boxId);
 }
+
+/**
+ * Fix the first line of a capture.
+ *
+ * **This does not contradict "raw capture is immutable", and the distinction is
+ * worth being exact about.** That rule constrains the *app*: the suggester must
+ * never rewrite what you wrote, and clarifying must stamp its outcome beside the
+ * original rather than editing it. Both exist so the app cannot quietly change
+ * your words — so that what you find in six months is what you actually typed.
+ *
+ * None of that is an argument for stopping *you* correcting your own typo. The
+ * record being protected is protection against the machine, not against the
+ * author, and a queue you cannot fix a mis-tap in is a queue with a permanent
+ * piece of grit in it.
+ *
+ * Only the first line. A capture is one `raw_text` — first line the title, blank
+ * line, then the note — and the title is the part a list shows and the part you
+ * would want to fix. The note underneath is left exactly as it was.
+ */
+export async function renameCapture(itemId: string, title: string) {
+  await requireSession();
+
+  const next = title.trim();
+  if (!next) return;
+
+  const [item] = await db
+    .select({ rawText: inboxItems.rawText })
+    .from(inboxItems)
+    .where(eq(inboxItems.id, itemId))
+    .limit(1);
+
+  if (!item) return;
+
+  /*
+   * Normalised on the way through, for the same reason `docFromText` does it.
+   *
+   * A capture typed into a textarea arrives with CRLF, and rebuilding the text
+   * with a bare newline in front of the remainder leaves `\n\r\n` in the middle
+   * of the document — a stray carriage return that survives every `trim()` and
+   * turns up later as a blank line nobody typed. Found by reading the stored
+   * bytes after the first rename; the row on screen looked perfectly correct.
+   */
+  const lines = (item.rawText ?? '').replace(/\r\n?/g, '\n').split('\n');
+  const rest = lines.slice(1).join('\n');
+
+  /*
+   * A capture that was only ever a title gets no trailing newline, and one with
+   * a note keeps the blank line that separates the two — the shape every reader
+   * of this column already expects.
+   */
+  await db
+    .update(inboxItems)
+    .set({ rawText: rest.trim() ? `${next}\n${rest}` : next })
+    .where(eq(inboxItems.id, itemId));
+
+  revalidateShell();
+}

@@ -1,6 +1,11 @@
 'use client';
 
-import { clarifyInboxItem, deleteDocument, updateDocument } from '@/lib/actions';
+import {
+  clarifyInboxItem,
+  deleteDocument,
+  renameCapture,
+  updateDocument,
+} from '@/lib/actions';
 import { RowMenu } from './row-menu';
 
 /**
@@ -49,14 +54,18 @@ export function DocumentMenu({
 }
 
 /**
- * A capture: trashed, never renamed.
+ * A capture: renamed on its first line, and trashed rather than deleted.
  *
- * **No rename, and that is the convention rather than an omission.** A raw
- * capture is immutable — the whole design of the inbox is that what you typed
- * is kept exactly as you typed it and the decision is stamped *beside* it, so
- * editing the text here would be the one thing the record is built to prevent.
- * Clarifying is where a capture gets a title, and that title goes on the action
- * or project it becomes.
+ * Renaming looked at first as though it contradicted "raw capture is
+ * immutable". It does not, and the distinction matters: that rule constrains
+ * the *app* — the suggester must never rewrite what you wrote, and clarifying
+ * must stamp its outcome beside the original instead of editing it. It exists so
+ * the machine cannot quietly change your words. It was never an argument for
+ * stopping the author fixing their own typo, and a queue you cannot correct a
+ * mis-tap in has a permanent piece of grit in it.
+ *
+ * Only the first line moves. A capture is one `raw_text` — title, blank line,
+ * note — and the title is what a list shows; the note underneath is left alone.
  *
  * "Trash it" is the clarify outcome of the same name, not a delete. The row
  * stays, marked as dealt with, which is what keeps the evidence — and what keeps
@@ -74,6 +83,7 @@ export function CaptureMenu({
   return (
     <RowMenu
       name={name}
+      onRename={(next) => renameCapture(id, next)}
       onDelete={() => clarifyInboxItem(id, { kind: 'trashed' })}
       deleteLabel="Trash it"
       deleteNote="It leaves the inbox and is kept as trashed, with anything attached to it."
