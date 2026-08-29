@@ -31,6 +31,59 @@ export const maxDuration = 120;
 
 const COMMAND = process.env.LATEX_COMMAND ?? 'pdflatex';
 
+/**
+ * Somewhere else that will typeset, for where there is no TeX.
+ *
+ * A deployed function cannot hold a TeX distribution — that is the whole reason
+ * this runs locally — so the only way to typeset from a phone or from Vercel is
+ * to send the document to a machine that can. That is a decision about *your
+ * document leaving this app*, so it is opt-in and unset by default: nothing is
+ * ever posted anywhere unless this names a destination.
+ *
+ * It can be a service, or your own desktop exposed to the network — the second
+ * keeps the document on hardware you own, and is the reason this is a URL rather
+ * than a provider.
+ *
+ * The contract is deliberately the same as this route's own: POST the source as
+ * `text/plain`, get back `application/pdf` or an error. Local first, always;
+ * this is the fallback, not the preference.
+ */
+const REMOTE = process.env.LATEX_REMOTE_URL?.trim();
+
+/** Ask another machine to do it. */
+async function typesetRemotely(source: string): Promise<Response> {
+  const upstream = await fetch(REMOTE!, {
+    method: 'POST',
+    headers: { 'Content-Type': 'text/plain; charset=utf-8' },
+    body: source,
+    signal: AbortSignal.timeout(TIMEOUT_MS),
+  });
+
+  const type = upstream.headers.get('content-type') ?? '';
+
+  if (upstream.ok && type.includes('pdf')) {
+    return new NextResponse(await upstream.arrayBuffer(), {
+      headers: {
+        'Content-Type': 'application/pdf',
+        'Content-Disposition': 'inline; filename="document.pdf"',
+        'Cache-Control': 'private, no-store',
+        'X-Latex-Status': '0',
+        // So the pane can say where it was built, which matters when the answer
+        // came from a machine that is not this one.
+        'X-Latex-Where': 'remote',
+      },
+    });
+  }
+
+  return NextResponse.json(
+    {
+      error: `The typesetting service answered ${upstream.status}.`,
+      log: (await upstream.text()).slice(0, 20_000),
+    },
+    { status: 502 },
+  );
+}
+
 /** Long enough for a first run that fetches packages, short of a hung one. */
 const TIMEOUT_MS = 90_000;
 
@@ -197,14 +250,38 @@ export async function POST(request: Request) {
       result = await run(dir);
     }
 
+    /*
+     * No TeX here — so ask elsewhere, if elsewhere has been named.
+     *
+     * This is the deployed case. A Vercel function cannot hold a TeX
+     * distribution, so the choice is a machine that can or nothing, and which
+     * machine is the user's to pick rather than this route's to assume.
+     */
+    if (result.missing && REMOTE) {
+      try {
+        return await typesetRemotely(source);
+      } catch (error) {
+        return NextResponse.json(
+          {
+            error:
+              'The typesetting service could not be reached. ' +
+              (error instanceof Error ? error.message : ''),
+          },
+          { status: 502 },
+        );
+      }
+    }
+
     if (result.missing) {
       return NextResponse.json(
         {
           error:
-            `No LaTeX here. This runs \`${COMMAND}\` on the machine serving the ` +
-            'app, so it works where TeX is installed — a desktop with MiKTeX or ' +
-            'TeX Live — and not on a deployment that has none. Set LATEX_COMMAND ' +
-            'if yours is called something else.',
+            `No LaTeX on this machine. Typesetting runs \`${COMMAND}\` where the ` +
+            'app is served, so it works on a desktop with MiKTeX or TeX Live and ' +
+            'not on a deployment, which cannot hold a TeX distribution. Either ' +
+            'open this from the machine that has TeX, or set LATEX_REMOTE_URL to ' +
+            'a service that will typeset for you — bearing in mind the document ' +
+            'then leaves this app.',
           missing: true,
         },
         { status: 501 },

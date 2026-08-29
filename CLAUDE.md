@@ -878,6 +878,12 @@ Turbopack is the default; `middleware` is now `proxy`.
   binary. It works where TeX is installed and says so plainly where it is not,
   which on Vercel it never will be; the reading view is always there and needs
   nothing.
+  `LATEX_REMOTE_URL` is the deployed answer and is **unset by default**: a
+  function cannot hold a distribution, so the only way to typeset from a phone
+  is to send the document somewhere that can — which is a decision about the
+  document leaving the app, and therefore the user's to make rather than this
+  route's to assume. Local is always tried first; remote is the fallback, and a
+  PDF built that way carries `X-Latex-Where: remote` so the pane can say so.
   The browser was tried first and the numbers killed it: every engine needs a
   TeX Live tree, the smallest useful slice is ~120 MB, upstream ships it only as
   a single **498 MB** tarball, and one `\multirow` reaches into the 326 MB

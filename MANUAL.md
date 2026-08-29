@@ -714,8 +714,16 @@ PDF in the browser's own viewer, with a button to save it. It typesets what is i
 the editor, saved or not, so you can press it while writing.
 
 It compiles on the machine serving the app, so it works on a desktop with MiKTeX
-or TeX Live and not on a deployment that has neither — where it says so rather
-than failing oddly. A document that fails shows TeX's own log with the errors
+or TeX Live. **On the deployed app it does not**, and cannot: a serverless
+function has nowhere to put a TeX distribution. It says so rather than failing
+oddly, and names the two ways round it — open the app from the machine that has
+TeX, or set `LATEX_REMOTE_URL` to something that will typeset for you.
+
+That second one is opt-in and off by default, deliberately: it means the document
+leaves this app. It can point at a public service, or at your own desktop exposed
+to your network — the second keeps the file on hardware you own, which is why it
+is a URL rather than a provider. When a PDF comes back that way the pane says so
+above it. A document that fails shows TeX's own log with the errors
 lifted to the top, which is what you would be reading in Overleaf too.
 
 A document is only allowed to open files beside it: an absolute path or a `..` in

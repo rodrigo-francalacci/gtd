@@ -39,7 +39,7 @@ function complaints(log: string): string[] {
 
 type State =
   | { phase: 'idle' | 'working' }
-  | { phase: 'done'; url: string; status: string | null }
+  | { phase: 'done'; url: string; status: string | null; where: string | null }
   | { phase: 'failed'; error: string; log: string; missing: boolean };
 
 export function LatexPdf({ source }: { source: string }) {
@@ -86,7 +86,12 @@ export function LatexPdf({ source }: { source: string }) {
 
       const next = URL.createObjectURL(await response.blob());
       url.current = next;
-      setState({ phase: 'done', url: next, status: response.headers.get('X-Latex-Status') });
+      setState({
+        phase: 'done',
+        url: next,
+        status: response.headers.get('X-Latex-Status'),
+        where: response.headers.get('X-Latex-Where'),
+      });
     } catch {
       setState({
         phase: 'failed',
@@ -127,6 +132,12 @@ export function LatexPdf({ source }: { source: string }) {
             {state.status && state.status !== '0' ? (
               <span className="text-[10px] text-grey-400">
                 TeX had complaints, but produced the document
+              </span>
+            ) : null}
+            {/* Said plainly, because it means the document left this app. */}
+            {state.where === 'remote' ? (
+              <span className="text-[10px] text-grey-400">
+                typeset by the service you configured
               </span>
             ) : null}
           </>
