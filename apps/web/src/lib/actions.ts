@@ -711,12 +711,24 @@ function noteColumns(note: string) {
 export async function clarifyInboxItem(itemId: string, decision: ClarifyDecision) {
   await requireSession();
   const [item] = await db
-    .select({ id: inboxItems.id, status: inboxItems.status })
+    .select({ id: inboxItems.id, status: inboxItems.status, emoji: inboxItems.emoji })
     .from(inboxItems)
     .where(eq(inboxItems.id, itemId))
     .limit(1);
 
   if (!item || item.status === 'clarified') return; // no double-processing
+
+  /*
+   * The emoji travels with the decision.
+   *
+   * A capture arrives with one now, and the thing it becomes is the same thing —
+   * so leaving it behind would mean a row you had learned to recognise in the
+   * inbox arriving in Now looking like everything else, and being given a second,
+   * different glyph the next time anything was emojified. What makes a list
+   * scannable is that a row keeps its shape; that has to survive the row moving
+   * table.
+   */
+  const carried = item.emoji;
 
   let outcomeId: string | null = null;
 
@@ -728,6 +740,7 @@ export async function clarifyInboxItem(itemId: string, decision: ClarifyDecision
       .insert(projects)
       .values({
         title,
+        emoji: carried,
         areaId: decision.areaId,
         status: 'active',
         ...noteColumns(decision.note),
@@ -742,11 +755,11 @@ export async function clarifyInboxItem(itemId: string, decision: ClarifyDecision
 
     const [listItem] = await db
       .insert(listItems)
-      .values({ listId: decision.listId, title, ...noteColumns(decision.note) })
+      .values({ listId: decision.listId, title, emoji: carried, ...noteColumns(decision.note) })
       .returning();
     outcomeId = listItem.id;
   } else if (decision.kind === 'filed') {
-    outcomeId = await fileCaptureInBox(itemId, decision);
+    outcomeId = await fileCaptureInBox(itemId, decision, carried);
     if (!outcomeId) return;
   } else if (decision.kind !== 'trashed') {
     const title = decision.title.trim();
@@ -761,6 +774,7 @@ export async function clarifyInboxItem(itemId: string, decision: ClarifyDecision
       .insert(actions)
       .values({
         title,
+        emoji: carried,
         projectId: decision.projectId,
         status,
         waitingSince: status === 'waiting' ? today() : null,
@@ -860,6 +874,7 @@ const PARENT_FOR_OUTCOME: Record<
 async function fileCaptureInBox(
   itemId: string,
   decision: Extract<ClarifyDecision, { kind: 'filed' }>,
+  carried: string | null,
 ): Promise<string | null> {
   const title = decision.title.trim();
   const note = decision.note?.trim() ?? '';
@@ -889,6 +904,7 @@ async function fileCaptureInBox(
       .values({
         boxId: decision.boxId,
         kind: 'note',
+        emoji: carried,
         // A note is already in its final form — nothing to read, so `ready`.
         status: 'ready',
         description,
@@ -923,6 +939,17 @@ async function fileCaptureInBox(
         // times.
         description: isFirst ? description : null,
         searchText: isFirst ? description : null,
+        /*
+         * And the emoji with it, on the same reasoning — but only until the
+         * document is read. A reading decides an emoji from what the document
+         * turns out to *be*, which is a better answer than one taken from the
+         * line you typed before you filed it, so this is the placeholder that
+         * keeps the row recognisable in the meantime and is replaced by
+         * something better. An unreadable file is never read, so for those it
+         * is the only emoji there will be, which is exactly when carrying it
+         * matters most.
+         */
+        emoji: isFirst ? carried : null,
         status: readable ? 'pending' : 'ready',
       })
       .returning({ id: boxItems.id });
@@ -1261,6 +1288,7 @@ export async function promoteListItem(itemId: string) {
     .select({
       id: listItems.id,
       title: listItems.title,
+      emoji: listItems.emoji,
       listId: listItems.listId,
       projectId: listItems.projectId,
       promotedActionId: listItems.promotedActionId,
@@ -1281,7 +1309,7 @@ export async function promoteListItem(itemId: string) {
 
   const [action] = await db
     .insert(actions)
-    .values({ title, projectId: item.projectId })
+    .values({ title, emoji: item.emoji, projectId: item.projectId })
     .returning();
 
   await db

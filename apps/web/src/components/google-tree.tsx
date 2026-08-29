@@ -2,13 +2,6 @@
 
 import { useState } from 'react';
 import type { TreeNode } from '@gtd/db';
-import {
-  IconDocument,
-  IconEnvelope,
-  IconImage,
-  IconProject,
-  IconSheet,
-} from './icons';
 
 /**
  * A project's Drive folder and Gmail label, navigable without leaving the app.
@@ -38,21 +31,62 @@ import {
  */
 
 /**
- * The mark for one node.
+ * Which of Google's marks a node wears.
  *
- * A component rather than a function returning one, which is not a style
- * preference: choosing a component *during* render gives the compiler a new
- * type on every pass, and it says so. Picking inside the render is the same
- * decision made where it is allowed to be made.
+ * A folder and a Gmail label are both containers and get the folder, which is
+ * grey in Google's own set and so claims nothing about being a Drive folder
+ * specifically. A message gets `message/rfc822`, which is a red envelope. Every
+ * file gets its own type, and a type Google has never heard of still answers —
+ * with the generic blue page, which is the right answer and saves the caller
+ * from having to know what is on the list.
+ */
+function glyphType(node: TreeNode): string {
+  if (node.kind === 'folder' || node.kind === 'label') {
+    return 'application/vnd.google-apps.folder';
+  }
+
+  if (node.kind === 'message') return 'message/rfc822';
+
+  return node.mimeType || 'application/octet-stream';
+}
+
+/**
+ * The mark for one node — Google's, in Google's colours.
+ *
+ * These rows are files this app cannot open and does not hold, and the one
+ * useful thing it can say about each is what kind of thing it is. Google's own
+ * icons say it without being read: everyone who has opened Drive knows the blue
+ * page, the green grid and the red PDF, and the tree is trying to look like the
+ * place the files actually are.
+ *
+ * Requested at 32 and drawn at 16, so it stays sharp on a phone, and served
+ * through our own origin — see `/api/google-icon`.
+ *
+ * `alt=""` because the row's text is already the name: a screen reader
+ * announcing "PDF icon" before every filename is noise, and the kind is in the
+ * extension anyway. Fixed dimensions so a slow or missing icon leaves the row
+ * the shape it will end up, rather than reflowing the whole tree as they land.
  */
 function NodeGlyph({ node }: { node: TreeNode }) {
-  if (node.kind === 'folder' || node.kind === 'label') return <IconProject />;
-  if (node.kind === 'message') return <IconEnvelope />;
+  const type = glyphType(node);
 
-  const mime = node.mimeType ?? '';
-  if (mime.startsWith('image/')) return <IconImage />;
-  if (mime.includes('spreadsheet') || mime === 'text/csv') return <IconSheet />;
-  return <IconDocument />;
+  return (
+    /*
+     * A plain `img`. `next/image` exists to resize and re-encode photographs,
+     * and would put a 300-byte PNG through an optimiser that bills per source
+     * image to hand back something no smaller — over a URL that is already
+     * ours and already cached for a year.
+     */
+    // eslint-disable-next-line @next/next/no-img-element
+    <img
+      src={`/api/google-icon?type=${encodeURIComponent(type)}&size=32`}
+      alt=""
+      width={16}
+      height={16}
+      className="block h-4 w-4"
+      draggable={false}
+    />
+  );
 }
 
 /** Bytes, in the shortest form that is still honest. */
@@ -90,7 +124,7 @@ function Row({ node, depth }: { node: TreeNode; depth: number }) {
           <span className="w-3 shrink-0" />
         )}
 
-        <span className="shrink-0 text-grey-400">
+        <span className="shrink-0">
           <NodeGlyph node={node} />
         </span>
 

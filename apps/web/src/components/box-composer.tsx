@@ -12,6 +12,7 @@ import {
 } from '@/lib/actions';
 import { uploadToBox } from '@/lib/box-upload';
 import { readEmailPaste } from '@/lib/email-paste';
+import { imagesToPdf, isImage, pdfNameFor } from '@/lib/images-to-pdf';
 import { driveFileUrl } from '@/lib/google/sync';
 import { soleUrl } from '@/lib/sole-url';
 import { AudioRecorder } from './audio-recorder';
@@ -53,6 +54,16 @@ export function BoxComposer({ boxId }: { boxId: string }) {
    * is not when it was made.
    */
   const [useFileDate, setUseFileDate] = useState(false);
+  /**
+   * Images held back while the composer asks whether they are one thing.
+   *
+   * The composer's whole argument is that anything it makes you fill in is a
+   * reason to stop keeping the journal, so this is not a staging tray you have
+   * to clear — it appears only when several images arrive *together*, which is
+   * the only moment the question means anything, and it has no third answer
+   * that loses the files. One image, or a mixture of kinds, never sees it.
+   */
+  const [offer, setOffer] = useState<File[] | null>(null);
   const [recording, setRecording] = useState(false);
   const [creating, setCreating] = useState(false);
   const [over, setOver] = useState(false);
@@ -194,6 +205,62 @@ export function BoxComposer({ boxId }: { boxId: string }) {
   };
 
   /**
+   * What to do with files as they arrive.
+   *
+   * Every route into the composer — the paperclip, the camera, a paste, a drop
+   * — comes through here, so the question is asked once rather than four times.
+   * Several images at once is the one case worth pausing on: a conversation
+   * screenshotted in pieces, or a letter photographed page by page, is one
+   * document that would otherwise arrive as six rows to open in order.
+   *
+   * Anything else goes straight up, exactly as it did before. Asking about a
+   * single file, or about a PDF and a photograph, would be a form.
+   */
+  const receive = (files: FileList | File[]) => {
+    const list = [...files];
+    if (list.length === 0) return;
+
+    if (list.length > 1 && list.every(isImage)) {
+      setError(null);
+      setOffer(list);
+      return;
+    }
+
+    void upload(list);
+  };
+
+  /**
+   * The answer: one document.
+   *
+   * Built here in the browser and then handed to the ordinary upload path, so
+   * the one PDF rides the same session/PUT/complete route every other file does
+   * and nothing downstream knows it was made rather than chosen.
+   *
+   * Whatever is in the text field names it. A box of scans called "3 images" is
+   * a box you search by opening things, and the sentence you were about to post
+   * is almost always what the pictures are of.
+   */
+  const combine = async () => {
+    const list = offer;
+    if (!list) return;
+
+    setOffer(null);
+    setError(null);
+    setBusy(`Combining ${list.length} images`);
+
+    try {
+      const pdf = await imagesToPdf(list, pdfNameFor(list.length, text.trim()));
+      await upload([pdf]);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Those images would not combine.');
+      setBusy(null);
+      // Put them back rather than dropping them: a failure here must not be the
+      // difference between having the pictures and not.
+      setOffer(list);
+    }
+  };
+
+  /**
    * Where you are, from the browser.
    *
    * Asks each time rather than watching: a journal entry is a moment, and an
@@ -241,7 +308,7 @@ export function BoxComposer({ boxId }: { boxId: string }) {
         const files = [...e.clipboardData.files];
         if (files.length === 0) return;
         e.preventDefault();
-        void upload(files);
+        receive(files);
       }}
       /**
        * Dropping a file here uploads it.
@@ -271,7 +338,7 @@ export function BoxComposer({ boxId }: { boxId: string }) {
         if (!e.dataTransfer.types.includes('Files')) return;
         e.preventDefault();
         setOver(false);
-        void upload(e.dataTransfer.files);
+        receive(e.dataTransfer.files);
       }}
       className={[
         'border-b px-3 py-2',
@@ -290,6 +357,44 @@ export function BoxComposer({ boxId }: { boxId: string }) {
           }}
           onCancel={() => setRecording(false)}
         />
+      ) : null}
+
+      {/*
+        The question, asked only when it has an answer worth giving. Both
+        buttons act; there is no dismiss, because dismissing would leave the
+        images nowhere and the composer looking as though it had taken them.
+      */}
+      {offer ? (
+        <div className="mb-2 flex flex-wrap items-center gap-2 rounded-sm border border-grey-200 bg-paper px-2 py-1.5 text-[11px] text-grey-600">
+          {/*
+            The count and nothing else. A composer pane is barely wider than
+            the two buttons, and a sentence asking the question was truncated
+            to "3 images — one document…" — which is the half that says least.
+            The buttons are the question; both of them read as answers on their
+            own.
+          */}
+          <span className="min-w-0 flex-1 truncate">{offer.length} images</span>
+
+          <button
+            type="button"
+            onClick={() => void combine()}
+            className="shrink-0 rounded-sm bg-grey-800 px-2 py-1 text-[11px] text-paper"
+          >
+            Combine into one PDF
+          </button>
+
+          <button
+            type="button"
+            onClick={() => {
+              const list = offer;
+              setOffer(null);
+              void upload(list);
+            }}
+            className="shrink-0 rounded-sm px-2 py-1 text-[11px] text-grey-600 underline hover:text-grey-800"
+          >
+            Keep separate
+          </button>
+        </div>
       ) : null}
 
       <textarea
@@ -412,7 +517,7 @@ export function BoxComposer({ boxId }: { boxId: string }) {
         multiple
         hidden
         onChange={(e) => {
-          if (e.target.files) void upload(e.target.files);
+          if (e.target.files) receive(e.target.files);
           e.target.value = '';
         }}
       />
@@ -423,7 +528,7 @@ export function BoxComposer({ boxId }: { boxId: string }) {
         capture="environment"
         hidden
         onChange={(e) => {
-          if (e.target.files) void upload(e.target.files);
+          if (e.target.files) receive(e.target.files);
           e.target.value = '';
         }}
       />

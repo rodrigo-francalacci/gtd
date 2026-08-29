@@ -134,6 +134,18 @@ Turbopack is the default; `middleware` is now `proxy`.
   answer. `setEmoji` goes through `oneEmoji` like everything else, so a word is
   refused rather than stored — the slot is a fixed width and a word in it shifts
   every title on the list.
+- **The emoji travels with the row, across tables.** Clarifying a capture,
+  filing it in a box and promoting a list item all put the glyph on the thing
+  the row became. Leaving it behind would mean a line you had learned to
+  recognise in the inbox arriving in Now looking like everything else — and then
+  being given a second, different glyph the next time anything was emojified.
+  What makes a list scannable is that a row keeps its shape, so that has to
+  survive the row changing table. A move *within* a table needs nothing: the
+  column comes along because the row does. The exception is a box document,
+  where the carried emoji is a placeholder the reading is allowed to replace —
+  a glyph chosen from what the document turns out to *be* beats one taken from
+  the line typed before it was filed, and an unreadable file, never read, keeps
+  the carried one.
 - **The emoji is stored, and is its own column.** Derived at render time it
   would change between drawings, and recognising a row by its shape before
   reading it is exactly what that breaks. Prefixed into `title` it would reach
@@ -417,6 +429,23 @@ Turbopack is the default; `middleware` is now `proxy`.
   `https://*.google.com/`: a `javascript:` url in a tree is a script that runs
   when clicked. A node whose url is refused still renders, as plain text — the
   file is really in the folder; only the link is untrusted.
+- **The tree wears Google's icons, in Google's colours.** These rows are files
+  the app cannot open and does not hold, and the one useful thing it can say
+  about each is what kind of thing it is — which Google already says, in marks
+  everybody who has opened Drive reads without thinking: the blue page, the
+  green grid, the red PDF. Drawing our own would be drawing Google's icons
+  slightly wrong, in the one pane whose whole job is to look like the place the
+  files actually are. **The only place colour is not this app's own semantics**,
+  and it stops at the window: nothing outside the tree uses them. Proxied
+  through `/api/google-icon`, for the reason a link's preview image is —
+  pointing the browser at `drive-thirdparty.googleusercontent.com` would tell
+  that host which project folder is open and when. Ungated, unlike every other
+  route: the answer depends only on the query and cannot be asked about a user,
+  so a session check would put a database round trip in front of every glyph in
+  a tree of fifty rows and make a shared icon `private`. Sizes are an allowlist
+  (16/32/64/128) because the service is not a resizer and 24 is a 404, and a
+  type it has never heard of still answers — with the generic page, which is
+  the right answer.
 - **One component draws both trees.** A folder holding folders and files and a
   label holding sub-labels and messages are the same thing to somebody reading
   down them. Gmail has no hierarchy of its own — `GTD/Projects/Kitchen/Quotes`
@@ -527,6 +556,16 @@ Turbopack is the default; `middleware` is now `proxy`.
   genuinely in flight. There is no server-side queue to resume from — the files
   live only in the tab — which is exactly why the tab must not lie about being
   done.
+- **The box composer asks; the capture screen offers.** Same PDF, two shapes,
+  because the two screens hold files differently: capture stages them, so a
+  control over the staged list is where it belongs, while the composer's whole
+  argument is that anything it makes you fill in is a reason to stop keeping the
+  journal — so it uploads on arrival and there is no staged list to put a
+  control on. Instead the question is asked at the one moment it means anything:
+  several images arriving *together*. One file, or a mixture of kinds, never
+  sees it. Both buttons act and there is no dismiss — dismissing would leave the
+  images nowhere and the composer looking as though it had taken them — and a
+  failure puts them back rather than dropping them.
 - **Several images can become one document, in the browser.** A conversation
   screenshotted in pieces is six rows to open in order, or one PDF you scroll.
   `imagesToPdf` builds it client-side and swaps the staged images for the result,
