@@ -369,6 +369,18 @@ two meet at one place only: you can *link* a document to a project.
 - **Scan into a watched Drive folder**, via the Apps Script bridge in
   `scripts/` — this is how paper gets in
 
+**Several images at once become one document, if you want.** Drop, paste or
+choose two or more pictures together and the composer asks: *Combine into one
+PDF*, or *Keep separate*. One image per page, each page the size of its image,
+in the order you added them — the case it exists for is a letter photographed
+page by page, or a conversation screenshotted in pieces. Whatever you have typed
+in the composer names the file.
+
+It only asks when several images arrive together, which is the only moment the
+question means anything; one file, or a mixture of kinds, goes straight in as
+before. Both answers act — there is no way to dismiss it and lose the pictures —
+and if the combining fails they are handed back.
+
 ### Kinds of entry
 
 `document` (has a file), `note`, `link`, `location`. Only a document is read by
@@ -735,11 +747,28 @@ the editor, saved or not, so you can press it while writing.
 
 It compiles on the machine serving the app, so it works on a desktop with MiKTeX
 or TeX Live. **On the deployed app it does not**, and cannot: a serverless
-function has nowhere to put a TeX distribution. It says so rather than failing
-oddly, and names the two ways round it — open the app from the machine that has
-TeX, or set `LATEX_REMOTE_URL` to something that will typeset for you.
+function has nowhere to put a TeX distribution. The smallest useful slice of TeX
+Live is about 120 MB against a 250 MB limit for the whole function, and a single
+`\multirow` reaches into a set that is 326 MB on its own. The engine was never
+the problem; the distribution is.
 
-That second one is opt-in and off by default, deliberately: it means the document
+**So every build is kept, and the last one opens anywhere.** Each time you
+typeset, the PDF is stored beside its source in Drive. Open that document on the
+phone and there is a button — *Open the last build · 19:27* — which gives you the
+real thing: real pages, real Computer Modern, real packages, made by real TeX on
+the machine that has it. What the phone cannot do is make a *new* one, which is a
+much smaller thing to be told than "not here".
+
+A build shown that way says outright that it is not what the editor beside it now
+says, because usually it will not be. There is one PDF per document and each
+build replaces it, so the folder does not fill up with documents you have already
+read. A failed compile changes nothing — the previous PDF stays exactly where it
+was, since an older document you can read beats a fresh error you cannot.
+
+If you want the phone to *build* rather than read, `LATEX_REMOTE_URL` points at
+something that will typeset for you.
+
+That is opt-in and off by default, deliberately: it means the document
 leaves this app. It can point at a public service, or at your own desktop exposed
 to your network — the second keeps the file on hardware you own, which is why it
 is a URL rather than a provider. When a PDF comes back that way the pane says so
@@ -954,14 +983,25 @@ account and the server can render the right one without a flash.
 by its shape instead of reading along the titles. It is on the inbox, *What can
 I do now*, *Waiting for*, projects, any list, and any box.
 
-It is a button, never automatic. Choosing costs a call to the model, and a list
-that spent money each time it drew itself would be the wrong thing entirely for
-a queue you open twenty times a day. Press it, and the whole visible list is
-marked at once.
+**Things arrive with one.** A capture, a note posted into a box, a list item
+typed into the quick-add — each is given an emoji a moment after it is saved.
+It happens *after* the row is written and nothing waits for it, so capture is
+as fast as it ever was and you can keep typing the next thought while the
+first one is being looked at. If it fails, or you have no API key, or you close
+the tab first, the row is exactly as you left it and the button below fills the
+gap later. Nothing depends on it landing.
+
+**The button fills the gaps.** It reads *Emojify 5* when five rows on screen
+have none, and marks only those five — the ones already marked are left alone,
+including any you chose by hand. Hold **Alt** while pressing it to re-decide the
+whole list instead, which is worth doing after you have edited some titles.
 
 **What it marks is what you are looking at.** On a filtered list — the Now view
 with a context chosen, say — it marks the rows the filter left, not the whole
 table.
+
+Choosing costs a call to the model, which is why the whole list is one press
+rather than something that happens each time a page draws itself.
 
 The whole list goes to the model in one request, which is both cheaper and
 better: something that can see all the rows gives the two shopping errands the
@@ -990,12 +1030,22 @@ reading already produced rather than opening every file again: re-reading a box
 would cost a full document read apiece, and a PDF is billed as its text *and* a
 picture of every page.
 
-**Redo emoji** asks again, which is worth doing after you have edited some
-titles. **Clear** takes them off.
+**Clear** takes them off.
+
+**The emoji goes with the row.** Clarify a capture into an action, a project, a
+list item or a box entry and the glyph goes with it; promote something off a
+list and the action it becomes keeps it. A row you have learned to recognise in
+the inbox should still look like itself in *Now*, and it should not be handed a
+second, different emoji the next time anything is marked.
+
+The one exception is a document filed into a box: the carried emoji holds the
+place until the document is read, and the reading replaces it with one chosen
+for what the file turns out to *be*. If it is never read — too large, or a kind
+nothing can read — the carried one is what it keeps.
 
 **A box asks from the sidebar instead.** Right-click a box in the left-hand
-column — or press and hold on a touchscreen — for *Redo emoji* and *Clear
-emoji*. That header already carries the pending count, the gallery switch and
+column — or press and hold on a touchscreen. That menu holds four things:
+*Emojify*, *Clear emoji*, *Read the N waiting*, and *Manage tags*. That header already carries the pending count, the gallery switch and
 the tag link, and a fourth control there was crowding the one pane header with
 the most in it; choosing emoji is a thing you do to a box roughly once, which
 does not earn permanent space. From there it means every document in the box,
@@ -1192,6 +1242,14 @@ folder and its Gmail label in the preview pane: folders and sub-folders, labels
 and sub-labels, sizes and dates. Clicking anything opens it where it lives, in a new
 tab — a file in Drive, a message in Gmail. On a phone that means the Drive or
 Gmail app, because these are ordinary links and your phone hands them over.
+
+**The icons are Google's own**, in Google's colours: the blue page, the green
+grid, the yellow slides, the red PDF, a red envelope for a message. This is the
+one place in the app where colour is not the app's own — everywhere else it
+means *waiting*, *stale* or *selected* and nothing more — and it stops at this
+pane, which is a window onto somebody else's system and should look like it.
+They are fetched through the app rather than from Google directly, so browsing a
+folder does not tell Google's servers which project you have open.
 
 **It is an index, not a mirror, and it says how old it is.** The app cannot read
 either of these: listing a folder you have dropped things into needs Drive's
