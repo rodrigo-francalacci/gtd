@@ -125,9 +125,23 @@ export function RowMenu({
         onPointerLeave={cancel}
         // A finger that has drifted was scrolling the list, not holding.
         onPointerMove={cancel}
-        onClick={(event) => {
+        /*
+         * Capture, not bubble, and that is the whole of the mobile fix.
+         *
+         * A long press ends in a click, and the row is a Next `Link` whose own
+         * handler calls `router.push`. A bubble-phase listener on this wrapper
+         * runs *after* that handler — so the navigation had already happened,
+         * the pane changed under the menu, and the scroll that came with it
+         * closed the menu before a finger could reach it. Nothing was broken
+         * about the menu; it was being thrown away a frame after it opened.
+         *
+         * The capture phase runs ancestor-first, so this gets the click before
+         * the link does, and `stopPropagation` means the link never sees it.
+         */
+        onClickCapture={(event) => {
           if (!consumed.current) return;
           event.preventDefault();
+          event.stopPropagation();
           consumed.current = false;
         }}
         /* iOS shows its own callout on a long press and never fires

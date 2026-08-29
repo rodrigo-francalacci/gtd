@@ -31,28 +31,39 @@ export function EmojifyButton({
 
   if (ids.length === 0) return null;
 
-  const run = () => {
+  const run = (redo: boolean) => {
     setError(null);
     startTransition(async () => {
-      const result = await emojifyRows(target, ids);
+      const result = await emojifyRows(target, ids, redo);
       if (!result.ok) setError(result.error);
     });
   };
 
+  const missing = ids.length - marked;
+
   return (
     <span className="flex items-center gap-2">
+      {/*
+        One button, and it fills the gaps.
+
+        It used to say "Redo emoji" once anything was marked, which was the
+        wrong offer: rows arrive marked now, so the common press is "catch up
+        the few that are not" — and re-deciding two hundred rows costs a model
+        call and can overwrite one you had corrected by hand. Redoing is still
+        there, held behind a modifier, because it is a deliberate thing.
+      */}
       <button
         type="button"
-        onClick={run}
-        disabled={pending}
+        onClick={(event) => run(event.altKey || event.shiftKey)}
+        disabled={pending || (missing === 0 && marked === 0)}
         title={
-          marked > 0
-            ? 'Choose emoji again for every row in this list'
-            : 'Put an emoji in front of each row, so the list can be scanned'
+          missing > 0
+            ? `Choose an emoji for the ${missing} without one. Hold Alt to redo them all.`
+            : 'Everything here has one. Hold Alt to choose again.'
         }
         className="rounded-sm px-1.5 py-0.5 text-[11px] text-grey-500 hover:bg-grey-150 hover:text-grey-800 disabled:opacity-40"
       >
-        {pending ? 'Choosing…' : marked > 0 ? 'Redo emoji' : 'Emojify'}
+        {pending ? 'Choosing…' : missing > 0 ? `Emojify ${missing}` : 'Emojify'}
       </button>
 
       {marked > 0 && !pending ? (

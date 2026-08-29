@@ -1200,10 +1200,17 @@ export async function createListItem(formData: FormData) {
   await requireSession();
   const title = String(formData.get('title') ?? '').trim();
   const listId = String(formData.get('listId') ?? '');
-  if (!title || !listId) return;
+  if (!title || !listId) return null;
 
-  await db.insert(listItems).values({ listId, title });
+  // The id goes back so the caller can have it given an emoji afterwards,
+  // without this action waiting on a model to answer.
+  const [row] = await db
+    .insert(listItems)
+    .values({ listId, title })
+    .returning({ id: listItems.id });
+
   revalidateShell();
+  return row.id;
 }
 
 export async function updateListItemTitle(itemId: string, title: string) {
@@ -2623,7 +2630,19 @@ const EMOJI_TABLES = {
  * Rows the model skipped keep whatever they had. Clearing a good emoji because
  * one answer came back as a word would make pressing the button a risk.
  */
-export async function emojifyRows(target: EmojiTarget, ids: string[]) {
+export async function emojifyRows(
+  target: EmojiTarget,
+  ids: string[],
+  /**
+   * Whether to re-ask about rows that already have one.
+   *
+   * Off by default, and that is the whole shape of the button: pressing it a
+   * second time should fill the gaps, not spend a model call re-deciding two
+   * hundred rows you have already looked at — and possibly changing one you had
+   * corrected by hand. Redoing is a deliberate thing, not the default one.
+   */
+  redo = false,
+) {
   await requireSession();
 
   const wanted = [...new Set(ids)].filter(Boolean);
@@ -2631,10 +2650,15 @@ export async function emojifyRows(target: EmojiTarget, ids: string[]) {
 
   const { table, title } = EMOJI_TABLES[target];
 
-  const rows = await db
-    .select({ id: table.id, title })
-    .from(table)
-    .where(inArray(table.id, wanted));
+  const rows = (
+    await db
+      .select({ id: table.id, title, emoji: table.emoji })
+      .from(table)
+      .where(inArray(table.id, wanted))
+  ).filter((row) => redo || !row.emoji);
+
+  // Everything already had one. Not a failure: it is the answer.
+  if (rows.length === 0) return { ok: true as const, marked: 0 };
 
   /*
    * The first line only, which is the title everywhere else in the app — a
@@ -2710,7 +2734,7 @@ export async function clearEmoji(target: EmojiTarget, ids: string[]) {
  * gallery switch and the tag link, and a fourth control there was crowding the
  * one header with the most in it.
  */
-export async function emojifyBox(boxId: string) {
+export async function emojifyBox(boxId: string, redo = false) {
   await requireSession();
 
   const rows = await db
@@ -2721,6 +2745,7 @@ export async function emojifyBox(boxId: string) {
   return emojifyRows(
     'box',
     rows.map((row) => row.id),
+    redo,
   );
 }
 

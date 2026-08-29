@@ -1,6 +1,7 @@
 'use client';
 
 import { useRef } from 'react';
+import { emojifyLater } from '@/lib/emojify-later';
 import { createListItem } from '@/lib/actions';
 
 /** Zero-friction capture onto a list. Nothing here is a commitment yet. */
@@ -11,7 +12,8 @@ export function QuickAddListItem({ listId }: { listId: string }) {
     <form
       ref={formRef}
       action={async (formData) => {
-        await createListItem(formData);
+        /* Not awaited: adding the next line must not wait on a model. */
+        emojifyLater('list_items', await createListItem(formData));
         formRef.current?.reset();
       }}
       className="border-b border-grey-200 bg-paper px-4 py-2"

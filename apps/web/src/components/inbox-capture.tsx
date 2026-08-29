@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
+import { emojifyLater } from '@/lib/emojify-later';
 import { useRouter } from 'next/navigation';
 import { captureInboxItem } from '@/lib/actions';
 import { uploadCaptureFiles } from '@/lib/capture-upload';
@@ -165,6 +166,12 @@ export function InboxCapture() {
       body.set('rawType', rawTypeFor(files));
 
       const item = await captureInboxItem(body);
+      /*
+       * Given an emoji afterwards, and deliberately not awaited: the capture is
+       * already saved and the next thought must not queue behind a model call.
+       * Nothing depends on it landing — see `emojifyLater`.
+       */
+      emojifyLater('inbox', item?.id);
       if (!item) {
         setStaged([]);
         return;

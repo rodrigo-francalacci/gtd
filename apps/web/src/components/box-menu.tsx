@@ -129,9 +129,23 @@ export function BoxMenu({
         onPointerLeave={cancel}
         // A finger that has drifted was scrolling the sidebar, not holding.
         onPointerMove={cancel}
-        onClick={(event) => {
+        /*
+         * Capture, not bubble, and that is the whole of the mobile fix.
+         *
+         * A long press ends in a click, and the row is a Next `Link` whose own
+         * handler calls `router.push`. A bubble-phase listener on this wrapper
+         * runs *after* that handler — so the navigation had already happened,
+         * the pane changed under the menu, and the scroll that came with it
+         * closed the menu before a finger could reach it. Nothing was broken
+         * about the menu; it was being thrown away a frame after it opened.
+         *
+         * The capture phase runs ancestor-first, so this gets the click before
+         * the link does, and `stopPropagation` means the link never sees it.
+         */
+        onClickCapture={(event) => {
           if (!consumed.current) return;
           event.preventDefault();
+          event.stopPropagation();
           consumed.current = false;
         }}
         /*
@@ -212,10 +226,16 @@ export function BoxMenu({
             type="button"
             role="menuitem"
             disabled={pending}
-            onClick={() => run(() => emojifyBox(boxId), 'Emoji chosen.')}
+            onClick={(event) =>
+              run(
+                () => emojifyBox(boxId, event.altKey || event.shiftKey),
+                'Emoji chosen.',
+              )
+            }
+            title="Choose one for anything without an emoji. Hold Alt to redo them all."
             className="block w-full px-3 py-1.5 text-left text-[12px] text-grey-800 hover:bg-grey-150 disabled:opacity-40"
           >
-            {pending ? 'Choosing…' : 'Redo emoji'}
+            {pending ? 'Choosing…' : 'Emojify'}
           </button>
 
           <button

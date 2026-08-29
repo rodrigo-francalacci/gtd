@@ -1,6 +1,7 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
+import { emojifyLater } from '@/lib/emojify-later';
 import { useRef, useState, useTransition } from 'react';
 import {
   createBoxFile,
@@ -149,7 +150,8 @@ export function BoxComposer({ boxId }: { boxId: string }) {
       } else if (url) {
         await postBoxLink(boxId, url, '');
       } else {
-        await postBoxNote(boxId, body);
+        /* Same again: the note is in the box, and the emoji catches up. */
+        emojifyLater('box', await postBoxNote(boxId, body));
       }
 
       router.refresh();
