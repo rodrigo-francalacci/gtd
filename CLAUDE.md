@@ -527,6 +527,18 @@ Turbopack is the default; `middleware` is now `proxy`.
   genuinely in flight. There is no server-side queue to resume from — the files
   live only in the tab — which is exactly why the tab must not lie about being
   done.
+- **Several images can become one document, in the browser.** A conversation
+  screenshotted in pieces is six rows to open in order, or one PDF you scroll.
+  `imagesToPdf` builds it client-side and swaps the staged images for the result,
+  because the images are already there and the upload path already goes straight
+  to Drive — posting megabytes of image through a function with a 4.5 MB body cap
+  to get something smaller back would be the long way round. One image per page,
+  each page sized to its image rather than to A4: these are screenshots of
+  different shapes and a common page would letterbox every one differently.
+  JPEG and PNG are embedded as they are; anything else a browser can decode
+  (HEIC, WebP, AVIF) goes through a canvas to JPEG, on white — flattening
+  transparency into JPEG turns a rounded screenshot corner black. `pdf-lib` is
+  imported on demand, like `marked` and `temml`.
 - **A capture needs text *or* a file, not both.** A photo with no note is a
   complete capture; the list falls back to "Photo" / "Voice note" so the row is
   still recognisable, and the clarify panel seeds its title from the file name.

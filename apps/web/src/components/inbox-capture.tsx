@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
+import { imagesToPdf, isImage, pdfNameFor } from '@/lib/images-to-pdf';
 import { emojifyLater } from '@/lib/emojify-later';
 import { useRouter } from 'next/navigation';
 import { captureInboxItem } from '@/lib/actions';
@@ -45,6 +46,7 @@ export function InboxCapture() {
   const [noteOpen, setNoteOpen] = useState(false);
 
   const [staged, setStaged] = useState<File[]>([]);
+  const [combining, setCombining] = useState(false);
   const [over, setOver] = useState(false);
   const [busy, setBusy] = useState(false);
   const [recording, setRecording] = useState(false);
@@ -254,6 +256,57 @@ export function InboxCapture() {
           }}
           className="mt-1 w-full resize-none border-l-2 border-grey-200 bg-transparent pl-2 text-[12px] leading-relaxed text-grey-700 placeholder:text-grey-400 focus:outline-none"
         />
+      ) : null}
+
+      {/*
+        Several pictures that are one thing.
+
+        The case is a conversation screenshotted in pieces: six images that are
+        six rows to open in order, against one document you scroll. Offered
+        rather than done, because six photographs of six different things are
+        just as common and would be ruined by it — and only from two upwards,
+        since one image is already one thing.
+
+        Built here in the browser: the images are already staged, and the upload
+        path goes straight from here to Drive, so combining first means the one
+        PDF rides that same route instead of megabytes going through a function
+        to come back smaller.
+      */}
+      {staged.filter(isImage).length > 1 && !progress ? (
+        <div className="mb-2 flex items-center gap-2">
+          <button
+            type="button"
+            disabled={combining}
+            onClick={() => {
+              const pictures = staged.filter(isImage);
+              setCombining(true);
+
+              void (async () => {
+                try {
+                  const pdf = await imagesToPdf(
+                    pictures,
+                    // Named after whatever you have typed, if anything. The
+                    // field is uncontrolled, so it is read rather than held.
+                    pdfNameFor(pictures.length, fieldRef.current?.value.split('\n')[0]),
+                  );
+                  // The pictures leave and the document takes their place, in
+                  // the same list — so what is about to be captured is visible
+                  // rather than implied.
+                  setStaged((files) => [...files.filter((f) => !isImage(f)), pdf]);
+                } catch {
+                  setErrors((e) => [...e, 'Those images would not combine.']);
+                } finally {
+                  setCombining(false);
+                }
+              })();
+            }}
+            className="rounded-sm bg-grey-200 px-2 py-0.5 text-[11px] text-grey-700 hover:bg-grey-300 disabled:opacity-40"
+          >
+            {combining
+              ? 'Combining…'
+              : `Combine ${staged.filter(isImage).length} images into one PDF`}
+          </button>
+        </div>
       ) : null}
 
       {staged.length > 0 ? (

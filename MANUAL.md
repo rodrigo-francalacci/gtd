@@ -91,6 +91,16 @@ You can also:
 complete capture; the list falls back to "Photo" or "Voice note" so the row is
 still recognisable.
 
+**Several pictures that are one thing** can go in as one document. Stage two or
+more images and the capture box offers to combine them into a single PDF — one
+image per page, each page the size of its image, in the order you added them.
+The case it is for is a conversation screenshotted in pieces: six images that are
+six rows to open in order, against one document you scroll.
+
+Offered rather than done, because six photographs of six different things are
+just as common. It happens in the browser, so the one PDF goes up instead of six
+images.
+
 ### While files are uploading
 
 The text field clears the moment the row is written — the next thought must not
