@@ -707,7 +707,23 @@ it away.
 The colours are muted on purpose: this is a writing surface you look at for an
 hour, not a terminal.
 
-The LaTeX view reads the preamble for the things it can honour: paper size and
+**Typeset** is a third tab on a LaTeX document, and it runs real TeX: your page
+size, your margins, Computer Modern, and whatever packages your document asks
+for — installed on demand if your TeX does that. What comes back is a genuine
+PDF in the browser's own viewer, with a button to save it. It typesets what is in
+the editor, saved or not, so you can press it while writing.
+
+It compiles on the machine serving the app, so it works on a desktop with MiKTeX
+or TeX Live and not on a deployment that has neither — where it says so rather
+than failing oddly. A document that fails shows TeX's own log with the errors
+lifted to the top, which is what you would be reading in Overleaf too.
+
+A document is only allowed to open files beside it: an absolute path or a `..` in
+an `\input` or `\includegraphics` is refused, because typesetting runs a real
+program on a real machine.
+
+The reading view is still there and still needs nothing. It reads the preamble
+for the things it can honour: paper size and
 orientation, the `geometry` margin, the base font size, and `arraystretch`. A
 landscape A4 document is shown landscape and A4-wide, in Latin Modern — the
 typeface LaTeX sets by default — so it at least looks like the document it is.

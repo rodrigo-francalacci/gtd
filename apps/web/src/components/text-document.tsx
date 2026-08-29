@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { LatexPdf } from './latex-pdf';
 import { SourceToolbar } from './source-toolbar';
 import { hasHighlighting, highlight } from '@/lib/source-highlight';
 import {
@@ -58,7 +59,7 @@ export function TextDocument({
   const [draft, setDraft] = useState('');
   const [failed, setFailed] = useState<string | null>(null);
 
-  const [view, setView] = useState<'read' | 'source'>(
+  const [view, setView] = useState<'read' | 'source' | 'typeset'>(
     // Plain text has no rendered view worth the name, so it opens where it will
     // stay. Everything else opens rendered: you look at a document far more
     // often than you edit one.
@@ -295,7 +296,19 @@ export function TextDocument({
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1 border-b border-grey-200 bg-grey-50 px-3 py-1.5">
         {hasRenderedView(format) ? (
           <div className="flex shrink-0 overflow-hidden rounded-sm border border-grey-300">
-            {(['read', 'source'] as const).map((which) => (
+            {/*
+              Typeset is offered for LaTeX and nothing else, because it is the
+              only format whose reading view is an approximation of something.
+              Markdown and HTML have no separate truth to compare against — what
+              the browser renders *is* the document.
+            */}
+            {(
+              (format === 'latex'
+                ? (['read', 'source', 'typeset'] as const)
+                : (['read', 'source'] as const)) as readonly (
+                'read' | 'source' | 'typeset'
+              )[]
+            ).map((which) => (
               <button
                 key={which}
                 type="button"
@@ -308,7 +321,11 @@ export function TextDocument({
                     : 'bg-paper text-grey-600 hover:text-grey-900',
                 ].join(' ')}
               >
-                {which === 'read' ? 'Reading' : 'Source'}
+                {which === 'read'
+                  ? 'Reading'
+                  : which === 'source'
+                    ? 'Source'
+                    : 'Typeset'}
               </button>
             ))}
           </div>
@@ -322,7 +339,15 @@ export function TextDocument({
             where they are looking rather than in a tooltip. */}
         {format === 'latex' && view === 'read' ? (
           <span className="text-[10px] text-grey-400">
-            reading view · not TeX typesetting
+            reading view —{' '}
+            <button
+              type="button"
+              onClick={() => setView('typeset')}
+              className="underline underline-offset-2 hover:text-grey-700"
+            >
+              Typeset
+            </button>{' '}
+            runs TeX
           </span>
         ) : null}
 
@@ -364,7 +389,14 @@ export function TextDocument({
         </button>
       </div>
 
-      {view === 'read' ? (
+      {view === 'typeset' ? (
+        /*
+         * Mounted only while the tab is open, and given the *draft* — so what
+         * is typeset is what you have written, saved or not, which is the whole
+         * point of pressing it while editing.
+         */
+        <LatexPdf source={draft} />
+      ) : view === 'read' ? (
         <iframe
           key={page?.seq ?? 0}
           // `sandbox=""` — no permissions at all. Scripts, forms, popups and

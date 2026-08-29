@@ -871,6 +871,28 @@ Turbopack is the default; `middleware` is now `proxy`.
   afterwards. Verbatim goes one step earlier still — *before* the comment
   stripper, because a `%` in a code sample is a percent sign and stripping
   comments first ate the rest of every such line.
+- **Typeset runs real TeX, on the machine serving the app.** `POST
+  /api/latex/compile` writes the source to a temp directory, runs `pdflatex` and
+  returns the PDF — so the page size, margins, fonts and packages are whatever
+  the document says, because TeX is doing them. `LATEX_COMMAND` names the
+  binary. It works where TeX is installed and says so plainly where it is not,
+  which on Vercel it never will be; the reading view is always there and needs
+  nothing.
+  The browser was tried first and the numbers killed it: every engine needs a
+  TeX Live tree, the smallest useful slice is ~120 MB, upstream ships it only as
+  a single **498 MB** tarball, and one `\multirow` reaches into the 326 MB
+  "extra" set on its own. The engine was never the problem — the distribution is.
+- **`-no-shell-escape` holds; `openin_any` does not, and the difference is
+  measured.** A document asked to create a file through `\write18` created
+  nothing. A document asked whether it could read `C:/Windows/win.ini` said yes,
+  because MiKTeX ignores that variable. So `readsOutside` refuses absolute
+  paths, drive letters and `..` in the file-reading commands — a speed bump for
+  a `.tex` that *arrived* rather than one you wrote, and honest about being one.
+  Its alternation lists the longest command names first: with `include` ahead of
+  `includegraphics` the short one matched and left "graphics{C:/x.png}" as the
+  path, which looks relative and sailed through. Closing it properly is a machine
+  setting (`AllowUnsafeInputFiles=false`) or a container, neither of which
+  belongs in a route.
 - **The reading view is not TeX and never will be — but it can be the right
   shape.** Real typesetting was tried and abandoned on evidence: SwiftLaTeX's
   pdfTeX runs in the browser (no `SharedArrayBuffer`, so no COOP/COEP and the
