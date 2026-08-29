@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState, useTransition } from 'react';
 import { setEmoji, type EmojiTarget } from '@/lib/actions';
+import { EMOJI_GROUPS, findGroups } from '@/lib/emoji-groups';
 
 /**
  * Choose a row's emoji by hand.
@@ -18,22 +19,16 @@ import { setEmoji, type EmojiTarget } from '@/lib/actions';
  * answer a question the operating system answers better. Typing, pasting and
  * the system picker all land in the same box.
  *
- * The dozen buttons above it are not a substitute for that. They are the
- * answers that come up over and over in a list of things to do, close enough to
- * hand that the common case never needs a keyboard at all.
- */
-
-/**
- * The handful worth a single tap.
+ * The groups above it are not a substitute for that, and are not trying to be a
+ * complete set. They are the glyphs that come up over and over in a personal
+ * system, close enough to hand that the common case never needs a keyboard —
+ * grouped by *what a row is* rather than by what the picture shows, because a
+ * to-do list files a car beside an MOT and a tank of fuel while Unicode files it
+ * under travel.
  *
- * Chosen for what a personal system actually accumulates — errands, money,
- * appointments, correspondence, the house, the car — rather than for coverage,
- * which is what the field behind them is for.
+ * Each group shows its first row until you open it, so the panel says what kinds
+ * of thing are on offer before it says how many.
  */
-const QUICK = [
-  '🛒', '📞', '✉️', '💷', '🧾', '📅',
-  '🏠', '🚗', '🩺', '🎁', '✈️', '📄',
-];
 
 export function EmojiPicker({
   target,
@@ -50,6 +45,14 @@ export function EmojiPicker({
 }) {
   const [open, setOpen] = useState(false);
   const [draft, setDraft] = useState('');
+  /**
+   * Which group is showing, or null for the shortlist.
+   *
+   * Closed by default. Twelve glyphs answer most of it, and opening onto a
+   * hundred and ninety would make the common case slower to serve the rare one.
+   */
+  const [group, setGroup] = useState<string | null>(null);
+  const [query, setQuery] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
   const box = useRef<HTMLDivElement>(null);
@@ -86,6 +89,8 @@ export function EmojiPicker({
         return;
       }
       setDraft('');
+      setQuery('');
+      setGroup(null);
       setOpen(false);
     });
   };
@@ -110,22 +115,89 @@ export function EmojiPicker({
       </button>
 
       {open ? (
-        <div className="absolute left-0 top-7 z-40 w-[13.5rem] rounded-sm border border-grey-300 bg-paper p-2 shadow-lg">
-          <div className="grid grid-cols-6 gap-0.5">
-            {QUICK.map((glyph) => (
+        <div className="absolute left-0 top-7 z-40 w-[15rem] rounded-sm border border-grey-300 bg-paper p-2 shadow-lg">
+          {/*
+            The group being read, or all of them.
+
+            Grouped by *what a row is* rather than by what the glyph depicts —
+            Unicode files a car under travel, a to-do list files it beside an MOT
+            and a tank of fuel, and the second is what you are looking for while
+            scanning. The search matches group names for the same reason: no
+            dictionary of "grinning face with sweat" is shipped, which is most of
+            the weight of an emoji picker and none of its use here.
+          */}
+          <div className="mb-1.5 flex items-center gap-1">
+            {group ? (
               <button
-                key={glyph}
                 type="button"
-                disabled={pending}
-                onClick={() => save(glyph)}
-                className={[
-                  'flex h-7 items-center justify-center rounded-sm leading-none hover:bg-grey-150 disabled:opacity-40',
-                  glyph === emoji ? 'bg-grey-200' : '',
-                ].join(' ')}
+                onClick={() => setGroup(null)}
+                className="shrink-0 rounded-sm px-1 text-[11px] text-grey-500 hover:bg-grey-150 hover:text-grey-800"
               >
-                {glyph}
+                ‹
               </button>
-            ))}
+            ) : null}
+
+            <input
+              value={query}
+              onChange={(event) => {
+                setQuery(event.target.value);
+                setGroup(null);
+              }}
+              placeholder={group ?? 'Search groups…'}
+              aria-label="Search emoji groups"
+              className="min-w-0 flex-1 rounded-sm border border-grey-300 bg-paper px-1.5 py-0.5 text-[16px] text-grey-800 placeholder:text-[11px] placeholder:text-grey-400 focus:border-selected focus:outline-none md:text-[12px]"
+            />
+          </div>
+
+          <div className="max-h-56 overflow-y-auto">
+            {(group
+              ? EMOJI_GROUPS.filter((g) => g.name === group)
+              : findGroups(query)
+            ).map((section) => {
+              // Collapsed to its first row until opened, so the panel shows the
+              // shape of the whole vocabulary rather than the start of one part.
+              const showing =
+                group === section.name || query.trim() !== ''
+                  ? section.emoji
+                  : section.emoji.slice(0, 6);
+
+              return (
+                <div key={section.name} className="mb-1.5">
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setGroup(group === section.name ? null : section.name)
+                    }
+                    className="mb-0.5 block w-full px-0.5 text-left text-[10px] uppercase tracking-wider text-grey-500 hover:text-grey-800"
+                  >
+                    {section.name}
+                  </button>
+
+                  <div className="grid grid-cols-6 gap-0.5">
+                    {showing.map((glyph) => (
+                      <button
+                        key={glyph}
+                        type="button"
+                        disabled={pending}
+                        onClick={() => save(glyph)}
+                        className={[
+                          'flex h-7 items-center justify-center rounded-sm leading-none hover:bg-grey-150 disabled:opacity-40',
+                          glyph === emoji ? 'bg-grey-200' : '',
+                        ].join(' ')}
+                      >
+                        {glyph}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              );
+            })}
+
+            {findGroups(query).length === 0 ? (
+              <p className="px-0.5 py-1 text-[11px] text-grey-400">
+                No group called that. The field below takes any emoji.
+              </p>
+            ) : null}
           </div>
 
           <form

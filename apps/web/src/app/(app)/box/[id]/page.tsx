@@ -1,4 +1,3 @@
-import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { DayHeading } from '@/components/day-heading';
 import { DayJournal } from '@/components/day-journal';
@@ -8,7 +7,6 @@ import { BoxViewToggle } from '@/components/box-view-toggle';
 import { DateRange } from '@/components/date-range';
 import { DocumentGalleryRow } from '@/components/document-gallery-row';
 import { DocumentRow } from '@/components/document-row';
-import { ReadWaiting } from '@/components/read-waiting';
 import { EmailRequests } from '@/components/email-requests';
 import { getEmailRequests } from '@/lib/box/email-requests';
 import { ProjectDetail } from '@/components/project-detail';
@@ -250,18 +248,14 @@ export default async function BoxPage(props: PageProps<'/box/[id]'>) {
         viewKey={viewKey}
         paneWidth={paneWidth(prefs)}
         columns={boxView === 'gallery' ? undefined : BOX_COLUMNS}
-        actions={
-          <>
-            <ReadWaiting waiting={box.pendingCount} />
-            <BoxViewToggle view={boxView} viewKey={viewKey} />
-            <Link
-              href={`/box?box=${id}`}
-              className="text-[11px] text-grey-500 underline underline-offset-2 hover:text-grey-800"
-            >
-              Manage tags
-            </Link>
-          </>
-        }
+        /*
+         * Only what is about the *view* stays here. Reading the queue and
+         * editing the vocabulary are things you do to the box, and they live on
+         * the box's own entry in the sidebar — right-click, or press and hold.
+         * They were taking permanent width from the one pane header that
+         * already had the most in it.
+         */
+        actions={<BoxViewToggle view={boxView} viewKey={viewKey} />}
         subtitle={
           <div className="flex flex-col gap-2">
             {span ? (

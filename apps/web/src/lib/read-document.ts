@@ -60,3 +60,37 @@ export async function readDocument(itemId?: string): Promise<ReadResult> {
 
   return result;
 }
+
+/**
+ * Read everything waiting in the queue, in batches, until there is none.
+ *
+ * The loop rather than the request: each call reads a few documents and says
+ * how many are left, because one long request would die at the function's time
+ * limit somewhere in the middle with no way to tell how far it got. Shared, so
+ * the box menu and any other caller cannot disagree about when to stop.
+ *
+ * Bounded at forty passes: a job that stays pending — a stuck row, a retry
+ * backing off — would otherwise spin here asking for the same thing forever.
+ */
+export async function readAllWaiting(
+  onProgress: (left: number) => void,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  try {
+    for (let pass = 0; pass < 40; pass++) {
+      const result = await readDocument();
+
+      if (result.error) return { ok: false, error: result.error };
+
+      onProgress(result.remaining);
+      if (result.remaining === 0) break;
+
+      // Nothing moved: everything left is backing off after a failure, and
+      // asking again immediately would only spin.
+      if (result.done === 0 && result.failed === 0) break;
+    }
+
+    return { ok: true };
+  } catch {
+    return { ok: false, error: 'Could not reach the app.' };
+  }
+}

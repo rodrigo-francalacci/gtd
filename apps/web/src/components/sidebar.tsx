@@ -60,7 +60,7 @@ type Item = {
    * behind them need no permanent space in a header — which is what choosing
    * emoji was taking, in the one pane header that already had the most in it.
    */
-  menu?: { boxId: string; name: string };
+  menu?: { boxId: string; name: string; waiting: number };
 };
 
 export function SidebarNav({
@@ -171,7 +171,7 @@ export function SidebarNav({
           icon: IconBox as Icon,
           count: b.pendingCount,
           drop: { kind: 'box' as const, boxId: b.id },
-          menu: { boxId: b.id, name: b.name },
+          menu: { boxId: b.id, name: b.name, waiting: b.pendingCount },
         })),
         { href: '/box', label: 'Manage boxes', icon: IconBox, exact: true },
       ],
@@ -290,7 +290,11 @@ export function SidebarNav({
                         outer one, so a drag that starts on a box still reaches
                         the drop target inside it untouched. */}
                     {item.menu ? (
-                      <BoxMenu boxId={item.menu.boxId} name={item.menu.name}>
+                      <BoxMenu
+                        boxId={item.menu.boxId}
+                        name={item.menu.name}
+                        waiting={item.menu.waiting}
+                      >
                         {item.drop ? (
                           <CaptureTarget drop={item.drop}>{link}</CaptureTarget>
                         ) : (

@@ -1,7 +1,10 @@
 'use client';
 
 import { useEffect, useRef, useState, useTransition } from 'react';
+import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { clearBoxEmoji, emojifyBox } from '@/lib/actions';
+import { readAllWaiting } from '@/lib/read-document';
 
 /**
  * The things you do *to* a box, from the box's own entry in the sidebar.
@@ -23,15 +26,21 @@ import { clearBoxEmoji, emojifyBox } from '@/lib/actions';
 export function BoxMenu({
   boxId,
   name,
+  waiting,
   children,
 }: {
   boxId: string;
   name: string;
+  /** Documents filed but not yet read, which is the count on the entry itself. */
+  waiting: number;
   children: React.ReactNode;
 }) {
   const [at, setAt] = useState<{ x: number; y: number } | null>(null);
   const [note, setNote] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
+  const router = useRouter();
+  /** How many are left to read, while a read is running. */
+  const [reading, setReading] = useState<number | null>(null);
 
   const held = useRef<ReturnType<typeof setTimeout> | null>(null);
   /**
@@ -148,6 +157,56 @@ export function BoxMenu({
           <p className="truncate px-3 pb-1 text-[10px] uppercase tracking-wider text-grey-400">
             {name}
           </p>
+
+          {/*
+            The two that used to live in the box pane's header.
+
+            A header is for what you are doing *while* you read a box, and
+            neither of these is that: reading the queue is a thing you do once
+            when something has arrived, and the tag vocabulary is a thing you go
+            and edit. Both were taking permanent width from the one header that
+            already had the most in it, and both are about the box rather than
+            about the view — which is exactly what this menu is for.
+          */}
+          {waiting > 0 || reading !== null ? (
+            <button
+              type="button"
+              role="menuitem"
+              disabled={pending || reading !== null}
+              onClick={() => {
+                setNote(null);
+                setReading(waiting);
+
+                void (async () => {
+                  const result = await readAllWaiting((left) => {
+                    setReading(left);
+                    router.refresh();
+                  });
+
+                  setReading(null);
+                  router.refresh();
+                  setNote(result.ok ? 'Read them.' : result.error);
+                })();
+              }}
+              className="block w-full px-3 py-1.5 text-left text-[12px] text-grey-800 hover:bg-grey-150 disabled:opacity-40"
+            >
+              {reading !== null
+                ? `Reading… ${reading} left`
+                : `Read the ${waiting} waiting`}
+            </button>
+          ) : null}
+
+          <Link
+            href={`/box?box=${boxId}`}
+            role="menuitem"
+            // Navigating away is the end of the menu's business.
+            onClick={() => setAt(null)}
+            className="block w-full px-3 py-1.5 text-left text-[12px] text-grey-800 hover:bg-grey-150"
+          >
+            Manage tags
+          </Link>
+
+          <div className="my-1 border-t border-grey-200" />
 
           <button
             type="button"

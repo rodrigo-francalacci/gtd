@@ -265,7 +265,7 @@ async function renderLatex(source: string): Promise<{ html: string; page: PageSh
  * `max-width` rather than `width`: the pane is often narrower than the paper,
  * and a page that overflows its own frame is worse than one that is squeezed.
  */
-function latexPage(page?: PageShape): string {
+function latexPage(page: PageShape | undefined, paper: string): string {
   const width = page?.width ? `${page.width}mm` : '210mm';
   const margin = page?.margin ?? '20mm';
   const base = page?.base ? `${page.base}pt` : '10pt';
@@ -289,11 +289,20 @@ function latexPage(page?: PageShape): string {
       box-sizing: border-box;
       margin: 0 auto;
     }
-    /* A page, so it reads as one rather than as a web column. */
+    /*
+     * A page on a surround, which is the shape a document has.
+     *
+     * The main element takes the paper colour explicitly. It said "inherit" for
+     * an hour, which inherits the *surround* — so the wash meant to sit around
+     * the page covered the page too and the whole document came out grey.
+     *
+     * No backticks in here: this whole block is a template literal, and one
+     * would end it.
+     */
     @media screen {
-      body { background: ${page ? 'color-mix(in srgb, currentColor 6%, transparent)' : 'transparent'}; }
+      body { background: color-mix(in srgb, currentColor 7%, ${paper}); }
       main {
-        background: ${'inherit'};
+        background: ${paper};
         box-shadow: 0 0 0 1px color-mix(in srgb, currentColor 12%, transparent);
       }
     }
@@ -403,7 +412,7 @@ function shell(
      * because a missing font that silently becomes sans-serif is the loudest
      * possible way to look wrong.
      */
-    ${format === 'latex' ? latexPage(page) : ''}
+    ${format === 'latex' ? latexPage(page, paper) : ''}
   `;
 
   // An `.html` file is its own document and gets the frame to itself. Wrapping
