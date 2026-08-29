@@ -14,6 +14,14 @@ import { useEffect, useRef, useState } from 'react';
  * and the first one on a machine may install packages. Doing that on every
  * keystroke would be a worse editor and a great deal of wasted work.
  *
+ * **Every build is kept, and that is what makes this work away from the desk.**
+ * TeX runs on the machine serving the app, and a serverless host will never
+ * have one — the distribution alone is hundreds of megabytes against a function
+ * limit of 250. So rather than the feature simply being absent everywhere else,
+ * the PDF is stored beside its source in Drive and any device can open it: the
+ * phone gets the real document, built by real TeX, and is told when. What it
+ * cannot do is make a new one, which is a much smaller thing to be told.
+ *
  * A failed compile shows the log, because that is what you would read in
  * Overleaf too: TeX's own complaint about line 24 is nearly always more useful
  * than anything a wrapper could say about it. The errors are lifted to the top
@@ -37,14 +45,46 @@ function complaints(log: string): string[] {
   return out;
 }
 
+/**
+ * Where a document's kept build lives, from where its bytes live.
+ *
+ * `…/file` and `…/typeset` are the same address with a different last segment,
+ * on both sides of the app — which is the whole reason this component needs to
+ * know nothing about attachments or boxes.
+ */
+function typesetUrl(src: string): string | null {
+  return src.endsWith('/file') ? `${src.slice(0, -'/file'.length)}/typeset` : null;
+}
+
+/** When it was built, said the way a person would say it. */
+function when(iso: string): string {
+  const at = new Date(iso);
+  const today = new Date().toDateString() === at.toDateString();
+
+  return at.toLocaleString('en-GB', {
+    day: today ? undefined : 'numeric',
+    month: today ? undefined : 'short',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+}
+
 type State =
   | { phase: 'idle' | 'working' }
   | { phase: 'done'; url: string; status: string | null; where: string | null }
   | { phase: 'failed'; error: string; log: string; missing: boolean };
 
-export function LatexPdf({ source }: { source: string }) {
+export function LatexPdf({ source, src }: { source: string; src?: string }) {
   const [state, setState] = useState<State>({ phase: 'idle' });
+
+  /** The build already stored for this document, if there is one. */
+  const [kept, setKept] = useState<string | null>(null);
+
+  /** What happened to *this* build on its way into Drive. */
+  const [keeping, setKeeping] = useState<'saving' | 'failed' | null>(null);
+
   const url = useRef<string | null>(null);
+  const store = src ? typesetUrl(src) : null;
 
   useEffect(
     () => () => {
@@ -53,8 +93,80 @@ export function LatexPdf({ source }: { source: string }) {
     [],
   );
 
+  /*
+   * Ask on open whether there is a build to offer. `?meta` rather than the PDF
+   * itself: this runs whenever the tab is opened, and the answer is usually
+   * "yes, from Tuesday" — which must not cost a document to find out.
+   */
+  useEffect(() => {
+    if (!store) return;
+
+    let live = true;
+
+    void fetch(`${store}?meta`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((body: { at?: string } | null) => {
+        if (live && body?.at) setKept(body.at);
+      })
+      .catch(() => {
+        // No build, or no answer. Either way there is nothing to offer, which
+        // is the state this started in.
+      });
+
+    return () => {
+      live = false;
+    };
+  }, [store]);
+
+  /**
+   * Keep this build, so the other devices can read it.
+   *
+   * Not awaited by the thing that shows the PDF: the document is already on
+   * screen and this is about *later*. A failure is reported quietly beside the
+   * date rather than as an error over the document, because the typesetting
+   * worked — what failed is the copy for the phone.
+   */
+  const keep = async (pdf: Blob) => {
+    if (!store) return;
+
+    setKeeping('saving');
+
+    try {
+      const response = await fetch(store, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/pdf' },
+        body: pdf,
+      });
+
+      const body = (await response.json().catch(() => null)) as { at?: string } | null;
+
+      if (!response.ok || !body?.at) {
+        setKeeping('failed');
+        return;
+      }
+
+      setKept(body.at);
+      setKeeping(null);
+    } catch {
+      setKeeping('failed');
+    }
+  };
+
+  /** Show the stored build. The endpoint is the source — no blob to revoke. */
+  const showKept = () => {
+    if (!store) return;
+
+    if (url.current) {
+      URL.revokeObjectURL(url.current);
+      url.current = null;
+    }
+
+    setState({ phase: 'done', url: store, status: null, where: 'kept' });
+  };
+
   const run = async () => {
     setState({ phase: 'working' });
+    setKeeping(null);
 
     try {
       const response = await fetch('/api/latex/compile', {
@@ -84,14 +196,18 @@ export function LatexPdf({ source }: { source: string }) {
         return;
       }
 
-      const next = URL.createObjectURL(await response.blob());
+      const pdf = await response.blob();
+      const next = URL.createObjectURL(pdf);
       url.current = next;
+
       setState({
         phase: 'done',
         url: next,
         status: response.headers.get('X-Latex-Status'),
         where: response.headers.get('X-Latex-Where'),
       });
+
+      void keep(pdf);
     } catch {
       setState({
         phase: 'failed',
@@ -101,6 +217,18 @@ export function LatexPdf({ source }: { source: string }) {
       });
     }
   };
+
+  /** The one control that is worth offering when TeX is not here. */
+  const keptButton =
+    kept && state.phase !== 'working' ? (
+      <button
+        type="button"
+        onClick={showKept}
+        className="rounded-sm border border-grey-300 px-2 py-0.5 text-[11px] text-grey-700 hover:bg-grey-200"
+      >
+        Open the last build · {when(kept)}
+      </button>
+    ) : null;
 
   return (
     <div className="flex h-full min-h-0 flex-col bg-grey-100">
@@ -117,6 +245,8 @@ export function LatexPdf({ source }: { source: string }) {
               ? 'Typeset'
               : 'Typeset again'}
         </button>
+
+        {keptButton}
 
         {state.phase === 'done' ? (
           <>
@@ -138,6 +268,20 @@ export function LatexPdf({ source }: { source: string }) {
             {state.where === 'remote' ? (
               <span className="text-[10px] text-grey-400">
                 typeset by the service you configured
+              </span>
+            ) : null}
+            {/* And said plainly here too, because what is on screen is not
+                necessarily what the editor beside it now says. */}
+            {state.where === 'kept' && kept ? (
+              <span className="text-[10px] text-grey-400">
+                built {when(kept)}, not from what is in the editor now
+              </span>
+            ) : null}
+            {keeping === 'saving' ? (
+              <span className="text-[10px] text-grey-400">keeping it…</span>
+            ) : keeping === 'failed' ? (
+              <span className="text-[10px] text-stale">
+                kept nowhere — this build won&rsquo;t reach your other devices
               </span>
             ) : null}
           </>
@@ -170,6 +314,19 @@ export function LatexPdf({ source }: { source: string }) {
             >
               {state.error}
             </p>
+
+            {/*
+              The whole point of keeping builds. "No TeX here" is a dead end on
+              a phone; "no TeX here, and here is the one from Tuesday" is the
+              document, which is what you opened this for.
+            */}
+            {state.missing && kept ? (
+              <p className="mt-2 max-w-prose text-[12px] leading-relaxed text-grey-600">
+                The last build is still here, from {when(kept)} — open it above.
+                It was made by TeX on the machine that has it, so it is the real
+                document rather than an approximation.
+              </p>
+            ) : null}
 
             {complaints(state.log).length > 0 ? (
               <ul className="mt-2 flex flex-col gap-1">
@@ -206,7 +363,9 @@ export function LatexPdf({ source }: { source: string }) {
             {state.phase === 'idle' ? (
               <p className="mt-2 max-w-prose text-[11px] leading-relaxed text-grey-500">
                 It compiles on the machine serving the app, so it works wherever
-                TeX is installed. Reading view is always there and needs nothing.
+                TeX is installed — and every build is kept, so the last one can
+                be opened from anywhere. Reading view is always there and needs
+                nothing.
               </p>
             ) : null}
           </div>

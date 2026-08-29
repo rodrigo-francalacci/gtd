@@ -950,6 +950,34 @@ Turbopack is the default; `middleware` is now `proxy`.
   TeX Live tree, the smallest useful slice is ~120 MB, upstream ships it only as
   a single **498 MB** tarball, and one `\multirow` reaches into the 326 MB
   "extra" set on its own. The engine was never the problem — the distribution is.
+- **Every build is kept, and that is what makes typesetting work away from the
+  desk.** TeX runs on the machine serving the app and a function will never have
+  one, so this is a thing one machine can do and the others cannot. Hiding the
+  feature everywhere else was the obvious answer and the wrong one: the PDF is
+  stored beside its source in Drive, and any device can open it. The phone gets
+  the real document — real pages, real fonts, built by real TeX — and is told
+  when it was made. What it cannot do is make a *new* one, which is a far
+  smaller thing to be told than "not here".
+  `attachments.typeset_file_id` and `box_items.typeset_file_id`, with a
+  `typeset_at` beside each, served at `…/typeset` — the third representation of
+  one document, next to `…/file` (the bytes) and `…/transcript` (the words), and
+  addressed identically on both sides so the pane never learns which table it is
+  looking at. `?meta` answers "is there one, and how old" without sending the
+  PDF, because that is what a pane asks every time it opens and it must not cost
+  a document.
+  **One PDF per document, patched in place.** A history of builds is a folder
+  filling with something you have already read; what you want from a phone is
+  the current one. The Drive id is reused, so the link never changes and nothing
+  accumulates — and if that file has been deleted in Drive, a new one is made
+  rather than typesetting being broken for ever by something that happened
+  months ago.
+  **A failed build changes nothing**: the previous PDF stays exactly where it
+  was, because an older document you can read beats a fresh error you cannot.
+  The date shown beside it is what stops that being a lie, and a build shown
+  from storage says outright that it is not what the editor beside it now says.
+  Keeping is not awaited by the thing that shows the PDF — the document is
+  already on screen and this is about later, so a failure is a quiet line beside
+  the date rather than an error over a compile that worked.
 - **`-no-shell-escape` holds; `openin_any` does not, and the difference is
   measured.** A document asked to create a file through `\write18` created
   nothing. A document asked whether it could read `C:/Windows/win.ini` said yes,

@@ -395,7 +395,7 @@ export function TextDocument({
          * is typeset is what you have written, saved or not, which is the whole
          * point of pressing it while editing.
          */
-        <LatexPdf source={draft} />
+        <LatexPdf source={draft} src={src} />
       ) : view === 'read' ? (
         <iframe
           key={page?.seq ?? 0}

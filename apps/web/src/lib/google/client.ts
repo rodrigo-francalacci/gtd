@@ -358,6 +358,44 @@ export async function createTextFile(
  * the file, which is a better record than anything this app would invent, and
  * is reachable from the Drive link every pane already carries.
  */
+/**
+ * The same, for bytes rather than text.
+ *
+ * Separate rather than a widened parameter, because the difference is not the
+ * body type but the header: text goes up as `…; charset=UTF-8`, and putting a
+ * charset on a PDF would be describing it wrongly to everything that reads it
+ * afterwards. Written for the typeset PDF, which is replaced in place each time
+ * a document is built.
+ */
+export async function updateFileBytes(
+  fileId: string,
+  mimeType: string,
+  bytes: ArrayBuffer,
+): Promise<DriveFile> {
+  const token = await getAccessToken();
+
+  const response = await fetch(
+    `https://www.googleapis.com/upload/drive/v3/files/${fileId}?uploadType=media&fields=id,name,size,mimeType`,
+    {
+      method: 'PATCH',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': mimeType,
+      },
+      body: bytes,
+    },
+  );
+
+  if (!response.ok) {
+    throw new GoogleApiError(
+      `update ${fileId} failed: ${response.status} ${await response.text()}`,
+      response.status,
+    );
+  }
+
+  return (await response.json()) as DriveFile;
+}
+
 export async function updateFileContent(
   fileId: string,
   mimeType: string,

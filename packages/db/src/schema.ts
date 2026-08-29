@@ -486,6 +486,26 @@ export const attachments = pgTable(
     driveName: text('drive_name'),
     mimeType: text('mime_type'),
     sizeBytes: integer('size_bytes'),
+    /**
+     * The last PDF this document was typeset into, and when.
+     *
+     * TeX runs on the machine serving the app, which on a serverless host it
+     * never will — so typesetting is something one machine can do and the
+     * others cannot. Keeping the result turns that from "this feature does not
+     * work here" into "here is the last one, built on {date}": the phone gets
+     * the real document, with its real pages and fonts, without needing a TeX
+     * distribution it could never hold.
+     *
+     * A Drive file rather than bytes in a column, like everything else with a
+     * size — it sits in the same folder as its source, so the folder holds the
+     * document and the thing it was made from, side by side.
+     *
+     * Null means it has never been typeset, which is different from a build
+     * that failed: a failure leaves the previous PDF exactly where it was,
+     * because an older document you can read beats a fresh error you cannot.
+     */
+    typesetFileId: text('typeset_file_id'),
+    typesetAt: timestamp('typeset_at', { withTimezone: true }),
     /** Populated asynchronously by the enrichment queue. */
     transcription: text('transcription'),
     ocrText: text('ocr_text'),
@@ -1013,6 +1033,26 @@ export const boxItems = pgTable(
      * arrival date would be a surprise. This is a decision, already made.
      */
     expiresAt: date('expires_at'),
+    /**
+     * The last PDF this document was typeset into, and when.
+     *
+     * TeX runs on the machine serving the app, which on a serverless host it
+     * never will — so typesetting is something one machine can do and the
+     * others cannot. Keeping the result turns that from "this feature does not
+     * work here" into "here is the last one, built on {date}": the phone gets
+     * the real document, with its real pages and fonts, without needing a TeX
+     * distribution it could never hold.
+     *
+     * A Drive file rather than bytes in a column, like everything else with a
+     * size — it sits in the same folder as its source, so the folder holds the
+     * document and the thing it was made from, side by side.
+     *
+     * Null means it has never been typeset, which is different from a build
+     * that failed: a failure leaves the previous PDF exactly where it was,
+     * because an older document you can read beats a fresh error you cannot.
+     */
+    typesetFileId: text('typeset_file_id'),
+    typesetAt: timestamp('typeset_at', { withTimezone: true }),
     /** The full transcription, so search can reach inside the document. */
     text: text('text'),
     status: boxItemStatus('status').notNull().default('pending'),
