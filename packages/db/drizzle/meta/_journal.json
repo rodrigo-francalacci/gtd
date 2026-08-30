@@ -316,6 +316,13 @@
       "when": 1788093499116,
       "tag": "0044_boring_kitty_pryde",
       "breakpoints": true
+    },
+    {
+      "idx": 45,
+      "version": "7",
+      "when": 1788105239514,
+      "tag": "0045_milky_wolverine",
+      "breakpoints": true
     }
   ]
 }

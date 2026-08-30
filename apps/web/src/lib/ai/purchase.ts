@@ -1,5 +1,7 @@
 import 'server-only';
 
+import { recordSpend } from './spend';
+
 import type { PurchaseWhere } from '../queries.shared';
 
 /**
@@ -222,8 +224,16 @@ export async function readPurchase(text: string): Promise<PurchaseRead> {
      * falls back to the local one while looking like the model ran.
      */
     const body = (await response.json()) as {
+      model?: string;
+      usage?: {
+        input_tokens?: number;
+        output_tokens?: number;
+        input_tokens_details?: { cached_tokens?: number };
+      };
       output?: { content?: { type: string; text?: string }[] }[];
     };
+
+    void recordSpend('purchase', body.model, body.usage);
 
     const text_ = (body.output ?? [])
       .flatMap((o) => o.content ?? [])

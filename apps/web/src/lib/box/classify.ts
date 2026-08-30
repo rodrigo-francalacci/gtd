@@ -1,5 +1,7 @@
 import 'server-only';
 
+import { recordSpend } from '@/lib/ai/spend';
+
 import type { BoxCategoryRow } from '@/lib/queries.shared';
 import { oneEmoji } from '../ai/emoji';
 import { isGoogleNative } from '@/lib/google/sync';
@@ -345,8 +347,22 @@ export class OpenAiClassifier implements Classifier {
     const body = (await response.json()) as {
       status?: string;
       incomplete_details?: { reason?: string };
+      model?: string;
+      usage?: {
+        input_tokens?: number;
+        output_tokens?: number;
+        input_tokens_details?: { cached_tokens?: number };
+      };
       output?: { content?: { type: string; text?: string }[] }[];
     };
+
+    /*
+     * The receipt, written even when the reply turns out to be unusable below.
+     * A truncated answer is charged for exactly like a good one, and a spend
+     * total that only counted the successes would understate the reads that
+     * cost the most.
+     */
+    void recordSpend('box', body.model, body.usage);
 
     /**
      * A reply that ran out of room is truncated JSON, and truncated JSON does

@@ -675,6 +675,86 @@ export const reviews = pgTable(
 );
 
 // ---------------------------------------------------------------------------
+// What the AI costs
+// ---------------------------------------------------------------------------
+
+/**
+ * Every model call this app makes, in tokens.
+ *
+ * **OpenAI will not tell us what is left.** Probed rather than assumed: with a
+ * project key (`sk-proj-…`) every billing endpoint answers 403 — the legacy
+ * `credit_grants` route that used to give a remaining balance, and the whole
+ * Admin API besides. An admin key would open the Admin API, and even then what
+ * it returns is *spend*, not what remains. So the only honest way to answer
+ * "when do I need to top up" is to keep the receipts ourselves.
+ *
+ * Which the app is unusually well placed to do: every response from
+ * `/v1/responses` carries exact token counts, and there are three places in
+ * the whole codebase that call it. Recording them is a row per call.
+ *
+ * **Tokens, not money.** The cost is worked out at the moment somebody looks,
+ * from `ai_prices` — so correcting a price corrects the history, which is right
+ * because a price is a fact about the world rather than about the call. Storing
+ * a computed cost would freeze a guess into the record and leave no way to
+ * tell a real spend from a stale price.
+ */
+export const aiSpend = pgTable(
+  'ai_spend',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    at: timestamp('at', { withTimezone: true }).notNull().defaultNow(),
+    /**
+     * Which part of the app spent it — reading a document, choosing emoji,
+     * reading a receipt. The interesting number is rarely the total: it is
+     * which feature is eating the money, and whether that is what you wanted.
+     */
+    purpose: text('purpose').notNull(),
+    /** As the API reports it, which is the dated build rather than the alias. */
+    model: text('model').notNull(),
+    inputTokens: integer('input_tokens').notNull().default(0),
+    /**
+     * Charged at a fraction of the ordinary rate, so counted apart or a box
+     * read of forty similar documents looks far more expensive than it was.
+     */
+    cachedTokens: integer('cached_tokens').notNull().default(0),
+    outputTokens: integer('output_tokens').notNull().default(0),
+  },
+  (t) => [index('ai_spend_at_idx').on(t.at)],
+);
+
+/**
+ * What a model costs, per million tokens.
+ *
+ * In the database and editable, not compiled in, because prices change and an
+ * app that shipped with last year's would be confidently wrong about money.
+ * A model with no row here still has its tokens counted — the page says how
+ * many and that it cannot price them, which is a better answer than a total
+ * that quietly omits a model.
+ */
+export const aiPrices = pgTable('ai_prices', {
+  model: text('model').primaryKey(),
+  inputPerMillion: doublePrecision('input_per_million').notNull(),
+  cachedPerMillion: doublePrecision('cached_per_million').notNull().default(0),
+  outputPerMillion: doublePrecision('output_per_million').notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+});
+
+/**
+ * Money put in, so "what is left" has something to subtract from.
+ *
+ * The app cannot see the account, so this is what you tell it: the amount you
+ * added and when. Everything spent after the most recent one is what has gone
+ * since, and the difference is the figure the connections page leads with —
+ * stated as an estimate, because that is exactly what it is.
+ */
+export const aiTopups = pgTable('ai_topups', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  at: timestamp('at', { withTimezone: true }).notNull().defaultNow(),
+  amount: doublePrecision('amount').notNull(),
+  note: text('note'),
+});
+
+// ---------------------------------------------------------------------------
 // Sync outbox
 // ---------------------------------------------------------------------------
 

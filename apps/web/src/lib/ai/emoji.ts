@@ -1,5 +1,7 @@
 import 'server-only';
 
+import { recordSpend } from './spend';
+
 /**
  * One emoji per row, so a list can be scanned rather than read.
  *
@@ -181,8 +183,22 @@ async function askForBatch(
    * no emoji while looking exactly as though the model had run.
    */
   const body = (await response.json()) as {
+    model?: string;
+    usage?: {
+      input_tokens?: number;
+      output_tokens?: number;
+      input_tokens_details?: { cached_tokens?: number };
+    };
     output?: { content?: { type: string; text?: string }[] }[];
   };
+
+  /*
+   * The receipt. Not awaited by anything that matters and never allowed to
+   * throw: OpenAI will not say what is left in the account — measured, every
+   * billing endpoint 403s with a project key — so what this app spends is only
+   * knowable if it writes it down as it goes.
+   */
+  void recordSpend('emoji', body.model, body.usage);
 
   const text = (body.output ?? [])
     .flatMap((o) => o.content ?? [])

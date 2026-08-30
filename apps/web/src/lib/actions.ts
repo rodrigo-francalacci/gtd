@@ -28,6 +28,8 @@ import {
   type InboxRawType,
   type ListType,
   type ProjectStatus,
+  aiPrices,
+  aiTopups,
 } from '@gtd/db';
 import type { PurchaseFields } from './queries.shared';
 import { and, eq, inArray, isNull, sql } from 'drizzle-orm';
@@ -3198,4 +3200,78 @@ export async function renameCapture(itemId: string, title: string) {
     .where(eq(inboxItems.id, itemId));
 
   revalidateShell();
+}
+
+// ---------------------------------------------------------------------------
+// What the AI costs
+// ---------------------------------------------------------------------------
+
+/**
+ * Record money added to the OpenAI account.
+ *
+ * The app cannot see the account — every billing endpoint refuses a project
+ * key, which was measured rather than assumed — so this is the one number it
+ * has to be told. Everything the app spends after the most recent one is what
+ * has gone since, and the difference is the estimate the page leads with.
+ */
+export async function recordTopUp(amount: number, note: string) {
+  await requireSession();
+
+  if (!Number.isFinite(amount) || amount <= 0) return;
+
+  await db
+    .insert(aiTopups)
+    .values({ amount, note: note.trim().slice(0, 200) || null });
+
+  revalidatePath('/connections');
+}
+
+/** Forget one, for a figure typed wrongly. */
+export async function forgetTopUp(id: string) {
+  await requireSession();
+  await db.delete(aiTopups).where(eq(aiTopups.id, id));
+  revalidatePath('/connections');
+}
+
+/**
+ * What a model costs per million tokens.
+ *
+ * Kept in the database rather than compiled in, because prices change and an
+ * app shipping last year's would be confidently wrong about money. Nothing is
+ * seeded: a made-up default is indistinguishable on screen from a real one,
+ * and the page says plainly which models it cannot price.
+ */
+export async function setModelPrice(
+  model: string,
+  inputPerMillion: number,
+  cachedPerMillion: number,
+  outputPerMillion: number,
+) {
+  await requireSession();
+
+  const name = model.trim();
+  if (!name) return;
+
+  const ok = (n: number) => Number.isFinite(n) && n >= 0 && n < 10_000;
+  if (!ok(inputPerMillion) || !ok(cachedPerMillion) || !ok(outputPerMillion)) return;
+
+  await db
+    .insert(aiPrices)
+    .values({
+      model: name,
+      inputPerMillion,
+      cachedPerMillion,
+      outputPerMillion,
+    })
+    .onConflictDoUpdate({
+      target: aiPrices.model,
+      set: {
+        inputPerMillion,
+        cachedPerMillion,
+        outputPerMillion,
+        updatedAt: new Date(),
+      },
+    });
+
+  revalidatePath('/connections');
 }

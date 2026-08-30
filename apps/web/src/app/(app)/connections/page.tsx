@@ -1,4 +1,7 @@
 import { AppsScriptPanel } from '@/components/apps-script-panel';
+import { aiPrices, db } from '@gtd/db';
+import { AiSpend } from '@/components/ai-spend';
+import { getSpendSummary, modelsSeen } from '@/lib/ai/spend';
 import {
   BackfillLinks,
   EnrichmentControls,
@@ -20,13 +23,17 @@ const SCOPE_LABELS: Record<string, string> = {
 };
 
 export default async function ConnectionsPage() {
-  const [grant, queue, unlinked, enrichment, prefs] = await Promise.all([
-    getGrant(),
-    getSyncQueueStatus(),
-    countUnlinkedProjects(),
-    getEnrichmentStatus(),
-    getPreferences(),
-  ]);
+  const [grant, queue, unlinked, enrichment, prefs, spend, models, prices] =
+    await Promise.all([
+      getGrant(),
+      getSyncQueueStatus(),
+      countUnlinkedProjects(),
+      getEnrichmentStatus(),
+      getPreferences(),
+      getSpendSummary(),
+      modelsSeen(),
+      db.select().from(aiPrices),
+    ]);
   const connected = Boolean(grant?.refreshToken);
   const syncReady = connected && hasSyncScopes(grant?.scope);
   // Granted separately, and genuinely optional: everything else works without
@@ -189,6 +196,22 @@ export default async function ConnectionsPage() {
             <BackfillLinks unlinked={unlinked} />
           </section>
         ) : null}
+
+        <section className="mt-7 border-t border-grey-150 pt-5">
+          <h2 className="text-[10px] font-semibold uppercase tracking-wider text-grey-500">
+            What the AI is costing
+          </h2>
+          <AiSpend
+            summary={spend}
+            models={models}
+            priced={prices.map((row) => ({
+              model: row.model,
+              input: row.inputPerMillion,
+              cached: row.cachedPerMillion,
+              output: row.outputPerMillion,
+            }))}
+          />
+        </section>
 
         <section className="mt-7 border-t border-grey-150 pt-5">
           <h2 className="text-[10px] font-semibold uppercase tracking-wider text-grey-500">

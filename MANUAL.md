@@ -1373,6 +1373,34 @@ labels for every project** on the Google page makes both for everything at once.
 It stays a button you press, because creating folders in your account is not a
 thing for the app to do on its own.
 
+### What the AI is costing
+
+The Google page carries a small ledger of what the AI side of the app is
+spending, so you can see a top-up coming rather than discovering it.
+
+**It is an estimate, not a balance, and the page says so.** OpenAI does not let
+this app read your account — every billing endpoint refuses the key it has, and
+even the admin one reports spend rather than what remains. So instead the app
+counts its own: every reply carries exact token counts, and it writes them down.
+
+- **Tell it what you added.** *I just added* records a top-up. What is left is
+  that figure minus what the app has spent since
+- **Add the prices once.** Under *Prices per million tokens*, from OpenAI's
+  pricing page, for each model the app has used. Nothing is filled in for you:
+  a made-up price looks exactly like a real one on screen, and being
+  confidently wrong about money is worse than a gap. A model with no price has
+  its tokens counted and is named as unpriced
+- **See where it went.** The table breaks the month down by what spent it —
+  reading documents, choosing emoji, reading receipts — which is usually the
+  more useful number, since the question behind "am I running out" is nearly
+  always "what is eating it"
+
+Cached input is counted separately because it is billed at a fraction of the
+rate; without that, reading forty similar documents would look several times
+dearer than it was.
+
+What it cannot see is anything you spend on the same account outside this app.
+
 ### If Google disconnects
 
 A refresh token can be withdrawn without telling the app — months unused, a

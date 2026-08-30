@@ -1882,6 +1882,44 @@ resolve to text.
 queued — a job nothing can run is a manufactured failure. The `transcribe` job
 kind and the `transcription` column are there for when one is.
 
+## What the AI costs
+
+**OpenAI will not say what is left, and that was measured rather than assumed.**
+With the project key this app uses (`sk-proj-…`) every billing endpoint answers
+403: the legacy `dashboard/billing/credit_grants` route that used to return a
+remaining balance, and the whole Admin API besides. A control request to
+`/v1/models` came back 200 from the same key, so the key is fine — it has no
+billing scope. An admin key (`sk-admin-…`) would open the Admin API, and even
+then what it reports is *spend*, not what remains. Re-probe before believing
+any of that has changed.
+
+So the receipts are kept here, and the app is unusually well placed to keep
+them: every reply from `/v1/responses` carries exact token counts, and three
+places in the whole codebase call it.
+
+- **Tokens are stored; money is worked out when somebody looks.** `ai_spend`
+  holds the counts and `ai_prices` the rates, so correcting a price corrects the
+  history — which is right, because a price is a fact about the world rather
+  than about the call. A stored cost would freeze a guess into the record with
+  no way to tell it from a real one.
+- **Cached input is counted apart.** The API reports it *within* the input
+  count and bills it at a fraction of the rate, so it is subtracted out at
+  write time; left in, a box read of forty similar documents looks several
+  times more expensive than it was.
+- **Nothing is seeded with a price.** A made-up default is indistinguishable on
+  screen from a real one, and being confidently wrong about money is worse than
+  admitting a gap — so an unpriced model has its tokens shown and is named as
+  unpriced. The form offers the models the app has actually used, so there is
+  nothing to look up but the numbers.
+- **The headline is a subtraction and says so every time.** What is left is the
+  last recorded top-up minus what the app has spent since. It cannot see
+  anything spent outside the app and the page states that; a number that looked
+  like a balance and was not would be the one thing here worth getting wrong.
+- **A receipt never fails the call that earned it.** `recordSpend` is called
+  without being awaited and swallows its own errors, and it is written even
+  when the reply turns out to be unusable — a truncated answer is charged for
+  exactly like a good one.
+
 ## Weekly review
 
 Steps are gated on data, never on an assertion: the inbox is empty or it
