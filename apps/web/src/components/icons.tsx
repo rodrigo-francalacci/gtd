@@ -317,6 +317,21 @@ export const IconDocument = (p: IconProps) => (
  * distinguishes a gallery in a list is not that it is square but that there is
  * more than one of it.
  */
+/**
+ * Console mode — a signal going out.
+ *
+ * Concentric arcs from a point, which is the one mark that reads as
+ * *transmitting* at fourteen pixels. A ship or a star would be a picture; this
+ * is a diagram, like everything else in this set.
+ */
+export const IconSignal = (p: IconProps) => (
+  <Glyph {...p}>
+    <circle cx="8" cy="11.6" r="1.1" />
+    <path d="M5.6 9.2a3.4 3.4 0 0 1 4.8 0" />
+    <path d="M3.4 7a6.5 6.5 0 0 1 9.2 0" />
+  </Glyph>
+);
+
 /** Add — a plain cross, which is what every "add one more" control has been. */
 export const IconPlus = (p: IconProps) => (
   <Glyph {...p}>

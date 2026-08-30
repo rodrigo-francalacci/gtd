@@ -1036,9 +1036,9 @@ you *process* a queue.
 
 ### Everything else
 
-- **Theme** — light, dark, paper, or follow the operating system. The button is
-  in the bottom-left corner beside *Sign out* and cycles through the three; its
-  icon is always the one you would get by pressing it
+- **Theme** — light, dark, paper, console, or follow the operating system. The
+  button is in the bottom-left corner beside *Sign out* and cycles through the
+  four; its icon is always the one you would get by pressing it
 - **Pane width** — drag the divider; double-click to reset
 - **Gallery** — per box, list or thumbnails
 
@@ -1072,6 +1072,20 @@ on purpose: it is the one thing here that must not look like part of the page.
 
 If you have asked your system for reduced motion, the grain is left off and the
 palette stays — the palette is the part that does the work.
+
+**Console mode** is a ship's display: phosphor on black, with the section
+labels in a technical face and the scanlines of a tube over everything. A beam
+sweeps down the screen once every eleven seconds, and it is the only thing in
+the app that moves; reduced motion turns it off and keeps the rest.
+
+The text itself is *not* green — a screen of green prose is exhausting after ten
+minutes, and this is an app you read all day. The ink is a barely-tinted white
+and the green lives in the rules, the headings and the chips. The four semantic
+colours are more at home here than anywhere: amber for waiting, red for stale,
+cyan for what is selected, violet for the day you wrote.
+
+As in paper mode, the preview pane keeps its own light: a costume over your
+photographs would be the app decorating your documents.
 
 All of these live in the database rather than in the browser, so they follow the
 account and the server can render the right one without a flash.

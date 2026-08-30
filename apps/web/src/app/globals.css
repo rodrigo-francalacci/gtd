@@ -114,7 +114,7 @@
    * win on source order alone — which is a rule that works until somebody
    * moves a block.
    */
-  :root:not([data-theme='light']):not([data-theme='paper']) {
+  :root:not([data-theme='light']):not([data-theme='paper']):not([data-theme='sci']) {
   color-scheme: dark;
 
   --color-paper: #17181a;
@@ -346,6 +346,188 @@
   :root[data-theme='paper'] body::after {
     display: none;
   }
+}
+
+/* Console mode ------------------------------------------------------------ */
+
+/*
+ * A ship's console: phosphor on black.
+ *
+ * The fourth theme, and the first one that is unashamedly a *look* rather than
+ * an argument about legibility. It is the same ramp again, walked from the dark
+ * end like dark mode — `grey-800` is still prominent text and `grey-200` is
+ * still a hairline — so once more no component knows it exists. What changes is
+ * where the ramp sits: black at one end, and a green cast all the way up, so a
+ * rule reads as a faint line of light rather than as grey.
+ *
+ * **The text is not green.** That is the mistake this kind of theme usually
+ * makes: a screen of green prose is exhausting after ten minutes, and this is
+ * an app somebody reads all day. So the *ink* is a barely-tinted white and the
+ * green lives in the structure — the rules, the headings, the chips, the muted
+ * metadata. The effect is a console; the reading is still reading.
+ *
+ * One selector, because nothing asks an operating system for this.
+ */
+:root[data-theme='sci'] {
+  color-scheme: dark;
+
+  --color-paper: #04070a;
+  /*
+   * Barely green, and deliberately not #fff: pure white on pure black is the
+   * highest contrast a screen can produce and it buzzes. This is a phosphor
+   * white, which is what the reference is doing too.
+   */
+  --color-ink: #d3ece0;
+
+  --color-grey-50: #070d11;
+  --color-grey-100: #0a1319;
+  --color-grey-150: #0e1b20;
+  --color-grey-200: #16292f;
+  --color-grey-300: #1f3d42;
+  --color-grey-400: #4a7f6c;
+  --color-grey-500: #6ba98c;
+  --color-grey-600: #8cc7a7;
+  --color-grey-700: #abdcc0;
+  --color-grey-800: #cbeeda;
+  --color-grey-900: #e8fff2;
+
+  /*
+   * The semantic four, as a console would signal them — and this theme is the
+   * one where they are most at home, because a bridge display *is* colour used
+   * to mean something. Same meanings, same order of loudness.
+   */
+  --color-waiting: #ffb02e;
+  --color-waiting-bg: #2a1d05;
+  --color-stale: #ff5252;
+  --color-stale-bg: #2e0c0c;
+  --color-selected: #3ad2ff;
+  --color-selected-bg: #06272f;
+  --color-journal: #c08cff;
+  --color-journal-bg: #1c1030;
+
+  /*
+   * The console face, used for the app's uppercase labels rather than for
+   * everything.
+   *
+   * A whole app set in monospace is a worse app: it is wider, it wraps more,
+   * and this layout is built around a narrow list column. But the uppercase
+   * section labels, the chips and the counts are exactly the parts that read as
+   * *instrumentation*, and putting those in a technical face is most of the
+   * effect for none of the cost.
+   *
+   * A stack of faces that are already on the machine — Cascadia and Consolas on
+   * Windows, SF Mono and Menlo on a Mac — rather than a webfont. A theme should
+   * not make everyone else download something.
+   */
+  --font-console: ui-monospace, 'Cascadia Mono', 'Segoe UI Mono', 'SF Mono', Menlo,
+    Consolas, monospace;
+}
+
+:root[data-theme='sci'] {
+  --code-heading: #4fc3f7;
+  --code-marker: #ffb02e;
+  --code-keyword: #c08cff;
+  --code-string: #56e39f;
+  --code-comment: #4a7f6c;
+  --code-accent: #ff7a59;
+}
+
+/*
+ * Every uppercase label becomes instrumentation.
+ *
+ * `.uppercase` is the hook because it is already on precisely the right things
+ * — the section headings, the pane titles, the small caps labels — and on
+ * nothing else. Targeting a utility class is not something to do lightly; it is
+ * right here because the class *means* the thing being selected for, which is
+ * the same reason `[data-pane]` works for the preview.
+ */
+:root[data-theme='sci'] .uppercase {
+  font-family: var(--font-console);
+  letter-spacing: 0.14em;
+}
+
+/*
+ * The glass of the tube.
+ *
+ * Scanlines as a repeating gradient — cheap, static, and composited once. No
+ * blend mode and no filter, which is the lesson paper mode paid for: a
+ * viewport-sized blending layer forces the whole page to be re-composited on
+ * every paint.
+ *
+ * The vignette is part of the same layer rather than a second one, because a
+ * CRT is darker at the corners and a flat black rectangle is a colour rather
+ * than a screen.
+ */
+:root[data-theme='sci'] body::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  pointer-events: none;
+  background-image:
+    repeating-linear-gradient(
+      0deg,
+      rgba(0, 0, 0, 0.28) 0px,
+      rgba(0, 0, 0, 0.28) 1px,
+      transparent 1px,
+      transparent 3px
+    ),
+    radial-gradient(120% 90% at 50% 45%, rgba(0, 0, 0, 0) 55%, rgba(0, 0, 0, 0.5) 100%);
+}
+
+/*
+ * One beam, travelling down the screen.
+ *
+ * A single element moved with `transform`, which the compositor does on its own
+ * thread without repainting anything underneath — the one kind of animation
+ * that is free at this size. Eleven seconds, so it reads as a sweep rather than
+ * a strobe, and it is the only thing on this theme that moves.
+ */
+:root[data-theme='sci'] body::before {
+  content: '';
+  position: fixed;
+  left: 0;
+  right: 0;
+  top: 0;
+  height: 40vh;
+  z-index: 9998;
+  pointer-events: none;
+  background: linear-gradient(
+    to bottom,
+    rgba(86, 227, 159, 0) 0%,
+    rgba(86, 227, 159, 0.045) 55%,
+    rgba(86, 227, 159, 0) 100%
+  );
+  animation: console-sweep 11s linear infinite;
+}
+
+@keyframes console-sweep {
+  from {
+    transform: translateY(-40vh);
+  }
+  to {
+    transform: translateY(100vh);
+  }
+}
+
+/*
+ * Anyone who has asked for less movement gets the console without the beam. The
+ * scanlines stay: they do not move, and they are most of the look.
+ */
+@media (prefers-reduced-motion: reduce) {
+  :root[data-theme='sci'] body::before {
+    display: none;
+  }
+}
+
+/*
+ * The preview pane keeps its own light, here for the same reason it does in
+ * paper mode: scanlines over somebody's photograph or PDF would be the app
+ * putting its costume on their document.
+ */
+:root[data-theme='sci'] [data-pane='preview'] {
+  position: relative;
+  z-index: 10000;
 }
 
 html,
@@ -705,7 +887,7 @@ body {
 
 /* A null preference means "ask the operating system", exactly as above. */
 @media (prefers-color-scheme: dark) {
-  :root:not([data-theme='light']):not([data-theme='paper']) {
+  :root:not([data-theme='light']):not([data-theme='paper']):not([data-theme='sci']) {
     --code-heading: #7fa9e0;
     --code-marker: #cfa94e;
     --code-keyword: #b795dd;

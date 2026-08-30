@@ -77,6 +77,33 @@ Turbopack is the default; `middleware` is now `proxy`.
   which is lifted above it. That pane is a window onto a file, and ageing a PDF
   or a photograph would be the app colouring somebody's document rather than
   decorating its own furniture.
+- **Console is the fourth theme, and the first that is a *look* rather than an
+  argument about legibility.** The same ramp again, walked from the dark end
+  like dark mode, with a green cast all the way up so a hairline reads as a
+  faint line of light rather than as grey. One selector: nothing asks an
+  operating system for this.
+  **The text is not green**, which is the mistake this kind of theme usually
+  makes — a screen of green prose is exhausting after ten minutes and this is an
+  app somebody reads all day. The ink is a barely-tinted phosphor white and the
+  green lives in the structure: rules, headings, chips, muted metadata. The
+  effect is a console; the reading is still reading.
+  **The console face is applied to `.uppercase` and nothing else.** A whole app
+  in monospace is wider, wraps more, and this layout is built around a narrow
+  list column — but the uppercase labels *are* the instrumentation, so putting
+  those in a technical face is most of the effect for none of the cost.
+  Targeting a utility class is not a thing to do lightly; it is right here for
+  the reason `[data-pane]` is right for the preview, namely that the class means
+  the thing being selected for. A system stack (Cascadia, Consolas, SF Mono,
+  Menlo) rather than a webfont: a theme should not make everyone download
+  something.
+  **Scanlines are a gradient and the sweep is a transform**, which is the lesson
+  paper mode paid for — no blend mode, no filter, nothing that forces the page
+  to be re-composited on every paint. The beam is one element moved on the
+  compositor thread, eleven seconds end to end so it reads as a sweep rather
+  than a strobe, and it is the only thing in the app that moves. Reduced motion
+  drops the beam and keeps the scanlines, which are most of the look.
+  The preview pane is lifted above both, for the reason it is in paper mode: a
+  costume over somebody's photograph is the app decorating their document.
 - **Colour is semantic only.** Base is greyscale (`grey-50`…`grey-900`,
   `paper`, `ink`). The only colour tokens are `waiting`, `stale`, and
   `selected`, plus their `-bg` pairs. Nothing decorative. Sidebar icons are

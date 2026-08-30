@@ -25,7 +25,7 @@ export type ViewMode = 'comfortable' | 'compact' | 'simple';
  * first paint. The other three are explicit choices and beat it — `paper` can
  * only ever be one, because no operating system asks for parchment.
  */
-export type Theme = 'light' | 'dark' | 'paper' | null;
+export type Theme = 'light' | 'dark' | 'paper' | 'sci' | null;
 
 /** Bounds enforced both by the drag handle and by the server action. */
 export const MIN_PANE_WIDTH = 260;

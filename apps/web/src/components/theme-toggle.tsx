@@ -3,10 +3,10 @@
 import { useEffect, useState, useTransition } from 'react';
 import { setTheme } from '@/lib/actions';
 import type { Theme } from '@/lib/pane';
-import { IconMoon, IconScroll, IconSun } from './icons';
+import { IconMoon, IconScroll, IconSignal, IconSun } from './icons';
 
 /**
- * Light, dark and paper, as one button.
+ * Light, dark, paper and console, as one button.
  *
  * The stored preference may be null, meaning "whatever the operating system
  * says" — which only the browser knows. So the button asks it on mount and
@@ -17,16 +17,21 @@ import { IconMoon, IconScroll, IconSun } from './icons';
  * space of the right size. A guessed icon would flip a moment later on every
  * load, which is worse than a blank for one frame.
  *
- * **A cycle rather than a menu.** Three is the number where a menu starts to be
- * worth its own popover and is still one short of it: the whole control is a
- * 14-pixel glyph in the corner of the sidebar, next to the sign-out link, and
- * anything with a panel attached would be the loudest thing down there. Two
- * presses is the worst case, and the icon always says what the next one gives
- * you.
+ * **A cycle rather than a menu**, still — at four it is the last moment that is
+ * true. The whole control is a 14-pixel glyph in the corner of the sidebar
+ * beside the sign-out link, and anything with a panel attached would be the
+ * loudest thing down there. Three presses is now the worst case, and the icon
+ * always says what the next one gives you. A fifth theme would need the menu.
  */
 
-/** In order. Paper sits after dark because it is the least expected of them. */
-const ORDER = ['light', 'dark', 'paper'] as const;
+/**
+ * In order, quietest first.
+ *
+ * Light and dark are what an operating system asks for; paper and console are
+ * the two you go looking for. Console is last because it is the furthest from
+ * a document and the least likely to be somebody's every day.
+ */
+const ORDER = ['light', 'dark', 'paper', 'sci'] as const;
 
 type Real = (typeof ORDER)[number];
 
@@ -34,12 +39,14 @@ const ICON = {
   light: IconSun,
   dark: IconMoon,
   paper: IconScroll,
+  sci: IconSignal,
 } as const;
 
 const CALLED = {
   light: 'light',
   dark: 'dark',
   paper: 'paper',
+  sci: 'console',
 } as const;
 
 export function ThemeToggle({ preference }: { preference: Theme }) {
