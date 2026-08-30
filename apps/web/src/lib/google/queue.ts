@@ -9,8 +9,14 @@ import { LiveGoogleSync } from './live-sync';
 const MAX_ATTEMPTS = 5;
 
 /** Enqueue work. Cheap enough to call inside a request. */
+export type SyncKind =
+  | 'create_project_links'
+  | 'create_project_folder'
+  | 'create_project_label'
+  | 'move_project_links';
+
 export async function enqueueSync(
-  kind: 'create_project_links' | 'move_project_links',
+  kind: SyncKind,
   projectId: string,
 ): Promise<void> {
   await db.insert(syncJobs).values({ kind, projectId });
@@ -104,7 +110,7 @@ export async function drainSyncQueue(limit = 10): Promise<DrainResult> {
 
 async function runJob(
   sync: LiveGoogleSync,
-  kind: 'create_project_links' | 'move_project_links',
+  kind: SyncKind,
   projectId: string,
 ): Promise<void> {
   const [project] = await db
@@ -123,21 +129,38 @@ async function runJob(
   // Deleted before the worker got to it — nothing to do, and not an error.
   if (!project) return;
 
-  if (kind === 'create_project_links') {
+  if (kind !== 'move_project_links') {
+    /*
+     * Only what was asked for, and only what is missing.
+     *
+     * A folder and a label are wanted at different moments: attaching a file
+     * wants somewhere to put it, filing a message wants somewhere to file it.
+     * Making the other one at the same time would be the app deciding you
+     * wanted it, which is the whole thing this stopped doing.
+     */
+    const wantsFolder = kind === 'create_project_links' || kind === 'create_project_folder';
+    const wantsLabel = kind === 'create_project_links' || kind === 'create_project_label';
+
     const [driveFolderId, gmailLabelId] = await Promise.all([
       project.driveFolderId ??
-        sync.createProjectFolder(project.id, project.title),
-      project.gmailLabelId ?? sync.createGmailLabel(project.id, project.title),
+        (wantsFolder ? sync.createProjectFolder(project.id, project.title) : null),
+      project.gmailLabelId ??
+        (wantsLabel ? sync.createGmailLabel(project.id, project.title) : null),
     ]);
 
-    if (driveFolderId || gmailLabelId) {
+    if (driveFolderId !== project.driveFolderId || gmailLabelId !== project.gmailLabelId) {
       await db
         .update(projects)
         .set({ driveFolderId, gmailLabelId })
         .where(eq(projects.id, project.id));
     }
 
-    // A new project also needs its containers to match its status.
+    /*
+     * Whatever was just made has to sit in the container its status calls for.
+     * `moveForStatus` skips a null id, so making only a label moves only the
+     * label — an archived project that finally gets a folder gets it under
+     * `Archive/<year>`, not under `Projects`.
+     */
     await sync.moveForStatus({ ...project, driveFolderId, gmailLabelId }, project.status);
     return;
   }
@@ -177,11 +200,11 @@ export async function getSyncQueueStatus() {
 /**
  * Missing *either* link, not both.
  *
- * A project can end up half-linked: attaching a file to one of its actions
- * creates the Drive folder on the spot, because the upload needs somewhere to
- * go, but says nothing about Gmail. Requiring both to be null would quietly
- * exclude exactly those projects from the backfill and leave them without a
- * label for good. `create_project_links` fills in only what's missing.
+ * Half-linked is now the ordinary state rather than an edge case: a project
+ * that has had a file attached has a folder and no label, and one that has had
+ * a message filed against it has a label and no folder. Requiring both to be
+ * null would exclude exactly those from the backfill, which is the one place
+ * that is allowed to mean "all of it".
  */
 const UNLINKED = or(
   isNull(projects.driveFolderId),
@@ -189,12 +212,18 @@ const UNLINKED = or(
 );
 
 /**
- * Queue link creation for projects that predate the Google connection.
+ * Make the folder and the label for every project that is missing either.
  *
- * Only new projects and status changes enqueue work, so anything created
- * before Google was connected has no folder or label. This is the deliberate
- * catch-up, rather than a background sweep that would surprise you by
- * creating folders you didn't ask for.
+ * The one caller that really does mean *both*, for every project, which is why
+ * it is a button somebody presses and not something the app does on its own.
+ * Nothing else creates a container speculatively any more: a project gets a
+ * folder when a file needs somewhere to go and a label when a message needs
+ * somewhere to be filed, so most projects will legitimately have neither for
+ * their whole lives.
+ *
+ * It stays because there is a real want behind it — "I would like the tree in
+ * Drive to mirror my projects" — and because it is the answer for anyone who
+ * had the old behaviour and wants to keep it.
  */
 export async function backfillProjectLinks(): Promise<number> {
   const rows = await db.select({ id: projects.id }).from(projects).where(UNLINKED);

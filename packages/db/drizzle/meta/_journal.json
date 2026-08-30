@@ -302,6 +302,13 @@
       "when": 1788027772556,
       "tag": "0042_new_shotgun",
       "breakpoints": true
+    },
+    {
+      "idx": 43,
+      "version": "7",
+      "when": 1788092513951,
+      "tag": "0043_secret_tempest",
+      "breakpoints": true
     }
   ]
 }

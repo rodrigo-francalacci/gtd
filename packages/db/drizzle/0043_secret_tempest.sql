@@ -1,0 +1,2 @@
+ALTER TYPE "public"."sync_job_kind" ADD VALUE 'create_project_folder' BEFORE 'move_project_links';--> statement-breakpoint
+ALTER TYPE "public"."sync_job_kind" ADD VALUE 'create_project_label' BEFORE 'move_project_links';

@@ -458,10 +458,29 @@ Turbopack is the default; `middleware` is now `proxy`.
   that decision for Drive and Gmail alike, so the two can't disagree. The year
   comes from `completed_at`, which is stamped once and kept if the project is
   re-archived, so a finished project never migrates between year folders.
-- **Links are only made on create and move.** Nothing sweeps the table, so a
-  project that predates the Google connection has no folder or label until
-  `backfillProjectLinks` is run from `/connections`. Deliberately a button:
-  creating folders in someone's Drive is not a thing to do in the background.
+- **A project's folder and label are made on demand, never on create.** A
+  project is a decision, not a filing cabinet. Most are never given a file or a
+  message, and making a Drive folder *and* a Gmail label for every one of them
+  fills two accounts with empty containers named after things somebody thought
+  about once — which is worse than clutter, because it buries the folders that
+  do hold something among the ones that never will.
+  So the trigger is the want, not the row. A **folder** is made by
+  `destinationFolder` the first time a file is attached to the project or to
+  anything in it, inline, under the same exception the upload itself is: the
+  bytes are already in flight and there has to be somewhere to put them.
+  A **label** is enqueued the first time a message is filed against the project
+  — asking for one from its pane, or citing one already in a box. Neither makes
+  the other: wanting somewhere to file mail says nothing about wanting somewhere
+  to put files, and that is the whole point.
+  Hence two job kinds. `create_project_folder` and `create_project_label` each
+  fill in one side and leave the other null; `create_project_links` still means
+  both and has exactly one caller, the button on `/connections` that says so.
+  Half-linked is now the *ordinary* state rather than an edge case, which is why
+  `UNLINKED` matching either id being null matters more than ever.
+  **The on-demand folder follows the project's status.** The older inline path
+  always used `Projects`, so a file attached to something finished last year
+  landed beside the live work; it asks `containerPath` now, like everything
+  else, so Drive and Gmail cannot disagree about where a thing lives.
 - **Gmail label nesting is naming, and the parents must exist.** The API
   creates literally the name given, so `ensureLabel` walks the path and
   creates every ancestor; a rename into a new container ensures that

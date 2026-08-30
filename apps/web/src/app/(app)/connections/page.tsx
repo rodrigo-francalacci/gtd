@@ -172,12 +172,19 @@ export default async function ConnectionsPage() {
         {syncReady ? (
           <section className="mt-7 border-t border-grey-150 pt-5">
             <h2 className="text-[10px] font-semibold uppercase tracking-wider text-grey-500">
-              Existing projects
+              Folders and labels for every project
             </h2>
             <p className="mt-1 max-w-prose text-[12px] leading-relaxed text-grey-600">
-              Folders and labels are made when a project is created, so anything
-              you had before connecting Google has none. This creates them, in
-              the container its status calls for.
+              Normally these are made when there is something to put in them: a
+              project gets its Drive folder the first time you attach a file, and
+              its Gmail label the first time you file a message against it. Most
+              projects never need either, and empty folders named after things
+              you thought about once make the ones that matter harder to find.
+            </p>
+            <p className="mt-2 max-w-prose text-[12px] leading-relaxed text-grey-600">
+              This makes both, now, for every project missing either — each in
+              the container its status calls for. Worth pressing if you would
+              rather your Drive mirrored your project list.
             </p>
             <BackfillLinks unlinked={unlinked} />
           </section>

@@ -1305,6 +1305,34 @@ Long folders are capped, and a folder that had more says so — *…and 12 more,
 listed* — because there is no way to tell that from a folder that really holds
 four things.
 
+### Folders and labels are made when they are needed
+
+A project does **not** get a Drive folder or a Gmail label when you create it.
+Most projects never need either — they are decisions, not filing cabinets — and
+a Drive full of empty folders named after things you thought about once buries
+the ones that actually hold something.
+
+They appear when there is a reason:
+
+- **The Drive folder** the first time you attach a file to the project, or to
+  any action or list item in it. The file needs somewhere to go, so the folder
+  is made on the spot and the upload lands in it
+- **The Gmail label** the first time a message is filed against the project —
+  when you fetch an email from its pane, or link one that is already in a box
+
+Neither makes the other. Asking for an email does not create a Drive folder,
+and attaching a file does not create a Gmail label; the two answer different
+questions and only the one you asked gets answered.
+
+Both are made in the container the project's status calls for, so attaching a
+file to something you finished last year puts its folder under
+`GTD/Archive/<year>`, not among the live work.
+
+If you would rather your Drive simply mirrored your project list, **Folders and
+labels for every project** on the Google page makes both for everything at once.
+It stays a button you press, because creating folders in your account is not a
+thing for the app to do on its own.
+
 ### If Google disconnects
 
 A refresh token can be withdrawn without telling the app — months unused, a

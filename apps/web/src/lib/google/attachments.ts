@@ -18,7 +18,7 @@ import {
   trashFile,
   uploadFile,
 } from './client';
-import { ROOT, safeName } from './sync';
+import { ROOT, containerPath, safeName } from './sync';
 
 /**
  * Re-exported so existing callers keep reading it from here. The number itself
@@ -81,6 +81,8 @@ async function destinationFolder(
   const [project] = await db
     .select({
       title: projects.title,
+      status: projects.status,
+      completedAt: projects.completedAt,
       driveFolderId: projects.driveFolderId,
     })
     .from(projects)
@@ -90,10 +92,32 @@ async function destinationFolder(
   if (!project) return ensureFolder(INBOX, root);
   if (project.driveFolderId) return project.driveFolderId;
 
-  // The project predates the Google connection and was never backfilled.
-  // Attaching a file is a clear enough signal that it wants a folder, so make
-  // one now and record it rather than quietly filing the upload elsewhere.
-  const container = await ensureFolder('Projects', root);
+  /*
+   * This is where a project's Drive folder comes from.
+   *
+   * Not a fallback for a project that predates the connection any more — this
+   * is the ordinary path. A project is a decision, not a filing cabinet, and
+   * making a folder for every one of them fills an account with empty
+   * containers named after things somebody thought about once. Attaching a file
+   * is the moment there is something to put in one, so that is the moment it
+   * is made.
+   *
+   * A Google call inside a request, under the same exception the upload itself
+   * is: the caller is already going to Drive with the bytes, and one folder
+   * lookup in front of that is not what makes it slow. Queueing it would mean
+   * having nowhere to put the file that is already in flight.
+   *
+   * **The container follows the project's status**, which the older version of
+   * this got wrong: it always used `Projects`, so a file attached to something
+   * finished last year landed beside the live work instead of under
+   * `Archive/<year>`. `containerPath` owns that decision for Drive and Gmail
+   * alike, so asking it here is what keeps the two from disagreeing.
+   */
+  let container = root;
+  for (const segment of containerPath(project.status, project.completedAt)) {
+    container = await ensureFolder(segment, container);
+  }
+
   const folderId = await ensureFolder(safeName(project.title), container);
 
   await db

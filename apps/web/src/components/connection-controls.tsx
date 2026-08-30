@@ -50,9 +50,12 @@ export function SyncControls({ hasFailures }: { hasFailures: boolean }) {
 }
 
 /**
- * Catch-up for projects that existed before Google was connected. Deliberately
- * a button rather than something automatic: creating folders and labels in
- * someone's account is not a thing to do behind their back.
+ * Make both containers for every project that is missing either.
+ *
+ * The one place in the app that means *all of them*, which is why it is a
+ * button somebody presses. Everything else waits until there is something to
+ * put in a folder or file under a label — creating them in someone's account
+ * because a row exists is not a thing to do behind their back.
  */
 export function BackfillLinks({ unlinked }: { unlinked: number }) {
   const [pending, startTransition] = useTransition();
@@ -61,7 +64,7 @@ export function BackfillLinks({ unlinked }: { unlinked: number }) {
   if (unlinked === 0 && queued === null) {
     return (
       <p className="mt-2 text-[12px] text-grey-600">
-        Every project has its folder and label.
+        Every project already has both.
       </p>
     );
   }
@@ -80,7 +83,7 @@ export function BackfillLinks({ unlinked }: { unlinked: number }) {
       >
         {pending
           ? 'Creating…'
-          : `Create links for ${unlinked} project${unlinked === 1 ? '' : 's'}`}
+          : `Make them for ${unlinked} project${unlinked === 1 ? '' : 's'}`}
       </button>
 
       {queued !== null && !pending ? (

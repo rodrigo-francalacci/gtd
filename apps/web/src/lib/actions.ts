@@ -97,9 +97,20 @@ export async function createProject(formData: FormData) {
     .values({ title, areaId: areaId || null, status: 'active' })
     .returning();
 
-  // Queued, not called: Drive and Gmail are slow and a serverless request
-  // must not wait on them. The worker fills in the IDs shortly after.
-  await enqueueSync('create_project_links', project.id);
+  /*
+   * No folder, no label, not yet.
+   *
+   * A project is a decision, not a filing cabinet. Most of them never acquire
+   * a single file or a single message, and making a Drive folder and a Gmail
+   * label for every one of them fills two of somebody's accounts with empty
+   * containers named after things they thought about once — which is worse
+   * than clutter, because it makes the folder that *does* hold something
+   * harder to find among the ones that never will.
+   *
+   * They are made when there is something to put in them: see
+   * `ensureProjectFolder` on the upload path, and the label enqueued the first
+   * time a message is filed against a project.
+   */
 
   revalidateShell();
   redirect(`/projects/${project.id}`);
@@ -747,8 +758,6 @@ export async function clarifyInboxItem(itemId: string, decision: ClarifyDecision
       })
       .returning();
     outcomeId = project.id;
-
-    await enqueueSync('create_project_links', project.id);
   } else if (decision.kind === 'list_item') {
     const title = decision.title.trim();
     if (!title) return;
@@ -2093,6 +2102,21 @@ export async function requestEmail(
   }
 
   await createEmailRequest(box, read.query, parent);
+
+  /*
+   * Asking for a message *on a project* is the moment that project wants a
+   * Gmail label — it is where you would file the reply, and where the bridge
+   * will look. Asking for one on its own is not: that message is going to a
+   * box, and a box is not a project.
+   *
+   * The Drive folder is deliberately not made here. Wanting somewhere to file
+   * mail says nothing about wanting somewhere to put files, and making both
+   * because you asked for one is the habit this is getting rid of.
+   */
+  if (parent?.parentType === 'project') {
+    await enqueueSync('create_project_label', parent.parentId);
+  }
+
   revalidateShell();
 
   return { ok: true as const };
@@ -2339,6 +2363,23 @@ export async function linkDocument(
     .values({ itemId, parentType, parentId })
     .onConflictDoNothing();
 
+  /*
+   * Citing a *message* on a project is the same signal as asking for one: this
+   * project has correspondence, so it wants somewhere in Gmail to keep it.
+   * Citing a document is not — a Big Box document lives in the box's folder and
+   * linking touches nothing in Drive at all, which is the whole reason a link
+   * is a link and not an attachment.
+   */
+  if (parentType === 'project') {
+    const [item] = await db
+      .select({ kind: boxItems.kind })
+      .from(boxItems)
+      .where(eq(boxItems.id, itemId))
+      .limit(1);
+
+    if (item?.kind === 'email') await enqueueSync('create_project_label', parentId);
+  }
+
   revalidateShell();
 }
 
@@ -2397,7 +2438,6 @@ export async function startFromDocument(
       .values({ title: heading, status: 'active' })
       .returning({ id: projects.id });
 
-    await enqueueSync('create_project_links', project.id);
     await db
       .insert(boxItemLinks)
       .values({ itemId, parentType: 'project', parentId: project.id })

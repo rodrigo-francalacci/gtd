@@ -629,8 +629,20 @@ export const reviews = pgTable(
 // Sync outbox
 // ---------------------------------------------------------------------------
 
+/**
+ * What the outbox worker is being asked to do.
+ *
+ * The two `create_…` kinds are separate because a project's Drive folder and
+ * its Gmail label are wanted at different moments and for different reasons —
+ * attaching a file wants somewhere to put it, filing a message wants somewhere
+ * to file it, and neither is a reason to make the other. `create_project_links`
+ * remains for the one caller that really does mean both: the button on the
+ * connections page that says so.
+ */
 export const syncJobKind = pgEnum('sync_job_kind', [
   'create_project_links',
+  'create_project_folder',
+  'create_project_label',
   'move_project_links',
 ]);
 
