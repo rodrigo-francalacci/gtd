@@ -283,6 +283,22 @@ function fileLabelledEmails() {
 
   if (sources.length === 0) return;
 
+  /*
+   * Which labels this run will look at, always, before it looks at any of them.
+   *
+   * Logged unconditionally rather than only when something is found, because
+   * the question this answers is "is the script I am running the one that knows
+   * about box labels" — and the version that did not know printed nothing at
+   * all, which is indistinguishable from finding no mail. A line naming the
+   * labels tells you which script you are running in one glance.
+   */
+  Logger.log(
+    'Watching ' + sources.length + ' label(s): ' +
+      sources
+        .map(function (s) { return s.label.getName() + ' -> ' + s.box; })
+        .join(', '),
+  );
+
   var filed = 0;
 
   for (var srcIndex = 0; srcIndex < sources.length; srcIndex++) {
@@ -298,10 +314,7 @@ function fileLabelledEmails() {
     const threads = source.label.getThreads(0, MAX_THREADS);
     if (threads.length === 0) continue;
 
-    Logger.log(
-      threads.length + ' thread(s) labelled ' + source.label.getName() +
-        ' -> box "' + source.box + '"',
-    );
+    Logger.log(threads.length + ' thread(s) on ' + source.label.getName());
 
     for (var t = 0; t < threads.length; t++) {
       if (Date.now() - startedAt > BUDGET_MS) {
