@@ -8,11 +8,18 @@
  *
  * The reference figures come from the Age of Empires II campaign scroll this
  * theme is modelled on, sampled the same way: the 90th-percentile luminance
- * difference between two pixels a given distance apart.
+ * difference between two pixels a given distance apart, measured only on tiles
+ * that hold nothing but paper — no text, and nothing near the emblem
+ * watermarked into the middle of it, which the first attempt at this counted as
+ * mottling and roughly doubled the answer.
  *
- *     1px    5.0
- *     6px    8.3
- *     40px  10.9
+ *     1px   2.9
+ *     6px   4.7
+ *     40px  4.9
+ *
+ * The *plateau* between 6px and 40px matters as much as any single figure: real
+ * paper mottles at a middling scale and then stops, where a naive octave stack
+ * keeps climbing and turns into blotches.
  *
  * Run: node scripts/check-paper-grain.mjs
  */
@@ -25,12 +32,13 @@ const BASE = [0xd9, 0xb8, 0x97];
 
 /** What the reference measured, and how far from it is still paper. */
 const WANT = [
-  { step: 1, target: 5.0, tolerance: 3.5 },
-  { step: 6, target: 8.3, tolerance: 4.5 },
-  { step: 40, target: 10.9, tolerance: 5.5 },
+  { step: 1, target: 2.9, tolerance: 1.2 },
+  { step: 6, target: 4.7, tolerance: 1.5 },
+  { step: 40, target: 4.9, tolerance: 1.6 },
 ];
 
 const buf = readFileSync(new URL('../apps/web/public/paper-grain.png', import.meta.url));
+
 
 let off = 8;
 const idat = [];
@@ -114,18 +122,31 @@ for (const { step, target, tolerance } of WANT) {
 }
 
 /*
- * The shape matters more than any single figure: paper mottles more over a
- * long distance than a short one. Noise that fails this is dust on a screen,
- * whatever its amplitude.
+ * The shape matters more than any single figure, and it has two halves.
+ *
+ * Paper mottles more over a long distance than a short one — noise that fails
+ * that is dust on a screen, whatever its amplitude. But it also *stops*:
+ * mottling that keeps growing with distance is blotches, which is exactly what
+ * measuring across a watermark produced the first time this was attempted.
  */
 const fine = variation(1);
+const mid = variation(6);
 const broad = variation(40);
 
 if (broad <= fine) {
-  console.log(`\n  broad (${broad.toFixed(1)}) must exceed fine (${fine.toFixed(1)}) — this is noise, not paper`);
+  console.log(
+    `\n  broad (${broad.toFixed(1)}) must exceed fine (${fine.toFixed(1)}) — this is noise, not paper`,
+  );
+  bad++;
+} else if (broad > mid * 1.45) {
+  console.log(
+    `\n  broad ${broad.toFixed(1)} runs away from mid ${mid.toFixed(1)} — blotches, not paper`,
+  );
   bad++;
 } else {
-  console.log(`\n  broad ${broad.toFixed(1)} > fine ${fine.toFixed(1)} — mottled, as paper is`);
+  console.log(
+    `\n  fine ${fine.toFixed(1)} < mid ${mid.toFixed(1)} ~ broad ${broad.toFixed(1)} — mottled and then level, as paper is`,
+  );
 }
 
 console.log(bad === 0 ? '\npaper' : `\n${bad} problem(s)`);

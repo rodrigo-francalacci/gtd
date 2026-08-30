@@ -199,6 +199,15 @@ export function SidebarNav({
          drawer's own width on a phone. The drawer decides how wide it is;
          this decides what is in it. */
       className="flex h-full w-full flex-col border-r border-grey-200 bg-grey-100 md:w-56"
+      /*
+       * Marks this as navigation rather than content, which paper mode reads to
+       * give it a coarser sheet than the panes beside it. It is the one column
+       * that holds nothing you read at length, so a heavier surface there
+       * competes with nothing — and the difference between the two materials is
+       * what stops the whole window looking like one flat sheet with lines
+       * ruled on it.
+       */
+      data-pane="nav"
     >
       <div className="border-b border-grey-200 px-4 py-3">
         <span className="text-[13px] font-semibold tracking-tight text-grey-800">

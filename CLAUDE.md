@@ -43,14 +43,34 @@ Turbopack is the default; `middleware` is now `proxy`.
   `scripts/make-paper-grain.mjs` draws the tile instead, deterministically, so
   re-running it produces an empty diff. A static file rather than a data URI: it
   must not sit in the stylesheet of everyone who has never chosen this theme.
-  **Its *shape* was measured too, and that is the part that is easy to get
-  wrong.** Paper varies more over forty pixels than over one (10.9 against 5.0
-  in the reference): the soft mottling is what an eye recognises as paper, where
-  per-pixel noise — which is what a first attempt produces — puts all its energy
-  at 1px and reads as a dusty screen. Five octaves of tileable value noise plus
-  a grain term, swept against `scripts/check-paper-grain.mjs`, which asserts all
-  three scales and that broad still exceeds fine. Run it after touching any
-  constant in the generator.
+  **Its *shape* was measured too, and that took two attempts.** Paper varies
+  more over forty pixels than over one — per-pixel noise, which is what a first
+  attempt produces, puts all its energy at 1px and reads as a dusty screen — but
+  it then **plateaus**: the clean reference measures 2.9 / 4.7 / 4.9 at 1, 6 and
+  40 pixels, so the mottling is a modest thing at a middling scale and not a ramp
+  that keeps growing.
+  The first measurement said 5.0 / 8.3 / 10.9, and was wrong because the sampling
+  grid ran across the emblem *watermarked* into the middle of the scroll. A
+  watermark is a very large, very soft change in level, which is precisely the
+  signal "how much does this vary over 40px" is looking for — so it was counted
+  as paper, and the texture came out about twice as blotchy as paper is. Measure
+  tile by tile and reject any tile whose mean sits away from the median: that is
+  what a watermark does to a tile and what plain paper never does.
+  Hitting the plateau meant putting nearly all the energy at four and eight
+  pixels. Big octaves cannot help — anything finer than 40px is already
+  decorrelated at that distance, so a 64px octave only raises the 40px figure and
+  never the ratio. `scripts/check-paper-grain.mjs` asserts all three scales *and*
+  both halves of the shape: broad above fine, and broad not running away from
+  mid. Run it after touching any constant in the generator.
+  **Two sheets, from one generator.** The panes get the measured article; the
+  sidebar gets a coarser one, because it is the only column holding nothing you
+  read at length, so a heavier surface there competes with nothing — and the
+  difference between two materials is what stops the window looking like one flat
+  sheet with lines ruled on it. Painted on the element (`[data-pane='nav']`)
+  rather than as a second overlay: one column, it does not move, and the global
+  grain lies over the top so the two accumulate where they should. Separate
+  lattices, so the seam reads as two pieces of paper meeting rather than as a
+  brightness step in one.
   One fixed overlay rather than a background on each surface, because that is
   what keeps the grain falling across panes, hairlines and headings alike
   without a single component knowing — **and it stops at the preview pane**,

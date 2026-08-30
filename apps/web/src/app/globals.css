@@ -289,6 +289,25 @@
 }
 
 /*
+ * The sidebar is a different, coarser sheet.
+ *
+ * A background on the element itself rather than another fixed overlay: it is
+ * one column, it does not move, and the global grain lies over the top of this
+ * so the two accumulate exactly where they should. Painted on the element also
+ * means it scrolls with the column, which is right — this is the material the
+ * navigation is printed on, not a filter over the window.
+ *
+ * The two sheets are drawn from separate lattices rather than being one sheet
+ * at two volumes, so the seam down the edge of the sidebar reads as two pieces
+ * of paper meeting rather than as a brightness step in one.
+ */
+:root[data-theme='paper'] [data-pane='nav'] {
+  background-image: url('/paper-grain-strong.png');
+  background-repeat: repeat;
+  background-size: 256px 256px;
+}
+
+/*
  * The grain stops at the preview pane.
  *
  * That pane is a window onto a file — a PDF, a photograph, a rendered page —

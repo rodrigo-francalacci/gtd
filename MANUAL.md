@@ -988,9 +988,15 @@ The grain and the faint fall-off at the corners are the smaller half of it, and
 they are there because a flat tan rectangle is a colour rather than a sheet. The
 colour and the texture are both taken from the Age of Empires II campaign scroll
 — measured off it rather than guessed, including the way real paper mottles in
-soft patches rather than fine dust. Under all of it the app is unchanged: the
-same ramp, walked the same direction as light mode, so every hairline and
-heading means exactly what it meant before.
+soft patches rather than fine dust, and then settles rather than going on
+blotching. Under all of it the app is unchanged: the same ramp, walked the same
+direction as light mode, so every hairline and heading means exactly what it
+meant before.
+
+**The sidebar is a coarser sheet than the panes.** It is the one column holding
+nothing you read at length, so a heavier surface there is in nobody's way — and
+two materials meeting is what stops the window reading as one flat sheet with
+lines ruled on it.
 
 **The grain stops at the preview pane.** That pane is a window onto a file, and
 ageing a PDF or a photograph would be the app colouring your document rather

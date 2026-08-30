@@ -11,18 +11,29 @@
  * needs no filter and no blend, and is a static file rather than bytes in the
  * stylesheet of every user who has never chosen this theme.
  *
- * **The shape of the noise was measured, not invented.** Sampling the Age of
- * Empires II campaign scroll this theme is modelled on, at three scales (90th
- * percentile luminance difference between two pixels that far apart):
+ * **The shape of the noise was measured, not invented — twice.** Sampling the
+ * Age of Empires II campaign scroll this theme is modelled on, at three scales
+ * (90th percentile luminance difference between two pixels that far apart):
  *
- *     1px    5.0     fine grain
- *     6px    8.3
- *     40px  10.9     blotches
+ *     1px   2.9     fine grain
+ *     6px   4.7
+ *     40px  4.9     mottling
  *
- * Which is the opposite of what a first attempt at "paper texture" produces.
- * Pure per-pixel noise has all of its energy at 1px and none at 40, and reads
- * as a dusty screen rather than as a sheet — the thing your eye actually
- * recognises as paper is the *large* soft mottling, with the grain on top.
+ * Two things to read there. Paper varies *more* over forty pixels than over
+ * one, which pure per-pixel noise — the obvious first attempt — cannot do at
+ * all: it puts everything at 1px and reads as dust on a screen. But it also
+ * **plateaus**: 6px and 40px are within a fifth of a step of each other, so the
+ * mottling is a modest thing at a middling scale and not a ramp that keeps
+ * growing.
+ *
+ * The first measurement said 5.0 / 8.3 / 10.9 and was wrong, because the grid
+ * ran across the emblem watermarked into the middle of the scroll. A watermark
+ * is a very large, very soft change in level, which is precisely the signal
+ * "how much does this vary over 40px" is looking for — so it was counted as
+ * paper and the texture came out roughly twice as blotchy as paper is. The
+ * fix is to measure tile by tile and reject any tile whose mean sits away from
+ * the median, which is what a watermark does to a tile and what plain paper
+ * never does.
  *
  * Run: node scripts/make-paper-grain.mjs
  */
@@ -52,13 +63,50 @@ const DARK = [92, 68, 38];
 const LIGHT = [255, 246, 228];
 
 /**
- * Peak alpha, out of 255.
+ * Two sheets, from one generator.
  *
- * Swept against `scripts/check-paper-grain.mjs` rather than chosen: 34 came out
- * at a third of the reference, 100 overshot the blotches by half. Seventy lands
- * all three scales inside tolerance.
+ * The page wants the measured article: subtle enough that you notice the paper
+ * and not the noise. The sidebar wants something heavier — it is the one column
+ * that holds no content of its own, so it can carry a coarser, older surface
+ * without ever competing with anything to read, and the difference between the
+ * two is what makes the navigation feel like a different material rather than
+ * the same sheet with a line down it.
+ *
+ * Amplitudes are swept against `scripts/check-paper-grain.mjs`, never chosen.
  */
-const AMPLITUDE = 70;
+const PROFILES = [
+  {
+    file: 'paper-grain.png',
+    amplitude: 20,
+    // Weighted to plateau: nearly all the energy at four and eight pixels, so
+    // the field decorrelates by six and stops climbing after that, which is
+    // what the reference does between 6px and 40px.
+    layers: [
+      [64, 0.0],
+      [32, 0.04],
+      [16, 0.12],
+      [8, 0.34],
+      [4, 0.4],
+    ],
+    grain: 0.3,
+    laid: 0.06,
+  },
+  {
+    file: 'paper-grain-strong.png',
+    amplitude: 70,
+    // Weighted to the large scales, which is what makes it read as coarse
+    // board rather than as a noisier version of the same paper.
+    layers: [
+      [64, 0.34],
+      [32, 0.25],
+      [16, 0.2],
+      [8, 0.14],
+      [4, 0.07],
+    ],
+    grain: 0.16,
+    laid: 0.12,
+  },
+];
 
 /**
  * Deterministic, so re-running produces the same file and the diff is empty.
@@ -109,50 +157,48 @@ function octave(cell) {
   };
 }
 
-/*
- * Weighted so the large scales carry most of the energy, which is what the
- * measurement asked for. The 1px term is last and smallest: it is the grain you
- * see with your nose against the screen, not the thing that makes it paper.
+/**
+ * Draw one sheet.
+ *
+ * The lattice for every octave is drawn fresh per profile, so the two files are
+ * different sheets rather than the same one at two volumes — which matters
+ * where they meet, down the edge of the sidebar.
  */
-const LAYERS = [
-  [64, 0.34],
-  [32, 0.25],
-  [16, 0.2],
-  [8, 0.14],
-  [4, 0.07],
-];
+function sheet({ amplitude, layers, grain, laid }) {
+  const fields = layers.map(([cell, weight]) => [octave(cell), weight]);
 
-const fields = LAYERS.map(([cell, weight]) => [octave(cell), weight]);
+  // One scanline per row, each prefixed with filter byte 0 (None).
+  const raw = Buffer.alloc(SIZE * (1 + SIZE * 4));
 
-// One scanline per row, each prefixed with filter byte 0 (None).
-const raw = Buffer.alloc(SIZE * (1 + SIZE * 4));
+  for (let y = 0; y < SIZE; y++) {
+    const row = y * (1 + SIZE * 4);
+    raw[row] = 0;
 
-for (let y = 0; y < SIZE; y++) {
-  const row = y * (1 + SIZE * 4);
-  raw[row] = 0;
+    for (let x = 0; x < SIZE; x++) {
+      let v = 0;
+      for (const [field, weight] of fields) v += field(x, y) * weight;
 
-  for (let x = 0; x < SIZE; x++) {
-    let v = 0;
-    for (const [field, weight] of fields) v += field(x, y) * weight;
+      // The fine grain, uncorrelated by construction.
+      v += (next() * 2 - 1) * grain;
 
-    // The fine grain, uncorrelated by construction.
-    v += (next() * 2 - 1) * 0.16;
+      /*
+       * The laid lines of a pressed sheet, every fourth row. Four divides 256,
+       * so they meet themselves at the seam rather than stepping.
+       */
+      if (y % 4 === 0) v -= laid;
 
-    /*
-     * The laid lines of a pressed sheet, every fourth row. Four divides 256, so
-     * they meet themselves at the seam rather than stepping.
-     */
-    if (y % 4 === 0) v -= 0.12;
+      const clamped = Math.max(-1, Math.min(1, v));
+      const [r, g, b] = clamped < 0 ? DARK : LIGHT;
 
-    const clamped = Math.max(-1, Math.min(1, v));
-    const [r, g, b] = clamped < 0 ? DARK : LIGHT;
-
-    const at = row + 1 + x * 4;
-    raw[at] = r;
-    raw[at + 1] = g;
-    raw[at + 2] = b;
-    raw[at + 3] = Math.round(Math.abs(clamped) * AMPLITUDE);
+      const at = row + 1 + x * 4;
+      raw[at] = r;
+      raw[at + 1] = g;
+      raw[at + 2] = b;
+      raw[at + 3] = Math.round(Math.abs(clamped) * amplitude);
+    }
   }
+
+  return raw;
 }
 
 const ihdr = Buffer.alloc(13);
@@ -192,14 +238,17 @@ function chunk(type, data) {
   return Buffer.concat([length, body, crc]);
 }
 
-const png = Buffer.concat([
-  Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
-  chunk('IHDR', ihdr),
-  chunk('IDAT', deflateSync(raw, { level: 9 })),
-  chunk('IEND', Buffer.alloc(0)),
-]);
+for (const profile of PROFILES) {
+  const png = Buffer.concat([
+    Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
+    chunk('IHDR', ihdr),
+    chunk('IDAT', deflateSync(sheet(profile), { level: 9 })),
+    chunk('IEND', Buffer.alloc(0)),
+  ]);
 
-const out = new URL('../apps/web/public/paper-grain.png', import.meta.url);
-writeFileSync(out, png);
+  writeFileSync(new URL(`../apps/web/public/${profile.file}`, import.meta.url), png);
 
-console.log(`${SIZE}x${SIZE} grain, ${png.length} bytes -> apps/web/public/paper-grain.png`);
+  console.log(
+    `${profile.file.padEnd(23)} ${SIZE}x${SIZE}  ${(png.length / 1024).toFixed(1)} KB`,
+  );
+}
