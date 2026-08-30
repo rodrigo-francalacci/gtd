@@ -295,6 +295,17 @@ export function BoxComposer({ boxId }: { boxId: string }) {
     setBusy(null);
 
     /*
+     * And an emoji, like every other entry that arrives.
+     *
+     * It was missed the first time round because a gallery is written `ready`
+     * rather than queued — nothing reads it, so it never passed the point where
+     * a document picks one up. The title is what it is chosen from, which is
+     * the right question here anyway: the model cannot see the pictures, and
+     * "survey photographs" is what the row is about.
+     */
+    emojifyLater('box', made.id);
+
+    /*
      * Opened once the pictures are in it, for the reason a new document is
      * opened: making a thing and then leaving you to find it in the feed you
      * are already looking at is a strange way round. It also settles the
