@@ -378,6 +378,7 @@ export type EntryType =
   | 'email'
   | 'location'
   | 'event'
+  | 'gallery'
   | 'image'
   | 'audio'
   | 'video'
@@ -394,6 +395,7 @@ export const ENTRY_TYPE_LABELS: Record<EntryType, string> = {
   email: 'Email',
   location: 'Places',
   event: 'Milestones',
+  gallery: 'Galleries',
   image: 'Images',
   audio: 'Audio',
   video: 'Video',
@@ -415,6 +417,9 @@ export const ENTRY_TYPE_ORDER: EntryType[] = [
   'email',
   'location',
   'pdf',
+  // Beside the images, because that is what one is: a set of them that means
+  // something together and would mean less apart.
+  'gallery',
   'image',
   'audio',
   'video',

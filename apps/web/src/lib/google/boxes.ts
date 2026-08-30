@@ -1,4 +1,5 @@
 import 'server-only';
+import { purgeGalleryPictures } from './attachments';
 
 import { boxItems, boxes, db } from '@gtd/db';
 import { and, eq, isNotNull, lte, sql } from 'drizzle-orm';
@@ -328,9 +329,20 @@ export async function deleteBoxItem(itemId: string): Promise<void> {
   const [row] = await db
     .delete(boxItems)
     .where(eq(boxItems.id, itemId))
-    .returning({ driveFileId: boxItems.driveFileId });
+    .returning({ driveFileId: boxItems.driveFileId, kind: boxItems.kind });
 
-  if (!row?.driveFileId) return;
+  if (!row) return;
+
+  /*
+   * A gallery takes its pictures with it, exactly as it does on the attachment
+   * side. Its members are attachments parented on this row's id, and
+   * `parent_id` carries no foreign key, so nothing cascades — without this,
+   * throwing away a gallery would leave its photographs as rows pointing at an
+   * id that names nothing.
+   */
+  if (row.kind === 'gallery') await purgeGalleryPictures(itemId);
+
+  if (!row.driveFileId) return;
 
   try {
     await trashFile(row.driveFileId);

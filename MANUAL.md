@@ -674,6 +674,46 @@ offers *Combine into one PDF* or *Keep separate*. One image per page, each page
 the size of its image, in the order you added them — a contract photographed page
 by page becomes one thing to scroll rather than eight rows to open in order.
 
+### Galleries
+
+A **gallery** is a set of pictures that stands in a list as one row. The case it
+is for is a set that means nothing apart — thirty photographs of a room, a
+survey, a holiday, a car before you sold it. As thirty separate attachments they
+bury everything else on the pane and arrive in whatever order the uploads
+finished; as one row you open, they are what they were when you took them.
+
+**Making one.** Drop, paste or choose two or more images *or videos* together —
+on a project, an action, a list item, or in a box composer — and the prompt
+offers **Make a gallery** alongside the PDF option. Videos are as welcome as
+photographs; a set with a film in it is offered the gallery and not the PDF,
+since a page can hold a picture and cannot hold a film.
+
+**Looking at one.** The preview pane opens the *album*: every picture at once,
+big enough to recognise, oldest first — which for a set of photographs is the
+order they happened in. Click one and it fills the pane; move through them with
+the arrows, the arrow keys, or a swipe on a touchscreen. **Show all** goes back.
+
+**Adding and removing.** *Add* in the header takes more pictures or video at any
+time, and you can drop files straight onto the album. Under the large view,
+*Remove* takes one out — the file goes to Drive's bin, like everything else this
+app removes, so a mistake is recoverable. Removing the whole gallery takes its
+pictures with it.
+
+**In Drive it is simply a folder**, inside the project's folder or the box's, so
+the same set opens there as a folder and can be used like any other.
+
+**The facts stay quiet.** Under the large view there is one small line: the
+filename, the dimensions and megapixels, the file size, the date the camera
+recorded — or the date it was added, said as such — and, where the photograph
+carries one, its coordinates as a link to the map. Nothing in the album but the
+pictures. A caption competing with a photograph has misunderstood what it is
+for.
+
+Not every file says all of that. A screenshot has no camera date and no
+position, and a video from a messaging app has usually had its metadata
+stripped; what a file will not say is simply absent rather than shown as
+unknown.
+
 ### Making documents
 
 **New doc**, **New sheet** and **New slides** create an empty Google file

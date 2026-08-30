@@ -310,6 +310,36 @@ export const IconDocument = (p: IconProps) => (
 );
 
 /** An attached image — a frame with a horizon. */
+/**
+ * A gallery — pictures stacked, the front one showing.
+ *
+ * Deliberately the image glyph with sheets behind it rather than a grid: what
+ * distinguishes a gallery in a list is not that it is square but that there is
+ * more than one of it.
+ */
+/** Add — a plain cross, which is what every "add one more" control has been. */
+export const IconPlus = (p: IconProps) => (
+  <Glyph {...p}>
+    <path d="M8 3.4v9.2M3.4 8h9.2" />
+  </Glyph>
+);
+
+/** Remove or dismiss. The same mark, turned. */
+export const IconClose = (p: IconProps) => (
+  <Glyph {...p}>
+    <path d="M4.2 4.2l7.6 7.6M11.8 4.2l-7.6 7.6" />
+  </Glyph>
+);
+
+export const IconGallery = (p: IconProps) => (
+  <Glyph {...p}>
+    <path d="M5.4 3.2h7.4a1 1 0 0 1 1 1v6.2" />
+    <rect x="2.2" y="5.2" width="9.6" height="7.6" rx="1" />
+    <path d="M2.6 10.8 5.4 8.4l1.9 1.6 1.6-1.3 1.9 1.7" />
+    <circle cx="5" cy="7.6" r="0.75" />
+  </Glyph>
+);
+
 export const IconImage = (p: IconProps) => (
   <Glyph {...p}>
     <rect x="2.2" y="3.4" width="11.6" height="9.2" rx="1" />

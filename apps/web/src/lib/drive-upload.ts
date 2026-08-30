@@ -11,11 +11,17 @@
  */
 
 import { MAX_DIRECT_UPLOAD_BYTES, MAX_DIRECT_UPLOAD_MB } from './upload';
+import type { MediaFacts } from './media-facts';
 
 export class UploadError extends Error {}
 
 export type UploadTarget = {
-  parentType: 'project' | 'action' | 'list_item' | 'inbox_item';
+  /**
+   * `gallery` is here for the same reason the others are: it names a row that
+   * files hang off. What is unusual about it is only that the row is itself an
+   * attachment (or a box entry) rather than a piece of work.
+   */
+  parentType: 'project' | 'action' | 'list_item' | 'inbox_item' | 'gallery';
   parentId: string;
 };
 
@@ -73,6 +79,12 @@ export async function uploadToDrive(
   target: UploadTarget,
   file: File,
   onProgress?: (fraction: number) => void,
+  /**
+   * What the picture says about itself, read here because here is where the
+   * bytes are. A server would have to fetch the file back out of Drive to
+   * learn how wide it is, which for a gallery is a download per caption.
+   */
+  facts?: MediaFacts,
 ): Promise<{ id: string; name: string }> {
   if (file.size === 0) throw new UploadError(`${file.name} is empty.`);
   if (file.size > MAX_DIRECT_UPLOAD_BYTES) {
@@ -107,7 +119,7 @@ export async function uploadToDrive(
   const done = await fetch('/api/attachments/complete', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ ...target, driveFileId }),
+    body: JSON.stringify({ ...target, driveFileId, facts }),
   });
 
   if (!done.ok) {

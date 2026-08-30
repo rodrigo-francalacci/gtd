@@ -28,6 +28,7 @@ import {
   type BoxRow,
 } from '@/lib/queries.shared';
 import { useFilePreview, type PreviewFile } from './file-preview';
+import { GalleryView } from './gallery-view';
 import {
   IconAudio,
   IconDocument,
@@ -169,6 +170,17 @@ export function DocumentDetail({
           mimeType: item.mimeType,
           driveFileId: file,
           driveUrl: driveFileUrl(file),
+          /*
+           * A gallery's `drive_file_id` is a folder, which has no bytes — so it
+           * is handed over already rendered, through the same door the Drive
+           * tree uses. Everything above stays filled in and simply goes unread,
+           * because the pane checks `node` first; branching earlier would make
+           * this the one entry kind that builds a different shape of object.
+           */
+          node:
+            item.kind === 'gallery' ? (
+              <GalleryView galleryId={item.id} name={documentLabel(item)} />
+            ) : undefined,
         }
       : null;
 

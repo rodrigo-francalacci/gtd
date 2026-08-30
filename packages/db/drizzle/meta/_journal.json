@@ -309,6 +309,13 @@
       "when": 1788092513951,
       "tag": "0043_secret_tempest",
       "breakpoints": true
+    },
+    {
+      "idx": 44,
+      "version": "7",
+      "when": 1788093499116,
+      "tag": "0044_boring_kitty_pryde",
+      "breakpoints": true
     }
   ]
 }

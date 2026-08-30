@@ -7,6 +7,7 @@ import {
   IconAudio,
   IconDocument,
   IconEnvelope,
+  IconGallery,
   IconImage,
   IconLink,
   IconConcluded,
@@ -25,6 +26,7 @@ const GLYPHS: Record<EntryType, typeof IconDocument> = {
   // Overridden below for a milestone, which is the one type whose glyph
   // depends on more than the type: a start and a finish are not the same news.
   event: IconStarted,
+  gallery: IconGallery,
   image: IconImage,
   audio: IconAudio,
   video: IconVideo,

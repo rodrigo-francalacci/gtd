@@ -3,7 +3,12 @@
 import { useRef, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import type { AttachmentParentType } from '@gtd/db';
-import { createDocument, detachAttachment, renameAttachment } from '@/lib/actions';
+import {
+  createDocument,
+  createGallery,
+  detachAttachment,
+  renameAttachment,
+} from '@/lib/actions';
 import { UploadError, uploadToDrive } from '@/lib/drive-upload';
 import { driveFileUrl } from '@/lib/google/sync';
 import type { AttachmentRow } from '@/lib/queries.shared';
@@ -11,10 +16,31 @@ import type { SortChoice } from '@/lib/sort';
 import { AudioRecorder } from './audio-recorder';
 import { AudioPlay } from './audio-play';
 import { imagesToPdf, isImage, pdfNameFor } from '@/lib/images-to-pdf';
+import { mediaFacts } from '@/lib/media-facts';
+
+/** The busy line's name for the whole operation, rather than for one file. */
+const GALLERY = 'Making the gallery';
+
+/**
+ * What can go in a gallery: pictures, and film.
+ *
+ * Wider than what can be combined into a PDF, which is images only — a video
+ * has no page. So several videos, or a mixture, offers the gallery and not the
+ * PDF, and the prompt says so by which buttons it shows.
+ */
+const isGalleryable = (file: File) =>
+  file.type.startsWith('image/') || file.type.startsWith('video/');
+
+/** What to call it: today's date, which is what every filename here leads with. */
+function galleryName(files: File[]): string {
+  const today = new Date().toISOString().slice(0, 10);
+  return `${today} ${files.length} pictures`;
+}
 import { useFilePreview } from './file-preview';
+import { GalleryView } from './gallery-view';
 import { FileMeta } from './file-meta';
 import { GroupHeading } from './group-heading';
-import { IconDocument, IconImage } from './icons';
+import { IconDocument, IconGallery, IconImage } from './icons';
 import { NewDocumentMenu } from './new-document-menu';
 import { SortControl } from './sort-control';
 
@@ -165,13 +191,71 @@ export function Attachments({
     const list = [...files];
     if (list.length === 0) return;
 
-    if (list.length > 1 && list.every(isImage)) {
+    if (list.length > 1 && list.every(isGalleryable)) {
       setErrors([]);
       setOffer(list);
       return;
     }
 
     void upload(list);
+  };
+
+  /**
+   * The answer: a gallery.
+   *
+   * The folder is made first and the pictures go into it one at a time, which
+   * is the same order every capture in this app follows: the container that can
+   * be found again exists before the bytes that would otherwise be lost. A
+   * failure part-way leaves a gallery holding four of the six rather than six
+   * files nobody can reach.
+   *
+   * `mediaFacts` reads each one before it goes — dimensions, and the camera's
+   * date and position where there is one. Here rather than on the server
+   * because here is where the file is; a server would have to fetch every
+   * photograph back out of Drive to measure it.
+   */
+  const makeGallery = async () => {
+    const list = offer;
+    if (!list) return;
+
+    setOffer(null);
+    setErrors([]);
+    setBusy((b) => [...b, GALLERY]);
+
+    try {
+      const made = await createGallery(parentType, parentId, galleryName(list));
+
+      if ('error' in made) {
+        setErrors([made.error]);
+        setOffer(list);
+        return;
+      }
+
+      for (const file of list) {
+        try {
+          await uploadToDrive(
+            { parentType: 'gallery', parentId: made.id },
+            file,
+            (fraction) => setProgress((p) => ({ ...p, [file.name]: fraction })),
+            await mediaFacts(file),
+          );
+        } catch (error) {
+          setErrors((e) => [
+            ...e,
+            error instanceof UploadError ? error.message : `${file.name} failed to upload.`,
+          ]);
+        } finally {
+          setProgress((p) => {
+            const { [file.name]: _done, ...rest } = p;
+            return rest;
+          });
+        }
+      }
+
+      router.refresh();
+    } finally {
+      setBusy((b) => b.filter((n) => n !== GALLERY));
+    }
   };
 
   /**
@@ -286,11 +370,26 @@ export function Attachments({
 
           <button
             type="button"
-            onClick={() => void combine()}
+            onClick={() => void makeGallery()}
             className="shrink-0 rounded-sm bg-grey-800 px-2 py-1 text-[11px] text-paper"
           >
-            Combine into one PDF
+            Make a gallery
           </button>
+
+          {/*
+            Offered only when every one of them is a picture. A PDF page can
+            hold an image and cannot hold a film, so a set with a video in it
+            gets the gallery and no false promise beside it.
+          */}
+          {offer.every(isImage) ? (
+            <button
+              type="button"
+              onClick={() => void combine()}
+              className="shrink-0 rounded-sm border border-grey-300 px-2 py-1 text-[11px] text-grey-700 hover:bg-grey-200"
+            >
+              One PDF
+            </button>
+          ) : null}
 
           <button
             type="button"
@@ -424,6 +523,18 @@ export function Attachments({
                       driveUrl: row.driveFileId
                         ? driveFileUrl(row.driveFileId)
                         : null,
+                      /*
+                       * A gallery has no bytes — `drive_file_id` is a folder —
+                       * so it is handed over already rendered, through the same
+                       * door the Drive tree uses. `src` is still filled in
+                       * above and simply never read, because the pane checks
+                       * `node` first: leaving it out would mean the one row
+                       * type here that builds a different shape of object.
+                       */
+                      node:
+                        row.kind === 'gallery' ? (
+                          <GalleryView galleryId={row.id} name={row.name} />
+                        ) : undefined,
                     });
                   }}
                   className={[
@@ -565,6 +676,7 @@ function Glyph({ row }: { row: AttachmentRow }) {
     return <AudioPlay src={`/api/attachments/${row.id}/file`} name={row.name} />;
   }
 
+  if (row.kind === 'gallery') return <IconGallery className={className} />;
   if (row.kind === 'image') return <IconImage className={className} />;
   return <IconDocument className={className} />;
 }

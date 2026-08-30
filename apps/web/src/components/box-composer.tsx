@@ -5,20 +5,35 @@ import { emojifyLater } from '@/lib/emojify-later';
 import { useRef, useState, useTransition } from 'react';
 import {
   createBoxFile,
+  createBoxGallery,
   postBoxLink,
   postBoxLocation,
   postBoxNote,
   requestEmail,
 } from '@/lib/actions';
 import { uploadToBox } from '@/lib/box-upload';
+import { uploadToDrive } from '@/lib/drive-upload';
 import { readEmailPaste } from '@/lib/email-paste';
 import { imagesToPdf, isImage, pdfNameFor } from '@/lib/images-to-pdf';
+import { mediaFacts } from '@/lib/media-facts';
+
 import { driveFileUrl } from '@/lib/google/sync';
 import { soleUrl } from '@/lib/sole-url';
 import { AudioRecorder } from './audio-recorder';
 import { useFilePreview } from './file-preview';
+import { GalleryView } from './gallery-view';
 import { IconAudio, IconCamera, IconPaperclip, IconPlace } from './icons';
 import { NewDocumentMenu } from './new-document-menu';
+
+/**
+ * What can go in a gallery: pictures, and film.
+ *
+ * Wider than what can be combined into a PDF, which is images only — a video
+ * has no page — so a set with a film in it is offered the gallery and not the
+ * PDF.
+ */
+const isGalleryable = (file: File) =>
+  file.type.startsWith('image/') || file.type.startsWith('video/');
 
 /**
  * Writing into a box.
@@ -220,13 +235,84 @@ export function BoxComposer({ boxId }: { boxId: string }) {
     const list = [...files];
     if (list.length === 0) return;
 
-    if (list.length > 1 && list.every(isImage)) {
+    if (list.length > 1 && list.every(isGalleryable)) {
       setError(null);
       setOffer(list);
       return;
     }
 
     void upload(list);
+  };
+
+  /**
+   * The answer: a gallery.
+   *
+   * One entry in the feed for the whole set, backed by a folder in the box's
+   * own Drive folder. The row is made first and the pictures go into it one at
+   * a time — the container that can be found again exists before the bytes
+   * that would otherwise be lost.
+   *
+   * Whatever is in the composer names it, exactly as it names a combined PDF:
+   * the sentence you were about to post is almost always what the pictures are
+   * of.
+   */
+  const makeGallery = async () => {
+    const list = offer;
+    if (!list) return;
+
+    setOffer(null);
+    setError(null);
+    setBusy(`Making a gallery of ${list.length}`);
+
+    const title =
+      text.trim() || `${new Date().toISOString().slice(0, 10)} ${list.length} pictures`;
+
+    const made = await createBoxGallery(boxId, title);
+
+    if ('error' in made) {
+      setError(made.error);
+      setBusy(null);
+      setOffer(list);
+      return;
+    }
+
+    for (const [index, file] of list.entries()) {
+      setBusy(`${file.name} (${index + 1}/${list.length})`);
+
+      try {
+        await uploadToDrive(
+          { parentType: 'gallery', parentId: made.id },
+          file,
+          undefined,
+          await mediaFacts(file),
+        );
+      } catch (e) {
+        setError(`${file.name}: ${e instanceof Error ? e.message : 'upload failed'}`);
+      }
+    }
+
+    setText('');
+    setBusy(null);
+
+    /*
+     * Opened once the pictures are in it, for the reason a new document is
+     * opened: making a thing and then leaving you to find it in the feed you
+     * are already looking at is a strange way round. It also settles the
+     * timing — a pane opened while the uploads were still going would have
+     * counted the pictures that had arrived by then and stopped there.
+     */
+    preview.open({
+      id: made.id,
+      name: title,
+      src: `/api/box/${made.id}/file`,
+      transcriptUrl: null,
+      mimeType: 'application/vnd.google-apps.folder',
+      driveFileId: null,
+      driveUrl: null,
+      node: <GalleryView galleryId={made.id} name={title} />,
+    });
+
+    router.refresh();
   };
 
   /**
@@ -373,15 +459,27 @@ export function BoxComposer({ boxId }: { boxId: string }) {
             The buttons are the question; both of them read as answers on their
             own.
           */}
-          <span className="min-w-0 flex-1 truncate">{offer.length} images</span>
+          <span className="min-w-0 flex-1 truncate">{offer.length} files</span>
 
           <button
             type="button"
-            onClick={() => void combine()}
+            onClick={() => void makeGallery()}
             className="shrink-0 rounded-sm bg-grey-800 px-2 py-1 text-[11px] text-paper"
           >
-            Combine into one PDF
+            Make a gallery
           </button>
+
+          {/* Only where a PDF is possible: a page can hold a picture and
+              cannot hold a film. */}
+          {offer.every(isImage) ? (
+            <button
+              type="button"
+              onClick={() => void combine()}
+              className="shrink-0 rounded-sm border border-grey-300 px-2 py-1 text-[11px] text-grey-700 hover:bg-grey-200"
+            >
+              One PDF
+            </button>
+          ) : null}
 
           <button
             type="button"

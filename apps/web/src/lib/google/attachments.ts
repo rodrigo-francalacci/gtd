@@ -1,12 +1,13 @@
 import 'server-only';
 
-import { attachments, actions, db, listItems, projects } from '@gtd/db';
+import { attachments, actions, boxItems, db, listItems, projects } from '@gtd/db';
 import type { AttachmentKind, AttachmentParentType } from '@gtd/db';
 import { and, eq, isNotNull, ne, sql } from 'drizzle-orm';
 import { getGrant } from '@/lib/auth/token';
 import { hasSyncScopes } from '@/lib/auth/google';
 import { enqueueEnrichment } from '@/lib/enrich/queue';
 import { FORMAT_BY_MIME } from '@/lib/text-formats';
+import type { MediaFacts } from '@/lib/media-facts';
 import { MAX_UPLOAD_BYTES } from '@/lib/upload';
 import {
   createGoogleFile,
@@ -41,16 +42,63 @@ function kindFor(mimeType: string): AttachmentKind {
 }
 
 /**
+ * The Drive folder of a gallery, which may be an attachment or a box entry.
+ *
+ * Two tables and one id, because `parent_id` has always been a bare uuid
+ * addressing several of them. Asked in the order that is cheapest to be wrong
+ * about: most galleries hang off a project.
+ */
+async function galleryFolder(galleryId: string): Promise<string | null> {
+  const [asAttachment] = await db
+    .select({ driveFileId: attachments.driveFileId })
+    .from(attachments)
+    .where(and(eq(attachments.id, galleryId), eq(attachments.kind, 'gallery')))
+    .limit(1);
+
+  if (asAttachment?.driveFileId) return asAttachment.driveFileId;
+
+  const [asBoxItem] = await db
+    .select({ driveFileId: boxItems.driveFileId })
+    .from(boxItems)
+    .where(and(eq(boxItems.id, galleryId), eq(boxItems.kind, 'gallery')))
+    .limit(1);
+
+  return asBoxItem?.driveFileId ?? null;
+}
+
+/**
  * The Drive folder a file attached to this thing belongs in.
  *
  * An action's files go to its project's folder rather than a folder of their
  * own — the project is the unit you go looking in months later, and a folder
  * per action would bury it. Anything with no project goes to `GTD/Inbox`.
  */
-async function destinationFolder(
+/**
+ * Exported because a gallery has to land in exactly the place a file would.
+ *
+ * Working the folder out a second time in the gallery code is how the two would
+ * drift — one of them learning about the archive container and the other not,
+ * which is the bug this module already fixed once.
+ */
+export async function attachmentFolder(
   parentType: AttachmentParentType,
   parentId: string,
 ): Promise<string> {
+  /*
+   * A gallery is a folder in Drive, so its members go straight into it and
+   * there is nothing else to work out. This has to come first: a gallery on an
+   * action would otherwise fall through to the action's project and every
+   * picture would land beside the folder instead of in it.
+   */
+  if (parentType === 'gallery') {
+    const folderId = await galleryFolder(parentId);
+    if (folderId) return folderId;
+
+    // The gallery row is gone, or was never given a folder. Better in the
+    // inbox than nowhere: the bytes are already on their way.
+    return ensureFolder(INBOX, await ensureFolder(ROOT));
+  }
+
   const projectId =
     parentType === 'project'
       ? parentId
@@ -156,7 +204,7 @@ export async function uploadAttachment(
     );
   }
 
-  const folderId = await destinationFolder(parentType, parentId);
+  const folderId = await attachmentFolder(parentType, parentId);
   const mimeType = file.type || 'application/octet-stream';
 
   const uploaded = await uploadFile(
@@ -211,7 +259,7 @@ export async function startUploadSession(
     );
   }
 
-  const folderId = await destinationFolder(parentType, parentId);
+  const folderId = await attachmentFolder(parentType, parentId);
   return createResumableSession(
     safeName(name),
     mimeType || 'application/octet-stream',
@@ -235,6 +283,19 @@ export async function completeUpload(
   parentType: AttachmentParentType,
   parentId: string,
   driveFileId: string,
+  /**
+   * What the browser read off the file before sending it.
+   *
+   * Trusted, unlike the name and size, and the difference is worth stating:
+   * those are read back from Drive because a client could otherwise make our
+   * row disagree with the file, and it matters that it cannot. A caption
+   * saying a photograph is 4032 pixels wide has nothing to protect — the worst
+   * a wrong one does is mislabel a picture you are looking at.
+   *
+   * The alternative is fetching every photograph back out of Drive to measure
+   * it, which for a gallery of forty is forty downloads for a caption.
+   */
+  facts?: MediaFacts,
 ): Promise<{ id: string; name: string }> {
   const file = await getFile(driveFileId);
   if (!file) {
@@ -255,6 +316,11 @@ export async function completeUpload(
       driveName: file.name,
       mimeType,
       sizeBytes: Number.isFinite(size) ? size : null,
+      width: facts?.width ?? null,
+      height: facts?.height ?? null,
+      takenAt: facts?.takenAt ? new Date(facts.takenAt) : null,
+      latitude: facts?.latitude ?? null,
+      longitude: facts?.longitude ?? null,
     })
     .returning({ id: attachments.id, name: attachments.name });
 
@@ -302,7 +368,7 @@ export async function createGoogleDocument(
   const base = safeName(name) || 'Untitled';
   const title = format ? `${base}.${format.extension}` : base;
 
-  const folderId = await destinationFolder(parentType, parentId);
+  const folderId = await attachmentFolder(parentType, parentId);
 
   const created = format
     ? await createTextFile(title, format.mime, folderId, format.starter)
@@ -461,13 +527,65 @@ export async function renameDriveAttachments(limit = 50): Promise<number> {
  * Remove an attachment. The Drive file goes to the bin, not the void — and
  * only ever the file this app uploaded itself.
  */
+/**
+ * Trash every picture in a gallery and forget the rows.
+ *
+ * Here rather than in `google/galleries.ts` for the reason `driveNameFor` moved
+ * into `sync.ts`: that module would otherwise have to import this one for
+ * `removeAttachment` while this one imports it for the purge, and two modules
+ * that need each other are one module wearing two names.
+ *
+ * One at a time, because each has a Drive file to trash. A failure is quiet on
+ * purpose: a picture Drive will not let go of must not stop the other
+ * twenty-nine, and the row goes either way.
+ */
+export async function purgeGalleryPictures(galleryId: string): Promise<void> {
+  const pictures = await db
+    .delete(attachments)
+    .where(and(eq(attachments.parentType, 'gallery'), eq(attachments.parentId, galleryId)))
+    .returning({ driveFileId: attachments.driveFileId });
+
+  for (const picture of pictures) {
+    if (!picture.driveFileId) continue;
+
+    try {
+      await trashFile(picture.driveFileId);
+    } catch {
+      // Already gone, or Drive is refusing. Recoverable from its bin either
+      // way, and the row is the thing that had to go.
+    }
+  }
+}
+
 export async function removeAttachment(id: string): Promise<void> {
   const [row] = await db
     .delete(attachments)
     .where(eq(attachments.id, id))
-    .returning({ driveFileId: attachments.driveFileId });
+    .returning({
+      driveFileId: attachments.driveFileId,
+      kind: attachments.kind,
+    });
 
-  if (!row?.driveFileId) return;
+  if (!row) return;
+
+  /*
+   * A gallery takes its pictures with it.
+   *
+   * `parent_id` is polymorphic and carries no foreign key, so nothing
+   * cascades and nothing else is going to do this — the same reason deleting a
+   * project has to purge its attachments by hand. Without it, removing a
+   * gallery would leave thirty rows pointing at an id that names nothing, with
+   * their Drive files sitting in a folder no page can reach.
+   *
+   * Before the folder rather than after, because the folder is what the
+   * pictures are in: trashing it first would leave each `trashFile` below
+   * acting on something already in the bin.
+   */
+  if (row.kind === 'gallery') {
+    await purgeGalleryPictures(id);
+  }
+
+  if (!row.driveFileId) return;
 
   try {
     await trashFile(row.driveFileId);

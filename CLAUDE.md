@@ -639,6 +639,46 @@ Turbopack is the default; `middleware` is now `proxy`.
   same rule: several images arriving *together*, one prompt, both buttons act.
   Three call sites now share `imagesToPdf`; the shape of the question differs
   only where the screen differs, which is where the files are held.
+- **A gallery is a folder of pictures standing in a list as one row.** The case
+  is a set that means nothing apart — thirty photographs of a room, a survey, a
+  holiday. As thirty attachments they bury everything else on the pane, arrive
+  in whatever order the uploads finished, and can only be looked at one pane at
+  a time.
+  **Its members are ordinary attachments**, parented on the gallery's own id
+  through `attachment_parent_type: 'gallery'`. That is the whole reason it is
+  built this way rather than as a table of its own: they get the file endpoint,
+  the preview pane, the enrichment queue and search with no new code, and
+  removing one already trashes its Drive file. Nothing joins on `parent_id` — it
+  has always been a bare uuid addressing several tables — so the same value
+  covers a gallery that is an `attachments` row (hanging off a project or an
+  action) and one that is a `box_items` row (filed in a box).
+  **`drive_file_id` holds a folder**, so a gallery is a real folder in Drive and
+  anything that fetches bytes has to look at the kind first. Its `mime_type` is
+  Drive's own `application/vnd.google-apps.folder`, which makes most of those
+  checks answer correctly without being taught what a gallery is.
+  **Nothing cascades**, so both deletes purge by hand — `purgeGalleryPictures`
+  is called from `removeAttachment` and from `deleteBoxItem`, and lives in
+  `google/attachments.ts` so the two modules don't have to import each other.
+  Without it, removing a gallery would leave thirty rows pointing at an id that
+  names nothing.
+  **It is never read by the model.** A folder has no bytes, and paying to
+  summarise thirty photographs into one caption you would rewrite is not a
+  trade worth making — so a box gallery is written `ready` and titled by
+  whoever made it.
+- **A picture's own facts are read in the browser and trusted.** Dimensions
+  from the image or video element, the date and position out of the EXIF block;
+  stored on `attachments` because they are facts about a *file*, not about a
+  gallery. Trusted, unlike the name and size, which are read back from Drive so
+  a client cannot make our row disagree with the file — and the difference is
+  the point: a caption claiming a photograph is 4032 pixels wide has nothing to
+  protect, where a name does. The alternative is fetching every photograph back
+  out of Drive to measure it, which for a gallery of forty is forty downloads
+  for a caption. `lib/media-facts.ts` walks the EXIF IFDs by hand for exactly
+  two tags rather than shipping a library that parses lens corrections.
+- **The album crops and the single view does not.** Square tiles filled edge to
+  edge, because a wall of different shapes is a wall you read rather than scan;
+  then `object-contain` when you open one, because cropping the thing somebody
+  asked to look at is the one thing that view must not do.
 - **The box composer asks; the capture screen offers.** Same PDF, two shapes,
   because the two screens hold files differently: capture stages them, so a
   control over the staged list is where it belongs, while the composer's whole

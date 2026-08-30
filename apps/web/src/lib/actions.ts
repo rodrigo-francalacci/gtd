@@ -45,9 +45,11 @@ import { oneEmoji, pickEmoji } from './ai/emoji';
 import { requireSession } from './auth/session';
 import type { ReviewStep } from './review';
 import {
+  attachmentFolder,
   createGoogleDocument,
   removeAttachment,
 } from './google/attachments';
+import { createGalleryFolder } from './google/galleries';
 import {
   createEmailRequest,
   forgetEmailRequest,
@@ -55,7 +57,7 @@ import {
   type RequestParent,
   clearEmailRequestParents,
 } from './box/email-requests';
-import { createBoxDocument, deleteBoxItem } from './google/boxes';
+import { createBoxDocument, deleteBoxItem, ensureBoxFolder } from './google/boxes';
 import { enqueueSync } from './google/queue';
 import { enqueueBoxJob } from './box/queue';
 import { canClassify } from './box/classify';
@@ -1577,6 +1579,140 @@ export async function createDocument(
   const row = await createGoogleDocument(parentType, parentId, mimeType, name);
   revalidateShell();
   return row;
+}
+
+/**
+ * Start a gallery: a Drive folder, and the row that stands for it.
+ *
+ * The pictures are uploaded afterwards, by the browser, against the id this
+ * returns — the same order every capture in this app follows. The row lands
+ * first so that if anything goes wrong halfway there is a gallery holding four
+ * of the six rather than six files nobody can find.
+ *
+ * A Google call inside a request, under the exception an upload gets: the
+ * pictures are staged and waiting for somewhere to go, and a queued folder
+ * would mean answering "where do these live?" with "later".
+ */
+export async function createGallery(
+  parentType: AttachmentParentType,
+  parentId: string,
+  name: string,
+): Promise<{ id: string } | { error: string }> {
+  await requireSession();
+
+  const title = name.trim().slice(0, 120) || 'Gallery';
+
+  try {
+    /*
+     * Where the folder goes is exactly where a file attached here would go —
+     * the project's folder, or `GTD/Inbox` for anything unfiled. Asking
+     * `attachmentFolder` rather than working it out again is what keeps a
+     * gallery in the same place as the documents beside it, and it is also
+     * what creates the project's folder on demand if this is the first thing
+     * anyone has put in it.
+     */
+    const parentFolderId = await attachmentFolder(parentType, parentId);
+    const folderId = await createGalleryFolder(title, parentFolderId);
+
+    const [row] = await db
+      .insert(attachments)
+      .values({
+        parentType,
+        parentId,
+        kind: 'gallery',
+        driveFileId: folderId,
+        name: title,
+        driveName: title,
+        // Drive's own type for a folder. Honest, and it is what makes every
+        // "can I fetch bytes for this?" check answer no without being taught
+        // about galleries.
+        mimeType: 'application/vnd.google-apps.folder',
+      })
+      .returning({ id: attachments.id });
+
+    revalidateShell();
+    return { id: row.id };
+  } catch {
+    return { error: 'Drive would not make a folder for that gallery.' };
+  }
+}
+
+/** The same, filed in a box rather than hung off a piece of work. */
+export async function createBoxGallery(
+  boxId: string,
+  name: string,
+  capturedAt?: Date,
+): Promise<{ id: string } | { error: string }> {
+  await requireSession();
+
+  const title = name.trim().slice(0, 120) || 'Gallery';
+
+  try {
+    const parentFolderId = await ensureBoxFolder(boxId);
+    if (!parentFolderId) return { error: 'That box has no folder in Drive yet.' };
+
+    const folderId = await createGalleryFolder(title, parentFolderId);
+
+    const [row] = await db
+      .insert(boxItems)
+      .values({
+        boxId,
+        kind: 'gallery',
+        driveFileId: folderId,
+        name: title,
+        title,
+        mimeType: 'application/vnd.google-apps.folder',
+        /*
+         * Ready, never pending. There is nothing for the classifier to read: a
+         * folder has no bytes, and reading thirty photographs to write one
+         * summary is a great deal of money for a caption you would rewrite. It
+         * is titled by whoever made it, which is the better title anyway.
+         */
+        status: 'ready',
+        searchText: title,
+        ...(capturedAt ? { capturedAt } : {}),
+      })
+      .returning({ id: boxItems.id });
+
+    revalidateShell();
+    return { id: row.id };
+  } catch {
+    return { error: 'Drive would not make a folder for that gallery.' };
+  }
+}
+
+/**
+ * Take one picture out of a gallery.
+ *
+ * An ordinary attachment removal, which is the point of members being ordinary
+ * attachments: the Drive file is trashed rather than deleted, exactly as it is
+ * everywhere else, so a picture removed by accident is in a bin you can look in
+ * rather than gone.
+ */
+export async function removeGalleryPicture(pictureId: string) {
+  await requireSession();
+  await removeAttachment(pictureId);
+  revalidateShell();
+}
+
+/** Rename a gallery. The folder in Drive catches up on the next sweep. */
+export async function renameGallery(galleryId: string, name: string) {
+  await requireSession();
+
+  const title = name.trim().slice(0, 120);
+  if (!title) return;
+
+  await db
+    .update(attachments)
+    .set({ name: title })
+    .where(and(eq(attachments.id, galleryId), eq(attachments.kind, 'gallery')));
+
+  await db
+    .update(boxItems)
+    .set({ title, searchText: title, updatedAt: new Date() })
+    .where(and(eq(boxItems.id, galleryId), eq(boxItems.kind, 'gallery')));
+
+  revalidateShell();
 }
 
 export async function detachAttachment(attachmentId: string) {

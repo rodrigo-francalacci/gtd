@@ -36,4 +36,7 @@ export const PARENT_TYPES = [
   'action',
   'list_item',
   'inbox_item',
+  // A gallery holds files the same way anything else here does; the id happens
+  // to name an attachment row or a box entry rather than a piece of work.
+  'gallery',
 ] as const satisfies readonly string[];

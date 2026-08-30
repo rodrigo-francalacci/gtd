@@ -156,6 +156,19 @@ export const attachmentParentType = pgEnum('attachment_parent_type', [
   'action',
   'list_item',
   'inbox_item',
+  /**
+   * A gallery, which is the one parent here that is not a *thing you do* but a
+   * thing that holds pictures.
+   *
+   * Its id is either an `attachments` row (a gallery hanging off a project or
+   * an action) or a `box_items` row (a gallery filed in a box). Nothing joins
+   * on `parent_id` — it has always been a bare uuid addressing several tables —
+   * so one value covers both, and a gallery's members are ordinary attachments
+   * either way. That is the whole reason to build it this way: they get the
+   * file endpoint, the preview pane, the enrichment queue and search without a
+   * line of new code, and deleting one already trashes its Drive file.
+   */
+  'gallery',
 ]);
 
 export const attachmentKind = pgEnum('attachment_kind', [
@@ -163,6 +176,18 @@ export const attachmentKind = pgEnum('attachment_kind', [
   'audio',
   'link',
   'file',
+  /**
+   * A folder of pictures, standing in a list as one row.
+   *
+   * The case is a set that means nothing apart: thirty photographs of a room, a
+   * survey, a holiday. As thirty attachments they bury everything else on the
+   * pane and there is no order to them; as one row you open, they are what they
+   * were when you took them.
+   *
+   * `drive_file_id` holds a *folder*, which is why anything that fetches bytes
+   * has to check the kind first — a folder has none.
+   */
+  'gallery',
 ]);
 
 export const inboxRawType = pgEnum('inbox_raw_type', ['text', 'photo', 'audio']);
@@ -486,6 +511,30 @@ export const attachments = pgTable(
     driveName: text('drive_name'),
     mimeType: text('mime_type'),
     sizeBytes: integer('size_bytes'),
+    /**
+     * What the picture itself says about itself.
+     *
+     * Read in the browser as the file is staged — dimensions from the image or
+     * video element, the rest out of the EXIF block — and stored, because the
+     * alternative is downloading a photograph to find out how wide it is. All
+     * nullable and all optional: a screenshot has no camera date and no
+     * position, and a gallery of screenshots is a perfectly good gallery.
+     *
+     * These live on `attachments` rather than on a gallery-only table because
+     * they are facts about a *file*, and the day something else wants to know
+     * when a photograph was taken it should not have to ask a gallery.
+     */
+    width: integer('width'),
+    height: integer('height'),
+    /** When the camera says it was taken, which is rarely when it was filed. */
+    takenAt: timestamp('taken_at', { withTimezone: true }),
+    /**
+     * Where, if the file admits it. Two numbers and no geocoding, for the
+     * reason a box's `location` entry gives: the coordinate is the fact and a
+     * street name is an interpretation that goes stale.
+     */
+    latitude: doublePrecision('latitude'),
+    longitude: doublePrecision('longitude'),
     /**
      * The last PDF this document was typeset into, and when.
      *
@@ -924,6 +973,7 @@ export const boxItemKind = pgEnum('box_item_kind', [
   'location',
   'link',
   'email',
+  'gallery',
   /**
    * A moment in a project's life, on a box's timeline.
    *
