@@ -332,6 +332,22 @@ export const IconSignal = (p: IconProps) => (
   </Glyph>
 );
 
+/**
+ * Amber console — a tube, seen from the front.
+ *
+ * A screen rather than a signal, so the two console themes are told apart by
+ * what they are rather than by colour: the cycle's icon shows the theme you
+ * would get next, and two identical glyphs would make the last two presses a
+ * guess.
+ */
+export const IconTube = (p: IconProps) => (
+  <Glyph {...p}>
+    <rect x="2.2" y="3.2" width="11.6" height="8.2" rx="1.4" />
+    <path d="M5.6 13.6h4.8" />
+    <path d="M5.2 6.4h3.4M5.2 8.6h5.6" />
+  </Glyph>
+);
+
 /** Add — a plain cross, which is what every "add one more" control has been. */
 export const IconPlus = (p: IconProps) => (
   <Glyph {...p}>

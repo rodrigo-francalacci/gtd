@@ -1036,9 +1036,11 @@ you *process* a queue.
 
 ### Everything else
 
-- **Theme** — light, dark, paper, console, or follow the operating system. The
-  button is in the bottom-left corner beside *Sign out* and cycles through the
-  four; its icon is always the one you would get by pressing it
+- **Theme** — light, dark, paper, green console, amber console, or follow the
+  operating system. The button is in the bottom-left corner beside *Sign out*
+  and cycles through the five; its icon is always the one you would get by
+  pressing it. The two consoles sit next to each other, so swapping phosphors is
+  a single press
 - **Pane width** — drag the divider; double-click to reset
 - **Gallery** — per box, list or thumbnails
 
@@ -1073,8 +1075,11 @@ on purpose: it is the one thing here that must not look like part of the page.
 If you have asked your system for reduced motion, the grain is left off and the
 palette stays — the palette is the part that does the work.
 
-**Console mode** is a terminal: green phosphor on pure black, monospaced
-throughout, with the scanlines and the dimmed corners of a tube over everything.
+**Console mode** is a terminal, and it comes in both phosphors: **green** and
+**amber**, the two colours those tubes actually were. They are the same theme in
+every other respect — pure black, monospaced throughout, with the scanlines and
+the dimmed corners of glass over everything — so picking between them is picking
+a colour, which is what it was in 1982 too.
 
 **The screen writes itself.** Pick a row and the detail pane is dealt one
 section at a time — the heading, then the body, then the attachments, each wiped

@@ -226,17 +226,7 @@ export function SidebarNav({
       data-pane="nav"
     >
       <div className="border-b border-grey-200 px-4 py-3">
-        {/*
-          `data-console-caret` is a hook for one theme and inert in the other
-          three — console mode puts a blinking cursor after the wordmark, which
-          is where a terminal keeps one. A marker rather than a component,
-          because nothing about this element changes: it is the same wordmark,
-          and only the console draws something after it.
-        */}
-        <span
-          data-console-caret
-          className="text-[13px] font-semibold tracking-tight text-grey-800"
-        >
+        <span className="text-[13px] font-semibold tracking-tight text-grey-800">
           GTD
         </span>
       </div>

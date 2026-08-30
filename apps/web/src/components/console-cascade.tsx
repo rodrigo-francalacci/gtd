@@ -24,14 +24,18 @@ import { useEffect } from 'react';
  * allowed to cost the other three anything.
  *
  * Which is also why it checks `data-theme` before touching a single element: in
- * light, dark and paper this runs one comparison per navigation and returns.
+ * light, dark and paper this runs two comparisons per navigation and returns.
  */
 export function ConsoleCascade() {
   const path = usePathname();
   const search = useSearchParams().toString();
 
   useEffect(() => {
-    if (document.documentElement.dataset.theme !== 'sci') return;
+    // Both tubes, and nothing else. A set rather than a comparison, because
+    // there are two consoles now and a third would be a third phosphor rather
+    // than a new idea.
+    const theme = document.documentElement.dataset.theme;
+    if (theme !== 'sci' && theme !== 'amber') return;
 
     const pane = document.querySelector('[data-pane="detail"]');
     if (!pane) return;

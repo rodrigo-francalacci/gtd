@@ -3,10 +3,10 @@
 import { useEffect, useState, useTransition } from 'react';
 import { setTheme } from '@/lib/actions';
 import type { Theme } from '@/lib/pane';
-import { IconMoon, IconScroll, IconSignal, IconSun } from './icons';
+import { IconMoon, IconScroll, IconSignal, IconSun, IconTube } from './icons';
 
 /**
- * Light, dark, paper and console, as one button.
+ * Light, dark, paper and the two consoles, as one button.
  *
  * The stored preference may be null, meaning "whatever the operating system
  * says" — which only the browser knows. So the button asks it on mount and
@@ -17,21 +17,25 @@ import { IconMoon, IconScroll, IconSignal, IconSun } from './icons';
  * space of the right size. A guessed icon would flip a moment later on every
  * load, which is worse than a blank for one frame.
  *
- * **A cycle rather than a menu**, still — at four it is the last moment that is
- * true. The whole control is a 14-pixel glyph in the corner of the sidebar
+ * **A cycle rather than a menu**, and at five this is the argument's last
+ * stand. The whole control is a 14-pixel glyph in the corner of the sidebar
  * beside the sign-out link, and anything with a panel attached would be the
- * loudest thing down there. Three presses is now the worst case, and the icon
- * always says what the next one gives you. A fifth theme would need the menu.
+ * loudest thing down there — but four presses is now the worst case, which is
+ * one more than anybody should have to count. The two consoles being adjacent
+ * is what keeps it bearable: going from one phosphor to the other is a single
+ * press, and that is the journey somebody actually makes. A sixth theme is the
+ * menu, and this comment should stop arguing at that point.
  */
 
 /**
  * In order, quietest first.
  *
- * Light and dark are what an operating system asks for; paper and console are
- * the two you go looking for. Console is last because it is the furthest from
- * a document and the least likely to be somebody's every day.
+ * Light and dark are what an operating system asks for; paper and the consoles
+ * are the ones you go looking for. The two tubes sit together at the end,
+ * because green and amber are the same theme in two colours and swapping
+ * between them should be one press rather than four.
  */
-const ORDER = ['light', 'dark', 'paper', 'sci'] as const;
+const ORDER = ['light', 'dark', 'paper', 'sci', 'amber'] as const;
 
 type Real = (typeof ORDER)[number];
 
@@ -40,13 +44,15 @@ const ICON = {
   dark: IconMoon,
   paper: IconScroll,
   sci: IconSignal,
+  amber: IconTube,
 } as const;
 
 const CALLED = {
   light: 'light',
   dark: 'dark',
   paper: 'paper',
-  sci: 'console',
+  sci: 'green console',
+  amber: 'amber console',
 } as const;
 
 export function ThemeToggle({ preference }: { preference: Theme }) {

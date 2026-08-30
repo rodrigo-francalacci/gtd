@@ -114,7 +114,7 @@
    * win on source order alone — which is a rule that works until somebody
    * moves a block.
    */
-  :root:not([data-theme='light']):not([data-theme='paper']):not([data-theme='sci']) {
+  :root:not([data-theme='light']):not([data-theme='paper']):not([data-theme='sci']):not([data-theme='amber']) {
   color-scheme: dark;
 
   --color-paper: #17181a;
@@ -351,28 +351,31 @@
 /* Console mode ------------------------------------------------------------ */
 
 /*
- * A ship's console: green phosphor on black.
+ * A terminal, in two phosphors.
  *
- * The fourth theme, and the first that is unashamedly a *look* rather than an
- * argument about legibility. It is still the same ramp, walked from the dark
- * end like dark mode — `grey-800` is prominent text and `grey-200` is a
- * hairline — so once again no component knows it exists. What changes is that
- * the ramp is not grey at all: it climbs from black through the greens, so a
- * rule is a dim green line and a heading is a bright one.
+ * `sci` is green and `amber` is the yellow of the other kind of tube, and they
+ * are the same theme twice — one set of rules for the structure, two palettes.
+ * That is not a shortcut: a P1 and a P3 monitor differed in exactly one thing,
+ * and writing the scanlines, the sweep, the typing and the cascade out twice
+ * would be two copies to keep in agreement for no gain.
  *
- * The palette is taken from the reference rather than invented: Tailwind's
- * greens on pure black, which is what that terminal is built from —
- * `green-600` for what is quiet, `green-400` for ordinary text, `green-300`
- * and `green-200` for what should carry. Yellow for a warning, red for an
- * alert, and both are in the reference too.
+ * Structurally it is still the app's one ramp, walked from the dark end like
+ * dark mode — `grey-800` is prominent text and `grey-200` is a hairline — so no
+ * component knows either of them exists. What changes is that the ramp is not
+ * grey: it climbs from black through the phosphor, so a rule is a dim line of
+ * light and a heading is a bright one.
  *
- * One selector, because nothing asks an operating system for this.
+ * `--console-glow` is the phosphor as three numbers, so the shared rules below
+ * can build a colour from it without knowing which tube they are on.
  */
+
+/* Green: Tailwind's greens on pure black, taken from the reference. */
 :root[data-theme='sci'] {
   color-scheme: dark;
+  --console-glow: 74 222 128;
 
-  /* Pure black, as the reference is. Not a near-black: the whole effect rests
-     on the ground being *off*, so that green is the only thing emitting. */
+  /* Pure black, not a near-black: the whole effect rests on the ground being
+     *off*, so the phosphor is the only thing emitting. */
   --color-paper: #000000;
   --color-ink: #4ade80;
 
@@ -388,12 +391,6 @@
   --color-grey-800: #86efac;
   --color-grey-900: #bbf7d0;
 
-  /*
-   * The semantic four, and this is the theme where they are most at home: a
-   * console *is* colour that means something. Yellow warns, red alerts — both
-   * straight out of the reference — and a selected row lights up rather than
-   * changing hue, which is what a terminal does.
-   */
   --color-waiting: #facc15;
   --color-waiting-bg: #2b2206;
   --color-stale: #ef4444;
@@ -403,24 +400,6 @@
   --color-journal: #d8b4fe;
   --color-journal-bg: #1e1030;
 
-  /*
-   * Monospace, everywhere.
-   *
-   * This is the one theme that overrides the app's typeface outright, and it is
-   * the whole point of it: a console is monospaced, and setting only the labels
-   * — which is what this did first — produces an app with a terminal's captions
-   * and a website's body. Wider and it wraps more, which is a real cost and the
-   * reason no other theme does this.
-   *
-   * A stack of faces already on the machine — Cascadia and Consolas on Windows,
-   * SF Mono and Menlo on a Mac — rather than a webfont. A theme should not make
-   * everyone else download something.
-   */
-  --font-sans: ui-monospace, 'Cascadia Mono', 'Segoe UI Mono', 'SF Mono', Menlo,
-    Consolas, 'Liberation Mono', monospace;
-}
-
-:root[data-theme='sci'] {
   --code-heading: #4ade80;
   --code-marker: #facc15;
   --code-keyword: #d8b4fe;
@@ -430,39 +409,99 @@
 }
 
 /*
+ * Amber: the other tube, and the same theme in every other respect.
+ *
+ * #ffb000 is the amber a P3 phosphor actually produced, which is why it looks
+ * right rather than merely yellow — it is orange enough to read as heat.
+ *
+ * The signals need more care here than they do on green, because yellow *is*
+ * the text: a golden warning on a golden screen is not a warning. So waiting
+ * and selection are separated mainly by their grounds, which is how the app
+ * uses them anyway, and red and violet carry unchanged — both still read
+ * clearly against amber.
+ */
+:root[data-theme='amber'] {
+  color-scheme: dark;
+  --console-glow: 255 176 0;
+
+  --color-paper: #000000;
+  --color-ink: #ffb000;
+
+  --color-grey-50: #0b0600;
+  --color-grey-100: #120a00;
+  --color-grey-150: #170d00;
+  --color-grey-200: #3a2400;
+  --color-grey-300: #5c3a00;
+  --color-grey-400: #b06f00;
+  --color-grey-500: #d98c00;
+  --color-grey-600: #ffb000;
+  --color-grey-700: #ffc94d;
+  --color-grey-800: #ffd479;
+  --color-grey-900: #ffe6b0;
+
+  --color-waiting: #ffd166;
+  --color-waiting-bg: #3a2a00;
+  --color-stale: #ff5c5c;
+  --color-stale-bg: #2e0c0c;
+  --color-selected: #fff1cf;
+  --color-selected-bg: #4a3000;
+  --color-journal: #d8b4fe;
+  --color-journal-bg: #1e1030;
+
+  --code-heading: #ffb000;
+  --code-marker: #ffd166;
+  --code-keyword: #d8b4fe;
+  --code-string: #ffd479;
+  --code-comment: #b06f00;
+  --code-accent: #ff5c5c;
+}
+
+/*
+ * Monospace, everywhere, on both tubes.
+ *
+ * These are the only themes that override the app's typeface, and it is the
+ * whole point of them: a console is monospaced, and setting only the labels —
+ * which is what this did on the first attempt — produces an app with a
+ * terminal's captions and a website's body. The cost is real, because mono is
+ * wider and this layout is built around a narrow list column, and it is why no
+ * other theme touches the typeface.
+ *
+ * A stack of faces already on the machine — Cascadia and Consolas on Windows,
+ * SF Mono and Menlo on a Mac — rather than a webfont. A theme should not make
+ * everyone else download something.
+ */
+:root[data-theme='sci'],
+:root[data-theme='amber'] {
+  --font-sans: ui-monospace, 'Cascadia Mono', 'Segoe UI Mono', 'SF Mono', Menlo,
+    Consolas, 'Liberation Mono', monospace;
+}
+
+/*
  * The labels are the instrumentation, and read as it.
  *
  * Wide tracking and a faint bloom, which is what a phosphor tube does to a
- * bright glyph. Only on `.uppercase` — a text shadow under every character in
- * the app would be a paint cost for no gain, and the small caps labels are
- * where it actually reads.
+ * bright glyph — built from `--console-glow`, so each tube blooms its own
+ * colour. Only on `.uppercase`: a text shadow under every character in the app
+ * would be a paint cost for no gain, and the small caps labels are where it
+ * actually reads.
+ *
+ * Typed, not faded in. `clip-path` with `steps()` uncovers the label a chunk at
+ * a time, which is what makes it read as a machine writing rather than as a
+ * transition — and it does it without knowing how long the text is. The usual
+ * trick is `width` in `ch` units, which needs a character count per label and
+ * would mean a class per heading. Sixteen steps regardless of length, so a
+ * short label and a long one type to the same rhythm.
  */
-:root[data-theme='sci'] .uppercase {
+:root[data-theme='sci'] .uppercase,
+:root[data-theme='amber'] .uppercase {
   letter-spacing: 0.16em;
-  text-shadow: 0 0 6px rgba(74, 222, 128, 0.45);
-  /*
-   * Typed, not faded in.
-   *
-   * `clip-path` with `steps()` uncovers the label a chunk at a time, which is
-   * what makes it read as a machine writing rather than as a transition — and
-   * it does it without knowing how long the text is. The usual trick is
-   * `width` in `ch` units, which needs a character count per label and would
-   * mean a class per heading.
-   *
-   * Sixteen steps regardless of length, so a short label types quickly and a
-   * long one types at the same rhythm rather than the same speed. It runs on
-   * mount, which for a page of headings means the whole screen writes itself in
-   * — and on navigation, because that is when React makes the elements.
-   *
-   * Cheap: a clip on a short text run, no layout and no paint of anything
-   * underneath.
-   */
+  text-shadow: 0 0 6px rgb(var(--console-glow) / 0.45);
   /*
    * `backwards`, never `both`. The difference only shows up when something goes
    * wrong, which is exactly when it matters: `both` keeps the final clip
-   * applied for ever after the animation ends, so any stale value leaves a
-   * heading invisible. With `backwards` a finished animation stops applying
-   * anything and the label returns to being an ordinary piece of text.
+   * applied for ever, so any stale value leaves a heading invisible. With
+   * `backwards` a finished animation stops applying anything and the label is
+   * an ordinary piece of text again.
    */
   animation: console-type 0.42s steps(16, end) backwards;
 }
@@ -477,61 +516,39 @@
 }
 
 /*
- * The cursor, waiting.
- *
- * One in the whole app, beside the wordmark, which is where a terminal puts it.
- * A caret on every label would be a screen full of blinking, and the reference
- * has exactly one too.
- */
-:root[data-theme='sci'] [data-console-caret]::after {
-  content: '';
-  display: inline-block;
-  width: 0.55em;
-  height: 1em;
-  margin-left: 0.35em;
-  vertical-align: -0.12em;
-  background: var(--color-grey-800);
-  box-shadow: 0 0 8px rgba(134, 239, 172, 0.55);
-  animation: console-blink 1.1s steps(1, end) infinite;
-}
-
-@keyframes console-blink {
-  0%,
-  49% {
-    opacity: 1;
-  }
-  50%,
-  100% {
-    opacity: 0;
-  }
-}
-
-/*
  * The detail pane, dealt one section at a time.
  *
  * Selecting a row is the moment the third pane fills with something new, and a
  * terminal does not fill instantly — it writes. So the heading arrives, then
- * the body, then the attachments, each wiped in left to right rather than faded:
- * a fade is a transition, a wipe is a machine putting something on a screen.
+ * the body, then the attachments, each wiped in left to right rather than
+ * faded: a fade is a transition, a wipe is a machine putting something on a
+ * screen.
  *
  * Eight is where the stagger stops. Every detail pane in the app has between
  * two and eight sections, and a ninth would be waiting half a second for its
- * turn — past the point where a flourish becomes a delay. Anything beyond it
- * simply arrives with the eighth, which is invisible in practice and better
- * than a pane that keeps unfolding.
+ * turn — past the point where a flourish becomes a delay.
  */
-:root[data-theme='sci'] [data-pane='detail'] > * > * {
+:root[data-theme='sci'] [data-pane='detail'] > * > *,
+:root[data-theme='amber'] [data-pane='detail'] > * > * {
   animation: console-deal 0.34s steps(14, end) backwards;
 }
 
-:root[data-theme='sci'] [data-pane='detail'] > * > *:nth-child(1) { animation-delay: 0ms; }
-:root[data-theme='sci'] [data-pane='detail'] > * > *:nth-child(2) { animation-delay: 55ms; }
-:root[data-theme='sci'] [data-pane='detail'] > * > *:nth-child(3) { animation-delay: 110ms; }
-:root[data-theme='sci'] [data-pane='detail'] > * > *:nth-child(4) { animation-delay: 165ms; }
-:root[data-theme='sci'] [data-pane='detail'] > * > *:nth-child(5) { animation-delay: 220ms; }
-:root[data-theme='sci'] [data-pane='detail'] > * > *:nth-child(6) { animation-delay: 275ms; }
-:root[data-theme='sci'] [data-pane='detail'] > * > *:nth-child(7) { animation-delay: 330ms; }
-:root[data-theme='sci'] [data-pane='detail'] > * > *:nth-child(n + 8) { animation-delay: 385ms; }
+:root[data-theme='sci'] [data-pane='detail'] > * > *:nth-child(1),
+:root[data-theme='amber'] [data-pane='detail'] > * > *:nth-child(1) { animation-delay: 0ms; }
+:root[data-theme='sci'] [data-pane='detail'] > * > *:nth-child(2),
+:root[data-theme='amber'] [data-pane='detail'] > * > *:nth-child(2) { animation-delay: 55ms; }
+:root[data-theme='sci'] [data-pane='detail'] > * > *:nth-child(3),
+:root[data-theme='amber'] [data-pane='detail'] > * > *:nth-child(3) { animation-delay: 110ms; }
+:root[data-theme='sci'] [data-pane='detail'] > * > *:nth-child(4),
+:root[data-theme='amber'] [data-pane='detail'] > * > *:nth-child(4) { animation-delay: 165ms; }
+:root[data-theme='sci'] [data-pane='detail'] > * > *:nth-child(5),
+:root[data-theme='amber'] [data-pane='detail'] > * > *:nth-child(5) { animation-delay: 220ms; }
+:root[data-theme='sci'] [data-pane='detail'] > * > *:nth-child(6),
+:root[data-theme='amber'] [data-pane='detail'] > * > *:nth-child(6) { animation-delay: 275ms; }
+:root[data-theme='sci'] [data-pane='detail'] > * > *:nth-child(7),
+:root[data-theme='amber'] [data-pane='detail'] > * > *:nth-child(7) { animation-delay: 330ms; }
+:root[data-theme='sci'] [data-pane='detail'] > * > *:nth-child(n + 8),
+:root[data-theme='amber'] [data-pane='detail'] > * > *:nth-child(n + 8) { animation-delay: 385ms; }
 
 @keyframes console-deal {
   from {
@@ -556,7 +573,8 @@
  * tube is darker at the corners and a flat black rectangle is a colour rather
  * than a screen.
  */
-:root[data-theme='sci'] body::after {
+:root[data-theme='sci'] body::after,
+:root[data-theme='amber'] body::after {
   content: '';
   position: fixed;
   inset: 0;
@@ -574,14 +592,15 @@
 }
 
 /*
- * One beam, travelling down the screen.
+ * One beam, travelling down the screen, in whichever phosphor this is.
  *
  * A single element moved with `transform`, which the compositor does on its own
  * thread without repainting anything underneath — the one kind of animation
  * that is free at this size. Eleven seconds, so it reads as a sweep rather than
- * a strobe, and it is the only thing in the app that moves.
+ * a strobe.
  */
-:root[data-theme='sci'] body::before {
+:root[data-theme='sci'] body::before,
+:root[data-theme='amber'] body::before {
   content: '';
   position: fixed;
   left: 0;
@@ -592,9 +611,9 @@
   pointer-events: none;
   background: linear-gradient(
     to bottom,
-    rgba(74, 222, 128, 0) 0%,
-    rgba(74, 222, 128, 0.06) 55%,
-    rgba(74, 222, 128, 0) 100%
+    rgb(var(--console-glow) / 0) 0%,
+    rgb(var(--console-glow) / 0.06) 55%,
+    rgb(var(--console-glow) / 0) 100%
   );
   animation: console-sweep 11s linear infinite;
 }
@@ -609,32 +628,23 @@
 }
 
 /*
- * Anyone who has asked for less movement gets the console without the beam. The
- * scanlines stay: they do not move, and they are most of the look.
+ * Anyone who has asked for less movement gets the console without any of it.
+ * The scanlines stay: they do not move, and they are most of the look.
+ *
+ * The clip is removed along with each animation rather than the animation being
+ * paused — pausing would leave every heading and every section of the pane
+ * clipped to nothing, which is the one way this could fail badly.
  */
 @media (prefers-reduced-motion: reduce) {
-  :root[data-theme='sci'] body::before {
+  :root[data-theme='sci'] body::before,
+  :root[data-theme='amber'] body::before {
     display: none;
   }
 
-  /*
-   * No beam, no typing, no blink. The label must still be *visible*, so the
-   * animation is removed rather than paused — `both` would otherwise leave
-   * every heading clipped to nothing, which is the one way this could fail
-   * badly.
-   */
-  :root[data-theme='sci'] .uppercase {
-    animation: none;
-    clip-path: none;
-  }
-
-  :root[data-theme='sci'] [data-console-caret]::after {
-    animation: none;
-  }
-
-  /* Same rule as the labels: remove the clip with the animation, never leave a
-     section of the pane clipped to nothing. */
-  :root[data-theme='sci'] [data-pane='detail'] > * > * {
+  :root[data-theme='sci'] .uppercase,
+  :root[data-theme='amber'] .uppercase,
+  :root[data-theme='sci'] [data-pane='detail'] > * > *,
+  :root[data-theme='amber'] [data-pane='detail'] > * > * {
     animation: none;
     clip-path: none;
   }
@@ -645,7 +655,8 @@
  * paper mode: scanlines over somebody's photograph or PDF would be the app
  * putting its costume on their document.
  */
-:root[data-theme='sci'] [data-pane='preview'] {
+:root[data-theme='sci'] [data-pane='preview'],
+:root[data-theme='amber'] [data-pane='preview'] {
   position: relative;
   z-index: 10000;
 }
@@ -1007,7 +1018,7 @@ body {
 
 /* A null preference means "ask the operating system", exactly as above. */
 @media (prefers-color-scheme: dark) {
-  :root:not([data-theme='light']):not([data-theme='paper']):not([data-theme='sci']) {
+  :root:not([data-theme='light']):not([data-theme='paper']):not([data-theme='sci']):not([data-theme='amber']) {
     --code-heading: #7fa9e0;
     --code-marker: #cfa94e;
     --code-keyword: #b795dd;

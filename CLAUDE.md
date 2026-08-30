@@ -77,11 +77,20 @@ Turbopack is the default; `middleware` is now `proxy`.
   which is lifted above it. That pane is a window onto a file, and ageing a PDF
   or a photograph would be the app colouring somebody's document rather than
   decorating its own furniture.
-- **Console is the fourth theme, and the first that is a *look* rather than an
-  argument about legibility.** The same ramp again, walked from the dark end
-  like dark mode, with a green cast all the way up so a hairline reads as a
-  faint line of light rather than as grey. One selector: nothing asks an
-  operating system for this.
+- **The console is one theme in two phosphors**, `sci` (green) and `amber`, and
+  the first themes here that are a *look* rather than an argument about
+  legibility. One set of rules for the structure and two palettes: a P1 and a P3
+  monitor differed in exactly one thing, and writing the scanlines, the sweep,
+  the typing and the cascade out twice would be two copies to keep in agreement
+  for nothing. `--console-glow` carries the phosphor as three numbers so the
+  shared rules can build a colour without knowing which tube they are on.
+  The same ramp again, walked from the dark end like dark mode, so a hairline
+  reads as a faint line of light rather than as grey. One selector each: nothing
+  asks an operating system for these.
+  **Amber needs more care with the signals than green does**, because yellow
+  *is* the text there — a golden warning on a golden screen is not a warning. So
+  waiting and selection are separated mainly by their grounds, which is how the
+  app uses them anyway, while red and violet carry over unchanged.
   **The palette is taken from the reference rather than invented**: Tailwind's
   greens on pure black, which is what that terminal is built from — `green-600`
   for what is quiet, `green-400` for ordinary text, `green-300` and `green-200`

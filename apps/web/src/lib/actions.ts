@@ -1102,7 +1102,7 @@ async function savePreference(patch: {
   viewMode?: ViewMode;
   boxView?: BoxView;
   listPaneWidth?: number;
-  theme?: 'light' | 'dark' | 'paper' | 'sci' | null;
+  theme?: 'light' | 'dark' | 'paper' | 'sci' | 'amber' | null;
   hiddenCalendars?: string[];
 }) {
   await db
@@ -1221,7 +1221,7 @@ export async function setListPaneWidth(width: number) {
  * the server can render the right one on the first paint and so the choice
  * follows the account rather than the browser.
  */
-export async function setTheme(theme: 'light' | 'dark' | 'paper' | 'sci') {
+export async function setTheme(theme: 'light' | 'dark' | 'paper' | 'sci' | 'amber') {
   await requireSession();
   await savePreference({ theme });
   revalidateShell();
