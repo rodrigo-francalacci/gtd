@@ -13,7 +13,10 @@ import {
   createResumableSession,
   createTextFile,
   ensureFolder,
+  ensureLabel,
   getFile,
+  getLabel,
+  renameLabel,
   renameFile,
   renameFolder,
   trashFile,
@@ -484,4 +487,64 @@ export async function renameBoxFiles(limit = 50): Promise<number> {
   }
 
   return renamed;
+}
+
+/**
+ * The Gmail label that files a message into this box.
+ *
+ * `GTD/Box/<name>`, which sits with the labels the app already makes rather
+ * than at the top of a label list. Put it on a message in Gmail and the bridge
+ * files that message here on its next run, then archives the thread — so a
+ * message you have filed leaves your inbox, which is most of the point.
+ *
+ * **Made on request, not with the box.** The rest of the app creates
+ * containers when there is something to put in them, and a label has no such
+ * moment: it must exist *before* you can apply it, and the wanting is the
+ * pressing. So this is a control somebody uses once per box.
+ *
+ * Renamed rather than remade when the box's name changes, and only for a box
+ * that already has one — the same reconcile-on-the-way-past the Drive folder
+ * gets, so a rename stays one row written and no Google call in the request
+ * that wrote it.
+ */
+export async function ensureBoxLabel(boxId: string): Promise<string> {
+  const [box] = await db
+    .select({ name: boxes.name, gmailLabelId: boxes.gmailLabelId })
+    .from(boxes)
+    .where(eq(boxes.id, boxId))
+    .limit(1);
+
+  if (!box) throw new BoxError('That box no longer exists.');
+
+  const wanted = `${ROOT}/Box/${safeName(box.name) || 'Box'}`;
+
+  if (box.gmailLabelId) {
+    const existing = await getLabel(box.gmailLabelId);
+
+    if (existing) {
+      // Gmail "moves" a label by renaming its path, and the parents have to
+      // exist first or the rename produces a flat label literally called
+      // "GTD/Box/Thing" instead of a nested one.
+      if (existing.name !== wanted) {
+        await ensureLabel(`${ROOT}/Box`);
+        await renameLabel(box.gmailLabelId, wanted);
+      }
+
+      return box.gmailLabelId;
+    }
+    // Deleted in Gmail. Make a new one rather than failing: the messages
+    // already filed are unaffected, and this only decides where the next one
+    // is labelled from.
+  }
+
+  const labelId = await ensureLabel(wanted);
+
+  await db.update(boxes).set({ gmailLabelId: labelId }).where(eq(boxes.id, boxId));
+
+  return labelId;
+}
+
+/** What the label for this box is called, whether or not it has been made. */
+export function boxLabelName(name: string): string {
+  return `${ROOT}/Box/${safeName(name) || 'Box'}`;
 }

@@ -59,7 +59,12 @@ import {
   type RequestParent,
   clearEmailRequestParents,
 } from './box/email-requests';
-import { createBoxDocument, deleteBoxItem, ensureBoxFolder } from './google/boxes';
+import {
+  createBoxDocument,
+  deleteBoxItem,
+  ensureBoxFolder,
+  ensureBoxLabel,
+} from './google/boxes';
 import { enqueueSync } from './google/queue';
 import { enqueueBoxJob } from './box/queue';
 import { canClassify } from './box/classify';
@@ -3274,4 +3279,27 @@ export async function setModelPrice(
     });
 
   revalidatePath('/connections');
+}
+
+/**
+ * Make the Gmail label that files messages into this box.
+ *
+ * A Google call inside a request, and the one place where that is right for a
+ * label: the whole point of the label is that you go and apply it in Gmail a
+ * moment later, so answering "it will exist shortly" would be answering the
+ * wrong question. It is also a press, once per box, rather than anything the
+ * app does on its own — making labels in someone's account is not a background
+ * activity.
+ */
+export async function createBoxLabel(boxId: string) {
+  await requireSession();
+
+  try {
+    await ensureBoxLabel(boxId);
+  } catch {
+    return { error: 'Gmail would not make that label.' };
+  }
+
+  revalidateShell();
+  return { ok: true as const };
 }

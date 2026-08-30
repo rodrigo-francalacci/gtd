@@ -548,6 +548,29 @@ The script runs on a time trigger. The **Bridges** panel on the Connections page
 runs it now instead, in the preview pane — press the button and watch the count
 in the sidebar move, without leaving the app.
 
+### A label for each box, and the message leaves your inbox
+
+Every box can have its own Gmail label. Right-click the box in the sidebar —
+press and hold on a touchscreen — and choose **Make its Gmail label**; the menu
+then tells you what it is called, `GTD/Box/<the box's name>`.
+
+Put that label on a message in Gmail — dragging it onto the label works — and
+the next run of the bridge files that message into that box.
+
+**The thread is then archived**, so a message you have filed leaves your inbox.
+That is the point: filing something is the moment it stops needing to be there.
+
+**Archiving it yourself first is equally fine.** A Gmail label has nothing to do
+with the inbox, so labelling a message and then archiving it immediately does
+not hide it from the bridge — it is still found and filed on the next run. Label
+it, archive it, forget about it.
+
+`GTD/Relevant` still exists and still goes to the default box. It is the label
+for when you do not want to decide, which is most of the time.
+
+If you would rather archive everything by hand, set `ARCHIVE_WHEN_DONE` to
+`false` at the top of `scripts/gtd-email.gs`.
+
 ### Two ways to file a message
 
 **Label it in Gmail.** Anything under the label the bridge watches is collected

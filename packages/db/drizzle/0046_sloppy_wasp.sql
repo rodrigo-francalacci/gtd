@@ -1,0 +1,1 @@
+ALTER TABLE "boxes" ADD COLUMN "gmail_label_id" text;

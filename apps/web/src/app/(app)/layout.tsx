@@ -1,4 +1,5 @@
 import { AppShell } from '@/components/app-shell';
+import { boxLabelName } from '@/lib/google/boxes';
 import { CaptureHotkey } from '@/components/capture-hotkey';
 import { FilePreviewProvider } from '@/components/file-preview';
 import { SidebarNav } from '@/components/sidebar';
@@ -41,7 +42,19 @@ export default async function AppLayout({ children }: { children: React.ReactNod
             <SidebarNav
               counts={counts}
               lists={lists}
-              boxes={boxes}
+              boxes={boxes.map((box) => ({
+                id: box.id,
+                name: box.name,
+                pendingCount: box.pendingCount,
+                /*
+                 * The label's *name* rather than its id, because the only
+                 * useful thing to say once it exists is what to type into
+                 * Gmail's label menu. Derived from the box's name by the same
+                 * rule that made it, so a renamed box shows where its mail
+                 * will go once the label catches up.
+                 */
+                gmailLabelName: box.gmailLabelId ? boxLabelName(box.name) : null,
+              }))}
               theme={prefs.theme}
             />
           }

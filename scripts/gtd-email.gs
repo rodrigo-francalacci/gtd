@@ -48,18 +48,46 @@
 const EMAIL_LABEL = 'GTD/Relevant';
 
 /**
- * Which box labelled messages go into.
+ * Which box `GTD/Relevant` goes into.
  *
  * Matched on the box's name in the app, case-insensitively, exactly as the
  * scanner bridge matches its folders. A name the app doesn't know falls back to
  * the default box rather than failing — a message filed in the wrong box is
  * fixable and one rejected at the door is gone.
  *
- * One box for everything, on purpose. Sorting mail by subject is what the tags
- * and the search are for; a label per box would mean deciding where a message
- * belongs at the moment you are least interested in the question.
+ * This is the "I do not want to decide" label, and it stays: sorting mail by
+ * subject is what the tags and the search are for, and most messages are filed
+ * at the moment you are least interested in the question.
  */
 const EMAIL_BOX = 'Feed';
+
+/**
+ * Where the per-box labels live.
+ *
+ * Anything under here is a box by name: `GTD/Box/Receipts` files into the box
+ * called Receipts. Make them from the app — right-click a box in the sidebar —
+ * so that the app knows the label exists and can tell you what it is called.
+ * A label made by hand still works, as long as the name matches a box.
+ *
+ * The point of a label per box is that a message you are keeping for reference
+ * can be filed *where it belongs* in one gesture, in the app you are already
+ * reading it in, without opening the app at all.
+ */
+const BOX_LABEL_PREFIX = 'GTD/Box/';
+
+/**
+ * Archive the thread once its messages are filed.
+ *
+ * Filing a message is the moment it stops needing to be in an inbox: that is
+ * the whole point of putting it somewhere you can find it again. Set this
+ * false if you would rather do it yourself.
+ *
+ * **Archiving it yourself first works either way**, which is worth knowing: a
+ * Gmail label has nothing to do with the inbox, so `getThreads` on a label
+ * finds threads you have already archived. Label it, archive it, and the next
+ * run still files it — this then finds nothing left to archive and moves on.
+ */
+const ARCHIVE_WHEN_DONE = true;
 
 /**
  * Remove the label once filed.
@@ -221,51 +249,103 @@ function fileLabelledEmails() {
     return;
   }
 
-  const label = GmailApp.getUserLabelByName(EMAIL_LABEL);
-  if (!label) {
+  /*
+   * Every label that files somewhere: the general one, then one per box.
+   *
+   * Built as a list rather than handled separately, so the time budget and the
+   * failure handling below cover all of them equally — a slow box should eat
+   * into the same six minutes as any other, not get its own.
+   */
+  const sources = [];
+
+  const general = GmailApp.getUserLabelByName(EMAIL_LABEL);
+  if (general) {
+    sources.push({ label: general, box: EMAIL_BOX });
+  } else {
     GmailApp.createLabel(EMAIL_LABEL);
     Logger.log('Created the label "' + EMAIL_LABEL + '". Put it on a message and run this again.');
-    return;
   }
 
-  const threads = label.getThreads(0, MAX_THREADS);
-  Logger.log(threads.length + ' thread(s) labelled ' + EMAIL_LABEL);
+  const all = GmailApp.getUserLabels();
+
+  for (var i = 0; i < all.length; i++) {
+    const name = all[i].getName();
+
+    if (name.indexOf(BOX_LABEL_PREFIX) !== 0) continue;
+
+    const boxName = name.slice(BOX_LABEL_PREFIX.length);
+
+    // `GTD/Box` itself is the container the app nests these under, not a box.
+    if (!boxName || boxName.indexOf('/') >= 0) continue;
+
+    sources.push({ label: all[i], box: boxName });
+  }
+
+  if (sources.length === 0) return;
 
   var filed = 0;
 
-  for (var t = 0; t < threads.length; t++) {
-    if (Date.now() - startedAt > BUDGET_MS) {
-      Logger.log('Out of time; the rest keep their label and go next run.');
-      break;
-    }
+  for (var srcIndex = 0; srcIndex < sources.length; srcIndex++) {
+    const source = sources[srcIndex];
 
-    const thread = threads[t];
+    /*
+     * Threads carrying the label, archived or not.
+     *
+     * A Gmail label is independent of the inbox, so this finds messages you
+     * have already archived yourself — label it, archive it, forget it, and the
+     * next run still files it. That is the ordinary way to use this.
+     */
+    const threads = source.label.getThreads(0, MAX_THREADS);
+    if (threads.length === 0) continue;
 
-    try {
-      /*
-       * Every message in the thread, not just the last.
-       *
-       * A thread is a conversation and the useful part is rarely the final
-       * reply on its own — the quote at the bottom of it is a rendering of
-       * what came before, not the thing itself, and it is routinely trimmed.
-       * Filing each message means the search can find whichever one actually
-       * said the thing.
-       */
-      const messages = thread.getMessages();
+    Logger.log(
+      threads.length + ' thread(s) labelled ' + source.label.getName() +
+        ' -> box "' + source.box + '"',
+    );
 
-      for (var m = 0; m < messages.length; m++) {
-        if (fileMessage(origin, secret, messages[m])) filed++;
+    for (var t = 0; t < threads.length; t++) {
+      if (Date.now() - startedAt > BUDGET_MS) {
+        Logger.log('Out of time; the rest keep their label and go next run.');
+        return;
       }
 
-      if (REMOVE_LABEL_WHEN_DONE) thread.removeLabel(label);
-    } catch (e) {
-      // Keeps its label, so the next run tries again. Usually the app being
-      // redeployed mid-run.
-      Logger.log('Failed on "' + thread.getFirstMessageSubject() + '": ' + e);
+      const thread = threads[t];
+
+      try {
+        /*
+         * Every message in the thread, not just the last.
+         *
+         * A thread is a conversation and the useful part is rarely the final
+         * reply on its own — the quote at the bottom of it is a rendering of
+         * what came before, not the thing itself, and it is routinely trimmed.
+         * Filing each message means the search can find whichever one actually
+         * said the thing.
+         */
+        const messages = thread.getMessages();
+
+        for (var m = 0; m < messages.length; m++) {
+          if (fileMessage(origin, secret, messages[m], source.box)) filed++;
+        }
+
+        /*
+         * Archived first, then unlabelled. Both are cheap and neither can be
+         * undone by a failure above — we only reach here once every message in
+         * the thread is in the box.
+         *
+         * A thread you had already archived is unaffected: this is a no-op on
+         * one that is not in the inbox.
+         */
+        if (ARCHIVE_WHEN_DONE) thread.moveToArchive();
+        if (REMOVE_LABEL_WHEN_DONE) thread.removeLabel(source.label);
+      } catch (e) {
+        // Keeps its label, so the next run tries again. Usually the app being
+        // redeployed mid-run.
+        Logger.log('Failed on "' + thread.getFirstMessageSubject() + '": ' + e);
+      }
     }
   }
 
-  Logger.log(filed + ' message(s) filed into "' + EMAIL_BOX + '"');
+  Logger.log(filed + ' message(s) filed');
 }
 
 function fileMessage(origin, secret, message, box) {

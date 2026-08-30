@@ -924,6 +924,7 @@ export async function getBoxes(): Promise<BoxRow[]> {
       rules: boxes.rules,
       isDefault: boxes.isDefault,
       driveFolderId: boxes.driveFolderId,
+      gmailLabelId: boxes.gmailLabelId,
       position: boxes.position,
       itemCount: sql<number>`coalesce(${counts.total}, 0)`,
       pendingCount: sql<number>`coalesce(${counts.pending}, 0)`,

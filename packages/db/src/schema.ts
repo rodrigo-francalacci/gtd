@@ -933,6 +933,20 @@ export const boxes = pgTable(
      */
     driveFolderId: text('drive_folder_id'),
     /**
+     * The Gmail label that files a message into this box.
+     *
+     * `GTD/Box/<name>`, sitting with the labels the app already makes. Put it
+     * on a message and the bridge files that message here on its next run and
+     * archives the thread, which is the whole point: a message you have filed
+     * has left your inbox.
+     *
+     * Made on request rather than with the box, because the label has to exist
+     * before you can apply it -- there is no later moment that means "I want
+     * one" the way attaching a file means a project wants a folder. Null is the
+     * ordinary state for a box you only ever scan into.
+     */
+    gmailLabelId: text('gmail_label_id'),
+    /**
      * What this box is for, in a sentence, handed to the model before the
      * categories. "Fuel receipts for a tax return" tells it more about which
      * tags to reach for than the tag names ever will.

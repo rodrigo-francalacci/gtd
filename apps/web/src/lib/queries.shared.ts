@@ -271,6 +271,8 @@ export type BoxRow = {
   rules: string;
   isDefault: boolean;
   driveFolderId: string | null;
+  /** The Gmail label that files into this box, once one has been made. */
+  gmailLabelId: string | null;
   position: number | null;
   itemCount: number;
   /** Documents that haven't been read yet. */

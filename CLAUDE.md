@@ -1681,6 +1681,28 @@ settings.
   it is "everything does". The Apps Script is not a published app. It is bound to
   one account, reading its own mail, and needs no verification at all. Exactly
   the asymmetry the scanner bridge already relies on, used a second time.
+- **A label per box, and the thread is archived once it is filed.** Filing a
+  message is the moment it stops needing to be in an inbox, so
+  `ARCHIVE_WHEN_DONE` sends the thread out of it — the app itself could never
+  do this, holding `gmail.labels` and nothing more, which is the same asymmetry
+  the bridge exists for.
+  **Archiving it yourself first also works, and that is not an accident of
+  implementation.** A Gmail label has nothing to do with the inbox, so
+  `label.getThreads()` finds threads that have already been archived. Label it,
+  archive it, forget it — the next run still files it and finds nothing left to
+  archive. That is the ordinary way to use this and the script says so where
+  somebody changing it will read it.
+  **`GTD/Box/<name>` is a box by name**, resolved by the ingest route's existing
+  name-or-id matching, so the script needed no new endpoint and no mapping
+  handed to it. `GTD/Relevant` stays as the "I do not want to decide" label into
+  the default box: most mail is filed at the moment you are least interested in
+  the question.
+  **The label is made on request, not with the box** — `ensureBoxLabel` behind a
+  press in the box's sidebar menu. Everything else in the app creates a
+  container when there is something to put in it, and a label has no such
+  moment: it must exist *before* it can be applied, so the pressing is the
+  wanting. It renames rather than remakes when a box is renamed, and only for a
+  box that already has one.
 - **A label, not a pasted link, because a Gmail URL has no usable id in it.**
   The `#inbox/FMfcgz…` on the end of one is a permalink for Gmail's own
   interface; the API and Apps Script both want the message id and there is no

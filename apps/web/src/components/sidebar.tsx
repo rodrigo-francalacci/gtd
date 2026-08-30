@@ -60,7 +60,13 @@ type Item = {
    * behind them need no permanent space in a header — which is what choosing
    * emoji was taking, in the one pane header that already had the most in it.
    */
-  menu?: { boxId: string; name: string; waiting: number };
+  menu?: {
+    boxId: string;
+    name: string;
+    waiting: number;
+    /** What its Gmail label is called, or null until one is made. */
+    labelName: string | null;
+  };
 };
 
 export function SidebarNav({
@@ -82,7 +88,12 @@ export function SidebarNav({
   };
   lists: Pick<ListRow, 'id' | 'name' | 'type' | 'candidateCount'>[];
   /** Empty until the Big Box is set up, which hides the whole group. */
-  boxes: { id: string; name: string; pendingCount: number }[];
+  boxes: {
+    id: string;
+    name: string;
+    pendingCount: number;
+    gmailLabelName: string | null;
+  }[];
 }) {
   const pathname = usePathname();
   const params = useSearchParams();
@@ -171,7 +182,12 @@ export function SidebarNav({
           icon: IconBox as Icon,
           count: b.pendingCount,
           drop: { kind: 'box' as const, boxId: b.id },
-          menu: { boxId: b.id, name: b.name, waiting: b.pendingCount },
+          menu: {
+            boxId: b.id,
+            name: b.name,
+            waiting: b.pendingCount,
+            labelName: b.gmailLabelName,
+          },
         })),
         { href: '/box', label: 'Manage boxes', icon: IconBox, exact: true },
       ],
@@ -303,6 +319,7 @@ export function SidebarNav({
                         boxId={item.menu.boxId}
                         name={item.menu.name}
                         waiting={item.menu.waiting}
+                        labelName={item.menu.labelName}
                       >
                         {item.drop ? (
                           <CaptureTarget drop={item.drop}>{link}</CaptureTarget>

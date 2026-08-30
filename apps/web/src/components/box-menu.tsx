@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState, useTransition } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { clearBoxEmoji, emojifyBox } from '@/lib/actions';
+import { clearBoxEmoji, createBoxLabel, emojifyBox } from '@/lib/actions';
 import { readAllWaiting } from '@/lib/read-document';
 
 /**
@@ -27,12 +27,20 @@ export function BoxMenu({
   boxId,
   name,
   waiting,
+  labelName,
   children,
 }: {
   boxId: string;
   name: string;
   /** Documents filed but not yet read, which is the count on the entry itself. */
   waiting: number;
+  /**
+   * What its Gmail label is called, or null when it has none yet.
+   *
+   * The name rather than a boolean, because once the label exists the only
+   * useful thing to say is what to type into Gmail's label menu.
+   */
+  labelName: string | null;
   children: React.ReactNode;
 }) {
   const [at, setAt] = useState<{ x: number; y: number } | null>(null);
@@ -219,6 +227,42 @@ export function BoxMenu({
           >
             Manage tags
           </Link>
+
+          <div className="my-1 border-t border-grey-200" />
+
+          {/*
+            The label you put on a message in Gmail to file it here — and the
+            thread is archived once it is filed, so a message you have dealt
+            with leaves your inbox.
+
+            Made on request rather than with the box, because a label has no
+            "when there is something to put in it" moment: it must exist before
+            you can apply it, and pressing this *is* the wanting. Once it
+            exists the menu says what it is called, which is the only thing you
+            then need to know.
+          */}
+          {labelName ? (
+            <p className="px-3 py-1.5 text-[11px] leading-relaxed text-grey-500">
+              Label mail <span className="text-grey-700">{labelName}</span> to file
+              it here.
+            </p>
+          ) : (
+            <button
+              type="button"
+              role="menuitem"
+              disabled={pending}
+              onClick={() =>
+                run(async () => {
+                  const made = await createBoxLabel(boxId);
+                  if ('error' in made) throw new Error(made.error);
+                }, 'Made it. Put it on a message in Gmail.')
+              }
+              title="A Gmail label that files messages into this box"
+              className="block w-full px-3 py-1.5 text-left text-[12px] text-grey-800 hover:bg-grey-150 disabled:opacity-40"
+            >
+              {pending ? 'Making…' : 'Make its Gmail label'}
+            </button>
+          )}
 
           <div className="my-1 border-t border-grey-200" />
 
