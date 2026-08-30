@@ -82,20 +82,30 @@ Turbopack is the default; `middleware` is now `proxy`.
   like dark mode, with a green cast all the way up so a hairline reads as a
   faint line of light rather than as grey. One selector: nothing asks an
   operating system for this.
-  **The text is not green**, which is the mistake this kind of theme usually
-  makes — a screen of green prose is exhausting after ten minutes and this is an
-  app somebody reads all day. The ink is a barely-tinted phosphor white and the
-  green lives in the structure: rules, headings, chips, muted metadata. The
-  effect is a console; the reading is still reading.
-  **The console face is applied to `.uppercase` and nothing else.** A whole app
-  in monospace is wider, wraps more, and this layout is built around a narrow
-  list column — but the uppercase labels *are* the instrumentation, so putting
-  those in a technical face is most of the effect for none of the cost.
-  Targeting a utility class is not a thing to do lightly; it is right here for
-  the reason `[data-pane]` is right for the preview, namely that the class means
-  the thing being selected for. A system stack (Cascadia, Consolas, SF Mono,
-  Menlo) rather than a webfont: a theme should not make everyone download
-  something.
+  **The palette is taken from the reference rather than invented**: Tailwind's
+  greens on pure black, which is what that terminal is built from — `green-600`
+  for what is quiet, `green-400` for ordinary text, `green-300` and `green-200`
+  for what should carry, with yellow warning and red alerting. Pure black and
+  not a near-black: the whole effect rests on the ground being *off*, so that
+  green is the only thing emitting.
+  **It overrides `--font-sans` outright, and it is the only theme that does.**
+  A console is monospaced; setting only the labels — which is what this did on
+  the first attempt — produces an app with a terminal's captions and a website's
+  body. The cost is real, because mono is wider and this layout is built around
+  a narrow list column, and it is the reason no other theme touches the
+  typeface. A system stack (Cascadia, Consolas, SF Mono, Menlo) rather than a
+  webfont: a theme should not make everyone download something.
+  The bloom stays on `.uppercase` only — a text shadow under every character in
+  the app would be a paint cost for no gain, and the small caps labels are where
+  a phosphor glow actually reads.
+  **The labels type themselves in**, with `clip-path` and `steps()` rather than
+  the usual `width` in `ch` — which would need a character count per label and
+  therefore a class per heading. Sixteen steps whatever the length, so a short
+  label and a long one type to the same rhythm. `backwards` and never `both`:
+  `both` keeps the final clip applied for ever, so a stale value would leave a
+  heading invisible, where `backwards` lets a finished animation stop applying
+  anything at all. One caret, beside the wordmark, because a screen full of
+  blinking is not a terminal — it is a fault.
   **Scanlines are a gradient and the sweep is a transform**, which is the lesson
   paper mode paid for — no blend mode, no filter, nothing that forces the page
   to be re-composited on every paint. The beam is one element moved on the

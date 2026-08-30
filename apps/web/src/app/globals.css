@@ -351,111 +351,171 @@
 /* Console mode ------------------------------------------------------------ */
 
 /*
- * A ship's console: phosphor on black.
+ * A ship's console: green phosphor on black.
  *
- * The fourth theme, and the first one that is unashamedly a *look* rather than
- * an argument about legibility. It is the same ramp again, walked from the dark
- * end like dark mode — `grey-800` is still prominent text and `grey-200` is
- * still a hairline — so once more no component knows it exists. What changes is
- * where the ramp sits: black at one end, and a green cast all the way up, so a
- * rule reads as a faint line of light rather than as grey.
+ * The fourth theme, and the first that is unashamedly a *look* rather than an
+ * argument about legibility. It is still the same ramp, walked from the dark
+ * end like dark mode — `grey-800` is prominent text and `grey-200` is a
+ * hairline — so once again no component knows it exists. What changes is that
+ * the ramp is not grey at all: it climbs from black through the greens, so a
+ * rule is a dim green line and a heading is a bright one.
  *
- * **The text is not green.** That is the mistake this kind of theme usually
- * makes: a screen of green prose is exhausting after ten minutes, and this is
- * an app somebody reads all day. So the *ink* is a barely-tinted white and the
- * green lives in the structure — the rules, the headings, the chips, the muted
- * metadata. The effect is a console; the reading is still reading.
+ * The palette is taken from the reference rather than invented: Tailwind's
+ * greens on pure black, which is what that terminal is built from —
+ * `green-600` for what is quiet, `green-400` for ordinary text, `green-300`
+ * and `green-200` for what should carry. Yellow for a warning, red for an
+ * alert, and both are in the reference too.
  *
  * One selector, because nothing asks an operating system for this.
  */
 :root[data-theme='sci'] {
   color-scheme: dark;
 
-  --color-paper: #04070a;
+  /* Pure black, as the reference is. Not a near-black: the whole effect rests
+     on the ground being *off*, so that green is the only thing emitting. */
+  --color-paper: #000000;
+  --color-ink: #4ade80;
+
+  --color-grey-50: #030b06;
+  --color-grey-100: #04120a;
+  --color-grey-150: #06190e;
+  --color-grey-200: #0d3018;
+  --color-grey-300: #14532d;
+  --color-grey-400: #16a34a;
+  --color-grey-500: #22c55e;
+  --color-grey-600: #4ade80;
+  --color-grey-700: #6ee7a7;
+  --color-grey-800: #86efac;
+  --color-grey-900: #bbf7d0;
+
   /*
-   * Barely green, and deliberately not #fff: pure white on pure black is the
-   * highest contrast a screen can produce and it buzzes. This is a phosphor
-   * white, which is what the reference is doing too.
+   * The semantic four, and this is the theme where they are most at home: a
+   * console *is* colour that means something. Yellow warns, red alerts — both
+   * straight out of the reference — and a selected row lights up rather than
+   * changing hue, which is what a terminal does.
    */
-  --color-ink: #d3ece0;
-
-  --color-grey-50: #070d11;
-  --color-grey-100: #0a1319;
-  --color-grey-150: #0e1b20;
-  --color-grey-200: #16292f;
-  --color-grey-300: #1f3d42;
-  --color-grey-400: #4a7f6c;
-  --color-grey-500: #6ba98c;
-  --color-grey-600: #8cc7a7;
-  --color-grey-700: #abdcc0;
-  --color-grey-800: #cbeeda;
-  --color-grey-900: #e8fff2;
+  --color-waiting: #facc15;
+  --color-waiting-bg: #2b2206;
+  --color-stale: #ef4444;
+  --color-stale-bg: #2b0a0a;
+  --color-selected: #bbf7d0;
+  --color-selected-bg: #0f3d21;
+  --color-journal: #d8b4fe;
+  --color-journal-bg: #1e1030;
 
   /*
-   * The semantic four, as a console would signal them — and this theme is the
-   * one where they are most at home, because a bridge display *is* colour used
-   * to mean something. Same meanings, same order of loudness.
-   */
-  --color-waiting: #ffb02e;
-  --color-waiting-bg: #2a1d05;
-  --color-stale: #ff5252;
-  --color-stale-bg: #2e0c0c;
-  --color-selected: #3ad2ff;
-  --color-selected-bg: #06272f;
-  --color-journal: #c08cff;
-  --color-journal-bg: #1c1030;
-
-  /*
-   * The console face, used for the app's uppercase labels rather than for
-   * everything.
+   * Monospace, everywhere.
    *
-   * A whole app set in monospace is a worse app: it is wider, it wraps more,
-   * and this layout is built around a narrow list column. But the uppercase
-   * section labels, the chips and the counts are exactly the parts that read as
-   * *instrumentation*, and putting those in a technical face is most of the
-   * effect for none of the cost.
+   * This is the one theme that overrides the app's typeface outright, and it is
+   * the whole point of it: a console is monospaced, and setting only the labels
+   * — which is what this did first — produces an app with a terminal's captions
+   * and a website's body. Wider and it wraps more, which is a real cost and the
+   * reason no other theme does this.
    *
-   * A stack of faces that are already on the machine — Cascadia and Consolas on
-   * Windows, SF Mono and Menlo on a Mac — rather than a webfont. A theme should
-   * not make everyone else download something.
+   * A stack of faces already on the machine — Cascadia and Consolas on Windows,
+   * SF Mono and Menlo on a Mac — rather than a webfont. A theme should not make
+   * everyone else download something.
    */
-  --font-console: ui-monospace, 'Cascadia Mono', 'Segoe UI Mono', 'SF Mono', Menlo,
-    Consolas, monospace;
+  --font-sans: ui-monospace, 'Cascadia Mono', 'Segoe UI Mono', 'SF Mono', Menlo,
+    Consolas, 'Liberation Mono', monospace;
 }
 
 :root[data-theme='sci'] {
-  --code-heading: #4fc3f7;
-  --code-marker: #ffb02e;
-  --code-keyword: #c08cff;
-  --code-string: #56e39f;
-  --code-comment: #4a7f6c;
-  --code-accent: #ff7a59;
+  --code-heading: #4ade80;
+  --code-marker: #facc15;
+  --code-keyword: #d8b4fe;
+  --code-string: #86efac;
+  --code-comment: #16a34a;
+  --code-accent: #ef4444;
 }
 
 /*
- * Every uppercase label becomes instrumentation.
+ * The labels are the instrumentation, and read as it.
  *
- * `.uppercase` is the hook because it is already on precisely the right things
- * — the section headings, the pane titles, the small caps labels — and on
- * nothing else. Targeting a utility class is not something to do lightly; it is
- * right here because the class *means* the thing being selected for, which is
- * the same reason `[data-pane]` works for the preview.
+ * Wide tracking and a faint bloom, which is what a phosphor tube does to a
+ * bright glyph. Only on `.uppercase` — a text shadow under every character in
+ * the app would be a paint cost for no gain, and the small caps labels are
+ * where it actually reads.
  */
 :root[data-theme='sci'] .uppercase {
-  font-family: var(--font-console);
-  letter-spacing: 0.14em;
+  letter-spacing: 0.16em;
+  text-shadow: 0 0 6px rgba(74, 222, 128, 0.45);
+  /*
+   * Typed, not faded in.
+   *
+   * `clip-path` with `steps()` uncovers the label a chunk at a time, which is
+   * what makes it read as a machine writing rather than as a transition — and
+   * it does it without knowing how long the text is. The usual trick is
+   * `width` in `ch` units, which needs a character count per label and would
+   * mean a class per heading.
+   *
+   * Sixteen steps regardless of length, so a short label types quickly and a
+   * long one types at the same rhythm rather than the same speed. It runs on
+   * mount, which for a page of headings means the whole screen writes itself in
+   * — and on navigation, because that is when React makes the elements.
+   *
+   * Cheap: a clip on a short text run, no layout and no paint of anything
+   * underneath.
+   */
+  /*
+   * `backwards`, never `both`. The difference only shows up when something goes
+   * wrong, which is exactly when it matters: `both` keeps the final clip
+   * applied for ever after the animation ends, so any stale value leaves a
+   * heading invisible. With `backwards` a finished animation stops applying
+   * anything and the label returns to being an ordinary piece of text.
+   */
+  animation: console-type 0.42s steps(16, end) backwards;
+}
+
+@keyframes console-type {
+  from {
+    clip-path: inset(0 100% 0 0);
+  }
+  to {
+    clip-path: inset(0 0 0 0);
+  }
+}
+
+/*
+ * The cursor, waiting.
+ *
+ * One in the whole app, beside the wordmark, which is where a terminal puts it.
+ * A caret on every label would be a screen full of blinking, and the reference
+ * has exactly one too.
+ */
+:root[data-theme='sci'] [data-console-caret]::after {
+  content: '';
+  display: inline-block;
+  width: 0.55em;
+  height: 1em;
+  margin-left: 0.35em;
+  vertical-align: -0.12em;
+  background: var(--color-grey-800);
+  box-shadow: 0 0 8px rgba(134, 239, 172, 0.55);
+  animation: console-blink 1.1s steps(1, end) infinite;
+}
+
+@keyframes console-blink {
+  0%,
+  49% {
+    opacity: 1;
+  }
+  50%,
+  100% {
+    opacity: 0;
+  }
 }
 
 /*
  * The glass of the tube.
  *
- * Scanlines as a repeating gradient — cheap, static, and composited once. No
- * blend mode and no filter, which is the lesson paper mode paid for: a
+ * Scanlines as a repeating gradient — cheap, static, composited once. No blend
+ * mode and no filter, which is the lesson paper mode paid for: a
  * viewport-sized blending layer forces the whole page to be re-composited on
  * every paint.
  *
  * The vignette is part of the same layer rather than a second one, because a
- * CRT is darker at the corners and a flat black rectangle is a colour rather
+ * tube is darker at the corners and a flat black rectangle is a colour rather
  * than a screen.
  */
 :root[data-theme='sci'] body::after {
@@ -467,12 +527,12 @@
   background-image:
     repeating-linear-gradient(
       0deg,
-      rgba(0, 0, 0, 0.28) 0px,
-      rgba(0, 0, 0, 0.28) 1px,
+      rgba(0, 0, 0, 0.34) 0px,
+      rgba(0, 0, 0, 0.34) 1px,
       transparent 1px,
       transparent 3px
     ),
-    radial-gradient(120% 90% at 50% 45%, rgba(0, 0, 0, 0) 55%, rgba(0, 0, 0, 0.5) 100%);
+    radial-gradient(120% 90% at 50% 45%, rgba(0, 0, 0, 0) 52%, rgba(0, 0, 0, 0.62) 100%);
 }
 
 /*
@@ -481,7 +541,7 @@
  * A single element moved with `transform`, which the compositor does on its own
  * thread without repainting anything underneath — the one kind of animation
  * that is free at this size. Eleven seconds, so it reads as a sweep rather than
- * a strobe, and it is the only thing on this theme that moves.
+ * a strobe, and it is the only thing in the app that moves.
  */
 :root[data-theme='sci'] body::before {
   content: '';
@@ -494,9 +554,9 @@
   pointer-events: none;
   background: linear-gradient(
     to bottom,
-    rgba(86, 227, 159, 0) 0%,
-    rgba(86, 227, 159, 0.045) 55%,
-    rgba(86, 227, 159, 0) 100%
+    rgba(74, 222, 128, 0) 0%,
+    rgba(74, 222, 128, 0.06) 55%,
+    rgba(74, 222, 128, 0) 100%
   );
   animation: console-sweep 11s linear infinite;
 }
@@ -517,6 +577,21 @@
 @media (prefers-reduced-motion: reduce) {
   :root[data-theme='sci'] body::before {
     display: none;
+  }
+
+  /*
+   * No beam, no typing, no blink. The label must still be *visible*, so the
+   * animation is removed rather than paused — `both` would otherwise leave
+   * every heading clipped to nothing, which is the one way this could fail
+   * badly.
+   */
+  :root[data-theme='sci'] .uppercase {
+    animation: none;
+    clip-path: none;
+  }
+
+  :root[data-theme='sci'] [data-console-caret]::after {
+    animation: none;
   }
 }
 

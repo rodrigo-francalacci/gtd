@@ -1073,16 +1073,23 @@ on purpose: it is the one thing here that must not look like part of the page.
 If you have asked your system for reduced motion, the grain is left off and the
 palette stays — the palette is the part that does the work.
 
-**Console mode** is a ship's display: phosphor on black, with the section
-labels in a technical face and the scanlines of a tube over everything. A beam
-sweeps down the screen once every eleven seconds, and it is the only thing in
-the app that moves; reduced motion turns it off and keeps the rest.
+**Console mode** is a terminal: green phosphor on pure black, monospaced
+throughout, with the scanlines and the dimmed corners of a tube over everything.
 
-The text itself is *not* green — a screen of green prose is exhausting after ten
-minutes, and this is an app you read all day. The ink is a barely-tinted white
-and the green lives in the rules, the headings and the chips. The four semantic
-colours are more at home here than anywhere: amber for waiting, red for stale,
-cyan for what is selected, violet for the day you wrote.
+**The labels type themselves in.** Every uppercase heading writes left to right
+when a page loads, the way a terminal fills a screen, and a cursor blinks beside
+the wordmark. A beam sweeps down the glass once every eleven seconds. Reduced
+motion turns all three off and keeps the palette and the scanlines, which are
+most of the look.
+
+It is the one theme that changes the typeface, because a console is
+monospaced and captions alone would not do it. Monospace is wider, so titles
+truncate a little sooner than they do elsewhere — that is the price of it, and
+the reason no other theme does the same.
+
+The four semantic colours are more at home here than anywhere, a console being
+colour that means something: yellow for waiting, red for stale, a bright green
+wash for what is selected, violet for the day you wrote.
 
 As in paper mode, the preview pane keeps its own light: a costume over your
 photographs would be the app decorating your documents.
