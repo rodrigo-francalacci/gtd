@@ -398,7 +398,23 @@ export function TextDocument({
         <LatexPdf source={draft} src={src} />
       ) : view === 'read' ? (
         <iframe
-          key={page?.seq ?? 0}
+          /*
+           * Named, not just numbered.
+           *
+           * This frame and the printing frame below it are siblings with a
+           * sequence counter each, and the counters know nothing about one
+           * another — so the first rendering and the first print both asked for
+           * key `1` and React reported two children with the same key. The
+           * consequence is worse than the warning sounds: keys are how React
+           * tells siblings apart, so it is entitled to reuse one frame's
+           * element for the other, and this one exists precisely *because* a
+           * fresh element is the only reliable way to make an iframe take a new
+           * `srcdoc`.
+           *
+           * A prefix costs nothing and makes the two namespaces separate for
+           * good, rather than only while the two counters happen to differ.
+           */
+          key={`read-${page?.seq ?? 0}`}
           // `sandbox=""` — no permissions at all. Scripts, forms, popups and
           // top-level navigation are all denied and the frame gets an opaque
           // origin, which is what makes showing an arbitrary HTML file safe
@@ -485,7 +501,9 @@ export function TextDocument({
          * own markup still cannot reach anything of ours.
          */
         <iframe
-          key={printing.seq}
+          // Prefixed for the reason the reading frame above is: two sibling
+          // counters that start in the same place will collide.
+          key={`print-${printing.seq}`}
           sandbox="allow-modals allow-scripts"
           srcDoc={printing.html}
           title={`Printing ${name}`}
