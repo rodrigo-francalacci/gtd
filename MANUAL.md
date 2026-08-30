@@ -1076,11 +1076,14 @@ palette stays — the palette is the part that does the work.
 **Console mode** is a terminal: green phosphor on pure black, monospaced
 throughout, with the scanlines and the dimmed corners of a tube over everything.
 
-**The labels type themselves in.** Every uppercase heading writes left to right
-when a page loads, the way a terminal fills a screen, and a cursor blinks beside
-the wordmark. A beam sweeps down the glass once every eleven seconds. Reduced
-motion turns all three off and keeps the palette and the scanlines, which are
-most of the look.
+**The screen writes itself.** Pick a row and the detail pane is dealt one
+section at a time — the heading, then the body, then the attachments, each wiped
+in left to right rather than faded, the way a terminal fills a screen. Every
+uppercase label types itself in the same way, a cursor blinks beside the
+wordmark, and a beam sweeps down the glass once every eleven seconds.
+
+Reduced motion turns all of it off and keeps the palette and the scanlines,
+which are most of the look.
 
 It is the one theme that changes the typeface, because a console is
 monospaced and captions alone would not do it. Monospace is wider, so titles

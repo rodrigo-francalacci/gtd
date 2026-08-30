@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
 import type { ColumnSet } from '@/lib/columns';
+import { ConsoleCascade } from './console-cascade';
 import { DEFAULT_PANE_WIDTH, type ViewMode } from '@/lib/pane';
 import { ResizablePane } from './resizable-pane';
 import { ViewToggle } from './view-toggle';
@@ -200,7 +201,17 @@ function ColumnHeader({ columns }: { columns: ColumnSet }) {
 export function DetailPane({ children }: { children: ReactNode }) {
   return (
     <div className={['min-w-0 flex-1 overflow-y-auto bg-paper', CAPPED_BY_PREVIEW].join(' ')}>
-      <div className="max-w-[38rem] px-7 py-6">{children}</div>
+      {/*
+        `data-pane="detail"` is a marker for one theme and inert in the other
+        three: console mode deals this pane's sections in one at a time when a
+        row is selected. A marker rather than a class, for the reason the
+        preview pane carries one — it names what the element *is*, which is the
+        only kind of hook worth styling from outside a component.
+      */}
+      <div data-pane="detail" className="max-w-[38rem] px-7 py-6">
+        {children}
+      </div>
+      <ConsoleCascade />
     </div>
   );
 }

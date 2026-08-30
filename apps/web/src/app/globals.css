@@ -507,6 +507,44 @@
 }
 
 /*
+ * The detail pane, dealt one section at a time.
+ *
+ * Selecting a row is the moment the third pane fills with something new, and a
+ * terminal does not fill instantly — it writes. So the heading arrives, then
+ * the body, then the attachments, each wiped in left to right rather than faded:
+ * a fade is a transition, a wipe is a machine putting something on a screen.
+ *
+ * Eight is where the stagger stops. Every detail pane in the app has between
+ * two and eight sections, and a ninth would be waiting half a second for its
+ * turn — past the point where a flourish becomes a delay. Anything beyond it
+ * simply arrives with the eighth, which is invisible in practice and better
+ * than a pane that keeps unfolding.
+ */
+:root[data-theme='sci'] [data-pane='detail'] > * > * {
+  animation: console-deal 0.34s steps(14, end) backwards;
+}
+
+:root[data-theme='sci'] [data-pane='detail'] > * > *:nth-child(1) { animation-delay: 0ms; }
+:root[data-theme='sci'] [data-pane='detail'] > * > *:nth-child(2) { animation-delay: 55ms; }
+:root[data-theme='sci'] [data-pane='detail'] > * > *:nth-child(3) { animation-delay: 110ms; }
+:root[data-theme='sci'] [data-pane='detail'] > * > *:nth-child(4) { animation-delay: 165ms; }
+:root[data-theme='sci'] [data-pane='detail'] > * > *:nth-child(5) { animation-delay: 220ms; }
+:root[data-theme='sci'] [data-pane='detail'] > * > *:nth-child(6) { animation-delay: 275ms; }
+:root[data-theme='sci'] [data-pane='detail'] > * > *:nth-child(7) { animation-delay: 330ms; }
+:root[data-theme='sci'] [data-pane='detail'] > * > *:nth-child(n + 8) { animation-delay: 385ms; }
+
+@keyframes console-deal {
+  from {
+    clip-path: inset(0 100% 0 0);
+    opacity: 0.65;
+  }
+  to {
+    clip-path: inset(0 0 0 0);
+    opacity: 1;
+  }
+}
+
+/*
  * The glass of the tube.
  *
  * Scanlines as a repeating gradient — cheap, static, composited once. No blend
@@ -592,6 +630,13 @@
 
   :root[data-theme='sci'] [data-console-caret]::after {
     animation: none;
+  }
+
+  /* Same rule as the labels: remove the clip with the animation, never leave a
+     section of the pane clipped to nothing. */
+  :root[data-theme='sci'] [data-pane='detail'] > * > * {
+    animation: none;
+    clip-path: none;
   }
 }
 

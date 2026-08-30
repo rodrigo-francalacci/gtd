@@ -98,6 +98,18 @@ Turbopack is the default; `middleware` is now `proxy`.
   The bloom stays on `.uppercase` only — a text shadow under every character in
   the app would be a paint cost for no gain, and the small caps labels are where
   a phosphor glow actually reads.
+  **The detail pane is dealt one section at a time.** Selecting a row is the
+  moment pane three fills with something new, and a terminal does not fill
+  instantly. The stagger and the wipe are pure CSS — `nth-child` delays on
+  `[data-pane='detail'] > * > *`, capped at eight because a ninth would be
+  waiting half a second for its turn — but a CSS animation runs when an element
+  is *created* and React reconciles that pane in place, so `ConsoleCascade`
+  restarts them by hand on a navigation. It checks `data-theme` before touching
+  anything: in the other three themes it is one comparison per navigation.
+  **Deliberately not a `key` on the pane**, which is the obvious fix and would
+  unmount and rebuild it for every theme — a real behaviour change, affecting
+  drafts and focus, in service of one theme's decoration. A theme is not allowed
+  to cost the other three anything.
   **The labels type themselves in**, with `clip-path` and `steps()` rather than
   the usual `width` in `ch` — which would need a character count per label and
   therefore a class per heading. Sixteen steps whatever the length, so a short
