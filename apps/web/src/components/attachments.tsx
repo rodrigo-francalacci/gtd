@@ -490,9 +490,25 @@ export function Attachments({
                   />
                 </li>
               ) : (
+              /*
+               * The name gets the whole line on a phone, and shares one with
+               * its facts from `md` up.
+               *
+               * Every other part of this row is `shrink-0` and the name is the
+               * only thing that gives — so in a narrow pane the date, the byte
+               * count and two buttons held their full width while the filename
+               * was squeezed to about five characters. Measured at a 320px
+               * pane: 51 pixels for the name. That is the space being spent on
+               * precisely the wrong things, since the one fact you need to
+               * recognise a file is what it is called.
+               *
+               * `flex-wrap` with the name at `basis-full` below `md` puts the
+               * facts underneath instead, where they cost a line and take
+               * nothing from the name.
+               */
               <li
                 key={row.id}
-                className="group flex items-center gap-2 px-3 py-1.5 text-[12px]"
+                className="group flex flex-wrap items-center gap-x-2 gap-y-0.5 px-3 py-1.5 text-[12px] md:flex-nowrap"
               >
                 <Glyph row={row} />
 
@@ -538,7 +554,10 @@ export function Attachments({
                     });
                   }}
                   className={[
-                    'min-w-0 flex-1 cursor-pointer truncate hover:underline',
+                    // `basis` rather than a width: the name takes the rest of
+                    // the first line on a phone and shares the line from `md`.
+                    'min-w-0 flex-1 basis-[calc(100%-2rem)] cursor-pointer truncate',
+                    'hover:underline md:basis-auto',
                     preview.openId === row.id
                       ? 'font-medium text-grey-900'
                       : 'text-grey-800',

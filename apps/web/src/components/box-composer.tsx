@@ -522,7 +522,20 @@ export function BoxComposer({ boxId }: { boxId: string }) {
         className="w-full resize-none bg-transparent text-[13px] leading-relaxed text-grey-800 placeholder:text-grey-400 focus:outline-none"
       />
 
-      <div className="flex items-center gap-2">
+      {/*
+        Wraps rather than spills.
+
+        These controls were laid out in one row with the date checkbox marked
+        `shrink-0`, so below about 360px the row ran past the pane — and a pane
+        clips rather than scrolls, by design, so the Post button was simply
+        *gone*. Measured at a 330px pane: 27 pixels of it past the edge, with
+        no way to reach it. That is not a cosmetic overflow; it is the button
+        that files what you have just written.
+
+        `flex-wrap` costs a second line on a narrow screen and can never hide a
+        control.
+      */}
+      <div className="flex flex-wrap items-center gap-x-2 gap-y-1.5">
         <button
           type="button"
           onClick={() => input.current?.click()}
@@ -582,7 +595,7 @@ export function BoxComposer({ boxId }: { boxId: string }) {
         />
 
         <label
-          className="flex shrink-0 items-center gap-1 text-[11px] text-grey-500"
+          className="flex items-center gap-1 whitespace-nowrap text-[11px] text-grey-500"
           title="Otherwise it is dated now, when you added it"
         >
           <input
