@@ -118,6 +118,7 @@ export function TagFilter({
         return (
           <FilterChip
             key={tag.id}
+            dragId={tag.id}
             label={ambiguous(tag.name) ? `${tag.category}: ${tag.name}` : tag.name}
             /* What you'd be left with. Worth the space: it turns the bar from a
                list of labels into a picture of what's in the box. */

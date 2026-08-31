@@ -2339,6 +2339,24 @@ export async function deleteBoxTag(tagId: string) {
   revalidateShell();
 }
 
+/**
+ * Put a tag on a document, without the chance of taking one off.
+ *
+ * Deliberately not `toggleDocumentTag`. Dropping a tag onto a row is an
+ * instruction — *this is a receipt* — and a drop that silently removed the tag
+ * because it happened to be there already would be the one gesture in the app
+ * whose meaning depends on state you cannot see while you are doing it. Landing
+ * on a row that already has it is a no-op, which is what the person dragging
+ * expected either way.
+ */
+export async function applyDocumentTag(itemId: string, tagId: string) {
+  await requireSession();
+
+  await db.insert(boxItemTags).values({ itemId, tagId }).onConflictDoNothing();
+
+  revalidateShell();
+}
+
 /** Add or remove a tag by hand. The model proposes; you decide. */
 export async function toggleDocumentTag(itemId: string, tagId: string) {
   await requireSession();

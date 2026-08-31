@@ -5,6 +5,7 @@ import { DayJournal } from '@/components/day-journal';
 import { DocumentDetail } from '@/components/document-detail';
 import { BoxComposer } from '@/components/box-composer';
 import { BoxLayoutToggle } from '@/components/box-layout-toggle';
+import { TagDrop } from '@/components/tag-drop';
 import { TagPanelButton } from '@/components/tag-panel-button';
 import { DateRange } from '@/components/date-range';
 import { DocumentGalleryRow } from '@/components/document-gallery-row';
@@ -344,8 +345,8 @@ export default async function BoxPage(props: PageProps<'/box/[id]'>) {
                   is a folder, not a box. */}
               {boxView === 'gallery' ? (
                 day.items.map((item) => (
+                  <TagDrop key={item.id} itemId={item.id} accepts={item.kind !== 'event'}>
                   <DocumentMenu
-                    key={item.id}
                     id={item.id}
                     name={documentLabel(item)}
                     description={item.description}
@@ -356,11 +357,12 @@ export default async function BoxPage(props: PageProps<'/box/[id]'>) {
                       selected={item.id === targetId}
                     />
                   </DocumentMenu>
+                  </TagDrop>
                 ))
               ) : (
                 day.items.map((item) => (
+                  <TagDrop key={item.id} itemId={item.id} accepts={item.kind !== 'event'}>
                   <DocumentMenu
-                    key={item.id}
                     id={item.id}
                     name={documentLabel(item)}
                     description={item.description}
@@ -372,6 +374,7 @@ export default async function BoxPage(props: PageProps<'/box/[id]'>) {
                       mode={viewMode}
                     />
                   </DocumentMenu>
+                  </TagDrop>
                 ))
               )}
             </section>

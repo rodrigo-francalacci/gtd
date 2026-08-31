@@ -53,12 +53,21 @@ export function TagBrowser({
   const base = `/box/${boxId}`;
 
   /**
-   * Only what would still find something — the same rule the bar follows.
+   * Every tag in the box, including the ones on nothing.
    *
-   * A tag on none of the remaining entries leads to an empty list, so offering
-   * it is offering a dead end, and a panel full of dead ends is one you stop
-   * reading. A tag already chosen stays listed whatever its count: an excluded
-   * one is zero by definition, and hiding it would leave no way to undo it.
+   * This used to hide a tag whose count was zero, on the filtering rule the
+   * quick bar still follows: a tag on none of the remaining entries leads to an
+   * empty list, and a bar full of dead ends is one you stop reading.
+   *
+   * That stopped being right when tags became draggable. A tag with a count of
+   * zero is precisely the one you have just made and want to start putting on
+   * things, and hiding it made a brand-new vocabulary invisible in the one
+   * place built to apply it — a box with eleven tags and nothing tagged yet
+   * showed an empty panel. The count is displayed beside each tag, so a zero is
+   * saying so rather than hiding; it is a dead end as a *filter* and the whole
+   * point as a *label*.
+   *
+   * The quick bar is unchanged, because it only filters.
    */
   const live = useMemo(() => {
     const needle = query.trim().toLowerCase();
@@ -67,12 +76,6 @@ export function TagBrowser({
       .map((category) => ({
         ...category,
         tags: category.tags
-          .filter(
-            (tag) =>
-              (counts[tag.id] ?? 0) > 0 ||
-              selected.includes(tag.id) ||
-              excluded.includes(tag.id),
-          )
           .filter((tag) => !needle || tag.name.toLowerCase().includes(needle))
           .sort(
             (a, b) =>
@@ -81,7 +84,7 @@ export function TagBrowser({
           ),
       }))
       .filter((category) => category.tags.length > 0);
-  }, [categories, counts, selected, excluded, query]);
+  }, [categories, counts, query]);
 
   const chosen = selected.length + excluded.length;
 
@@ -143,6 +146,7 @@ export function TagBrowser({
                 {category.tags.map((tag) => (
                   <FilterChip
                     key={tag.id}
+                    dragId={tag.id}
                     label={tag.name}
                     count={counts[tag.id] ?? 0}
                     state={

@@ -20,6 +20,14 @@ import {
  */
 export const DRAG_ACTION = 'application/x-gtd-action';
 export const DRAG_PROJECT = 'application/x-gtd-project';
+/**
+ * A tag being dragged out of the tag panel onto an entry.
+ *
+ * Its own type like the others, because `dataTransfer.types` is the only thing
+ * readable during `dragover` — which is what lets a row decide whether to light
+ * up before it can see what it is being given.
+ */
+export const DRAG_TAG = 'application/x-gtd-tag';
 
 export function dragPayload(e: React.DragEvent, type: string): string | null {
   const raw = e.dataTransfer.getData(type);

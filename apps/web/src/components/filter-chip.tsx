@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import { DRAG_TAG } from './sortable';
 import { useRef } from 'react';
 
 /**
@@ -30,12 +31,23 @@ export function FilterChip({
   state,
   includeHref,
   excludeHref,
+  dragId,
 }: {
   label: string;
   count?: number;
   state: 'off' | 'include' | 'exclude';
   includeHref: string;
   excludeHref: string;
+  /**
+   * The tag this chip stands for, when it can be dragged onto an entry to
+   * apply it. Absent where a chip only filters.
+   *
+   * Desktop only, and that is a property of the platform rather than a
+   * decision: HTML5 drag and drop has no touch support at all, which is why
+   * every other drag in this app is a desktop gesture too. Tapping a tag in
+   * the detail pane is the touch answer and already exists.
+   */
+  dragId?: string;
 }) {
   const router = useRouter();
   const held = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -64,6 +76,23 @@ export function FilterChip({
   return (
     <Link
       href={includeHref}
+      draggable={dragId ? true : undefined}
+      onDragStart={
+        dragId
+          ? (e) => {
+              /*
+               * An anchor is already draggable and already carries its href, so
+               * without this a tag dropped anywhere would arrive as a URL. The
+               * private type is what a row reads during `dragover` to decide
+               * whether to light up — `dataTransfer.types` is the only thing
+               * readable then.
+               */
+              e.dataTransfer.setData(DRAG_TAG, dragId);
+              e.dataTransfer.setData('text/plain', label);
+              e.dataTransfer.effectAllowed = 'copy';
+            }
+          : undefined
+      }
       onContextMenu={(e) => {
         e.preventDefault();
         exclude();

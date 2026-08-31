@@ -1129,6 +1129,21 @@ project, action or list item it hangs off.
 
 ## Views and preferences
 
+### Tagging by dragging
+
+Open the tag panel and **drag a tag onto an entry** to put it on. The row lights
+up as you pass over it; letting go applies the tag. Dropping one that is already
+there does nothing — a drop always means *add this*, never *toggle it*.
+
+The panel lists every tag in the box, including ones on nothing yet: those are
+precisely the ones you have just made and want to start using. The number beside
+each says how many entries currently carry it.
+
+Milestones do not accept tags. A milestone is a shortcut to a project, so it has
+no place to show or remove one.
+
+Dragging is a desktop gesture — tap a tag in the entry's own pane on a phone.
+
 ### A box is laid out three ways
 
 A box's header has one control, not two: **with pictures**, **compact list**, or

@@ -1861,6 +1861,30 @@ to be kept. They meet at `box_item_links` and nowhere else.
   shows the tags it *has* (clicking one takes it off, the only thing you can
   want from a tag already on) and the question moves to `TagEditor`, the same
   trade `TagBrowser` makes for filtering.
+- **A tag is dragged onto a row to apply it, and that changed what the panel is
+  allowed to hide.** The panel was built to *narrow* a box, which is what you do
+  with tags once they are on things and says nothing about how they get there —
+  putting one on by hand meant opening the entry, opening the editor and finding
+  the tag, three steps from a panel already showing every tag next to every
+  entry. `DRAG_TAG` closes that gap; both the panel and the quick bar are
+  draggable, since a chip is a chip.
+  **`applyDocumentTag` inserts and never toggles.** A drop is an instruction —
+  *this is a receipt* — and one that silently removed the tag because the row
+  already had it would be the only gesture here whose meaning depends on state
+  you cannot see while performing it. Landing on a row that has it is a no-op.
+  **A milestone refuses the drop.** Selecting one opens the *project* pane, so
+  it has no tag editor: a tag dropped there could never be taken off while still
+  counting in every facet, and a row you cannot untag is worse than one you
+  cannot tag.
+  **And the panel now lists tags with a count of zero**, which the filtering
+  rule below deliberately hides. That rule is still right for the quick bar and
+  became wrong here the moment tags became draggable: a zero-count tag is
+  exactly the one you have just made and want to start using, and hiding it left
+  a box with eleven tags and nothing tagged showing an empty panel. The count is
+  beside each tag, so a zero says so — a dead end as a filter, the whole point
+  as a label.
+  Desktop only, like every other drag here: HTML5 DnD has no touch support, and
+  tapping a tag in the detail pane remains the touch answer.
 - **Choosing in the browser does not close it.** A popover that shuts on the
   first click is right for a quick action and wrong here: narrowing a box is
   two or three tags and you want to see each one land before picking the next.
