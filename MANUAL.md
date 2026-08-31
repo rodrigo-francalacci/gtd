@@ -771,6 +771,19 @@ later — not on the next nightly sync:
 A list item or a standalone action has no project, so its files stay in
 `GTD/Inbox`, which is where they already were.
 
+### Renaming a box
+
+The Drive folder and the Gmail label both follow, for a box that has them. They
+are only ever renamed, never created — a folder is made when there is a file to
+put in it and a label when you ask for one, and renaming is neither of those.
+
+This matters more than tidiness on the Gmail side: the email bridge works out
+which box a message is for from the **label's name**, so a label left saying the
+old thing would quietly file that box's mail into the Feed instead.
+
+Everything else refers to a box and its documents by id, so a project citing a
+document is unaffected — the citation keeps working and shows the new name.
+
 ### Deleting a project takes its folder
 
 Deleting a project already took every file attached to it and to its actions.

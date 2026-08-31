@@ -563,6 +563,77 @@ export async function renameBoxFiles(limit = 50): Promise<number> {
  * gets, so a rename stays one row written and no Google call in the request
  * that wrote it.
  */
+/**
+ * Carry a box's new name out to the containers it already has.
+ *
+ * Renaming a box wrote one row and nothing else, on the reasoning that
+ * `ensureBoxFolder` reconciles Drive the next time a document is filed there.
+ * That is fine for Drive and was quietly wrong for Gmail, because the label is
+ * not on any path that runs again: `ensureBoxLabel` is called from a button and
+ * nowhere else, so a renamed box kept a label named after what it used to be —
+ * for ever, if you never pressed that button again.
+ *
+ * **And a stale label misfiles mail rather than merely looking untidy.** The
+ * bridge reads the box out of the *label's* name and the ingest route matches
+ * it against `boxes.name`; when nothing matches it falls back to the default
+ * box. So after a rename, every message labelled for that box was quietly
+ * landing in the Feed — not lost, but filed somewhere nobody chose, with
+ * nothing anywhere saying so.
+ *
+ * Renames only, and only what exists. Creating either container here would
+ * break the rule both are built on — a folder is made when there is a file to
+ * put in it, a label when you ask for one — and renaming a box is neither of
+ * those moments.
+ */
+export async function renameBoxContainers(boxId: string): Promise<void> {
+  const [box] = await db
+    .select({
+      name: boxes.name,
+      driveFolderId: boxes.driveFolderId,
+      gmailLabelId: boxes.gmailLabelId,
+    })
+    .from(boxes)
+    .where(eq(boxes.id, boxId))
+    .limit(1);
+
+  if (!box) return;
+
+  const folderName = safeName(box.name) || 'Box';
+
+  if (box.driveFolderId) {
+    try {
+      const existing = await getFile(box.driveFolderId);
+
+      // A folder deleted or binned in Drive is left alone: `ensureBoxFolder`
+      // makes a fresh one when there is next something to put in it, and
+      // reviving this one would resurrect whatever else is in the bin with it.
+      if (existing && !existing.trashed && existing.name !== folderName) {
+        await renameFolder(box.driveFolderId, folderName);
+      }
+    } catch {
+      // The next ingest reconciles it. A rename in the app must not fail
+      // because of something at Google's end.
+    }
+  }
+
+  if (box.gmailLabelId) {
+    const wanted = `${ROOT}/Box/${folderName}`;
+
+    try {
+      const existing = await getLabel(box.gmailLabelId);
+
+      if (existing && existing.name !== wanted) {
+        // Gmail "moves" a label by renaming its path, and the parents have to
+        // exist first — the same trap `ensureBoxLabel` documents.
+        await ensureLabel(`${ROOT}/Box`);
+        await renameLabel(box.gmailLabelId, wanted);
+      }
+    } catch {
+      // Pressing "Make a Gmail label" on the box reconciles it by hand.
+    }
+  }
+}
+
 export async function ensureBoxLabel(boxId: string): Promise<string> {
   const [box] = await db
     .select({ name: boxes.name, gmailLabelId: boxes.gmailLabelId })

@@ -66,6 +66,7 @@ import {
   deleteBoxItem,
   ensureBoxFolder,
   ensureBoxLabel,
+  renameBoxContainers,
   trashBoxFolder,
 } from './google/boxes';
 import { after } from 'next/server';
@@ -2095,6 +2096,12 @@ export async function updateBox(
   const trimmed = name.trim();
   if (!trimmed) return;
 
+  const [before] = await db
+    .select({ name: boxes.name })
+    .from(boxes)
+    .where(eq(boxes.id, boxId))
+    .limit(1);
+
   await db
     .update(boxes)
     .set({
@@ -2106,6 +2113,27 @@ export async function updateBox(
     .where(eq(boxes.id, boxId));
 
   revalidateShell();
+
+  /*
+   * A renamed box has to tell Google, and the Gmail half was not merely untidy.
+   *
+   * The email bridge reads which box a message is for out of the *label's* name
+   * and the ingest route matches that against `boxes.name`; when nothing
+   * matches it falls back to the default box. So a renamed box went on wearing
+   * its old label and every message filed under it landed quietly in the Feed —
+   * somewhere nobody chose, with nothing saying so. Drive was the milder
+   * version of the same thing: `ensureBoxFolder` fixes the folder the next time
+   * a document is filed, which may be never.
+   *
+   * Only when the name actually changed — this action also saves the
+   * instruction and the rules, which are edited far more often and have nothing
+   * to do with either container.
+   */
+  if (before && before.name !== trimmed) {
+    after(async () => {
+      await renameBoxContainers(boxId).catch(() => {});
+    });
+  }
 }
 
 /**

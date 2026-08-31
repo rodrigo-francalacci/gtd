@@ -1567,6 +1567,24 @@ to be kept. They meet at `box_item_links` and nowhere else.
   next time a document is filed there. That keeps "never call Google inside a
   request" intact without inventing a queue keyed on a box — the ingest request
   is already carrying a file, so one more Google call there costs nothing.
+- **Renaming a box carries the name out to both containers, and the Gmail half
+  was a real bug rather than untidiness.** The rule was that Drive reconciles on
+  the way past — `ensureBoxFolder` renames the folder next time a document is
+  filed — which is fine for Drive and quietly wrong for Gmail, because the label
+  is on no path that runs again: `ensureBoxLabel` is called from a button and
+  nowhere else. **The bridge reads which box a message is for out of the
+  label's name**, and `resolveBox` falls back to the default box when nothing
+  matches — so after a rename every message labelled for that box landed in the
+  Feed, filed somewhere nobody chose with nothing saying so.
+  `renameBoxContainers` renames *only what already exists*: creating either here
+  would break the rule both are built on — a folder is made when there is a file
+  to put in it, a label when you ask for one — and renaming is neither moment.
+  Guarded on the name having actually changed, because that action also saves
+  the instruction and the rules, which are edited far more often and have
+  nothing to do with Google. **Nothing else needs touching**: every reference to
+  a box or a document is by id — `box_items.box_id`, `box_item_links.item_id` —
+  so a project citing a document is untouched by a rename, which is the whole
+  reason ids are used rather than names.
 - **Deleting a box refiles its documents into the default one.** The documents
   are the point; the box is only how they were grouped, and a category turning
   out to be a bad idea should not cost a year of receipts. The `restrict`
