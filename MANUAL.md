@@ -343,6 +343,27 @@ re-archived, so it never migrates between years.
 
 ---
 
+### The archive holds two things
+
+**Projects** are grouped by area and goal, as before. **Projectless actions** is
+the second section: everything you finished that was never part of a project,
+newest first. Those are mostly the two-minute jobs ticked off with **Did it** —
+before this they were in the database and on no page at all.
+
+Both sections show their counts even when empty, so you always know what is
+there.
+
+### Searching the archive
+
+The archive has its own box, which searches finished work *only* — so it cannot
+hand back the live projects you were not looking at.
+
+The app-wide search does the opposite: it **leaves finished work out**, so
+results are about what is still live. Start a search with `A:` — as in
+`A: kitchen` — to include the archive; the heading says so when you do.
+
+---
+
 ## The weekly review
 
 A guided, stepped mode that will not let you skip a section.

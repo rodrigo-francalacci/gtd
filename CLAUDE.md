@@ -1412,6 +1412,30 @@ Turbopack is the default; `middleware` is now `proxy`.
 - **Derived state is derived.** Stalled projects, waiting staleness, and a list
   item's `stage` are computed in queries, never stored, so they can't drift
   from the rows.
+- **The archive holds two kinds of finished thing, and the second had nowhere
+  to be.** A done action *with* a project lives in that project's Done fold; one
+  without fell through every list — `/now` shows only `next`, the fold needs a
+  project, and the archive was projects alone. Nothing was lost and no page
+  would show it, which is the worst combination. `getArchivedActions` is that
+  page, newest first by `coalesce(completed_at, created_at)` so a row finished
+  before that column was stamped still lands in roughly the right place.
+  Its own section rather than mixed in among the projects: a project is read for
+  what it recorded over several steps, these are read as a list of what got done
+  and when, and one list holding both would be sorted two ways at once. Both
+  sections are always shown with their counts, even when empty — a section you
+  cannot see is one you do not know about, which is how these went missing.
+- **Search leaves finished work out unless asked, and the archive has its own
+  box.** The archive fills up for ever and answers a different question: live
+  search asks *what am I doing about this*, and a year of completed projects
+  crowding those results makes that harder to answer every month. `A:` is the
+  way in — a prefix rather than a toggle, because the reach is part of the
+  question you are asking rather than a mode to leave switched on, and it is
+  stripped before the query so `A: kitchen` searches for "kitchen".
+  `SearchScope` is three values, not a boolean: `archive` is *only* finished
+  work, so the archive's own box cannot hand back the live projects you were not
+  looking at. Everything that has no finished state — a box document, a capture,
+  a list item, a file — is excluded outright in that scope rather than filtered,
+  because a box is for keeping rather than finishing and has its own search.
 - **`completed_at` is the archive's date, not `updated_at`.** Any edit bumps
   `updated_at`, so it can't date an archive. `setProjectStatus` stamps
   `completed_at` on the move to completed/dropped and clears it on reopen.

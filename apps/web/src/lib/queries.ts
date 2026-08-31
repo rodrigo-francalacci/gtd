@@ -336,6 +336,44 @@ export type ArchivedProjectRow = {
   hasNotes: boolean;
 };
 
+export type ArchivedActionRow = {
+  id: string;
+  title: string;
+  emoji: string | null;
+  completedAt: Date | null;
+  createdAt: Date;
+  hasNotes: boolean;
+};
+
+/**
+ * Finished actions that never belonged to a project.
+ *
+ * These had nowhere to be. `/now` lists only what is `next`, a project's Done
+ * fold needs a project, and the archive was projects alone — so a two-minute
+ * job ticked off with **Did it** left a row that every list filtered out and
+ * only search could reach. Nothing was lost; there was simply no page that
+ * would show it.
+ *
+ * Newest first, and by `completed_at` rather than `updated_at`: any edit bumps
+ * the latter, so it cannot date an archive. A row finished before that column
+ * was stamped falls back to when it was made, which is the only other honest
+ * answer and keeps it in roughly the right place rather than at the end.
+ */
+export async function getArchivedActions(): Promise<ArchivedActionRow[]> {
+  return db
+    .select({
+      id: actions.id,
+      title: actions.title,
+      emoji: actions.emoji,
+      completedAt: actions.completedAt,
+      createdAt: actions.createdAt,
+      hasNotes: sql<boolean>`(${actions.searchText} is not null and ${actions.searchText} <> '')`,
+    })
+    .from(actions)
+    .where(and(eq(actions.status, 'done'), isNull(actions.projectId)))
+    .orderBy(desc(sql`coalesce(${actions.completedAt}, ${actions.createdAt})`));
+}
+
 /**
  * The archive: finished projects, newest first.
  *

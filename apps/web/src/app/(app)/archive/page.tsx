@@ -5,11 +5,13 @@ import { ProjectDetail } from '@/components/project-detail';
 import { attachmentsFor, documentsFor } from '@/lib/file-lists';
 import {
   getAreasAndGoals,
+  getArchivedActions,
   getArchivedProjects,
   getLinkableDocuments,
   getProject,
   getProjectActions,
 } from '@/lib/queries';
+import { search } from '@/lib/search';
 import { getPreferences, paneWidth } from '@/lib/view-mode';
 import { densityKeys, getView } from '@/lib/view-prefs';
 
@@ -29,17 +31,23 @@ export default async function ArchivePage(props: PageProps<'/archive'>) {
   const selectedId =
     typeof searchParams.project === 'string' ? searchParams.project : null;
   const showDropped = searchParams.dropped === '1';
+  const view = searchParams.view === 'actions' ? 'actions' : 'projects';
+  const find = typeof searchParams.find === 'string' ? searchParams.find.trim() : '';
 
 
   const viewKey = densityKeys.path('/archive');
-  const [archived, selected, prefs, view] = await Promise.all([
+  const [archived, archivedActions, hits, selected, prefs, stored] = await Promise.all([
     getArchivedProjects(),
+    getArchivedActions(),
+    // Archive-only, so searching here cannot hand back the live work you were
+    // not looking at. Skipped entirely when nothing has been searched for.
+    find ? search(find, 60, 'archive') : Promise.resolve([]),
     selectedId ? getProject(selectedId) : Promise.resolve(null),
     getPreferences(),
     getView(viewKey),
   ]);
 
-  const viewMode = view.density ?? prefs.viewMode;
+  const viewMode = stored.density ?? prefs.viewMode;
 
   const [selectedActions, horizons] = selected
     ? await Promise.all([getProjectActions(selected.id), getAreasAndGoals()])
@@ -55,6 +63,10 @@ export default async function ArchivePage(props: PageProps<'/archive'>) {
     <>
       <ArchiveListPane
         projects={archived}
+        actions={archivedActions}
+        hits={hits}
+        view={view}
+        find={find}
         selectedId={selectedId}
         showDropped={showDropped}
         viewMode={viewMode}

@@ -1,7 +1,9 @@
 import Link from 'next/link';
 import { EmptyList, ListPane } from '@/components/panes';
 import { ARCHIVE_COLUMNS } from '@/lib/columns';
-import type { ArchivedProjectRow } from '@/lib/queries';
+import type { ArchivedActionRow, ArchivedProjectRow } from '@/lib/queries';
+import { hrefFor, type SearchHit } from '@/lib/search';
+import { ArchiveSearch } from './archive-search';
 import type { ViewMode } from '@/lib/pane';
 import { SimpleRow } from './simple-row';
 
@@ -15,6 +17,10 @@ import { SimpleRow } from './simple-row';
  */
 export function ArchiveListPane({
   projects,
+  actions,
+  hits,
+  view,
+  find,
   selectedId,
   showDropped,
   viewMode,
@@ -22,6 +28,19 @@ export function ArchiveListPane({
   paneWidth,
 }: {
   projects: ArchivedProjectRow[];
+  /**
+   * Finished actions that never had a project.
+   *
+   * Their own section rather than mixed in among the projects: a project is a
+   * record of something that took several steps and is read for what it says,
+   * while these are single jobs read as a list of what got done and when. One
+   * list containing both would be sorted two ways at once.
+   */
+  actions: ArchivedActionRow[];
+  /** Archive-only search results, when something has been searched for. */
+  hits: SearchHit[];
+  view: 'projects' | 'actions';
+  find: string;
   selectedId: string | null;
   showDropped: boolean;
   viewMode: ViewMode;
@@ -52,24 +71,65 @@ export function ArchiveListPane({
       viewMode={viewMode}
       viewKey={viewKey}
       paneWidth={paneWidth}
-      columns={ARCHIVE_COLUMNS}
+      columns={view === 'projects' && !find ? ARCHIVE_COLUMNS : undefined}
       subtitle={
-        <div className="flex flex-wrap items-center gap-2">
-          <span>
-            {rows.length} finished project{rows.length === 1 ? '' : 's'}
-          </span>
-          {droppedCount > 0 ? (
+        <div className="flex flex-col gap-2">
+          <ArchiveSearch term={find} view={view === 'actions' ? 'actions' : null} />
+
+          {/* The two things the archive holds. Always both, even when one is
+              empty — a section you cannot see is one you do not know about,
+              which is how the projectless actions went missing in the first
+              place. */}
+          <div className="flex flex-wrap items-center gap-2">
             <Link
-              href={showDropped ? '/archive' : '/archive?dropped=1'}
-              className="underline underline-offset-2"
+              href={find ? `/archive?find=${encodeURIComponent(find)}` : '/archive'}
+              aria-current={view === 'projects' ? 'true' : undefined}
+              className={
+                view === 'projects'
+                  ? 'font-medium text-grey-800'
+                  : 'underline underline-offset-2 hover:text-grey-800'
+              }
             >
-              {showDropped ? 'Hide dropped' : `Show ${droppedCount} dropped`}
+              Projects {projects.length}
             </Link>
-          ) : null}
+            <span aria-hidden className="text-grey-300">
+              ·
+            </span>
+            <Link
+              href={
+                find
+                  ? `/archive?view=actions&find=${encodeURIComponent(find)}`
+                  : '/archive?view=actions'
+              }
+              aria-current={view === 'actions' ? 'true' : undefined}
+              className={
+                view === 'actions'
+                  ? 'font-medium text-grey-800'
+                  : 'underline underline-offset-2 hover:text-grey-800'
+              }
+            >
+              Projectless actions {actions.length}
+            </Link>
+
+            {view === 'projects' && droppedCount > 0 && !find ? (
+              <Link
+                href={showDropped ? '/archive' : '/archive?dropped=1'}
+                className="underline underline-offset-2"
+              >
+                {showDropped ? 'Hide dropped' : `Show ${droppedCount} dropped`}
+              </Link>
+            ) : null}
+          </div>
         </div>
       }
     >
-      {rows.length === 0 ? (
+      {find ? (
+        <ArchiveResults hits={hits} term={find} />
+      ) : view === 'actions' ? (
+        <ArchiveActions actions={actions} />
+      ) : (
+        <>
+          {rows.length === 0 ? (
         <EmptyList
           message={
             projects.length === 0
@@ -107,9 +167,79 @@ export function ArchiveListPane({
                 </div>
               ))}
           </section>
-        ))
+            ))
+          )}
+        </>
       )}
     </ListPane>
+  );
+}
+
+/**
+ * What got done that was never part of anything bigger, newest first.
+ *
+ * Dated rather than grouped: these are read as a record of when things
+ * happened, and a heading per day over a list that grows by one every few days
+ * would be more headings than rows.
+ */
+function ArchiveActions({ actions }: { actions: ArchivedActionRow[] }) {
+  if (actions.length === 0) {
+    return (
+      <EmptyList message="Nothing here yet. A finished action with no project lands here — the two-minute jobs you tick off with “Did it”." />
+    );
+  }
+
+  return (
+    <>
+      {actions.map((action) => (
+        <div
+          key={action.id}
+          className="flex items-baseline gap-2 border-b border-grey-150 px-4 py-2 text-[13px]"
+        >
+          {/* Greyed, not struck through: a finished step is a record of what
+              was done, and a line through it says disregard. */}
+          {action.emoji ? (
+            <span aria-hidden className="w-5 shrink-0">
+              {action.emoji}
+            </span>
+          ) : null}
+          <span className="min-w-0 flex-1 truncate text-grey-500">{action.title}</span>
+          {action.hasNotes ? (
+            <span className="shrink-0 text-[11px] text-grey-400" title="Has notes">
+              ¶
+            </span>
+          ) : null}
+          <span className="shrink-0 tabular-nums text-[11px] text-grey-400">
+            {dateFormat.format(action.completedAt ?? action.createdAt)}
+          </span>
+        </div>
+      ))}
+    </>
+  );
+}
+
+/** Archive-only results, so searching here cannot hand back live work. */
+function ArchiveResults({ hits, term }: { hits: SearchHit[]; term: string }) {
+  if (hits.length === 0) {
+    return <EmptyList message={`Nothing in the archive matches “${term}”.`} />;
+  }
+
+  return (
+    <>
+      {hits.map((hit) => (
+        <Link
+          key={`${hit.kind}:${hit.id}`}
+          href={hrefFor(hit)}
+          className="block border-b border-grey-150 px-4 py-2 hover:bg-grey-100"
+        >
+          <p className="truncate text-[13px] text-grey-800">{hit.title}</p>
+          <p className="text-[11px] text-grey-500">
+            {hit.kind === 'project' ? 'Project' : 'Action'}
+            {hit.context ? ` · ${hit.context}` : ''}
+          </p>
+        </Link>
+      ))}
+    </>
   );
 }
 

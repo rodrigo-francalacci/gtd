@@ -1,5 +1,12 @@
 import Link from 'next/link';
-import { KIND_LABELS, hrefFor, search, type SearchHit, type SearchKind } from '@/lib/search';
+import {
+  KIND_LABELS,
+  hrefFor,
+  readArchiveScope,
+  search,
+  type SearchHit,
+  type SearchKind,
+} from '@/lib/search';
 
 /**
  * What order the groups come in — and, more usefully, a guarantee that every
@@ -26,8 +33,15 @@ const KINDS = (Object.keys(KIND_ORDER) as SearchKind[]).sort(
 
 export default async function SearchPage(props: PageProps<'/search'>) {
   const searchParams = await props.searchParams;
-  const term = typeof searchParams.q === 'string' ? searchParams.q : '';
-  const hits = await search(term);
+  const raw = typeof searchParams.q === 'string' ? searchParams.q : '';
+
+  /*
+   * `A:` reaches into finished work; without it the archive is left out. Live
+   * search answers "what am I doing about this", and a year of completed
+   * projects crowding those results makes that harder to answer every month.
+   */
+  const { term, archived } = readArchiveScope(raw);
+  const hits = await search(term, 60, archived ? 'all' : 'live');
 
   const grouped = KINDS.map((kind) => ({
     kind,
@@ -39,6 +53,11 @@ export default async function SearchPage(props: PageProps<'/search'>) {
       <div className="max-w-[46rem] px-8 py-7">
         <h1 className="text-xl font-semibold text-grey-900">
           {term ? <>Results for “{term}”</> : 'Search'}
+          {archived ? (
+            <span className="ml-2 text-[13px] font-normal text-grey-500">
+              including the archive
+            </span>
+          ) : null}
         </h1>
 
         {!term ? (
@@ -47,6 +66,14 @@ export default async function SearchPage(props: PageProps<'/search'>) {
             inbox captures, everything filed in a box, and what your files
             actually say. Quoted phrases, <code>-exclusions</code> and{' '}
             <code>OR</code> all work.
+          </p>
+        ) : null}
+
+        {!term ? (
+          <p className="mt-2 max-w-prose text-[13px] leading-relaxed text-grey-600">
+            Finished projects and completed actions are left out, so results are
+            about work that is still live. Start with <code>A:</code> — as in{' '}
+            <code>A: kitchen</code> — to search the archive as well.
           </p>
         ) : hits.length === 0 ? (
           <p className="mt-3 text-[13px] text-grey-500">

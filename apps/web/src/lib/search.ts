@@ -37,9 +37,72 @@ const HEADLINE_OPTS =
  * called "kitchen" should beat an action that merely mentions kitchens in its
  * notes.
  */
-export async function search(term: string, limit = 60): Promise<SearchHit[]> {
-  const trimmed = term.trim();
+/**
+ * Whether a search should reach into finished work, and what to search for.
+ *
+ * The archive fills up for ever and is read for a different reason: live search
+ * answers *what am I doing about this*, and a year of completed projects
+ * crowding those results makes the question harder to answer every month. So it
+ * is left out by default and asked for explicitly with an `A:` prefix — short
+ * because it is typed, and a prefix rather than a toggle because the decision is
+ * part of the question you are asking, not a mode to be left switched on.
+ *
+ * Case-insensitive, and the prefix is stripped: `A: kitchen` searches for
+ * "kitchen", not for "A: kitchen".
+ */
+export function readArchiveScope(term: string): { term: string; archived: boolean } {
+  const match = /^a:\s*/i.exec(term.trim());
+
+  return match
+    ? { term: term.trim().slice(match[0].length).trim(), archived: true }
+    : { term: term.trim(), archived: false };
+}
+
+/**
+ * How far a search reaches.
+ *
+ * `live` leaves finished work out, `all` includes it, and `archive` is *only*
+ * finished work — which is what the archive's own box does, so searching there
+ * cannot hand back the live projects you were not looking at.
+ */
+export type SearchScope = 'live' | 'all' | 'archive';
+
+export async function search(
+  rawTerm: string,
+  limit = 60,
+  scope: SearchScope = 'live',
+): Promise<SearchHit[]> {
+  const trimmed = rawTerm.trim();
   if (!trimmed) return [];
+
+  /*
+   * Written as SQL fragments rather than as a `where` on each arm, so the two
+   * halves of "what counts as archived" — a project's status, and an action
+   * being done or belonging to a finished project — are stated once and cannot
+   * drift apart.
+   */
+  const projectScope =
+    scope === 'all'
+      ? sql`true`
+      : scope === 'archive'
+        ? sql`p.status in ('completed', 'dropped')`
+        : sql`p.status not in ('completed', 'dropped')`;
+
+  const actionScope =
+    scope === 'all'
+      ? sql`true`
+      : scope === 'archive'
+        ? sql`(act.status = 'done' or pr.status in ('completed', 'dropped'))`
+        : sql`act.status <> 'done'
+              and (pr.id is null or pr.status not in ('completed', 'dropped'))`;
+
+  /*
+   * Everything that is not a project or an action is live by definition — a
+   * box document, a capture, a list item and a file have no finished state — so
+   * in `archive` scope they are excluded outright rather than filtered. A box
+   * is for keeping, not for finishing, and it has its own search.
+   */
+  const otherScope = scope === 'archive' ? sql`false` : sql`true`;
 
   const rows = await db.execute(sql`
     with q as (select websearch_to_tsquery('english', ${trimmed}) as tsq)
@@ -56,7 +119,7 @@ export async function search(term: string, limit = 60): Promise<SearchHit[]> {
       from projects p
       cross join q
       left join areas_of_focus a on a.id = p.area_id
-      where p.search_vector @@ q.tsq
+      where p.search_vector @@ q.tsq and ${projectScope}
 
       union all
 
@@ -72,7 +135,7 @@ export async function search(term: string, limit = 60): Promise<SearchHit[]> {
       from actions act
       cross join q
       left join projects pr on pr.id = act.project_id
-      where act.search_vector @@ q.tsq
+      where act.search_vector @@ q.tsq and ${actionScope}
 
       union all
 
@@ -87,7 +150,7 @@ export async function search(term: string, limit = 60): Promise<SearchHit[]> {
       from list_items li
       cross join q
       join lists l on l.id = li.list_id
-      where li.search_vector @@ q.tsq
+      where li.search_vector @@ q.tsq and ${otherScope}
 
       union all
 
@@ -101,7 +164,7 @@ export async function search(term: string, limit = 60): Promise<SearchHit[]> {
         ts_rank(ib.search_vector, q.tsq)
       from inbox_items ib
       cross join q
-      where ib.search_vector @@ q.tsq
+      where ib.search_vector @@ q.tsq and ${otherScope}
 
       union all
 
@@ -130,7 +193,7 @@ export async function search(term: string, limit = 60): Promise<SearchHit[]> {
       left join actions act on act.id = att.parent_id and att.parent_type = 'action'
       left join list_items li on li.id = att.parent_id and att.parent_type = 'list_item'
       left join inbox_items ibp on ibp.id = att.parent_id and att.parent_type = 'inbox_item'
-      where att.search_vector @@ q.tsq
+      where att.search_vector @@ q.tsq and ${otherScope}
 
       union all
 
@@ -167,7 +230,7 @@ export async function search(term: string, limit = 60): Promise<SearchHit[]> {
       from box_items bi
       cross join q
       join boxes bx on bx.id = bi.box_id
-      where bi.search_vector @@ q.tsq
+      where bi.search_vector @@ q.tsq and ${otherScope}
     ) hits
     order by rank desc, title asc
     limit ${limit}
