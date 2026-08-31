@@ -44,6 +44,7 @@ import {
 import { suggester } from './ai/suggest';
 import { readPurchase, type PurchaseRead } from './ai/purchase';
 import { oneEmoji, pickEmoji } from './ai/emoji';
+import { suggestContexts } from './ai/contexts';
 import { nameAttachment } from './ai/filename';
 import { requireSession } from './auth/session';
 import type { ReviewStep } from './review';
@@ -824,6 +825,44 @@ async function outcomeProject(
     default:
       return null;
   }
+}
+
+/**
+ * Guess a capture's Where, Time and Energy when you say it is actionable.
+ *
+ * Fired by the decision, not by the capture: pressing "Next action" is the
+ * moment these three fields become worth filling in, and asking at capture time
+ * would spend money on every thought including the ones that turn out to be
+ * rubbish. It is also the moment the answer is cheapest to check — the pane is
+ * already open in front of you.
+ *
+ * Reads the vocabulary here rather than taking it from the client, because what
+ * comes back is validated against it and validation against something the
+ * caller supplied is not validation.
+ */
+export async function suggestClarifyContexts(itemId: string): Promise<string[]> {
+  await requireSession();
+
+  const [item] = await db
+    .select({ rawText: inboxItems.rawText })
+    .from(inboxItems)
+    .where(eq(inboxItems.id, itemId))
+    .limit(1);
+
+  if (!item?.rawText) return [];
+
+  const rows = await db
+    .select({ id: contexts.id, name: contexts.name, dimension: contexts.dimension })
+    .from(contexts);
+
+  const pick = (dimension: string) =>
+    rows.filter((r) => r.dimension === dimension).map((r) => ({ id: r.id, name: r.name }));
+
+  return suggestContexts(item.rawText, {
+    place: pick('place'),
+    time: pick('time'),
+    energy: pick('energy'),
+  });
 }
 
 export type ClarifyDecision =

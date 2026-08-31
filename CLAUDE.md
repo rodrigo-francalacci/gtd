@@ -661,6 +661,26 @@ Turbopack is the default; `middleware` is now `proxy`.
 ` in
   the middle of the document, a stray carriage return that survives `trim()` and
   surfaces later as a blank line nobody typed.
+- **Where, Time and Energy are guessed when you say it is actionable — never
+  `who`.** Filling in three dimensions by hand is the slow part of clarifying,
+  and slow in a particular way: none of them is hard, they are three more
+  decisions between a thought and being done with it. Amending one wrong guess
+  beats making three right ones, which is the whole argument.
+  `who` is excluded on purpose. The other three are properties of the work — a
+  phone call is a phone call wherever it came from — while who you need is a
+  fact about your life that a capture rarely states, and a wrong person is worse
+  than none because it puts the row on somebody's agenda.
+  **Fired by the decision, not by the capture.** Pressing one of the three
+  actionable buttons is the moment these fields become worth filling in;
+  guessing at capture time would spend money on every thought including the
+  rubbish. It is also when the guess is cheapest to check, since the pane is
+  already open. Guarded by a ref so pressing a second actionable button does not
+  buy the same answer twice, and the non-actionable buttons never ask at all.
+  **Merged under what you have already chosen, never over it**: the request is
+  in flight while the pane is usable, so an answer arriving late must not undo a
+  pick you have made meanwhile. And validated per *dimension* — a time id
+  returned under `place` is a mistake, not a preference, and letting it through
+  would put "30 min" in the Where row where nothing would ever explain it.
 - **Capture never blocks on enrichment.** `captureInboxItem` writes the row,
   then attempts a suggestion in a try/catch — a failing suggester must never
   cost you the thought. Suggestions pre-fill the clarify form and commit

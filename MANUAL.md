@@ -149,6 +149,21 @@ the action, project or list item the capture became — stranding it on a
 clarified row nobody reopens would lose it. Trash is the exception: no outcome
 row, so the file stays on the capture, which keeps the evidence intact.
 
+### The contexts are guessed for you
+
+Press **Next action**, **Waiting for** or **Project** and the app guesses the
+**Where**, **Time** and **Energy** from what you wrote — the word *guessing…*
+appears beside Contexts while it does. Amend anything that is wrong; that is far
+less work than filling in three fields from scratch, which is the point.
+
+**Who is never guessed.** The other three are facts about the work; who you need
+is a fact about your life that a capture rarely states, and a wrong name puts the
+row on somebody's agenda. That one stays yours.
+
+It asks once per capture, only when you say it is actionable, and never for
+Trash, a list or a box — so nothing is spent on thoughts that turn out to be
+rubbish. Anything you have already picked is kept.
+
 ### Attach it to something you already have
 
 Photograph a quote at the merchant's, scan a letter, snap a whiteboard — and

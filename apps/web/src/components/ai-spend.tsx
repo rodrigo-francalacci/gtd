@@ -25,6 +25,7 @@ const PURPOSES: Record<string, string> = {
   purchase: 'Reading receipts',
   link: 'Reading links',
   filename: 'Naming files',
+  contexts: 'Suggesting contexts',
 };
 
 /** Money, to the cent, because these are small numbers and rounding hides them. */

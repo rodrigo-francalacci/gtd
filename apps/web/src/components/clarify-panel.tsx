@@ -1,7 +1,11 @@
 'use client';
 
-import { useState, useTransition } from 'react';
-import { clarifyInboxItem, type ClarifyDecision } from '@/lib/actions';
+import { useRef, useState, useTransition } from 'react';
+import {
+  clarifyInboxItem,
+  suggestClarifyContexts,
+  type ClarifyDecision,
+} from '@/lib/actions';
 import type { ListOrder } from '@/lib/file-lists';
 import type { AttachmentRow } from '@/lib/queries.shared';
 import type { Context } from '@gtd/db';
@@ -112,6 +116,52 @@ export function ClarifyPanel({
   const [contextIds, setContextIds] = useState<string[]>(
     item.aiSuggestion?.contextIds ?? [],
   );
+
+  /**
+   * Whether the contexts have been guessed for this capture yet.
+   *
+   * A ref rather than state: it only ever stops a second request, and putting
+   * it in state would re-render the pane for a fact nothing draws. Keyed on the
+   * item so moving down the queue asks again — this component is remounted per
+   * row by its `key`, but the guard has to be right either way.
+   */
+  const guessed = useRef<string | null>(null);
+  const [guessing, setGuessing] = useState(false);
+
+  /**
+   * Ask for Where, Time and Energy the moment you say it is actionable.
+   *
+   * Here rather than at capture, because pressing one of these three buttons is
+   * what makes the fields worth filling in — guessing for every thought would
+   * spend money on the ones that turn out to be rubbish. And it is the moment
+   * the guess is cheapest to check, since the pane is already open.
+   *
+   * Whatever comes back is *merged under* what you have already picked: the
+   * request is in flight while the pane is usable, so a suggestion arriving
+   * after you have chosen something must not undo it. `who` is never
+   * suggested and so is never disturbed.
+   */
+  const choose = (next: Kind | null) => {
+    setKind(next);
+
+    if (next !== 'next_action' && next !== 'waiting' && next !== 'project') return;
+    if (guessed.current === item.id) return;
+
+    guessed.current = item.id;
+    setGuessing(true);
+
+    void suggestClarifyContexts(item.id)
+      .then((ids) => {
+        setContextIds((current) => [
+          ...current,
+          ...ids.filter((id) => !current.includes(id)),
+        ]);
+      })
+      .catch(() => {
+        // Three empty rows is exactly what this replaced, and is fine.
+      })
+      .finally(() => setGuessing(false));
+  };
 
   const suggestedProject = projects.find((p) => p.id === item.aiSuggestion?.projectId);
 
@@ -269,13 +319,13 @@ export function ClarifyPanel({
         <Row
           options={ACTIONABLE}
           selected={kind}
-          onSelect={setKind}
+          onSelect={choose}
           heading="Yes"
         />
         <Row
           options={NOT_ACTIONABLE}
           selected={kind}
-          onSelect={setKind}
+          onSelect={choose}
           heading="No"
         />
       </div>
@@ -414,6 +464,18 @@ export function ClarifyPanel({
               <div className="mt-3 space-y-1.5">
                 <span className="block text-[10px] font-semibold uppercase tracking-wider text-grey-500">
                   Contexts
+                  {/*
+                    Said out loud while it happens, and only while it happens.
+                    Three chips lighting up on their own a second after you
+                    pressed something else is the app appearing to have a mind
+                    of its own; a word saying what it is doing makes it a
+                    suggestion you were told about.
+                  */}
+                  {guessing ? (
+                    <span className="ml-2 font-normal normal-case tracking-normal text-grey-400">
+                      guessing…
+                    </span>
+                  ) : null}
                 </span>
                 {dimensions.map(({ key, label }) => {
                   const items = contextGroups[key];
