@@ -3,7 +3,6 @@
 import { useSearchParams } from 'next/navigation';
 import type { BoxCategoryRow } from '@/lib/queries.shared';
 import { FilterChip, filterHref } from './filter-chip';
-import { useSidebarSlot } from './sidebar-slot';
 
 /**
  * The tags worth offering right now — one row, no categories.
@@ -63,7 +62,6 @@ export function TagFilter({
   counts: Record<string, number>;
 }) {
   const searchParams = useSearchParams();
-  const slot = useSidebarSlot();
   const base = `/box/${boxId}`;
 
   /** Every tag that would still find something, with the category it came from. */
@@ -107,7 +105,6 @@ export function TagFilter({
   });
 
   const quick = ranked.slice(0, QUICK_TAGS);
-  const rest = ranked.length - quick.length;
 
   return (
     <div className="flex flex-wrap items-baseline gap-1">
@@ -149,16 +146,13 @@ export function TagFilter({
         );
       })}
 
-      <button
-        type="button"
-        onClick={() => slot.claim('tag-browser')}
-        title="Every tag in this box, by category"
-        className="shrink-0 rounded-sm bg-grey-150 px-1.5 py-px text-[11px] text-grey-500 hover:bg-grey-300 hover:text-grey-800"
-      >
-        {/* Says how many are not on the bar when there are any, because "+37"
-            is a fact about this box and "All tags" is a fact about every box. */}
-        {rest > 0 ? `+${rest} more` : 'All tags'}
-      </button>
+      {/*
+        The way into the whole vocabulary used to be a chip on the end of this
+        row — which put it at the end of the very thing it opens, and below the
+        fold on a narrow pane. It is a button in the pane header now, beside the
+        control for how the box is looked at, because choosing tags and choosing
+        a layout are the two things you do to a box constantly.
+      */}
     </div>
   );
 }

@@ -144,6 +144,29 @@ export async function setBoxViewFor(key: string, view: 'list' | 'gallery'): Prom
     });
 }
 
+/**
+ * A box's whole layout in one write.
+ *
+ * A box asks one question — *how do I want to look at this box* — and the two
+ * columns behind it are an implementation detail of that question. Setting them
+ * with two calls would be two HTTP round trips on this driver for one click,
+ * and would leave a window where the box is showing pictures at a density
+ * nothing is going to read.
+ */
+export async function setBoxLayout(
+  key: string,
+  view: 'list' | 'gallery',
+  density: ViewMode,
+): Promise<void> {
+  await db
+    .insert(viewPrefs)
+    .values({ key, boxView: view, density })
+    .onConflictDoUpdate({
+      target: viewPrefs.key,
+      set: { boxView: view, density, updatedAt: sql`now()` },
+    });
+}
+
 export async function setLayout(key: string, layout: ListLayout): Promise<void> {
   await db
     .insert(viewPrefs)

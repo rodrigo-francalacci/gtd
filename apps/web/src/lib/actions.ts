@@ -76,6 +76,8 @@ import { canClassify } from './box/classify';
 import { canGroup, type SortChoice } from './sort';
 import { setUsage, type UsableType } from './usage';
 import {
+  getView,
+  setBoxLayout,
   setBoxViewFor,
   setDensity,
   setLayout,
@@ -1387,6 +1389,48 @@ export async function setBoxView(view: BoxView, key?: string) {
 
   if (key) await setBoxViewFor(key, view);
   else await savePreference({ boxView: view });
+
+  revalidateShell();
+}
+
+/**
+ * How a box is laid out, as the one choice it actually is.
+ *
+ * A box's header used to carry two controls: three densities, and a separate
+ * list/pictures switch beside them. But *comfortable* — metadata wrapped onto a
+ * second line — is answering the same question the pictures answer, and
+ * answering it worse: a scan is recognised by its shape long before its title
+ * is read. So the box offers three, `pictures | compact | titles`, and the
+ * switch that used to sit beside them is gone. That freed slot is the tag
+ * button, which is the thing you actually reach for in a box.
+ *
+ * Only in a box. Every other list keeps all three densities, because a list of
+ * actions has no pictures to offer and comfortable is a real answer there.
+ */
+export async function setBoxLayoutChoice(
+  key: string,
+  choice: 'pictures' | 'compact' | 'titles',
+) {
+  await requireSession();
+
+  /*
+   * Pictures keeps whatever density is stored rather than picking one: the
+   * gallery does not read it, and coming back from pictures should land you on
+   * the density you left rather than one this chose for you.
+   */
+  const current = choice === 'pictures' ? await getView(key) : null;
+
+  await setBoxLayout(
+    key,
+    choice === 'pictures' ? 'gallery' : 'list',
+    choice === 'pictures'
+      ? // Comfortable is not offered in a box any more, so a box still carrying
+        // it comes back as compact rather than as a density with no button.
+        (current?.density === 'simple' ? 'simple' : 'compact')
+      : choice === 'compact'
+        ? 'compact'
+        : 'simple',
+  );
 
   revalidateShell();
 }

@@ -1740,6 +1740,29 @@ to be kept. They meet at `box_item_links` and nowhere else.
   error, and the same answer bought four more times. The prompt asks for the
   first few pages verbatim and a summary of the rest — the field exists so a
   document can be found again, not so it can be reproduced.
+- **A box has one layout control, and it is three answers rather than two
+  controls.** The header carried the three densities *and* a separate
+  list/pictures switch — but `comfortable`, which wraps metadata onto a second
+  line, is answering the same question the pictures answer and answering it
+  worse: a scan is recognised by its shape long before its title is read, and a
+  second line of metadata is neither the shape nor the title. So a box offers
+  `pictures | compact | titles`, and the switch that sat beside them is gone.
+  **Only in a box.** Every other list keeps all three densities, because a list
+  of actions has no pictures to offer and comfortable is a real answer there —
+  removing it everywhere would be taking something away to tidy something else.
+  `setBoxLayout` writes both columns in one statement: two calls would be two
+  round trips for one click and would leave a window where the box shows
+  pictures at a density nothing reads. Pictures keeps the stored density rather
+  than choosing one, so leaving and coming back lands where you were; a box
+  still carrying `comfortable` resolves to compact, since there is no longer a
+  button that means it.
+- **The freed slot is the tag button, and that is the point of the trade.** The
+  way into a box's vocabulary used to be a chip on the end of the quick tag bar
+  reading "+37 more" — the way *in* to the tags, at the end of the tags, below
+  the fold on a narrow pane. Choosing tags and choosing a layout are the two
+  things you do to a box constantly, so they sit together in the header. It
+  claims the same sidebar slot `TagBrowser` already used, so it is a column on a
+  desktop and a sheet on a phone without either being written twice.
 - **The gallery is a preference, not a fourth density.** Densities trade
   metadata for rows and apply everywhere; `box_view` only means anything where
   the things listed have a picture, and a scan is recognised by its shape long

@@ -1129,6 +1129,21 @@ project, action or list item it hangs off.
 
 ## Views and preferences
 
+### A box is laid out three ways
+
+A box's header has one control, not two: **with pictures**, **compact list**, or
+**titles only**. Comfortable is not offered here — wrapping each row's metadata
+onto a second line is answering the same question the pictures answer, and
+answering it worse, since a scan is recognised by its shape long before its
+title is read.
+
+Beside it is the **tag button**, which opens that box's whole vocabulary in the
+first column — a column on a desktop, a sheet on a phone. It replaces the
+"+37 more" chip that used to sit at the end of the quick tag bar.
+
+Every other list still has all three densities below; a list of actions has no
+pictures to offer, so comfortable is a real answer there.
+
 ### Three densities
 
 | Density | Shows |

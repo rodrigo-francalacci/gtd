@@ -4,7 +4,8 @@ import { documentLabel } from '@/lib/queries.shared';
 import { DayJournal } from '@/components/day-journal';
 import { DocumentDetail } from '@/components/document-detail';
 import { BoxComposer } from '@/components/box-composer';
-import { BoxViewToggle } from '@/components/box-view-toggle';
+import { BoxLayoutToggle } from '@/components/box-layout-toggle';
+import { TagPanelButton } from '@/components/tag-panel-button';
 import { DateRange } from '@/components/date-range';
 import { DocumentGalleryRow } from '@/components/document-gallery-row';
 import { DocumentRow } from '@/components/document-row';
@@ -257,7 +258,19 @@ export default async function BoxPage(props: PageProps<'/box/[id]'>) {
          * They were taking permanent width from the one pane header that
          * already had the most in it.
          */
-        actions={<BoxViewToggle view={boxView} viewKey={viewKey} />}
+        /*
+         * One control for how the box is looked at, and the tag button beside
+         * it. The density switch `ListPane` renders for every other list is
+         * turned off here — a box's three answers are pictures, columns and
+         * titles, and `comfortable` is not one of them.
+         */
+        showToggle={false}
+        actions={
+          <>
+            <TagPanelButton total={categories.reduce((n, c) => n + c.tags.length, 0)} />
+            <BoxLayoutToggle view={boxView} mode={viewMode} viewKey={viewKey} />
+          </>
+        }
         subtitle={
           <div className="flex flex-col gap-2">
             {span ? (
