@@ -332,6 +332,29 @@ double-counting. A purchase item carries a cost, an optional project, an impact
 town*). Filters narrow the list; the budget totals stay over the whole list,
 because a filtered subtotal masquerading as the budget would mislead.
 
+### Grouping by impact
+
+A purchases list in one column answers "what shall I buy" badly: the thing
+holding a project up sits beside the thing you fancy, in whatever order you
+wrote them down.
+
+The third layout button cuts the list into what each purchase would **do** —
+*Blocks a project*, *Improves things*, *Nice to have* — with a count and a
+total under each heading. The total is the part that decides: "nice to have"
+reads differently at nine hundred pounds than at nine.
+
+All three groups are there whether or not they hold anything, because an empty
+group you cannot see is one you cannot drop into. A fourth, *Not said yet*,
+holds whatever has not been placed and disappears once the last one has — it is
+a backlog, not a category.
+
+**Drag a row from one group to another to set its impact.** The same drag still
+reorders within a group, exactly as it does in your own order. You can also set
+it from the item's own pane, which is where it has always been.
+
+A total counts only what has a price. A group of six unpriced wants adding up to
+zero would be a lie with a number on it.
+
 ### Costing a combination
 
 Those three totals report decisions already taken. To ask the question you

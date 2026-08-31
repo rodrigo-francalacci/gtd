@@ -348,6 +348,21 @@ export const IconTube = (p: IconProps) => (
   </Glyph>
 );
 
+/**
+ * Grouped by impact — three bars of decreasing weight.
+ *
+ * Not a chart and not an arrow: what this arranges by is *rank of consequence*,
+ * and three unequal bars say that at fourteen pixels where a sorting glyph
+ * would only say "ordered".
+ */
+export const IconImpact = (p: IconProps) => (
+  <Glyph {...p}>
+    <path d="M2.6 4.4h10.8" />
+    <path d="M2.6 8h7.2" />
+    <path d="M2.6 11.6h3.8" />
+  </Glyph>
+);
+
 /** Add — a plain cross, which is what every "add one more" control has been. */
 export const IconPlus = (p: IconProps) => (
   <Glyph {...p}>

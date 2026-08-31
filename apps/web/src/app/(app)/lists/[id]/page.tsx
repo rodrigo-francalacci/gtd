@@ -22,6 +22,8 @@ import { DayHeading } from '@/components/day-heading';
 import { LayoutToggle } from '@/components/layout-toggle';
 import { EmojifyButton } from '@/components/emojify-button';
 import { ListItemRow } from '@/components/list-item-row';
+import { ImpactBucket } from '@/components/impact-bucket';
+import { IMPACT_LABELS, type PurchaseImpact } from '@/lib/queries.shared';
 import { groupByDay } from '@/lib/days';
 
 export default async function ListPage(props: PageProps<'/lists/[id]'>) {
@@ -131,7 +133,7 @@ export default async function ListPage(props: PageProps<'/lists/[id]'>) {
               ids={items.map((i) => i.id)}
               marked={items.filter((i) => i.emoji).length}
             />
-            <LayoutToggle layout={layout} viewKey={viewKey} />
+            <LayoutToggle layout={layout} viewKey={viewKey} impact={isPurchases} />
             {isPurchases ? (
               <Link
                 href={budgetHref}
@@ -163,7 +165,93 @@ export default async function ListPage(props: PageProps<'/lists/[id]'>) {
       >
         <QuickAddListItem listId={id} />
 
-        {layout === 'timeline' ? (
+        {layout === 'impact' && isPurchases ? (
+          /*
+           * The same rows, cut by what each one would *do*.
+           *
+           * A purchases list in one column answers "what shall I buy" badly:
+           * the thing holding a project up sits beside the thing you fancy, in
+           * whatever order they were written down. Grouped by impact the list
+           * answers it directly, and the total under each heading says what
+           * answering it would cost — which is the number that actually
+           * decides, since "nice to have" reads differently at nine hundred
+           * pounds.
+           *
+           * All three buckets are rendered whether or not they hold anything,
+           * for the reason the project statuses are: an empty group you cannot
+           * see is an empty group you cannot drop into. The fourth is only
+           * there while something is still undecided, and disappears when the
+           * last one has been placed — it is a backlog, not a category.
+           *
+           * Each bucket holds a real sortable list, which is what makes the
+           * gesture work at all: the grip lives there, so the rows are
+           * draggable, and one drag does both jobs — dropped inside its own
+           * bucket it reorders, dropped on another it changes the impact.
+           * `SortableList` ignores a row it does not contain without
+           * preventing the default, so the bucket underneath sees it. That is
+           * the arrangement the action and project buckets already run on.
+           *
+           * The first attempt rendered the rows directly, on the reasoning
+           * that position means nothing in a view arranged by something else.
+           * True, and it left no grip anywhere — so the one interaction this
+           * view exists for could not be performed.
+           */
+          (() => {
+            const buckets: {
+              impact: PurchaseImpact | null;
+              title: string;
+              hint: string;
+            }[] = [
+              { impact: 'blocks', title: IMPACT_LABELS.blocks, hint: 'in the way' },
+              { impact: 'improves', title: IMPACT_LABELS.improves, hint: 'worth doing' },
+              {
+                impact: 'nice_to_have',
+                title: IMPACT_LABELS.nice_to_have,
+                hint: 'some day',
+              },
+              { impact: null, title: 'Not said yet', hint: 'drag these somewhere' },
+            ];
+
+            return buckets.map((bucket) => {
+              const mine = items.filter(
+                (i) => (i.fields?.impact ?? null) === bucket.impact,
+              );
+
+              // Only what has a price. A bucket of six unpriced wants totalling
+              // zero would be a lie with a number on it.
+              const priced = mine.filter((i) => typeof i.fields?.cost === 'number');
+
+              if (bucket.impact === null && mine.length === 0) return null;
+
+              return (
+                <ImpactBucket
+                  key={bucket.impact ?? 'unsaid'}
+                  impact={bucket.impact}
+                  title={bucket.title}
+                  hint={bucket.hint}
+                  count={mine.length}
+                  total={
+                    priced.length > 0
+                      ? formatMoney(priced.reduce((t, i) => t + (i.fields?.cost ?? 0), 0))
+                      : null
+                  }
+                >
+                  <SortableListItems
+                    items={mine.map((i) => ({ ...i, href: qs(i.id) }))}
+                    selectedId={selectedId}
+                    isPurchases={isPurchases}
+                    mode={viewMode}
+                    emptyState={
+                      <p className="px-3 py-2 text-[11px] text-grey-400">
+                        Nothing here. Drag something in.
+                      </p>
+                    }
+                  />
+                </ImpactBucket>
+              );
+            });
+          })()
+        ) : layout === 'timeline' ? (
           /*
            * The same rows read as a history: what you were thinking about in
            * March, under the day you wrote it down. The manual order is not

@@ -1288,6 +1288,22 @@ Turbopack is the default; `middleware` is now `proxy`.
   derived from that column plus the action's status — they are mutually
   exclusive by construction, which is what stops spend double-counting. Don't
   add a fourth source of truth for "is this ordered".
+- **A purchases list can be cut by impact, and the buckets are places rather
+  than an order.** `impact` is a third `ListLayout`, offered only where the rows
+  have one to cut on. All three are rendered whether or not they hold anything,
+  for the reason the project statuses are — an empty group you cannot see is an
+  empty group you cannot drop into — and a fourth, *Not said yet*, appears only
+  while something is unplaced.
+  Each bucket holds a real `SortableListItems`, which is what makes the gesture
+  work: one drag reorders inside its own bucket and sets the impact when dropped
+  on another, because `SortableList` ignores a row it does not contain without
+  preventing the default. The first attempt rendered the rows directly, arguing
+  that position means nothing in a view arranged by something else — true, and
+  it left no drag grip anywhere, so the one interaction the view exists for could
+  not be performed.
+  A heading's total counts only priced rows: six unpriced wants totalling zero
+  would be a lie with a number on it. Verified against the budget pane, which
+  computes the same figures independently and agreed to the pound.
 - **The budget's "what if" ticks are arithmetic, and are stored nowhere.** Not
   the URL, not the database. The three buckets report decisions already taken;
   ticking candidates answers the question you actually have — *can I do these

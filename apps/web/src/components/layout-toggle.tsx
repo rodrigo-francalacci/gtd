@@ -3,7 +3,7 @@
 import { useTransition } from 'react';
 import { setListLayout } from '@/lib/actions';
 import type { ListLayout } from '@/lib/view-prefs';
-import { IconViewCompact, IconCalendar } from './icons';
+import { IconViewCompact, IconCalendar, IconImpact } from './icons';
 
 /**
  * List, or timeline.
@@ -25,15 +25,26 @@ import { IconViewCompact, IconCalendar } from './icons';
 export function LayoutToggle({
   layout,
   viewKey,
+  /**
+   * Whether to offer the impact grouping.
+   *
+   * Only a purchases list has one, and a control that offers an arrangement
+   * the rows cannot take is a control that has to explain itself.
+   */
+  impact = false,
 }: {
   layout: ListLayout;
   viewKey: string;
+  impact?: boolean;
 }) {
   const [pending, startTransition] = useTransition();
 
   const options: { value: ListLayout; label: string; Icon: typeof IconCalendar }[] = [
     { value: 'list', label: 'Your order', Icon: IconViewCompact },
     { value: 'timeline', label: 'By the day it arrived', Icon: IconCalendar },
+    ...(impact
+      ? [{ value: 'impact' as const, label: 'By what it would do', Icon: IconImpact }]
+      : []),
   ];
 
   return (

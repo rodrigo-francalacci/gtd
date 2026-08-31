@@ -116,7 +116,15 @@ export async function setDensity(key: string, mode: ViewMode): Promise<void> {
  * "how do I want to look at this particular list" — which is also why one
  * read (`getView`) answers both.
  */
-export type ListLayout = 'list' | 'timeline';
+/**
+ * How a list's rows are arranged.
+ *
+ * `list` is your own order, dragged into place. `timeline` reads the same rows
+ * as a history, under the day each was written down. `impact` cuts a purchases
+ * list into what each thing would *do* — and is offered nowhere else, because
+ * nothing else has an impact to cut on.
+ */
+export type ListLayout = 'list' | 'timeline' | 'impact';
 
 /**
  * Whether this box shows thumbnails.
@@ -177,7 +185,8 @@ export async function getView(key: string): Promise<{
     density: (MODES as readonly string[]).includes(row?.density ?? '')
       ? (row!.density as ViewMode)
       : null,
-    layout: row?.layout === 'timeline' ? 'timeline' : 'list',
+    layout:
+      row?.layout === 'timeline' || row?.layout === 'impact' ? row.layout : 'list',
     boxView:
       row?.boxView === 'gallery' ? 'gallery' : row?.boxView === 'list' ? 'list' : null,
   };
