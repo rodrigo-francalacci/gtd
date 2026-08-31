@@ -76,12 +76,34 @@ async function asEmbeddable(file: File): Promise<{ bytes: ArrayBuffer; jpeg: boo
 }
 
 /**
- * One PDF, one image per page, each page the size of its image.
+ * The tallest a page may be.
  *
- * Sized to the picture rather than to A4: these are screenshots and photographs
- * of different shapes, and fitting them onto a common page would letterbox every
- * one of them in a different way. A PDF page can be any size, and a reader
- * scrolling a conversation wants the picture, not a margin.
+ * 14,400 units is 200 inches, which is the ceiling readers have agreed on since
+ * Acrobat set it — past that a page is not merely large, it is refused. Only an
+ * extreme aspect ratio can reach it once the width is fixed: at a common 1,600
+ * points across, an image would have to be nine times taller than it is wide.
+ */
+const MAX_PAGE = 14_400;
+
+/**
+ * One PDF, one image per page, every page the same width.
+ *
+ * **Uniform width, and no letterboxing** — which are not in tension, though the
+ * first version of this assumed they were. It gave each page the size of its own
+ * image, on the reasoning that a common page would letterbox screenshots of
+ * different shapes in different ways. That reasoning was about a common page
+ * *size*; fixing only the width leaves the height free to follow the aspect
+ * ratio, so nothing is boxed and nothing is cropped, and the column of pages
+ * stops changing width as you scroll it.
+ *
+ * That change is the whole difference between a set of images and a document. A
+ * reader shows every page at the same scale, so pages of different widths appear
+ * at different sizes — a portrait screenshot beside a landscape one comes out
+ * half the size, and scrolling through a conversation means the text keeps
+ * changing size for no reason the reader can see.
+ *
+ * The width is the widest image's, so nothing is ever scaled up beyond what it
+ * has pixels for and the sharpest picture in the set stays sharp.
  *
  * Order is the order they were staged, which is the order you chose them in —
  * and for a conversation in pieces that order is the whole meaning.
@@ -93,12 +115,35 @@ export async function imagesToPdf(files: File[], name: string): Promise<File> {
   pdf.setTitle(name.replace(/\.pdf$/i, ''));
   pdf.setCreator('GTD');
 
+  /*
+   * Embedded first, in one pass, because the width every page shares cannot be
+   * known until every image has been measured. `embedJpg` and `embedPng` are
+   * what report the true pixel size, so this is also the measuring.
+   */
+  const embedded = [];
+
   for (const file of files) {
     const { bytes, jpeg } = await asEmbeddable(file);
+    embedded.push(jpeg ? await pdf.embedJpg(bytes) : await pdf.embedPng(bytes));
+  }
 
-    const image = jpeg ? await pdf.embedJpg(bytes) : await pdf.embedPng(bytes);
-    const page = pdf.addPage([image.width, image.height]);
-    page.drawImage(image, { x: 0, y: 0, width: image.width, height: image.height });
+  const width = Math.max(1, ...embedded.map((image) => image.width));
+
+  for (const image of embedded) {
+    const ratio = image.height / image.width;
+
+    /*
+     * A page taller than the ceiling is narrowed until it fits rather than
+     * being cropped or squashed. It is the one case that breaks the uniform
+     * width, and it only arises for something like a full-length screenshot of
+     * a very long page — where a page of the same width would have to be
+     * hundreds of inches tall, and no reader would open it at all.
+     */
+    const pageWidth = ratio * width > MAX_PAGE ? MAX_PAGE / ratio : width;
+    const pageHeight = pageWidth * ratio;
+
+    const page = pdf.addPage([pageWidth, pageHeight]);
+    page.drawImage(image, { x: 0, y: 0, width: pageWidth, height: pageHeight });
   }
 
   const bytes = await pdf.save();

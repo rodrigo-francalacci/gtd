@@ -348,10 +348,23 @@ export function PreviewPane({ file, onClose }: { file: PreviewFile; onClose: () 
             className="h-full w-full border-0 bg-paper"
           />
         ) : type === 'application/pdf' || isBrowserText(type) ? (
-          // A PDF or plain text on our own origin: the browser's own viewer
-          // handles both, and does it better than anything worth writing here.
+          /*
+           * A PDF or plain text on our own origin: the browser's own viewer
+           * handles both, and does it better than anything worth writing here.
+           *
+           * `#view=FitH` is one of the open parameters every PDF reader
+           * understands, and it asks for the page to be fitted across rather
+           * than shown at whatever zoom was last used — which in a pane this
+           * narrow is nearly always too large. It is a fragment, so it never
+           * reaches our own route: the browser hands it to the viewer.
+           *
+           * It cannot fix a document whose pages are different widths, because
+           * a reader applies one zoom to the whole file. That is fixed where it
+           * is actually caused, in `imagesToPdf`, which now gives every page
+           * the same width.
+           */
           <iframe
-            src={src}
+            src={type === 'application/pdf' ? `${src}#view=FitH` : src}
             title={file.name}
             className="h-full w-full border-0 bg-paper"
           />
