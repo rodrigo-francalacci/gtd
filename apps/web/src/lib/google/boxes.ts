@@ -16,6 +16,7 @@ import {
   ensureLabel,
   getFile,
   getLabel,
+  moveFile,
   renameLabel,
   renameFile,
   renameFolder,
@@ -47,6 +48,61 @@ async function requireDrive() {
  * ingest request is already a Google call by definition — it is carrying a
  * file — so one more costs nothing there and blocks no one.
  */
+/**
+ * Put a box document's file in the folder its box now owns.
+ *
+ * The mirror of `moveAttachmentFile`, for the other table that owns a Drive
+ * file — and needed for the same reason. Filing a capture into a box hands the
+ * `drive_file_id` straight to the `box_items` row and deletes the attachment,
+ * so the row lands in the box while the bytes stay in `GTD/Inbox`; moving a
+ * document between boxes did the same thing one folder over. Either way the
+ * app said one thing and Drive said another, which is the state this app is
+ * built to never be in.
+ *
+ * `ensureBoxFolder` is the destination, so the box's folder is created the
+ * first time a document wants one — the same on-demand rule projects follow —
+ * and a folder deleted in Drive is remade rather than failing the move.
+ *
+ * A note, a link or a place has no file at all, and neither does a document
+ * whose upload never finished. Both return without a Google call.
+ */
+/**
+ * Trash a deleted box's Drive folder — the same tidy-up a deleted project gets.
+ *
+ * Only ever called once its documents have been moved out and Drive has
+ * confirmed it, because they are *inside* this folder until then and trashing
+ * it would take them along. That is the opposite of `trashProjectFolder`, whose
+ * files are individually trashed on purpose.
+ *
+ * Trashed, never deleted, like everything this app removes.
+ */
+export async function trashBoxFolder(folderId: string | null): Promise<void> {
+  if (!folderId) return;
+
+  try {
+    await trashFile(folderId);
+  } catch {
+    // Deleting the box is what was asked for, and it has happened.
+  }
+}
+
+export async function moveBoxItemFile(itemId: string): Promise<void> {
+  const [row] = await db
+    .select({ driveFileId: boxItems.driveFileId, boxId: boxItems.boxId })
+    .from(boxItems)
+    .where(eq(boxItems.id, itemId))
+    .limit(1);
+
+  if (!row?.driveFileId) return;
+
+  /*
+   * A gallery's `drive_file_id` is a *folder*, and moving it takes its
+   * pictures with it — which is what should happen, since they are what the
+   * gallery is. Nothing special to do.
+   */
+  await moveFile(row.driveFileId, await ensureBoxFolder(row.boxId));
+}
+
 export async function ensureBoxFolder(boxId: string): Promise<string> {
   const [box] = await db
     .select({

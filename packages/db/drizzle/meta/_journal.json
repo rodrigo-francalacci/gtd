@@ -351,6 +351,13 @@
       "when": 1788193751069,
       "tag": "0049_grey_mindworm",
       "breakpoints": true
+    },
+    {
+      "idx": 50,
+      "version": "7",
+      "when": 1788195017181,
+      "tag": "0050_giant_kingpin",
+      "breakpoints": true
     }
   ]
 }

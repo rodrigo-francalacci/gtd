@@ -787,6 +787,7 @@ export const syncJobKind = pgEnum('sync_job_kind', [
   'create_project_label',
   'move_project_links',
   'move_attachment',
+  'move_box_file',
 ]);
 
 export const syncJobStatus = pgEnum('sync_job_status', [
@@ -812,9 +813,18 @@ export const syncJobs = pgTable(
   {
     id: uuid('id').primaryKey().defaultRandom(),
     kind: syncJobKind('kind').notNull(),
-    projectId: uuid('project_id')
-      .notNull()
-      .references(() => projects.id, { onDelete: 'cascade' }),
+    /**
+     * Null for the jobs that are not about a project.
+     *
+     * It was `notNull` while every job here was "make this project's folder" or
+     * "move its containers". Moving a *file* broke that: a box document's
+     * destination is `GTD/Box/<name>`, and a box is not a project and never
+     * will be. Relaxing the column is honest about that, where inventing a
+     * project to satisfy it would not be.
+     */
+    projectId: uuid('project_id').references(() => projects.id, {
+      onDelete: 'cascade',
+    }),
     /**
      * Which file to move, for `move_attachment` and nothing else.
      *
@@ -827,6 +837,19 @@ export const syncJobs = pgTable(
      * the project reference above is built on.
      */
     attachmentId: uuid('attachment_id').references(() => attachments.id, {
+      onDelete: 'cascade',
+    }),
+    /**
+     * The other kind of row that owns a Drive file, for `move_box_file`.
+     *
+     * Two nullable references rather than one polymorphic `(type, id)` pair,
+     * which is what this codebase reaches for elsewhere — and deliberately not
+     * here. A polymorphic id carries no foreign key, so nothing cascades, and
+     * half the bugs this app has had were rows left pointing at something
+     * deleted. There are exactly two tables that own a file; two real
+     * references cost one nullable column and make a stranded job impossible.
+     */
+    boxItemId: uuid('box_item_id').references(() => boxItems.id, {
       onDelete: 'cascade',
     }),
     status: syncJobStatus('status').notNull().default('pending'),

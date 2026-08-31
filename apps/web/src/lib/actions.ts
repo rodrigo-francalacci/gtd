@@ -66,9 +66,10 @@ import {
   deleteBoxItem,
   ensureBoxFolder,
   ensureBoxLabel,
+  trashBoxFolder,
 } from './google/boxes';
 import { after } from 'next/server';
-import { drainSyncQueue, enqueueSync } from './google/queue';
+import { drainSyncQueue, enqueueFileMove, enqueueSync } from './google/queue';
 import { enqueueBoxJob } from './box/queue';
 import { canClassify } from './box/classify';
 import { canGroup, type SortChoice } from './sort';
@@ -562,6 +563,26 @@ export async function moveActionToProject(actionId: string, projectId: string | 
     .set({ projectId, updatedAt: new Date() })
     .where(eq(actions.id, actionId));
 
+  /*
+   * An action's files live in its *project's* folder, so filing the action
+   * somewhere else leaves every one of them in the folder of a project it no
+   * longer belongs to — findable only by remembering where the step used to be,
+   * which is the opposite of why files follow the project at all.
+   *
+   * Queued per file. `attachmentFolder` works the destination out from the
+   * action's new project, including `GTD/Inbox` when it was filed *out* of a
+   * project, so the reverse direction is handled by the same job.
+   */
+  const files = await db
+    .select({ id: attachments.id })
+    .from(attachments)
+    .where(
+      and(eq(attachments.parentType, 'action'), eq(attachments.parentId, actionId)),
+    );
+
+  for (const file of files) await enqueueFileMove({ attachmentId: file.id });
+  drainMovesAfterResponse(files.length);
+
   revalidateShell();
 }
 
@@ -743,6 +764,32 @@ function nameAttachmentLater(attachmentId: string): void {
  * Null is a real answer for a list item and a standalone action: their files
  * genuinely live in `GTD/Inbox`, and that is where they already are.
  */
+/**
+ * Run the file moves just queued, once the response has gone out.
+ *
+ * The cron owns `sync_jobs` and on a Hobby account it runs **daily**, so
+ * queuing alone would leave a file in the folder it was in until the following
+ * morning — with the app showing it somewhere else the whole time. Nothing
+ * broken and everything looking broken, which is the worst combination and the
+ * same trap the box's Drive renames fell into.
+ *
+ * `after` is what makes fixing it free: the work runs after the response is
+ * flushed, so the move that caused it is exactly as fast as it was and a slow
+ * Drive costs nothing. A failure here is not an error — the rows stay pending
+ * and the next tick takes them, which is the whole reason they are rows first.
+ *
+ * The budget is what this caller queued, so one person moving a document does
+ * not sit through somebody else's backlog. It may still claim another job, and
+ * that is fine: a queue is a queue.
+ */
+function drainMovesAfterResponse(queued: number): void {
+  if (queued === 0) return;
+
+  after(async () => {
+    await drainSyncQueue(queued).catch(() => {});
+  });
+}
+
 async function outcomeProject(
   decision: ClarifyDecision,
   outcomeId: string | null,
@@ -858,6 +905,8 @@ export async function clarifyInboxItem(itemId: string, decision: ClarifyDecision
   const carried = item.emoji;
 
   let outcomeId: string | null = null;
+  /** The box documents a `filed` decision created, each with a file to move. */
+  let filedInBox: string[] = [];
 
   if (decision.kind === 'project') {
     const title = decision.title.trim();
@@ -884,8 +933,14 @@ export async function clarifyInboxItem(itemId: string, decision: ClarifyDecision
       .returning();
     outcomeId = listItem.id;
   } else if (decision.kind === 'filed') {
-    outcomeId = await fileCaptureInBox(itemId, decision, carried);
-    if (!outcomeId) return;
+    /*
+     * Every document it made, not just the first. The first is the outcome the
+     * capture points at; all of them have a file to be moved into the box's
+     * folder, which is why the count is carried down to the drain below.
+     */
+    filedInBox = await fileCaptureInBox(itemId, decision, carried);
+    if (filedInBox.length === 0) return;
+    outcomeId = filedInBox[0];
   } else if (decision.kind === 'attached') {
     /*
      * The outcome *is* the thing it was attached to, so the capture stays
@@ -996,14 +1051,23 @@ export async function clarifyInboxItem(itemId: string, decision: ClarifyDecision
    */
   const destination = await outcomeProject(decision, outcomeId);
 
+  /*
+   * A capture filed in a box queued its own moves — one per document, since
+   * `fileCaptureInBox` is what knows which rows it made — so they are counted
+   * here rather than queued again.
+   */
+  let queued = filedInBox.length;
+
   for (const file of moved) {
     /*
      * No project means the destination is `GTD/Inbox`, which is where the file
-     * already is — nothing to move and nothing to queue. That is also why a
-     * non-null `project_id` on the job is not a limitation: every move this
-     * app can make has a project at the end of it.
+     * already is — so there is nothing to move, and queuing anyway would spend
+     * a Drive round trip discovering that.
      */
-    if (destination) await enqueueSync('move_attachment', destination, file.id);
+    if (destination) {
+      await enqueueFileMove({ attachmentId: file.id });
+      queued += 1;
+    }
 
     /*
      * Named afterwards, and never waited for. A file arriving from a capture is
@@ -1013,25 +1077,7 @@ export async function clarifyInboxItem(itemId: string, decision: ClarifyDecision
     void nameAttachmentLater(file.id);
   }
 
-  /*
-   * Drained after the response rather than before it.
-   *
-   * The cron owns this queue and on a Hobby account it runs **daily** — so
-   * without this a file attached at two in the afternoon would sit in the inbox
-   * folder until the following morning, with the app showing it on the project
-   * the whole time. Nothing broken and everything looking broken, which is the
-   * worst combination and the same trap the box's Drive renames fell into.
-   *
-   * `after` is what makes fixing it free: the work runs once the response has
-   * been flushed, so the clarify is exactly as fast as it was and a slow Drive
-   * costs nothing. A failure is not an error — the job stays pending and the
-   * next tick takes it, which is the whole reason it is a row first.
-   */
-  if (destination && moved.length > 0) {
-    after(async () => {
-      await drainSyncQueue(moved.length).catch(() => {});
-    });
-  }
+  drainMovesAfterResponse(queued);
 
   await db
     .update(inboxItems)
@@ -1091,7 +1137,7 @@ async function fileCaptureInBox(
   itemId: string,
   decision: Extract<ClarifyDecision, { kind: 'filed' }>,
   carried: string | null,
-): Promise<string | null> {
+): Promise<string[]> {
   const title = decision.title.trim();
   const note = decision.note?.trim() ?? '';
 
@@ -1113,7 +1159,7 @@ async function fileCaptureInBox(
   const description = [title, note].filter(Boolean).join('\n\n') || null;
 
   if (files.length === 0) {
-    if (!description) return null;
+    if (!description) return [];
 
     const [row] = await db
       .insert(boxItems)
@@ -1128,7 +1174,8 @@ async function fileCaptureInBox(
       })
       .returning({ id: boxItems.id });
 
-    return row.id;
+    // A note has no file, so there is nothing to move and nothing to drain.
+    return [row.id];
   }
 
   const made: string[] = [];
@@ -1172,11 +1219,22 @@ async function fileCaptureInBox(
 
     await db.delete(attachments).where(eq(attachments.id, file.id));
 
+    /*
+     * The row is now in the box and the bytes are still in `GTD/Inbox`.
+     *
+     * Filing hands the `drive_file_id` straight across and deletes the
+     * attachment, so nothing else is ever going to move this file — the row it
+     * used to hang off is gone. `GTD/Box/<name>` is where a document filed here
+     * belongs, and until this the box's folder held everything that arrived
+     * through the scanner and nothing that arrived through the inbox.
+     */
+    await enqueueFileMove({ boxItemId: row.id });
+
     if (readable) await enqueueBoxJob(row.id);
     made.push(row.id);
   }
 
-  return made[0] ?? null;
+  return made;
 }
 
 // ---------------------------------------------------------------------------
@@ -2066,7 +2124,7 @@ export async function deleteBox(boxId: string) {
   await requireSession();
 
   const [box] = await db
-    .select({ isDefault: boxes.isDefault })
+    .select({ isDefault: boxes.isDefault, driveFolderId: boxes.driveFolderId })
     .from(boxes)
     .where(eq(boxes.id, boxId))
     .limit(1);
@@ -2085,16 +2143,52 @@ export async function deleteBox(boxId: string) {
   // The order is the safeguard: the documents move first, so a failure before
   // the second leaves an empty box you can delete again, and the `restrict`
   // foreign key makes the reverse order impossible rather than merely unwise.
-  await db
+  const refiled = await db
     .update(boxItems)
     .set({ boxId: fallback.id, updatedAt: new Date() })
-    .where(eq(boxItems.boxId, boxId));
+    .where(eq(boxItems.boxId, boxId))
+    .returning({ id: boxItems.id, driveFileId: boxItems.driveFileId });
 
   // Categories and tags cascade, and `box_item_tags` with them. The documents
   // keep everything that was theirs — name, summary, date, file.
   await db.delete(boxes).where(eq(boxes.id, boxId));
 
   revalidateShell();
+
+  /*
+   * The documents are in the default box now; their files are still in the
+   * folder of a box that no longer exists.
+   *
+   * Queued only for the entries that have one — a note, a link or a place has
+   * no file, and a box of thoughts would otherwise queue a Drive round trip per
+   * row to discover that.
+   */
+  const withFiles = refiled.filter((row) => row.driveFileId);
+  for (const row of withFiles) await enqueueFileMove({ boxItemId: row.id });
+
+  /*
+   * Then, and only then, the empty folder — which is why this one cannot use
+   * `drainMovesAfterResponse`. The documents are *inside* that folder until the
+   * moves run, so trashing it on the way past would put a year of receipts in
+   * the bin along with it.
+   *
+   * The drain's own report is the permission: every move done, none failed and
+   * none waiting to be retried. Anything else and the folder stays, because a
+   * stray empty folder is a tidiness problem and the alternative is not.
+   */
+  after(async () => {
+    try {
+      const result = await drainSyncQueue(Math.max(withFiles.length, 1));
+
+      const allMoved =
+        result.done >= withFiles.length && result.failed === 0 && result.retrying === 0;
+
+      if (allMoved) await trashBoxFolder(box.driveFolderId);
+    } catch {
+      // The box is deleted and the documents are safe. The folder is the cron's
+      // problem now, and a leftover folder is not worth an error here.
+    }
+  });
 }
 
 export async function createBoxCategory(
@@ -2377,6 +2471,17 @@ export async function moveDocument(itemId: string, boxId: string) {
     .update(boxItems)
     .set({ boxId, updatedAt: new Date() })
     .where(eq(boxItems.id, itemId));
+
+  /*
+   * And the file follows into the new box's folder.
+   *
+   * A box owns a Drive folder, so a document moved between boxes and left in
+   * the old one is the app and Drive disagreeing about where something is filed
+   * — which is the whole thing a box is for. The tags were carefully carried
+   * across above; the bytes were not.
+   */
+  await enqueueFileMove({ boxItemId: itemId });
+  drainMovesAfterResponse(1);
 
   /**
    * No re-read. The destination's vocabulary may well suggest more tags, but a

@@ -755,6 +755,22 @@ cited document never leaves its box.
 The project's name under an action title is also a link, so *what else is on
 this?* is one click rather than a trip through the sidebar.
 
+### Files follow their row, wherever it goes
+
+Whenever something moves in the app, its file moves in Drive a second or two
+later — not on the next nightly sync:
+
+| You do this | The file goes |
+|---|---|
+| Clarify a capture onto a project or action | that project's Drive folder |
+| File a capture in a box | `GTD/Box/<name>` |
+| Move a document to another box | the new box's folder |
+| File an action into a different project | the new project's folder |
+| Move an attachment up to the project | nowhere — it was already there |
+
+A list item or a standalone action has no project, so its files stay in
+`GTD/Inbox`, which is where they already were.
+
 ### Deleting a project takes its folder
 
 Deleting a project already took every file attached to it and to its actions.

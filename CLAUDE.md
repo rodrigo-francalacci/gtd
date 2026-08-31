@@ -872,6 +872,33 @@ Turbopack is the default; `middleware` is now `proxy`.
   puts those back, keyed on a new `started_at`: `created_at` says when the work
   was *asked for*, so a job queued twenty minutes ago and claimed a second ago
   looks equally stale by it.
+- **Every move of a row moves its file, and there were four of them.** The
+  clarify path was only the first. Filing a capture in a box hands the
+  `drive_file_id` to the `box_items` row and deletes the attachment, so nothing
+  else was ever going to move that file — the row it hung off is gone; moving a
+  document between boxes did the same one folder over; and filing an action into
+  a different project left every one of its files in the folder of a project it
+  no longer belonged to. In each case the app said one thing and Drive said
+  another, which is the state this app exists not to be in.
+  `moveBoxItemFile` is `moveAttachmentFile`'s mirror for the other table that
+  owns a file, and `ensureBoxFolder` is its destination, so a box's folder is
+  made on demand exactly as a project's is.
+- **Two nullable references on `sync_jobs`, not one polymorphic pair.**
+  `attachment_id` and `box_item_id`, which is the *opposite* of what this
+  codebase reaches for elsewhere and right for a reason it has learned the hard
+  way: a polymorphic id carries no foreign key, so nothing cascades, and a job
+  pointing at a deleted row is exactly the orphan class `check-orphans.mjs`
+  exists to catch. There are exactly two tables that own a Drive file; two real
+  references cost one nullable column and make a stranded job impossible.
+  `enqueueFileMove` takes one target and the type says which — a signature that
+  can be called with all of them null is a signature that gets called wrongly.
+- **Deleting a box trashes its folder, but only once the documents are out.**
+  The opposite order to a project, and for the opposite reason: a project's files
+  are individually trashed on purpose, where a box's are *refiled* into the
+  default box and are inside that folder until the moves run. So the drain's own
+  report is the permission — every move done, none failed, none retrying — and
+  anything less leaves the folder standing. A stray empty folder is a tidiness
+  problem; the alternative is a year of receipts in the bin.
 - **Deleting a project trashes its Drive folder.** The purges already took every
   file and left the container standing, so deleting projects slowly filled the
   account with empty folders named after things that no longer exist — the

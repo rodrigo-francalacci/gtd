@@ -4,6 +4,7 @@ import { db, projects, syncJobs } from '@gtd/db';
 import { and, eq, isNull, or, sql } from 'drizzle-orm';
 import { GoogleAuthError } from '@/lib/auth/token';
 import { moveAttachmentFile } from './attachments';
+import { moveBoxItemFile } from './boxes';
 import { GoogleApiError } from './client';
 import { LiveGoogleSync } from './live-sync';
 
@@ -28,19 +29,37 @@ const MAX_ATTEMPTS = 5;
 const STUCK_MINUTES = 15;
 
 /** Enqueue work. Cheap enough to call inside a request. */
-export type SyncKind =
+/** The jobs that are about a project as a whole. */
+export type ProjectSyncKind =
   | 'create_project_links'
   | 'create_project_folder'
   | 'create_project_label'
-  | 'move_project_links'
-  | 'move_attachment';
+  | 'move_project_links';
 
-export async function enqueueSync(
-  kind: SyncKind,
-  projectId: string,
-  attachmentId?: string,
+/** Those, plus the two that are about one row's file. */
+export type SyncKind = ProjectSyncKind | 'move_attachment' | 'move_box_file';
+
+export async function enqueueSync(kind: ProjectSyncKind, projectId: string): Promise<void> {
+  await db.insert(syncJobs).values({ kind, projectId });
+}
+
+/**
+ * Queue a file to be put where its row now says it belongs.
+ *
+ * Its own function rather than three optional arguments on `enqueueSync`: a
+ * project job and a file job have nothing in common but the table they wait in,
+ * and a signature that can be called with all of them null or none of them is a
+ * signature that gets called wrongly. This one takes exactly one target and the
+ * type says so.
+ */
+export async function enqueueFileMove(
+  target: { attachmentId: string } | { boxItemId: string },
 ): Promise<void> {
-  await db.insert(syncJobs).values({ kind, projectId, attachmentId });
+  await db.insert(syncJobs).values(
+    'attachmentId' in target
+      ? { kind: 'move_attachment', attachmentId: target.attachmentId }
+      : { kind: 'move_box_file', boxItemId: target.boxItemId },
+  );
 }
 
 export type DrainResult = {
@@ -95,6 +114,7 @@ export async function drainSyncQueue(limit = 10): Promise<DrainResult> {
       kind: syncJobs.kind,
       projectId: syncJobs.projectId,
       attachmentId: syncJobs.attachmentId,
+      boxItemId: syncJobs.boxItemId,
       attempts: syncJobs.attempts,
     });
 
@@ -109,7 +129,7 @@ export async function drainSyncQueue(limit = 10): Promise<DrainResult> {
 
   for (const job of claimed) {
     try {
-      await runJob(sync, job.kind, job.projectId, job.attachmentId);
+      await runJob(sync, job);
 
       await db
         .update(syncJobs)
@@ -152,20 +172,36 @@ export async function drainSyncQueue(limit = 10): Promise<DrainResult> {
 
 async function runJob(
   sync: LiveGoogleSync,
-  kind: SyncKind,
-  projectId: string,
-  attachmentId: string | null,
+  job: {
+    kind: SyncKind;
+    projectId: string | null;
+    attachmentId: string | null;
+    boxItemId: string | null;
+  },
 ): Promise<void> {
+  const { kind, projectId } = job;
+
   /*
-   * The one job about a row rather than a project, and the one that needs
-   * nothing from the project itself — `attachmentFolder` reads what it needs
-   * and creates the folder if this is the first file to want one. Handled
-   * before the project is fetched so it does not pay for a read it ignores.
+   * The two jobs about a row rather than a project, and the two that need
+   * nothing from the project itself: each mover reads where its row now says it
+   * belongs and creates the destination folder if this is the first file to
+   * want one. Handled before the project is fetched, so they do not pay for a
+   * read they would ignore — and so `move_box_file`, which has no project at
+   * all, never looks for one.
    */
   if (kind === 'move_attachment') {
-    if (attachmentId) await moveAttachmentFile(attachmentId);
+    if (job.attachmentId) await moveAttachmentFile(job.attachmentId);
     return;
   }
+
+  if (kind === 'move_box_file') {
+    if (job.boxItemId) await moveBoxItemFile(job.boxItemId);
+    return;
+  }
+
+  // Every remaining kind is about a project and cannot have been queued
+  // without one.
+  if (!projectId) return;
 
   const [project] = await db
     .select({
