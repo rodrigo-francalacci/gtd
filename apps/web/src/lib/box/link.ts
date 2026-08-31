@@ -176,8 +176,20 @@ export async function resolveLink(raw: string): Promise<ResolvedLink> {
 
   return {
     url: finalUrl,
-    title: meta(html, 'og:title') ?? titleTag(html),
-    description: meta(html, 'og:description') ?? meta(html, 'description'),
+    ...(() => {
+      /*
+       * Read, then cleaned up together — the title's shape depends on what the
+       * description turned out to be, so neither can be finished alone.
+       */
+      const description = unwrapSocial(
+        meta(html, 'og:description') ?? meta(html, 'description'),
+      );
+
+      return {
+        title: untangleTitle(meta(html, 'og:title') ?? titleTag(html), description),
+        description,
+      };
+    })(),
     imageUrl: pictureFor(html, finalUrl),
     text: readable(html),
   };
@@ -303,12 +315,118 @@ function readable(html: string): string | null {
   return decodeEntities(text).slice(0, 20_000) || null;
 }
 
+/**
+ * The named entities worth knowing, which is a short list on purpose.
+ *
+ * There are two thousand of them and a page that uses `&hellip;` is already
+ * unusual; the numeric escapes below cover everything else. A full table would
+ * be a dependency for the sake of the tail.
+ */
+const NAMED: Record<string, string> = {
+  amp: '&',
+  lt: '<',
+  gt: '>',
+  quot: '"',
+  apos: "'",
+  nbsp: ' ',
+  hellip: '\u2026',
+  mdash: '\u2014',
+  ndash: '\u2013',
+  lsquo: '\u2018',
+  rsquo: '\u2019',
+  ldquo: '\u201c',
+  rdquo: '\u201d',
+};
+
+/**
+ * Turn a page's escapes back into characters.
+ *
+ * **The numeric ones are the point.** This used to handle six named entities
+ * and `&#39;`, which meant every emoji and every curly apostrophe arrived as
+ * literal `&#x2601;&#xfe0f;` — and social platforms escape both constantly, so
+ * an Instagram post's title came into the box looking like a mangled string
+ * rather than like a title. `String.fromCodePoint` rather than `fromCharCode`,
+ * because anything above the basic plane — which is every emoji — needs the
+ * surrogate pair working out, and `fromCharCode` silently produces the wrong
+ * character instead of failing.
+ *
+ * Out-of-range values are dropped rather than thrown on: this is a page
+ * somebody else wrote, and one bad escape must not cost the whole title.
+ */
 function decodeEntities(value: string): string {
   return value
-    .replace(/&nbsp;/gi, ' ')
-    .replace(/&amp;/gi, '&')
-    .replace(/&lt;/gi, '<')
-    .replace(/&gt;/gi, '>')
-    .replace(/&quot;/gi, '"')
-    .replace(/&#0?39;|&apos;/gi, "'");
+    .replace(/&#x([0-9a-f]+);/gi, (whole, hex: string) => codePoint(parseInt(hex, 16), whole))
+    .replace(/&#(\d+);/g, (whole, dec: string) => codePoint(parseInt(dec, 10), whole))
+    .replace(/&([a-z]+);/gi, (whole, name: string) => NAMED[name.toLowerCase()] ?? whole);
+}
+
+function codePoint(value: number, whole: string): string {
+  if (!Number.isFinite(value) || value < 0 || value > 0x10ffff) return whole;
+
+  try {
+    return String.fromCodePoint(value);
+  } catch {
+    return whole;
+  }
+}
+
+/**
+ * What a social platform says about a post, minus what it says about itself.
+ *
+ * Instagram's description is built to a fixed shape:
+ *
+ *     1,929 likes, 16 comments - kathryn.tatess on August 29, 2026: "the caption"
+ *
+ * Of which the caption is the only part worth keeping. The counts are true for
+ * about an hour, the handle and the date are already the entry's own metadata,
+ * and together they push the thing you actually wanted off the end of the row.
+ *
+ * Matched narrowly rather than cleverly: a leading run of engagement counts,
+ * then anything up to the first colon, and only when that whole preamble is
+ * short enough to be a preamble. A sentence that merely happens to open with a
+ * number keeps its words.
+ */
+const SOCIAL_PREAMBLE = /^[\d,.]+\s+(?:likes?|reactions?|views?|comments?)\b[^:]{0,120}:\s*/i;
+
+function unwrapSocial(text: string | null): string | null {
+  if (!text) return null;
+
+  const stripped = text.replace(SOCIAL_PREAMBLE, '').trim();
+
+  /*
+   * The caption is then usually wrapped in the platform's own quotes. Removed
+   * only when both ends match, so a caption that merely ends with a quotation
+   * keeps it.
+   */
+  const unquoted =
+    (stripped.startsWith('"') && stripped.endsWith('"')) ||
+    (stripped.startsWith('\u201c') && stripped.endsWith('\u201d'))
+      ? stripped.slice(1, -1).trim()
+      : stripped;
+
+  return unquoted || null;
+}
+
+/**
+ * A title that is not the description again.
+ *
+ * Instagram writes `Kathryn on Instagram: "the caption"`, and the caption is
+ * already the description — so the row would say the same sentence twice, once
+ * truncated. Keeping the part before the colon leaves who posted it, which the
+ * description does not say and which is the useful half.
+ *
+ * Only when the two really are the same text: a title whose tail happens to
+ * differ is a title somebody wrote, and is left alone.
+ */
+function untangleTitle(title: string | null, description: string | null): string | null {
+  if (!title || !description) return title;
+
+  const quoted = /^(.{1,80}?):\s*["\u201c]([\s\S]+)["\u201d]$/.exec(title.trim());
+  if (!quoted) return title;
+
+  const tail = quoted[2].trim();
+  const head = quoted[1].trim();
+
+  // The description is the fuller text, so the title's tail is a prefix of it.
+  return description.startsWith(tail.slice(0, 40)) && head ? head : title;
 }
