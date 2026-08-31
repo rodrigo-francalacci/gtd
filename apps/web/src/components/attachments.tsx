@@ -7,6 +7,7 @@ import {
   createDocument,
   createGallery,
   detachAttachment,
+  moveAttachmentToProject,
   renameAttachment,
 } from '@/lib/actions';
 import { UploadError, uploadToDrive } from '@/lib/drive-upload';
@@ -61,11 +62,21 @@ export function Attachments({
   sort,
   sortKey,
   groups,
+  moveUpTo,
 }: {
   parentType: AttachmentParentType;
   parentId: string;
   rows: AttachmentRow[];
   label?: string;
+  /**
+   * The project these files could be moved up to, when the parent is an action
+   * inside one.
+   *
+   * A name rather than an id, because the id is read on the server from the
+   * action itself — this is only what the button says it will do. Absent for a
+   * project's own files and for a standalone action, where there is no "up".
+   */
+  moveUpTo?: string | null;
   /**
    * How this list is ordered. The rows arrive already sorted — that happens in
    * SQL — so this is only here so the control can show what was chosen.
@@ -582,6 +593,26 @@ export function Attachments({
                 <span className="shrink-0 tabular-nums text-[11px] text-grey-400">
                   {formatSize(row.sizeBytes)}
                 </span>
+
+                {/*
+                  Only upwards, and only from an action. A file on a project is
+                  already where things end up, and a list item's project is a
+                  candidate rather than a commitment.
+                */}
+                {moveUpTo && parentType === 'action' && row.kind !== 'gallery' ? (
+                  <button
+                    type="button"
+                    title={`Move it up to ${moveUpTo} — nothing moves in Drive`}
+                    onClick={() =>
+                      startTransition(async () => {
+                        await moveAttachmentToProject(row.id);
+                      })
+                    }
+                    className="shrink-0 text-[11px] text-grey-400 opacity-0 underline underline-offset-2 transition-opacity hover:text-grey-800 group-hover:opacity-100"
+                  >
+                    Move up
+                  </button>
+                ) : null}
 
                 <button
                   type="button"

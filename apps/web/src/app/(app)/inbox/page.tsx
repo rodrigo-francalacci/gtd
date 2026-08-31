@@ -11,6 +11,7 @@ import {
   getInboxItems,
   getBoxes,
   getListOptions,
+  getAttachableActions,
   getProjectOptions,
 } from '@/lib/queries';
 import { IconNote, IconPaperclip } from '@/components/icons';
@@ -72,16 +73,27 @@ export default async function InboxPage(props: PageProps<'/inbox'>) {
       ? selectedId
       : (ordered[0]?.id ?? null);
 
-  const [selected, files, projects, horizons, listOptions, boxOptions, contextGroups] =
-    await Promise.all([
-      targetId ? getInboxItem(targetId) : Promise.resolve(null),
-      targetId ? attachmentsFor('inbox_item', targetId) : Promise.resolve(null),
-      getProjectOptions(),
-      getAreasAndGoals(),
-      getListOptions(),
-      getBoxes(),
-      getContextsByDimension(),
-    ]);
+  const [
+    selected,
+    files,
+    projects,
+    openActions,
+    horizons,
+    listOptions,
+    boxOptions,
+    contextGroups,
+  ] = await Promise.all([
+    targetId ? getInboxItem(targetId) : Promise.resolve(null),
+    targetId ? attachmentsFor('inbox_item', targetId) : Promise.resolve(null),
+    getProjectOptions(),
+    // Alongside the rest rather than after them: every await on this driver is
+    // its own round trip, and this pane already makes seven.
+    getAttachableActions(),
+    getAreasAndGoals(),
+    getListOptions(),
+    getBoxes(),
+    getContextsByDimension(),
+  ]);
 
   return (
     <>
@@ -257,6 +269,7 @@ export default async function InboxPage(props: PageProps<'/inbox'>) {
             attachments={files?.rows ?? []}
             fileOrder={files?.order}
             projects={projects}
+            actions={openActions}
             areas={horizons.areas}
             lists={listOptions}
             boxes={boxOptions.map((b) => ({ id: b.id, name: b.name }))}

@@ -24,6 +24,7 @@ const PURPOSES: Record<string, string> = {
   emoji: 'Choosing emoji',
   purchase: 'Reading receipts',
   link: 'Reading links',
+  filename: 'Naming files',
 };
 
 /** Money, to the cent, because these are small numbers and rounding hides them. */

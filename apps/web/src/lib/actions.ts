@@ -44,6 +44,7 @@ import {
 import { suggester } from './ai/suggest';
 import { readPurchase, type PurchaseRead } from './ai/purchase';
 import { oneEmoji, pickEmoji } from './ai/emoji';
+import { nameAttachment } from './ai/filename';
 import { requireSession } from './auth/session';
 import type { ReviewStep } from './review';
 import {
@@ -694,6 +695,24 @@ export async function captureInboxItem(
  */
 type WithNote = { note: string };
 
+/**
+ * Give a freshly attached file a name, without holding up the attaching.
+ *
+ * Not awaited and never allowed to throw, for the reason the emoji on a capture
+ * is not: the file is already on the project, which is the thing that was asked
+ * for, and a naming that fails must not turn a completed attach into an error.
+ *
+ * Called on the server rather than from the browser, unlike `emojifyLater` —
+ * this one runs inside an action that is already doing several writes, so it is
+ * simply one more thing in flight rather than a second request. The worst case
+ * is a file that keeps the name the camera gave it.
+ */
+function nameAttachmentLater(attachmentId: string): void {
+  void nameAttachment(attachmentId).catch(() => {
+    // Deliberately silent. See above.
+  });
+}
+
 export type ClarifyDecision =
   | ({
       kind: 'next_action' | 'waiting' | 'done';
@@ -704,7 +723,32 @@ export type ClarifyDecision =
   | ({ kind: 'project'; title: string; areaId: string | null } & WithNote)
   | ({ kind: 'list_item'; title: string; listId: string } & WithNote)
   | ({ kind: 'filed'; title: string; boxId: string } & WithNote)
+  /**
+   * Onto something that already exists, creating nothing.
+   *
+   * Every other decision here answers "what should this become". This one
+   * answers "this belongs on that", which is the commonest thing to want from a
+   * photographed receipt or a scanned letter: it is evidence for a project you
+   * already have, not a new commitment. Before this, the only way to get a
+   * captured file onto an existing action was to make a second action to carry
+   * it.
+   *
+   * No title and no note. The text you typed to get the file into the inbox was
+   * a label for the capture — "receipt", "the quote" — and putting it on the
+   * project as a note would be filing your shorthand as a thought. The file is
+   * the thing that crosses.
+   */
+  | { kind: 'attached'; parentType: AttachTarget; parentId: string }
   | { kind: 'trashed' };
+
+/**
+ * What a captured file can be attached to.
+ *
+ * A project or one of its actions, which is where evidence actually belongs. A
+ * box is a different decision and already has one — `filed` — and a list item
+ * is a candidate rather than a place you keep things.
+ */
+export type AttachTarget = 'project' | 'action';
 
 /**
  * The note as a stored document, plus the flattened copy search reads.
@@ -779,6 +823,13 @@ export async function clarifyInboxItem(itemId: string, decision: ClarifyDecision
   } else if (decision.kind === 'filed') {
     outcomeId = await fileCaptureInBox(itemId, decision, carried);
     if (!outcomeId) return;
+  } else if (decision.kind === 'attached') {
+    /*
+     * The outcome *is* the thing it was attached to, so the capture stays
+     * traceable to where its file went. Nothing is created here — the
+     * re-parenting happens below, with the other file handling.
+     */
+    outcomeId = decision.parentId;
   } else if (decision.kind !== 'trashed') {
     const title = decision.title.trim();
     if (!title) return;
@@ -824,7 +875,12 @@ export async function clarifyInboxItem(itemId: string, decision: ClarifyDecision
   // `filed` is the other exception, for the opposite reason to `trashed`: its
   // files have already *become* box documents, so there is no attachment row
   // left to re-parent and nothing that would want to be one.
-  if (outcomeId && decision.kind !== 'trashed' && decision.kind !== 'filed') {
+  if (
+    outcomeId &&
+    decision.kind !== 'trashed' &&
+    decision.kind !== 'filed' &&
+    decision.kind !== 'attached'
+  ) {
     await db
       .update(attachments)
       .set({ parentType: PARENT_FOR_OUTCOME[decision.kind], parentId: outcomeId })
@@ -834,6 +890,32 @@ export async function clarifyInboxItem(itemId: string, decision: ClarifyDecision
           eq(attachments.parentId, itemId),
         ),
       );
+  }
+
+  /*
+   * Attaching is the same re-parent aimed at a row that was already there, so
+   * it is written out separately rather than folded into the map above — that
+   * map turns a *decision* into the kind of thing the decision creates, and
+   * this decision creates nothing.
+   */
+  if (decision.kind === 'attached') {
+    const moved = await db
+      .update(attachments)
+      .set({ parentType: decision.parentType, parentId: decision.parentId })
+      .where(
+        and(
+          eq(attachments.parentType, 'inbox_item'),
+          eq(attachments.parentId, itemId),
+        ),
+      )
+      .returning({ id: attachments.id });
+
+    /*
+     * Named afterwards, and never waited for. A file arriving from a capture is
+     * called whatever the camera called it, and `IMG_4821.jpg` on a project is
+     * a file nobody will ever pick out of a list again. See `nameLater`.
+     */
+    for (const file of moved) void nameAttachmentLater(file.id);
   }
 
   await db
@@ -852,12 +934,13 @@ export async function clarifyInboxItem(itemId: string, decision: ClarifyDecision
 /**
  * Which attachment parent a clarify decision produces.
  *
- * `trashed` never gets here — it has no outcome row to hang a file off — and
- * neither does `filed`, whose files become box documents rather than staying
- * attachments at all. The three action-shaped decisions all produce an action.
+ * `trashed` never gets here — it has no outcome row to hang a file off —
+ * `filed` turns its files into box documents rather than leaving them as
+ * attachments, and `attached` names its own parent rather than producing one.
+ * The three action-shaped decisions all produce an action.
  */
 const PARENT_FOR_OUTCOME: Record<
-  Exclude<ClarifyDecision['kind'], 'trashed' | 'filed'>,
+  Exclude<ClarifyDecision['kind'], 'trashed' | 'filed' | 'attached'>,
   AttachmentParentType
 > = {
   next_action: 'action',
@@ -2522,6 +2605,99 @@ export async function linkDocument(
 
     if (item?.kind === 'email') await enqueueSync('create_project_label', parentId);
   }
+
+  revalidateShell();
+}
+
+/**
+ * Move a file or a cited document from an action up to its project.
+ *
+ * A file lands on the step you were looking at when you attached it, which at
+ * the time is exactly right — you were on that step. What you find out later is
+ * that the step is finished and the quote is still relevant, or that three
+ * different steps each hold one page of the same thing. **The project is the
+ * unit you go looking in a year later**, which is the same reasoning that puts
+ * an action's upload in its *project's* Drive folder rather than a folder of
+ * its own: this is that rule catching up with a decision already made.
+ *
+ * Only upwards, and only to the project the thing already belongs to. Somewhere
+ * to *choose* a new parent would be a mover, and a mover needs a picker, a
+ * confirmation and an answer for what happens to a file moved to a project in
+ * a different Drive folder. This needs none of that, because the destination is
+ * not a choice — it is the one place the row is already related to.
+ *
+ * Nothing moves in Drive either way, which is what makes it cheap: an action's
+ * files are in the project's folder to begin with.
+ */
+export async function moveAttachmentToProject(attachmentId: string) {
+  await requireSession();
+
+  /*
+   * The project is read through the action rather than passed in. A client
+   * saying which project to move a file to would be a client choosing an
+   * attachment's parent, and this is deliberately not that — the whole
+   * guarantee is that it can only go where it already belongs.
+   */
+  const [row] = await db
+    .select({ projectId: actions.projectId })
+    .from(attachments)
+    .innerJoin(actions, eq(actions.id, attachments.parentId))
+    .where(and(eq(attachments.id, attachmentId), eq(attachments.parentType, 'action')))
+    .limit(1);
+
+  if (!row?.projectId) return;
+
+  await db
+    .update(attachments)
+    .set({ parentType: 'project', parentId: row.projectId })
+    .where(eq(attachments.id, attachmentId));
+
+  revalidateShell();
+}
+
+/** The same move for a cited box document — a link rewritten, nothing copied. */
+export async function moveLinkToProject(itemId: string, actionId: string) {
+  await requireSession();
+
+  const [action] = await db
+    .select({ projectId: actions.projectId })
+    .from(actions)
+    .where(eq(actions.id, actionId))
+    .limit(1);
+
+  if (!action?.projectId) return;
+
+  /*
+   * Written before the old one is removed, and `onConflictDoNothing` because
+   * the document may already be cited on the project as well — in which case
+   * the move is just the unlink below. Doing it the other way round would, on
+   * a failure between the two statements, leave the document cited nowhere:
+   * there are no transactions on this driver, so the order *is* the safety.
+   */
+  await db
+    .insert(boxItemLinks)
+    .values({ itemId, parentType: 'project', parentId: action.projectId })
+    .onConflictDoNothing();
+
+  // Same signal `linkDocument` sends: a message cited on a project means that
+  // project has correspondence and wants somewhere in Gmail to keep it.
+  const [item] = await db
+    .select({ kind: boxItems.kind })
+    .from(boxItems)
+    .where(eq(boxItems.id, itemId))
+    .limit(1);
+
+  if (item?.kind === 'email') await enqueueSync('create_project_label', action.projectId);
+
+  await db
+    .delete(boxItemLinks)
+    .where(
+      and(
+        eq(boxItemLinks.itemId, itemId),
+        eq(boxItemLinks.parentType, 'action'),
+        eq(boxItemLinks.parentId, actionId),
+      ),
+    );
 
   revalidateShell();
 }

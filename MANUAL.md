@@ -132,6 +132,8 @@ this?
 | Choice | Means |
 |---|---|
 | **Park on a list** | Someday, reference, purchases |
+| **File in a box** | Reference — keep it, do nothing |
+| **Attach it to…** | A file for a project you already have |
 | **Trash** | No action, no value |
 
 Trash and "did it" need nothing else — most of what lands in an inbox is
@@ -146,6 +148,32 @@ commitment.
 the action, project or list item the capture became — stranding it on a
 clarified row nobody reopens would lose it. Trash is the exception: no outcome
 row, so the file stays on the capture, which keeps the evidence intact.
+
+### Attach it to something you already have
+
+Photograph a quote at the merchant's, scan a letter, snap a whiteboard — and
+the thing you captured is not a new commitment, it is *a file for work you
+already have*. **Attach it to…** is that answer. Pick a project, and optionally
+one of its open actions; the default is the project itself.
+
+Only the file crosses. Nothing new is created, no title is asked for, and the
+words you typed to get the file into the inbox stay on the capture where you
+wrote them — they were a label for the photograph, not a thought about the
+project.
+
+### Files get named after what they turn out to be
+
+A photograph arrives called `IMG_4821.jpg` and a scan arrives named by the
+scanner's clock, and neither is something you pick out of a list in six months.
+So the app names them, the same way the Big Box titles its documents.
+
+It happens **when the file is read**, not when you attach it — the reading is
+already paid for, and the naming is a small request over words the app now
+holds. It never opens the file a second time. A file whose name somebody chose
+is left alone, and so is one the reading could not make sense of, which is why
+some files keep the name they arrived with.
+
+Rename by hand any time; Drive follows on the next sync either way.
 
 Clarifying advances to the next row automatically, so you can work down the
 queue without reaching for the mouse.
@@ -701,6 +729,23 @@ Two lists sit in every detail pane, and they are genuinely different:
 
 That difference is why linking exists: a parking notice can be a project's
 evidence for as long as the project lasts, and a document forever.
+
+### Moving something up to the project
+
+Both lists carry **Move up** on an action inside a project. A file lands on the
+step you were looking at when you attached it, which at the time is exactly
+right — you were on that step. What you find out later is that the step is
+finished and the quote is still relevant, or that three different steps each
+hold one page of the same thing. **The project is the unit you go looking in a
+year later.**
+
+It only ever goes upwards, and only to the project the thing already belongs to
+— so there is nothing to choose and nothing to confirm. Nothing moves in Drive
+either way: an action's files are in the project's folder to begin with, and a
+cited document never leaves its box.
+
+The project's name under an action title is also a link, so *what else is on
+this?* is one click rather than a trip through the sidebar.
 
 ### Where uploads go
 
@@ -1502,6 +1547,13 @@ HTML is stripped of markup first, or every saved page matches every other.
 
 **Box classification** reads documents to give them a title, a summary, the
 printed date and tags from that box's vocabulary.
+
+**Naming attachments** rides on the enrichment above and costs almost nothing
+extra: once a file has been read, a short request over a slice of that reading
+turns `IMG_4821.jpg` into something you can recognise. It never opens the file
+again — that is the whole cost design, because a PDF bills as its text *and* an
+image of every page, and paying twice to improve a filename would cost more than
+the reading that made it findable. A name somebody typed is never overwritten.
 
 **Without an API key, neither queue claims what it cannot run.** Text still
 goes through, and anything needing a model stays pending and untouched — so

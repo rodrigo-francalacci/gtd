@@ -3,6 +3,7 @@ import 'server-only';
 import { attachments, db, enrichmentJobs } from '@gtd/db';
 import type { EnrichmentJobKind } from '@gtd/db';
 import { eq, sql } from 'drizzle-orm';
+import { nameAttachment } from '@/lib/ai/filename';
 import { GoogleAuthError } from '@/lib/auth/token';
 import { GoogleApiError, downloadFile, exportFile } from '@/lib/google/client';
 import { exportTypeFor, isGoogleNative } from '@/lib/google/sync';
@@ -191,6 +192,22 @@ async function runJob(read: Reader, attachmentId: string) {
     .update(attachments)
     .set({ ocrText: text })
     .where(eq(attachments.id, attachmentId));
+
+  /*
+   * And now that there are words, name the file after them.
+   *
+   * This is the moment the naming becomes possible and the moment it is
+   * cheapest: the reading has just been paid for, and `nameAttachment` sends a
+   * slice of it rather than looking at the file again. Doing it at capture time
+   * instead would nearly always find `ocr_text` still null — the queue drains
+   * on the cron tick, hours later — so the rename would silently never happen.
+   *
+   * Not awaited into the job's own success: a file that was read and indexed
+   * has done the thing the job exists for, and failing it over a filename would
+   * cost the reading a retry. `nameAttachment` declines quietly for anything
+   * with a name somebody chose, which is most files.
+   */
+  await nameAttachment(attachmentId).catch(() => {});
 }
 
 /**

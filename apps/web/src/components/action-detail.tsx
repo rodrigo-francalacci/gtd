@@ -3,6 +3,7 @@
 import type { ListOrder } from '@/lib/file-lists';
 import { EmojiPicker } from './emoji-picker';
 import type { Context } from '@gtd/db';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useState, useTransition } from 'react';
 import {
@@ -121,7 +122,21 @@ export function ActionDetail({
           Action the drag calls. */}
       <div className="mt-1 flex items-baseline justify-between gap-2">
         {action.projectTitle ? (
-          <p className="text-[12px] text-grey-500">{action.projectTitle}</p>
+          /*
+           * The project line is a way *to* the project as well as a label.
+           *
+           * An action is nearly always read as one step of something larger,
+           * and the question it raises — what else is on this — was three
+           * clicks away through the sidebar, with the project's name already on
+           * screen the whole time. Underlined only on hover, because it sits
+           * under the title as a fact about the row first and a link second.
+           */
+          <Link
+            href={`/projects/${action.projectId}`}
+            className="truncate text-[12px] text-grey-500 hover:text-grey-800 hover:underline"
+          >
+            {action.projectTitle}
+          </Link>
         ) : (
           <p className="text-[12px] text-grey-400">No project — standalone action</p>
         )}
@@ -264,6 +279,7 @@ export function ActionDetail({
         sort={fileOrder?.sort}
         sortKey={fileOrder?.viewKey}
         groups={fileOrder?.groups}
+        moveUpTo={action.projectTitle}
       />
 
       <LinkedDocuments
@@ -274,6 +290,7 @@ export function ActionDetail({
         sort={docOrder?.sort}
         sortKey={docOrder?.viewKey}
         groups={docOrder?.groups}
+        moveUpTo={action.projectTitle}
       />
 
 
@@ -283,6 +300,7 @@ export function ActionDetail({
         parentId={action.id}
         rows={documents}
         candidates={documentOptions}
+        moveUpTo={action.projectTitle}
       />
 
       <footer className="mt-8 border-t border-grey-150 pt-3">

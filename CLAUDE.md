@@ -847,6 +847,41 @@ Turbopack is the default; `middleware` is now `proxy`.
   itself does not move — it stays in `GTD/Inbox`, because moving it is a Google
   call and `sync_jobs.project_id` is non-null, so there is nowhere to queue it
   yet.
+- **A capture can be answered with "this belongs on that".** Every other clarify
+  decision asks what the capture should *become*; `attached` is the one that
+  creates nothing. It is what a photographed quote or a scanned letter usually
+  needs — evidence for work you already have — and before it the only way to get
+  the file there was to invent a second action to carry it. `outcome_id` is the
+  thing it was attached to, so the capture still says where its file went. Only
+  the file crosses: the words you typed to get it into the inbox were a label
+  for the photograph, and writing them onto the project as a note would be
+  filing your shorthand as a thought.
+- **An attachment is named from its *reading*, never by opening it again.** That
+  is the whole cost design, and it is the same rule the box's emojify button
+  follows. The enrichment queue already reads attachments to fill `ocr_text` for
+  search, so `nameAttachment` sends a 1200-character slice of what is already
+  stored and asks for at most 80 tokens back. Re-reading would be the expensive
+  mistake available here: a PDF bills as its extracted text *and* an image of
+  every page, so improving forty filenames would cost more than the reading that
+  made those files findable in the first place.
+  It runs **at the end of the enrichment job**, not at clarify time. That is the
+  moment the words exist — put in the clarify path alone it found `ocr_text`
+  still null on nearly every capture, because the queue drains on the cron tick
+  hours later, and the rename silently never happened. `looksAutomatic` is what
+  keeps it off files somebody named: being renamed by a model after you have
+  named something yourself is the app overruling you. Only our row is written;
+  `drive_name` still holds what Drive has, and `renameDriveAttachments` on the
+  tick carries the disagreement over — the same shape as `renameBoxFiles`.
+- **Move up is a direction, not a destination.** `moveAttachmentToProject` and
+  `moveLinkToProject` take the row and read the project *through the action*, so
+  a client cannot use them to choose an attachment's parent — the only place a
+  thing can go is where it already belongs. Somewhere to choose would be a
+  mover, and a mover needs a picker, a confirmation, and an answer for a file
+  moved into a different Drive folder. This needs none of those, and nothing
+  moves in Drive either way: an action's uploads are in its project's folder to
+  begin with. `moveLinkToProject` inserts before it deletes — there are no
+  transactions on this driver, so the order is the only thing stopping a failure
+  between the two statements leaving the document cited nowhere.
 - **`c` captures from anywhere.** The barrier is almost never the typing, it is
   that the thought arrives three clicks from the inbox. `CaptureHotkey` yields
   to any focused field — `isContentEditable` included, or the note editor would

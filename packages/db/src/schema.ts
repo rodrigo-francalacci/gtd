@@ -217,6 +217,19 @@ export const inboxOutcome = pgEnum('inbox_outcome', [
    * and the inbox is still emptied by it.
    */
   'filed',
+  /**
+   * Attached to something that already exists.
+   *
+   * The one clarify decision that creates nothing. The others all answer "what
+   * should this become"; this answers "this belongs on that" — a receipt
+   * photographed at the till belongs on the project it was bought for, and
+   * making a new action called "receipt" to hold it is a commitment nobody
+   * meant to take on.
+   *
+   * `outcome_id` names the thing it was attached to, which is what makes the
+   * capture still traceable to where its file went.
+   */
+  'attached',
 ]);
 
 // ---------------------------------------------------------------------------

@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useState, useTransition } from 'react';
 import type { AttachmentParentType } from '@gtd/db';
-import { linkDocument, unlinkDocument } from '@/lib/actions';
+import { linkDocument, moveLinkToProject, unlinkDocument } from '@/lib/actions';
 import { driveFileUrl } from '@/lib/google/sync';
 import { documentLabel, type LinkedDocumentRow } from '@/lib/queries.shared';
 import type { SortChoice } from '@/lib/sort';
@@ -33,10 +33,17 @@ export function LinkedDocuments({
   sort,
   sortKey,
   groups,
+  moveUpTo,
 }: {
   parentType: AttachmentParentType;
   parentId: string;
   rows: LinkedDocumentRow[];
+  /**
+   * The project a citation could be moved up to, when the parent is an action
+   * inside one. The name only — the destination is read on the server from the
+   * action, so there is nothing here for a client to choose.
+   */
+  moveUpTo?: string | null;
   /**
    * Which half of the box this list is showing.
    *
@@ -214,6 +221,25 @@ export function LinkedDocuments({
               >
                 {row.boxName}
               </Link>
+
+              {/* The link rewritten, not the document moved: it stays in
+                  its box, as every citation does. */}
+              {moveUpTo && parentType === 'action' ? (
+                <button
+                  type="button"
+                  disabled={pending}
+                  title={`Cite it on ${moveUpTo} instead`}
+                  onClick={() =>
+                    startTransition(async () => {
+                      await moveLinkToProject(row.id, parentId);
+                      router.refresh();
+                    })
+                  }
+                  className="shrink-0 text-[11px] text-grey-400 opacity-0 underline underline-offset-2 group-hover:opacity-100 hover:text-grey-700"
+                >
+                  Move up
+                </button>
+              ) : null}
 
               <button
                 type="button"

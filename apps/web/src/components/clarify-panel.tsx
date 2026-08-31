@@ -26,6 +26,19 @@ const NOT_ACTIONABLE: { kind: Kind; label: string; hint: string }[] = [
    * had to be trashed or made into a fake action.
    */
   { kind: 'filed', label: 'File in a box', hint: 'Reference — keep it, do nothing' },
+  /*
+   * The only decision here that creates nothing.
+   *
+   * Everything else answers "what should this become"; this answers "this
+   * belongs on that". It is what a photographed receipt or a scanned quote
+   * usually needs: it is evidence for work you already have, and the only way
+   * to get it there before was to invent a second action to carry it.
+   */
+  {
+    kind: 'attached',
+    label: 'Attach it to…',
+    hint: 'A file for a project you already have',
+  },
   { kind: 'trashed', label: 'Trash', hint: 'No action, no value' },
 ];
 
@@ -34,6 +47,7 @@ export function ClarifyPanel({
   attachments,
   fileOrder,
   projects,
+  actions,
   areas,
   lists,
   boxes,
@@ -53,6 +67,14 @@ export function ClarifyPanel({
   /** How the captured-files list is ordered. */
   fileOrder?: ListOrder;
   projects: { id: string; title: string }[];
+  /**
+   * Every open action, with the project it belongs to.
+   *
+   * Passed in whole and narrowed here rather than fetched per project: the
+   * picker has to react to the project you just chose, and a round trip between
+   * two selects is exactly the friction this decision exists to remove.
+   */
+  actions: { id: string; title: string; projectId: string | null }[];
   areas: { id: string; name: string }[];
   lists: { id: string; name: string; type: string }[];
   boxes: { id: string; name: string }[];
@@ -65,6 +87,8 @@ export function ClarifyPanel({
 }) {
   const [pending, startTransition] = useTransition();
   const [kind, setKind] = useState<Kind | null>(null);
+  /** Which action inside the chosen project, or '' for the project itself. */
+  const [attachActionId, setAttachActionId] = useState('');
 
   // The suggestion pre-fills; it never commits anything on its own. A capture
   // with no note — a photo on its own — borrows the file's name, which is
@@ -101,6 +125,17 @@ export function ClarifyPanel({
 
     let decision: ClarifyDecision;
     if (kind === 'trashed') decision = { kind: 'trashed' };
+    else if (kind === 'attached') {
+      /*
+       * An action if one was picked, otherwise the project itself. Both are
+       * ordinary attachment parents, so nothing downstream has to know which
+       * of the two you chose.
+       */
+      if (!projectId) return;
+      decision = attachActionId
+        ? { kind, parentType: 'action', parentId: attachActionId }
+        : { kind, parentType: 'project', parentId: projectId };
+    }
     else if (kind === 'project')
       decision = { kind, title, areaId: areaId || null, note };
     else if (kind === 'list_item') {
@@ -117,6 +152,9 @@ export function ClarifyPanel({
       setKind(null);
     });
   };
+
+  /** The actions in the chosen project, which is what the second picker offers. */
+  const actionsHere = actions.filter((a) => a.projectId === projectId);
 
   /**
    * The one-click exits.
@@ -137,7 +175,15 @@ export function ClarifyPanel({
 
   const quickNote = note;
 
-  const needsTitle = kind !== null && kind !== 'trashed';
+  /*
+   * Attaching asks for neither a title nor a note.
+   *
+   * The words you typed to get the file into the inbox were a label for the
+   * capture — "receipt", "the quote" — and writing them onto the project as a
+   * note would be filing your shorthand as a thought. The file is the thing
+   * that crosses; the capture keeps its own text, where you wrote it.
+   */
+  const needsTitle = kind !== null && kind !== 'trashed' && kind !== 'attached';
   const dimensions: { key: keyof typeof contextGroups; label: string }[] = [
     { key: 'place', label: 'Where' },
     { key: 'time', label: 'Time' },
@@ -236,7 +282,74 @@ export function ClarifyPanel({
 
       {kind ? (
         <section className="mt-5 rounded-sm border border-grey-300 bg-grey-50 px-3 py-3">
-          {needsTitle ? (
+          {kind === 'attached' ? (
+            <div className="flex flex-col gap-3">
+              <p className="text-[12px] leading-relaxed text-grey-600">
+                {attachments.length === 0 ? (
+                  <>
+                    This capture has no file on it. Attaching would move nothing
+                    — clarify it another way, or add a file above first.
+                  </>
+                ) : (
+                  <>
+                    {attachments.length === 1
+                      ? 'The file goes'
+                      : `All ${attachments.length} files go`}{' '}
+                    onto whatever you pick, and the capture is marked dealt with.
+                    Nothing new is created, and the note you typed stays here.
+                  </>
+                )}
+              </p>
+
+              <div>
+                <label className="block text-[10px] font-semibold uppercase tracking-wider text-grey-500">
+                  Project
+                </label>
+                <select
+                  value={projectId}
+                  onChange={(e) => {
+                    setProjectId(e.target.value);
+                    // The actions listed below belong to the old project.
+                    setAttachActionId('');
+                  }}
+                  className="mt-1 w-full rounded-sm border border-grey-300 bg-paper px-2 py-1 text-[13px] focus:border-grey-500 focus:outline-none"
+                >
+                  <option value="">Choose a project…</option>
+                  {projects.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.title}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/*
+                The second picker is optional and only appears once there is
+                something to pick from. A project with no open actions would
+                otherwise show an empty select that looks like a thing you have
+                failed to fill in.
+              */}
+              {projectId && actionsHere.length > 0 ? (
+                <div>
+                  <label className="block text-[10px] font-semibold uppercase tracking-wider text-grey-500">
+                    On an action, or the project itself
+                  </label>
+                  <select
+                    value={attachActionId}
+                    onChange={(e) => setAttachActionId(e.target.value)}
+                    className="mt-1 w-full rounded-sm border border-grey-300 bg-paper px-2 py-1 text-[13px] focus:border-grey-500 focus:outline-none"
+                  >
+                    <option value="">The project itself</option>
+                    {actionsHere.map((a) => (
+                      <option key={a.id} value={a.id}>
+                        {a.title}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              ) : null}
+            </div>
+          ) : needsTitle ? (
             <div>
               <label className="block text-[10px] font-semibold uppercase tracking-wider text-grey-500">
                 {kind === 'project'

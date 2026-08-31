@@ -792,6 +792,26 @@ export async function getProjectOptions() {
 }
 
 /**
+ * The actions a captured file could be attached to.
+ *
+ * Open ones only — `next` and `waiting`, never `done` — because attaching
+ * evidence to something already finished is nearly always a mis-click, and a
+ * picker offering a year of completed steps is a picker nobody scrolls.
+ * `future` is included: a quote for work parked until spring is exactly the
+ * kind of thing you photograph now.
+ *
+ * Ordered by project so the second picker reads in the order the first one
+ * does, and titled only — this fills a select, not a list.
+ */
+export async function getAttachableActions() {
+  return db
+    .select({ id: actions.id, title: actions.title, projectId: actions.projectId })
+    .from(actions)
+    .where(inArray(actions.status, ['next', 'future', 'waiting']))
+    .orderBy(asc(actions.position), asc(actions.title));
+}
+
+/**
  * Counts for the sidebar badges — one query, not seven.
  *
  * This runs in the app layout, which means it is on the critical path of every
