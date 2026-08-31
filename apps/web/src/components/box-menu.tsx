@@ -59,6 +59,17 @@ export function BoxMenu({
    */
   const consumed = useRef(false);
 
+  /**
+   * The menu itself, so a press inside it can be told from one outside.
+   *
+   * The `stopPropagation` this replaces could never have worked: the closing
+   * listener is on `document` in the **capture** phase, and React attaches
+   * component handlers at its root container — a descendant of `document` — so
+   * the close always ran first. Every press on a menu item unmounted the menu
+   * before the click could land on it.
+   */
+  const menu = useRef<HTMLDivElement>(null);
+
   const cancel = () => {
     if (held.current) clearTimeout(held.current);
     held.current = null;
@@ -74,7 +85,10 @@ export function BoxMenu({
   useEffect(() => {
     if (!at) return;
 
-    const shut = () => setAt(null);
+    const shut = (event?: Event) => {
+      if (event && menu.current?.contains(event.target as Node)) return;
+      setAt(null);
+    };
     const key = (event: KeyboardEvent) => {
       if (event.key === 'Escape') setAt(null);
     };
@@ -170,11 +184,9 @@ export function BoxMenu({
         <div
           role="menu"
           aria-label={name}
+          ref={menu}
           style={{ left: at.x, top: at.y }}
           className="fixed z-50 w-[11rem] rounded-sm border border-grey-300 bg-paper py-1 shadow-lg"
-          // The menu is inside the closing listener's world, so a click on it
-          // must not reach the document handler that shuts it.
-          onPointerDown={(event) => event.stopPropagation()}
         >
           <p className="truncate px-3 pb-1 text-[10px] uppercase tracking-wider text-grey-400">
             {name}

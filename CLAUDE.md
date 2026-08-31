@@ -1363,6 +1363,22 @@ Turbopack is the default; `middleware` is now `proxy`.
 - **Inputs on the phone are 16px minimum.** iOS Safari zooms the page in when a
   smaller field takes focus. The fix is the type size, never
   `user-scalable=no` — blocking pinch-zoom to stop it is a bad trade.
+- **A "click away to close" listener must test containment, not rely on
+  `stopPropagation`.** Both context menus registered their close on `document`
+  in the **capture** phase and tried to protect themselves with
+  `onPointerDown={stopPropagation}` on the menu — which cannot work, because
+  React attaches component handlers at its root container and that is a
+  *descendant* of `document`. The close therefore ran first on every press,
+  including presses on the menu's own buttons: the menu unmounted between
+  pointerdown and pointerup, no click ever reached a button, and Rename and
+  Delete both looked like they did nothing at all. A `ref` and
+  `menu.contains(event.target)` does not care what order anything fires in.
+- **`RowMenu` refreshes the route itself.** A Server Action normally brings its
+  revalidation back with it, and here it did not: the delete really deleted, and
+  the list *and* the sidebar count went on showing the row until a full
+  navigation — which reads exactly like a delete that failed silently. Verified
+  by console instrumentation that `router.refresh()` runs and the row then goes.
+  `linked-documents.tsx` already did this after its own actions.
 - **Panels seeded from a selected row need `key={row.id}`.** `useState`
   initialisers only run on mount, so without it a panel keeps the previous
   row's draft. Found again across *every* detail pane — actions, list items,

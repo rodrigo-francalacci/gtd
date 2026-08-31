@@ -1,5 +1,6 @@
 'use client';
 
+import { useRouter } from 'next/navigation';
 import { useEffect, useRef, useState, useTransition } from 'react';
 
 /**
@@ -42,6 +43,36 @@ export function RowMenu({
   const [confirming, setConfirming] = useState(false);
   const [draft, setDraft] = useState(name);
   const [pending, startTransition] = useTransition();
+  const router = useRouter();
+
+  /**
+   * Ask for the list again after the row has changed.
+   *
+   * A Server Action normally brings the revalidated payload back with it, and
+   * for this menu it did not: deleting really deleted the row, and the list and
+   * the sidebar count both went on showing it until the page was reloaded —
+   * which reads exactly like a delete that silently failed. `linked-documents`
+   * already refreshes by hand after its actions for the same reason.
+   */
+  const done = () => {
+    shut();
+    router.refresh();
+  };
+
+  /**
+   * The menu itself, so a press inside it can be told from a press outside.
+   *
+   * This is the whole of the fix, and `stopPropagation` on the menu could never
+   * have been: the "click away" listener is registered on `document` in the
+   * **capture** phase, and React attaches component handlers at its root
+   * container — which is a descendant of `document`. So the close ran first, on
+   * every press, including presses on the menu's own buttons. The menu unmounted
+   * between pointerdown and pointerup, no click ever reached a button, and both
+   * Rename and Delete looked like they simply did nothing.
+   *
+   * A containment test does not care what order anything fires in.
+   */
+  const menu = useRef<HTMLDivElement>(null);
 
   const held = useRef<ReturnType<typeof setTimeout> | null>(null);
   /**
@@ -75,7 +106,10 @@ export function RowMenu({
   useEffect(() => {
     if (!at) return;
 
-    const away = () => shut();
+    const away = (event: Event) => {
+      if (menu.current?.contains(event.target as Node)) return;
+      shut();
+    };
     const key = (event: KeyboardEvent) => {
       if (event.key === 'Escape') shut();
     };
@@ -155,9 +189,9 @@ export function RowMenu({
         <div
           role="menu"
           aria-label={name}
+          ref={menu}
           style={{ left: at.x, top: at.y }}
           className="fixed z-50 w-[13rem] rounded-sm border border-grey-300 bg-paper py-1 shadow-lg"
-          onPointerDown={(event) => event.stopPropagation()}
         >
           <p className="truncate px-3 pb-1 text-[10px] uppercase tracking-wider text-grey-400">
             {name}
@@ -175,7 +209,7 @@ export function RowMenu({
                 }
                 startTransition(async () => {
                   await onRename(next);
-                  shut();
+                  done();
                 });
               }}
             >
@@ -221,7 +255,7 @@ export function RowMenu({
                     onClick={() =>
                       startTransition(async () => {
                         await onDelete();
-                        shut();
+                        done();
                       })
                     }
                     className="rounded-sm bg-stale px-2 py-0.5 text-[11px] text-paper disabled:opacity-40"
