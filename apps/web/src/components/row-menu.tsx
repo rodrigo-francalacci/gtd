@@ -1,6 +1,5 @@
 'use client';
 
-import { useRouter } from 'next/navigation';
 import { useEffect, useRef, useState, useTransition } from 'react';
 
 /**
@@ -43,21 +42,6 @@ export function RowMenu({
   const [confirming, setConfirming] = useState(false);
   const [draft, setDraft] = useState(name);
   const [pending, startTransition] = useTransition();
-  const router = useRouter();
-
-  /**
-   * Ask for the list again after the row has changed.
-   *
-   * A Server Action normally brings the revalidated payload back with it, and
-   * for this menu it did not: deleting really deleted the row, and the list and
-   * the sidebar count both went on showing it until the page was reloaded —
-   * which reads exactly like a delete that silently failed. `linked-documents`
-   * already refreshes by hand after its actions for the same reason.
-   */
-  const done = () => {
-    shut();
-    router.refresh();
-  };
 
   /**
    * The menu itself, so a press inside it can be told from a press outside.
@@ -209,7 +193,7 @@ export function RowMenu({
                 }
                 startTransition(async () => {
                   await onRename(next);
-                  done();
+                  shut();
                 });
               }}
             >
@@ -255,7 +239,7 @@ export function RowMenu({
                     onClick={() =>
                       startTransition(async () => {
                         await onDelete();
-                        done();
+                        shut();
                       })
                     }
                     className="rounded-sm bg-stale px-2 py-0.5 text-[11px] text-paper disabled:opacity-40"

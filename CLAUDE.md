@@ -1393,12 +1393,16 @@ Turbopack is the default; `middleware` is now `proxy`.
   pointerdown and pointerup, no click ever reached a button, and Rename and
   Delete both looked like they did nothing at all. A `ref` and
   `menu.contains(event.target)` does not care what order anything fires in.
-- **`RowMenu` refreshes the route itself.** A Server Action normally brings its
-  revalidation back with it, and here it did not: the delete really deleted, and
-  the list *and* the sidebar count went on showing the row until a full
-  navigation — which reads exactly like a delete that failed silently. Verified
-  by console instrumentation that `router.refresh()` runs and the row then goes.
-  `linked-documents.tsx` already did this after its own actions.
+- **Never test "is this row still on screen" with `body.textContent`.** The RSC
+  payload is inlined in a `<script>` in the page, so the name of a row that was
+  removed a second ago is still in the document text and will be for the rest of
+  the session. Two separate mutations were diagnosed as broken revalidation on
+  the strength of that — a `router.refresh()` was added to `RowMenu` and nearly
+  added to `attachments.tsx` to fix a problem neither had. Count rendered
+  elements instead (`querySelectorAll('li')` and friends, filtered on text), or
+  read the database. A Server Action's revalidation does reach the client here;
+  the one place that genuinely needs `router.refresh()` is
+  `linked-documents.tsx`, which is not a Server Action call at all.
 - **Panels seeded from a selected row need `key={row.id}`.** `useState`
   initialisers only run on mount, so without it a panel keeps the previous
   row's draft. Found again across *every* detail pane — actions, list items,

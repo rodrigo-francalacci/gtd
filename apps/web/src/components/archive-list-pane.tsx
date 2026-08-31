@@ -22,6 +22,7 @@ export function ArchiveListPane({
   view,
   find,
   selectedId,
+  selectedActionId,
   showDropped,
   viewMode,
   viewKey,
@@ -42,6 +43,8 @@ export function ArchiveListPane({
   view: 'projects' | 'actions';
   find: string;
   selectedId: string | null;
+  /** Which finished action is open in the third pane, if any. */
+  selectedActionId: string | null;
   showDropped: boolean;
   viewMode: ViewMode;
   /** Which list this is, so its density is remembered per list. */
@@ -126,7 +129,7 @@ export function ArchiveListPane({
       {find ? (
         <ArchiveResults hits={hits} term={find} />
       ) : view === 'actions' ? (
-        <ArchiveActions actions={actions} />
+        <ArchiveActions actions={actions} selectedId={selectedActionId} find={find} />
       ) : (
         <>
           {rows.length === 0 ? (
@@ -182,7 +185,15 @@ export function ArchiveListPane({
  * happened, and a heading per day over a list that grows by one every few days
  * would be more headings than rows.
  */
-function ArchiveActions({ actions }: { actions: ArchivedActionRow[] }) {
+function ArchiveActions({
+  actions,
+  selectedId,
+  find,
+}: {
+  actions: ArchivedActionRow[];
+  selectedId: string | null;
+  find: string;
+}) {
   if (actions.length === 0) {
     return (
       <EmptyList message="Nothing here yet. A finished action with no project lands here — the two-minute jobs you tick off with “Did it”." />
@@ -192,9 +203,18 @@ function ArchiveActions({ actions }: { actions: ArchivedActionRow[] }) {
   return (
     <>
       {actions.map((action) => (
-        <div
+        /* A link, because the record is the point: the notes saying what was
+           actually done and the files that were on it are in the third pane,
+           and a list of finished work you cannot open is a receipt. */
+        <Link
           key={action.id}
-          className="flex items-baseline gap-2 border-b border-grey-150 px-4 py-2 text-[13px]"
+          href={`/archive?view=actions&action=${action.id}${
+            find ? `&find=${encodeURIComponent(find)}` : ''
+          }`}
+          className={[
+            'flex items-baseline gap-2 border-b border-grey-150 px-4 py-2 text-[13px]',
+            action.id === selectedId ? 'bg-selected-bg' : 'hover:bg-grey-100',
+          ].join(' ')}
         >
           {/* Greyed, not struck through: a finished step is a record of what
               was done, and a line through it says disregard. */}
@@ -212,7 +232,7 @@ function ArchiveActions({ actions }: { actions: ArchivedActionRow[] }) {
           <span className="shrink-0 tabular-nums text-[11px] text-grey-400">
             {dateFormat.format(action.completedAt ?? action.createdAt)}
           </span>
-        </div>
+        </Link>
       ))}
     </>
   );

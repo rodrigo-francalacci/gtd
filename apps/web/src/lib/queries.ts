@@ -461,6 +461,8 @@ export async function getAction(id: string) {
       projectId: actions.projectId,
       projectTitle: projects.title,
       createdAt: actions.createdAt,
+      /** When it was finished, for the archive's own heading. */
+      completedAt: actions.completedAt,
     })
     .from(actions)
     .leftJoin(projects, eq(projects.id, actions.projectId))
