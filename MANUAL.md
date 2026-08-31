@@ -161,6 +161,14 @@ words you typed to get the file into the inbox stay on the capture where you
 wrote them — they were a label for the photograph, not a thought about the
 project.
 
+**The file moves in Drive too, a second or two later.** A capture's photograph
+goes up before anything has been decided about it, so it lands in `GTD/Inbox`;
+clarifying is what says where it really belongs, and the file follows the row
+into the project's folder. That holds for every decision, not just this one — a
+next action inside a project, a new project, an attachment moved up. A list item
+or a standalone action has no project, so its files stay in `GTD/Inbox`, which is
+where they already were.
+
 ### Files get named after what they turn out to be
 
 A photograph arrives called `IMG_4821.jpg` and a scan arrives named by the
@@ -746,6 +754,17 @@ cited document never leaves its box.
 
 The project's name under an action title is also a link, so *what else is on
 this?* is one click rather than a trip through the sidebar.
+
+### Deleting a project takes its folder
+
+Deleting a project already took every file attached to it and to its actions.
+Now it takes the **Drive folder** as well, so the account does not fill with
+empty folders named after things that no longer exist.
+
+Trashed, never deleted — it is in Drive's bin and can be restored, the same rule
+every file removal here follows. The project's Gmail label is deliberately left
+alone: a deleted label cannot be brought back, and the messages under it are real
+correspondence.
 
 ### Where uploads go
 

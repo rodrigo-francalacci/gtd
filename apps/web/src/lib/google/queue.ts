@@ -1,25 +1,46 @@
 import 'server-only';
 
 import { db, projects, syncJobs } from '@gtd/db';
-import { eq, isNull, or, sql } from 'drizzle-orm';
+import { and, eq, isNull, or, sql } from 'drizzle-orm';
 import { GoogleAuthError } from '@/lib/auth/token';
+import { moveAttachmentFile } from './attachments';
 import { GoogleApiError } from './client';
 import { LiveGoogleSync } from './live-sync';
 
 const MAX_ATTEMPTS = 5;
+
+/**
+ * How long a job may sit `running` before it is assumed dead.
+ *
+ * Claiming a job writes `running`, and the only thing that writes it back is
+ * the same invocation finishing. If that invocation is torn down first — a
+ * function hitting its limit, a deploy mid-drain — the row stays `running` for
+ * ever: never claimed again, never retried, and not visible as a failure. This
+ * always could have happened; draining from `after()` makes it likely enough to
+ * matter, because that work runs after the response with no one waiting on it.
+ *
+ * Fifteen minutes because nothing here can legitimately still be going: a
+ * serverless function's ceiling is five, so anything older is a corpse rather
+ * than a job in flight. That margin is also what makes this safe to run at the
+ * head of every drain — two overlapping workers cannot reset each other's live
+ * jobs, because neither can have been holding one for a quarter of an hour.
+ */
+const STUCK_MINUTES = 15;
 
 /** Enqueue work. Cheap enough to call inside a request. */
 export type SyncKind =
   | 'create_project_links'
   | 'create_project_folder'
   | 'create_project_label'
-  | 'move_project_links';
+  | 'move_project_links'
+  | 'move_attachment';
 
 export async function enqueueSync(
   kind: SyncKind,
   projectId: string,
+  attachmentId?: string,
 ): Promise<void> {
-  await db.insert(syncJobs).values({ kind, projectId });
+  await db.insert(syncJobs).values({ kind, projectId, attachmentId });
 }
 
 export type DrainResult = {
@@ -37,9 +58,29 @@ export type DrainResult = {
  * order the workers happened to start in.
  */
 export async function drainSyncQueue(limit = 10): Promise<DrainResult> {
+  /*
+   * Anything abandoned mid-flight goes back on the queue first. `attempts` is
+   * left where it was, so a job that keeps killing its worker still gives up
+   * after `MAX_ATTEMPTS` rather than looping for ever.
+   */
+  await db
+    .update(syncJobs)
+    .set({ status: 'pending' })
+    .where(
+      and(
+        eq(syncJobs.status, 'running'),
+        sql`coalesce(${syncJobs.startedAt}, ${syncJobs.createdAt})
+              < now() - interval '${sql.raw(String(STUCK_MINUTES))} minutes'`,
+      ),
+    );
+
   const claimed = await db
     .update(syncJobs)
-    .set({ status: 'running', attempts: sql`${syncJobs.attempts} + 1` })
+    .set({
+      status: 'running',
+      attempts: sql`${syncJobs.attempts} + 1`,
+      startedAt: new Date(),
+    })
     .where(
       sql`${syncJobs.id} in (
         select id from ${syncJobs}
@@ -53,6 +94,7 @@ export async function drainSyncQueue(limit = 10): Promise<DrainResult> {
       id: syncJobs.id,
       kind: syncJobs.kind,
       projectId: syncJobs.projectId,
+      attachmentId: syncJobs.attachmentId,
       attempts: syncJobs.attempts,
     });
 
@@ -67,7 +109,7 @@ export async function drainSyncQueue(limit = 10): Promise<DrainResult> {
 
   for (const job of claimed) {
     try {
-      await runJob(sync, job.kind, job.projectId);
+      await runJob(sync, job.kind, job.projectId, job.attachmentId);
 
       await db
         .update(syncJobs)
@@ -112,7 +154,19 @@ async function runJob(
   sync: LiveGoogleSync,
   kind: SyncKind,
   projectId: string,
+  attachmentId: string | null,
 ): Promise<void> {
+  /*
+   * The one job about a row rather than a project, and the one that needs
+   * nothing from the project itself — `attachmentFolder` reads what it needs
+   * and creates the folder if this is the first file to want one. Handled
+   * before the project is fetched so it does not pay for a read it ignores.
+   */
+  if (kind === 'move_attachment') {
+    if (attachmentId) await moveAttachmentFile(attachmentId);
+    return;
+  }
+
   const [project] = await db
     .select({
       id: projects.id,

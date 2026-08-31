@@ -786,6 +786,7 @@ export const syncJobKind = pgEnum('sync_job_kind', [
   'create_project_folder',
   'create_project_label',
   'move_project_links',
+  'move_attachment',
 ]);
 
 export const syncJobStatus = pgEnum('sync_job_status', [
@@ -814,12 +815,35 @@ export const syncJobs = pgTable(
     projectId: uuid('project_id')
       .notNull()
       .references(() => projects.id, { onDelete: 'cascade' }),
+    /**
+     * Which file to move, for `move_attachment` and nothing else.
+     *
+     * Every other job here is about a project as a whole — make its folder,
+     * make its label, move both — and needs nothing narrower. Moving a file is
+     * the first job about one *row*, so it is the first that has to say which.
+     *
+     * Cascading, because a file deleted before the worker reaches it has
+     * nowhere to be moved to and the job is moot. That is the same reasoning
+     * the project reference above is built on.
+     */
+    attachmentId: uuid('attachment_id').references(() => attachments.id, {
+      onDelete: 'cascade',
+    }),
     status: syncJobStatus('status').notNull().default('pending'),
     attempts: integer('attempts').notNull().default(0),
     lastError: text('last_error'),
     /** Earliest time to try again — set on retry for backoff. */
     runAfter: timestamp('run_after', { withTimezone: true }).notNull().defaultNow(),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    /**
+     * When a worker claimed it — how a job abandoned mid-flight is recognised.
+     *
+     * `created_at` cannot answer that: it says when the work was *asked for*,
+     * so a job queued twenty minutes ago and claimed a second ago looks equally
+     * stale by it. Only the moment of claiming distinguishes "still going" from
+     * "the worker that had this is gone".
+     */
+    startedAt: timestamp('started_at', { withTimezone: true }),
     completedAt: timestamp('completed_at', { withTimezone: true }),
   },
   (t) => [

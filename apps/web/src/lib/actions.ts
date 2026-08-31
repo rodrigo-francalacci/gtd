@@ -51,6 +51,7 @@ import {
   attachmentFolder,
   createGoogleDocument,
   removeAttachment,
+  trashProjectFolder,
 } from './google/attachments';
 import { createGalleryFolder } from './google/galleries';
 import {
@@ -66,7 +67,8 @@ import {
   ensureBoxFolder,
   ensureBoxLabel,
 } from './google/boxes';
-import { enqueueSync } from './google/queue';
+import { after } from 'next/server';
+import { drainSyncQueue, enqueueSync } from './google/queue';
 import { enqueueBoxJob } from './box/queue';
 import { canClassify } from './box/classify';
 import { canGroup, type SortChoice } from './sort';
@@ -237,7 +239,26 @@ export async function deleteProject(projectId: string) {
   await purgeFilesOf('project', [projectId]);
   await clearEmailRequestParents('project', [projectId]);
 
-  await db.delete(projects).where(eq(projects.id, projectId));
+  const [gone] = await db
+    .delete(projects)
+    .where(eq(projects.id, projectId))
+    .returning({ driveFolderId: projects.driveFolderId });
+
+  /*
+   * And the folder the files were in.
+   *
+   * The purges above take every document with them and left the container
+   * standing, so deleting projects slowly filled Drive with empty folders named
+   * after things that no longer exist. Last, so what goes to the bin is an
+   * empty folder rather than one still holding live files, and read off the
+   * delete itself so there is no second query and no chance of trashing a
+   * folder belonging to a project that was not the one removed.
+   *
+   * A Google call inside a request, under the exception this function is
+   * already using: it has just awaited a trash for every attached file, and one
+   * more is not what makes it slow.
+   */
+  await trashProjectFolder(gone?.driveFolderId ?? null);
   revalidateShell();
   redirect('/projects');
 }
@@ -713,6 +734,48 @@ function nameAttachmentLater(attachmentId: string): void {
   });
 }
 
+/**
+ * Which project's folder this decision's files now belong in, if any.
+ *
+ * Written out per decision rather than derived from the re-parented row, so
+ * that adding an outcome forces an answer here instead of silently defaulting
+ * to "leave it in the inbox" — which is the failure this whole path is fixing.
+ * Null is a real answer for a list item and a standalone action: their files
+ * genuinely live in `GTD/Inbox`, and that is where they already are.
+ */
+async function outcomeProject(
+  decision: ClarifyDecision,
+  outcomeId: string | null,
+): Promise<string | null> {
+  switch (decision.kind) {
+    // The project itself is the destination.
+    case 'project':
+      return outcomeId;
+
+    case 'next_action':
+    case 'waiting':
+    case 'done':
+      return decision.projectId;
+
+    case 'attached': {
+      if (decision.parentType === 'project') return decision.parentId;
+
+      const [action] = await db
+        .select({ projectId: actions.projectId })
+        .from(actions)
+        .where(eq(actions.id, decision.parentId))
+        .limit(1);
+
+      return action?.projectId ?? null;
+    }
+
+    // A list item is a candidate rather than a commitment, and `filed` and
+    // `trashed` have no attachment left to move at all.
+    default:
+      return null;
+  }
+}
+
 export type ClarifyDecision =
   | ({
       kind: 'next_action' | 'waiting' | 'done';
@@ -875,13 +938,15 @@ export async function clarifyInboxItem(itemId: string, decision: ClarifyDecision
   // `filed` is the other exception, for the opposite reason to `trashed`: its
   // files have already *become* box documents, so there is no attachment row
   // left to re-parent and nothing that would want to be one.
+  let moved: { id: string }[] = [];
+
   if (
     outcomeId &&
     decision.kind !== 'trashed' &&
     decision.kind !== 'filed' &&
     decision.kind !== 'attached'
   ) {
-    await db
+    moved = await db
       .update(attachments)
       .set({ parentType: PARENT_FOR_OUTCOME[decision.kind], parentId: outcomeId })
       .where(
@@ -889,7 +954,8 @@ export async function clarifyInboxItem(itemId: string, decision: ClarifyDecision
           eq(attachments.parentType, 'inbox_item'),
           eq(attachments.parentId, itemId),
         ),
-      );
+      )
+      .returning({ id: attachments.id });
   }
 
   /*
@@ -899,7 +965,7 @@ export async function clarifyInboxItem(itemId: string, decision: ClarifyDecision
    * this decision creates nothing.
    */
   if (decision.kind === 'attached') {
-    const moved = await db
+    moved = await db
       .update(attachments)
       .set({ parentType: decision.parentType, parentId: decision.parentId })
       .where(
@@ -909,13 +975,62 @@ export async function clarifyInboxItem(itemId: string, decision: ClarifyDecision
         ),
       )
       .returning({ id: attachments.id });
+  }
+
+  /*
+   * **The row moving is only half of it — the file has to move in Drive too.**
+   *
+   * A capture's photograph went up before anything was decided about it, so it
+   * is sitting in `GTD/Inbox`, which was the honest answer at the time. Leaving
+   * it there once the capture has become the quote for the kitchen defeats the
+   * rule the whole upload path is built on: files follow the project, because
+   * the project's folder is what you open in a year. Everything that arrived as
+   * a capture was precisely what that folder was missing.
+   *
+   * Queued rather than called here, because a clarify is an interactive
+   * mutation and must not wait on Drive — and queued *per file*, which is why
+   * `sync_jobs` grew an `attachment_id`. `after()` below drains it a moment
+   * later so the folder is right while you are still looking at the app; the
+   * row is what makes that safe to attempt, since a failure then leaves work
+   * the cron will finish rather than a file quietly left behind.
+   */
+  const destination = await outcomeProject(decision, outcomeId);
+
+  for (const file of moved) {
+    /*
+     * No project means the destination is `GTD/Inbox`, which is where the file
+     * already is — nothing to move and nothing to queue. That is also why a
+     * non-null `project_id` on the job is not a limitation: every move this
+     * app can make has a project at the end of it.
+     */
+    if (destination) await enqueueSync('move_attachment', destination, file.id);
 
     /*
      * Named afterwards, and never waited for. A file arriving from a capture is
      * called whatever the camera called it, and `IMG_4821.jpg` on a project is
      * a file nobody will ever pick out of a list again. See `nameLater`.
      */
-    for (const file of moved) void nameAttachmentLater(file.id);
+    void nameAttachmentLater(file.id);
+  }
+
+  /*
+   * Drained after the response rather than before it.
+   *
+   * The cron owns this queue and on a Hobby account it runs **daily** — so
+   * without this a file attached at two in the afternoon would sit in the inbox
+   * folder until the following morning, with the app showing it on the project
+   * the whole time. Nothing broken and everything looking broken, which is the
+   * worst combination and the same trap the box's Drive renames fell into.
+   *
+   * `after` is what makes fixing it free: the work runs once the response has
+   * been flushed, so the clarify is exactly as fast as it was and a slow Drive
+   * costs nothing. A failure is not an error — the job stays pending and the
+   * next tick takes it, which is the whole reason it is a row first.
+   */
+  if (destination && moved.length > 0) {
+    after(async () => {
+      await drainSyncQueue(moved.length).catch(() => {});
+    });
   }
 
   await db

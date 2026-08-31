@@ -15,6 +15,7 @@ import {
   createTextFile,
   ensureFolder,
   getFile,
+  moveFile,
   renameFile,
   trashFile,
   uploadFile,
@@ -64,6 +65,52 @@ async function galleryFolder(galleryId: string): Promise<string | null> {
     .limit(1);
 
   return asBoxItem?.driveFileId ?? null;
+}
+
+/**
+ * Put a file where its row now says it belongs.
+ *
+ * A capture's photograph goes up before anything is decided about it, so it
+ * lands in `GTD/Inbox` — which is the honest answer at the time and the wrong
+ * one a minute later, once clarifying has said this is the quote for the
+ * kitchen. Until now the row moved and the file did not: the app showed it on
+ * the project and Drive went on holding it in the inbox, so the folder you open
+ * in a year — which is the whole reason files follow the project — was missing
+ * exactly the things that arrived as captures.
+ *
+ * `attachmentFolder` answers where it should be, which is what makes this
+ * correct for every outcome rather than only the ones with a project: an action
+ * resolves to its project, a project to itself, a list item or a standalone
+ * action to `GTD/Inbox`, and a finished project to its year in the archive. It
+ * also creates the project's folder if this is the first file to want one,
+ * which is the on-demand rule already.
+ *
+ * Idempotent both ways round. `moveFile` returns without a call when the file
+ * is already there, so a job that runs twice costs one metadata read, and a
+ * file whose row has moved on again is simply put wherever it now belongs.
+ */
+export async function moveAttachmentFile(attachmentId: string): Promise<void> {
+  const [row] = await db
+    .select({
+      driveFileId: attachments.driveFileId,
+      parentType: attachments.parentType,
+      parentId: attachments.parentId,
+      kind: attachments.kind,
+    })
+    .from(attachments)
+    .where(eq(attachments.id, attachmentId))
+    .limit(1);
+
+  // Deleted, or never had a file. Neither is an error and neither is retryable.
+  if (!row?.driveFileId) return;
+
+  /*
+   * A gallery *is* a folder, and moving a folder moves everything in it — which
+   * is right, and is why this is allowed rather than skipped. Its pictures are
+   * parented on the gallery, so `attachmentFolder` sends each of them into the
+   * gallery itself and they never need moving on their own.
+   */
+  await moveFile(row.driveFileId, await attachmentFolder(row.parentType, row.parentId));
 }
 
 /**
@@ -554,6 +601,40 @@ export async function purgeGalleryPictures(galleryId: string): Promise<void> {
       // Already gone, or Drive is refusing. Recoverable from its bin either
       // way, and the row is the thing that had to go.
     }
+  }
+}
+
+/**
+ * Trash a deleted project's Drive folder.
+ *
+ * Deleting a project already takes every file with it, one at a time, because
+ * `parent_id` is polymorphic and nothing cascades — but the *container* was
+ * left standing, so the account slowly filled with empty folders named after
+ * projects that no longer exist. That is the on-demand rule not finishing its
+ * sentence: a folder is made the first time there is something to put in it,
+ * and it should go when there is nothing left and nothing to put there again.
+ *
+ * **Trashed, never deleted**, like every file this app removes. A folder in the
+ * bin can be restored by whoever changes their mind; a folder deleted outright
+ * cannot, and this is the one operation here that could take a year of work in
+ * one press if it ever reached the wrong id.
+ *
+ * Called *after* the files have gone, so what is trashed is an empty folder
+ * rather than a folder that takes live documents down with it — the opposite
+ * order to a gallery, whose pictures are *in* it and are meant to follow.
+ *
+ * A failure is swallowed for the reason `removeAttachment` swallows one: being
+ * unable to delete a project because of a problem at Google's end is worse than
+ * an empty folder in a bin you can empty. The folder is also usually already
+ * gone by hand, which is a 404 rather than a fault.
+ */
+export async function trashProjectFolder(folderId: string | null): Promise<void> {
+  if (!folderId) return;
+
+  try {
+    await trashFile(folderId);
+  } catch {
+    // Deleting the project is what was asked for, and it has happened.
   }
 }
 

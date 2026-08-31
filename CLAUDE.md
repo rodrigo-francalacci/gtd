@@ -843,10 +843,46 @@ Turbopack is the default; `middleware` is now `proxy`.
   so re-parenting it to the action, project or list item the capture became is
   what keeps it findable — stranding it on a clarified inbox row nobody reopens
   would lose it. `trashed` is the exception: no outcome row, so the file stays
-  on the capture, which is also what keeps the evidence intact. The Drive file
-  itself does not move — it stays in `GTD/Inbox`, because moving it is a Google
-  call and `sync_jobs.project_id` is non-null, so there is nowhere to queue it
-  yet.
+  on the capture, which is also what keeps the evidence intact.
+- **And the file moves in Drive too, which the row moving is only half of.** A
+  capture's photograph goes up before anything is decided about it, so it lands
+  in `GTD/Inbox` — the honest answer at the time and the wrong one a minute
+  later. Leaving it there defeated the rule the whole upload path is built on:
+  the project's folder is what you open in a year, and everything that arrived
+  as a capture was exactly what it was missing.
+  `moveAttachmentFile` asks `attachmentFolder` where the row now says it
+  belongs, which is what makes it right for *every* outcome rather than only the
+  ones with a project — an action resolves to its project, a list item to
+  `GTD/Inbox`, a finished project to its year in the archive — and creates the
+  project's folder if this is the first file to want one.
+  **`sync_jobs` grew an `attachment_id` for it**, the first job here about a row
+  rather than a project. A non-null `project_id` is not a limitation: no project
+  means the destination is `GTD/Inbox`, which is where the file already is, so
+  there is nothing to move and nothing to queue.
+- **The clarify path drains that job in `after()`, and the queue needed a reaper
+  before it could.** The cron owns `sync_jobs` and on a Hobby account runs
+  *daily*, so a queued move would leave the file in the inbox folder until the
+  next morning with the app showing it on the project — nothing broken and
+  everything looking broken, the same trap the box's Drive renames fell into.
+  `after` runs it once the response is flushed, so the clarify costs nothing and
+  a failure is not an error: the row stays pending and the tick takes it.
+  That made a latent bug matter. Claiming writes `running` and only the same
+  invocation writes it back, so a worker torn down mid-drain left the row
+  `running` for ever — never retried, never visible as a failure. `STUCK_MINUTES`
+  puts those back, keyed on a new `started_at`: `created_at` says when the work
+  was *asked for*, so a job queued twenty minutes ago and claimed a second ago
+  looks equally stale by it.
+- **Deleting a project trashes its Drive folder.** The purges already took every
+  file and left the container standing, so deleting projects slowly filled the
+  account with empty folders named after things that no longer exist — the
+  on-demand rule not finishing its sentence. Trashed rather than deleted, like
+  every file this app removes, and *after* the files, so what goes to the bin is
+  an empty folder rather than one taking live documents with it. The id is read
+  off the delete's `returning`, so there is no second query and no chance of
+  trashing the folder of a project that was not the one removed. A failure is
+  swallowed for the reason `removeAttachment` swallows one. **The Gmail label is
+  deliberately left**: a deleted label cannot be restored, and the messages under
+  it are real correspondence.
 - **A capture can be answered with "this belongs on that".** Every other clarify
   decision asks what the capture should *become*; `attached` is the one that
   creates nothing. It is what a photographed quote or a scanned letter usually
