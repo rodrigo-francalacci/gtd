@@ -1439,6 +1439,27 @@ Turbopack is the default; `middleware` is now `proxy`.
   and exists to survive the one thing phones do freely — discarding a
   backgrounded tab mid-word. `app/manifest.ts` starts at `/capture` rather than
   `/`, because the reason to install it is to capture in one tap.
+- **An attachment's verbs are in its row menu, because hover is not a gesture a
+  finger has.** Rename, Remove and Move up were `opacity-0 group-hover:*` — on a
+  phone that is not "hard to find", it is *absent*: you could open a file and do
+  nothing else to it. `RowMenu` already answers right-click and press-and-hold
+  for every list row, so it answers here too, and the row's less common verbs go
+  in it rather than growing a second control that would take width from the one
+  thing the row exists to show. It **is** the flex row rather than a wrapper
+  around one, or the layout would gain a level and the filename would stop
+  taking the space the wrapping rules give it.
+- **`refreshGoogleNames` must never touch folders, now that the push does.**
+  Letting galleries through the rename *push* without excluding them from the
+  *pull* made the two sweeps a race — they run in the same `Promise.all`, one
+  writing the app's name to Drive and the other writing Drive's name back — so a
+  renamed gallery could silently revert. Google owns a *Doc's* name because you
+  rename one in its title bar; nobody but this app names a gallery's folder.
+- **An order shown is an order walked, and it is easy to break.** `ListKeys` is
+  given the rows in display order, which stops being the query's order the
+  moment anything groups them — the Now list's sections, a purchases list cut by
+  impact, a list read as a timeline. Both were briefly wrong here after sections
+  landed: the arrows walked the fetched order while the eye walked the drawn
+  one. Compute the order once, above the JSX, and hand the same value to both.
 - **A pane never scrolls sideways: `overflow-x: clip`.** Not tidiness — this is
   what stops a styling mistake becoming a navigation bug. A pane sets
   `overflow-y: auto`, and the spec turns the other axis from `visible` into

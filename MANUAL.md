@@ -791,6 +791,13 @@ Two lists sit in every detail pane, and they are genuinely different:
 That difference is why linking exists: a parking notice can be a project's
 evidence for as long as the project lasts, and a document forever.
 
+### A file's own menu
+
+Right-click an attachment — or press and hold on a phone — for **Rename**,
+**Remove**, and **Move it up to the project** where that applies. The same
+actions appear on the row on hover, but hover is not something a finger can do,
+so the menu is how they are reached on a touchscreen.
+
 ### Moving something up to the project
 
 Both lists carry **Move up** on an action inside a project. A file lands on the

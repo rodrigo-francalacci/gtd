@@ -76,6 +76,23 @@ export default async function ListPage(props: PageProps<'/lists/[id]'>) {
       (!impact || i.fields?.impact === impact) && (!where || i.fields?.where === where),
   );
 
+  /*
+   * The order the rows are actually drawn in, which the layout decides.
+   *
+   * Worked out once, here, so the arrows and the list cannot disagree —
+   * `impact` reads down its four buckets and `timeline` down its days, and
+   * neither is the order the query returned. Same reasoning as the Now list's
+   * sections.
+   */
+  const keyOrder =
+    layout === 'impact' && isPurchases
+      ? (['blocks', 'improves', 'nice_to_have', null] as const).flatMap((bucket) =>
+          items.filter((i) => (i.fields?.impact ?? null) === bucket),
+        )
+      : layout === 'timeline'
+        ? groupByDay(items, (i) => i.createdAt).flatMap((day) => day.items)
+        : items;
+
   const qs = (itemId: string) => {
     const p = new URLSearchParams();
     if (impact) p.set('impact', impact);
@@ -167,6 +184,20 @@ export default async function ListPage(props: PageProps<'/lists/[id]'>) {
       >
         <QuickAddListItem listId={id} />
 
+        {/*
+          Arrows walk the list as it is *drawn*, which the layout decides — an
+          impact grouping reads down its buckets and a timeline down its days,
+          neither of which is the order the rows were fetched in. One instance
+          for the pane, outside the layout branch, because two expressions of one
+          order is how the arrows end up jumping about.
+        */}
+        <ListKeys
+          rows={keyOrder.map((i) => ({ id: i.id, href: qs(i.id) }))}
+          selectedId={selectedId}
+          onDelete={deleteListItem}
+          deleteLabel="Delete"
+        />
+
         {layout === 'impact' && isPurchases ? (
           /*
            * The same rows, cut by what each one would *do*.
@@ -238,15 +269,6 @@ export default async function ListPage(props: PageProps<'/lists/[id]'>) {
                       : null
                   }
                 >
-                  {/* Arrows walk whatever this list is currently showing — the layout
-                      decides the order, so a timeline or an impact grouping is walked as
-                      drawn rather than as stored. */}
-                  <ListKeys
-                    rows={items.map((i) => ({ id: i.id, href: qs(i.id) }))}
-                    selectedId={selectedId}
-                    onDelete={deleteListItem}
-                    deleteLabel="Delete"
-                  />
 
                   <SortableListItems
                     items={mine.map((i) => ({ ...i, href: qs(i.id) }))}

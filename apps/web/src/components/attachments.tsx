@@ -43,6 +43,7 @@ import { FileMeta } from './file-meta';
 import { GroupHeading } from './group-heading';
 import { IconDocument, IconGallery, IconImage } from './icons';
 import { NewDocumentMenu } from './new-document-menu';
+import { RowMenu } from './row-menu';
 import { SortControl } from './sort-control';
 
 /**
@@ -517,10 +518,41 @@ export function Attachments({
                * facts underneath instead, where they cost a line and take
                * nothing from the name.
                */
-              <li
-                key={row.id}
-                className="group flex flex-wrap items-center gap-x-2 gap-y-0.5 px-3 py-1.5 text-[12px] md:flex-nowrap"
-              >
+              /*
+               * The row's own actions are hover-only, which is no action at all
+               * on a phone: you could open a file and do nothing else to it.
+               * `RowMenu` is the same right-click and press-and-hold every list
+               * row already answers to, so the verbs are reachable by finger
+               * without a second control taking width from the filename.
+               *
+               * It *is* the flex row rather than a wrapper around one, or the
+               * layout would gain a level and the name would stop taking the
+               * space the wrapping rules give it.
+               */
+              <li key={row.id}>
+                <RowMenu
+                  name={row.name}
+                  onRename={(next) => renameAttachment(row.id, next)}
+                  onDelete={async () => {
+                    // Close the pane first if it is showing this very file,
+                    // or it sits there rendering a 404.
+                    preview.closeIf(row.id);
+                    await detachAttachment(row.id);
+                  }}
+                  deleteLabel="Remove"
+                  deleteNote="The file goes to Drive’s bin."
+                  extra={
+                    moveUpTo && parentType === 'action' && row.kind !== 'gallery'
+                      ? [
+                          {
+                            label: `Move it up to ${moveUpTo}`,
+                            run: () => moveAttachmentToProject(row.id),
+                          },
+                        ]
+                      : undefined
+                  }
+                  className="group flex flex-wrap items-center gap-x-2 gap-y-0.5 px-3 py-1.5 text-[12px] md:flex-nowrap"
+                >
                 <Glyph row={row} />
 
                 {/* The href is the real Drive URL, so ctrl/cmd-click and
@@ -638,6 +670,7 @@ export function Attachments({
                 >
                   Remove
                 </button>
+                </RowMenu>
               </li>
               )
               ),

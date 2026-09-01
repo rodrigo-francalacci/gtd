@@ -26,6 +26,8 @@ export function RowMenu({
   deleteLabel = 'Delete',
   /** What deleting will actually do, when it is worth saying. */
   deleteNote,
+  extra,
+  className,
   children,
 }: {
   /** What it is called now, which is what the field starts with. */
@@ -35,6 +37,23 @@ export function RowMenu({
   onDelete?: () => Promise<unknown>;
   deleteLabel?: string;
   deleteNote?: string;
+  /**
+   * Anything else this row can do, above Rename.
+   *
+   * The reason this exists is touch. On a desktop an attachment's actions live
+   * on the row and appear on hover; a finger has no hover, so every one of them
+   * was unreachable on a phone — you could open a file and nothing else. The
+   * menu already is the touch answer for a list row, so it is the touch answer
+   * here too, and a row's less common verbs go in it rather than growing a
+   * second menu of their own.
+   */
+  extra?: { label: string; run: () => Promise<unknown> | void }[];
+  /**
+   * Classes for the wrapper. It is a real element in the layout — an attachment
+   * row makes it the flex row itself — so the caller has to be able to say what
+   * shape it is.
+   */
+  className?: string;
   children: React.ReactNode;
 }) {
   const [at, setAt] = useState<{ x: number; y: number } | null>(null);
@@ -164,7 +183,7 @@ export function RowMenu({
         }}
         /* iOS shows its own callout on a long press and never fires
            `contextmenu`, so ours would open underneath the system one. */
-        className="[-webkit-touch-callout:none]"
+        className={['[-webkit-touch-callout:none]', className ?? ''].join(' ')}
       >
         {children}
       </div>
@@ -180,6 +199,24 @@ export function RowMenu({
           <p className="truncate px-3 pb-1 text-[10px] uppercase tracking-wider text-grey-400">
             {name}
           </p>
+
+          {extra?.map((item) => (
+            <button
+              key={item.label}
+              type="button"
+              role="menuitem"
+              disabled={pending}
+              onClick={() =>
+                startTransition(async () => {
+                  await item.run();
+                  shut();
+                })
+              }
+              className="block w-full px-3 py-1.5 text-left text-[12px] text-grey-800 hover:bg-grey-150 disabled:opacity-40"
+            >
+              {item.label}
+            </button>
+          ))}
 
           {renaming && onRename ? (
             <form

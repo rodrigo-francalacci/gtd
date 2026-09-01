@@ -472,7 +472,24 @@ export async function refreshGoogleNames(limit = 50): Promise<number> {
       driveFileId: attachments.driveFileId,
     })
     .from(attachments)
-    .where(sql`${attachments.mimeType} like 'application/vnd.google-apps.%'`)
+    /*
+     * Docs-editor files only — never folders.
+     *
+     * Google owns a Doc's name: you rename one by typing in its title bar, and
+     * this app offers no other way, so holding a stale copy would be pretending
+     * to own something it does not. A *folder* is the opposite — a gallery's
+     * folder is named by this app and by nothing else, and it is the push
+     * (`renameDriveAttachments`) that is authoritative there.
+     *
+     * Both sweeps run in the same `Promise.all`, so without this exclusion a
+     * renamed gallery would be a race: the push writing the new name to Drive
+     * while the pull writes Drive's old name back into the app, and whichever
+     * finished last would win.
+     */
+    .where(
+      sql`${attachments.mimeType} like 'application/vnd.google-apps.%'
+          and ${attachments.mimeType} <> 'application/vnd.google-apps.folder'`,
+    )
     .limit(limit);
 
   let changed = 0;

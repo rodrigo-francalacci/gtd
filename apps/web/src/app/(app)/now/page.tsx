@@ -101,7 +101,16 @@ export default async function NowPage(props: PageProps<'/now'>) {
             this page's own, so a context filter narrows what the arrows
             walk rather than leaving them out of step with the rows. */}
         <ListKeys
-          rows={rows.map((a) => ({ id: a.id, href: qs(a.id) }))}
+          /*
+           * The order the list is *drawn* in, headings and all — which stops
+           * being the query's order the moment a section exists. Built from the
+           * same grouping the rows below are, because two expressions of one
+           * order is how the arrows end up jumping about.
+           */
+          rows={[
+            ...sections.flatMap((section) => bySection.get(section.id) ?? []),
+            ...loose,
+          ].map((a) => ({ id: a.id, href: qs(a.id) }))}
           selectedId={selectedId}
           onDelete={deleteAction}
           deleteLabel="Done and delete"
