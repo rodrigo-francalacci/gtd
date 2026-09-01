@@ -1037,3 +1037,62 @@ body {
   --code-comment: #7d7d7d;
   --code-accent: #e08a66;
 }
+
+/**
+ * A scrollbar that only appears while it is doing something.
+ *
+ * The sidebar is narrow, always on screen, and its scrollbar is a permanent
+ * vertical line beside every list in the app — in every theme, competing with
+ * the hairlines the layout is actually made of. It says nothing at rest: you
+ * know a long list is long.
+ *
+ * Transparent at rest and coloured on hover or while scrolling. The thumb keeps
+ * its *width* throughout, because a bar that appears and disappears would
+ * reflow the column under the cursor — the one thing worse than a visible
+ * scrollbar is a list that shifts sideways as you reach for it.
+ *
+ * Firefox is given `scrollbar-width: thin` and a colour pair; WebKit gets the
+ * pseudo-elements. Neither can animate a scrollbar's *presence*, so this is a
+ * colour transition rather than a reveal, which is also why nothing moves.
+ *
+ * `.scrolling` is added by `ScrollFade` for a moment after each scroll, so a
+ * touchpad flick shows the bar and it fades again on its own.
+ */
+.scrollbar-fade {
+  scrollbar-width: thin;
+  scrollbar-color: transparent transparent;
+  transition: scrollbar-color 220ms ease;
+}
+
+.scrollbar-fade:hover,
+.scrollbar-fade.scrolling {
+  scrollbar-color: var(--color-grey-300) transparent;
+}
+
+.scrollbar-fade::-webkit-scrollbar {
+  width: 8px;
+}
+
+.scrollbar-fade::-webkit-scrollbar-thumb {
+  background-color: transparent;
+  border-radius: 4px;
+  /* Inset by a border rather than a narrower thumb, so the track keeps its
+     width and nothing under it moves when the colour arrives. */
+  border: 2px solid transparent;
+  background-clip: content-box;
+  transition: background-color 220ms ease;
+}
+
+.scrollbar-fade:hover::-webkit-scrollbar-thumb,
+.scrollbar-fade.scrolling::-webkit-scrollbar-thumb {
+  background-color: var(--color-grey-300);
+}
+
+/* Reduced motion asks for no *movement*; a colour that fades is not that, but
+   an instant change is cheaper and just as legible. */
+@media (prefers-reduced-motion: reduce) {
+  .scrollbar-fade,
+  .scrollbar-fade::-webkit-scrollbar-thumb {
+    transition: none;
+  }
+}

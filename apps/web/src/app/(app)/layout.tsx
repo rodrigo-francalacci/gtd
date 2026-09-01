@@ -56,6 +56,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
                 gmailLabelName: box.gmailLabelId ? boxLabelName(box.name) : null,
               }))}
               theme={prefs.theme}
+              appsScriptUrl={prefs.appsScriptUrl}
             />
           }
         >

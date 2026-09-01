@@ -1586,6 +1586,10 @@ as it does on a desktop.
 Open the bridge panel and press **Run this daily** — once, ever. The page tells
 you at the top whether it is set up.
 
+There is also a **Sync** button in the sidebar, beside the theme switch, for when
+you want it to happen now — you have just scanned a receipt, or labelled a
+message. It runs the same thing the daily trigger does.
+
 After that nothing needs pressing. When you want something *now* — you have just
 scanned a receipt, or labelled a message — press **Sync everything**, which is
 the one button: scans, then email, then listings, then the app's own tick, in

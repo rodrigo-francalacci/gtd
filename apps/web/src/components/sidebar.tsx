@@ -21,6 +21,8 @@ import {
   LIST_TYPE_ICONS,
 } from './icons';
 import type { Theme } from '@/lib/pane';
+import { ScrollFade } from './scroll-fade';
+import { SyncButton } from './sync-button';
 import { ThemeToggle } from './theme-toggle';
 import type { ListRow } from '@/lib/queries.shared';
 import { BoxMenu } from './box-menu';
@@ -74,9 +76,12 @@ export function SidebarNav({
   lists,
   boxes,
   theme,
+  appsScriptUrl,
 }: {
   /** Passed through to the toggle so it can offer the opposite. */
   theme: Theme;
+  /** The deployed bridge panel, if there is one. Null hides the sync button. */
+  appsScriptUrl: string | null;
   counts: {
     next: number;
     waiting: number;
@@ -233,7 +238,18 @@ export function SidebarNav({
 
       <SearchBox />
 
-      <div className="min-h-0 flex-1 overflow-y-auto py-2">
+      {/*
+        The scrollbar shows only while you are scrolling.
+        
+        This column is narrow and always on screen, and a permanent bar down it
+        is a line of furniture beside every list in the app — visible in every
+        theme, competing with the hairlines the layout is actually made of.
+        `scrollbar-fade` (see globals.css) hides the thumb at rest and brings it
+        back on hover or while the pane is being scrolled, which is the only
+        time it says anything.
+      */}
+      <ScrollFade selector=".scrollbar-fade" />
+      <div className="scrollbar-fade min-h-0 flex-1 overflow-y-auto py-2">
         {groups.map((group) => (
           <div key={group.heading} className="mb-4 md:mb-3">
             <h2 className="px-4 pb-1 text-[10px] font-semibold uppercase tracking-wider text-grey-500">
@@ -351,6 +367,9 @@ export function SidebarNav({
           </button>
         </form>
 
+        {/* Beside the theme switch: both are things you reach for without
+            leaving what you were doing. */}
+        <SyncButton url={appsScriptUrl} />
         <ThemeToggle preference={theme} />
       </div>
     </nav>

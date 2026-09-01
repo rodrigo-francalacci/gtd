@@ -2493,6 +2493,33 @@ an `<img>` only knows that it failed.
 
 ## Running it without pressing anything
 
+**The reading queue was draining five documents a day.** `POST /api/box/read`
+takes a few at a time and reports `remaining` — it is written to be called again
+while that is non-zero, and *nothing was doing the calling*. So a batch of scans
+was read only by the cron's five per tick: forty documents meant eight days, and
+the next batch pushed the last one further out. The symptom is a box full of
+rows with no title and no summary, which reads as a broken classifier rather
+than a slow queue. Found by looking at a real run — 47 jobs pending, zero
+attempts, no errors, no spend. `readWaitingDocuments` in the panel loops until
+`remaining` is nothing, bounded by *elapsed time* rather than a count, because
+how many readings fit in six minutes is a fact about the documents.
+
+**The project listings go last.** A listing is a photograph of what is in a Drive
+folder and under a Gmail label, so taking it before the app's tick would
+photograph the folders as they were before the tick moved files into them and
+renamed them — and stored is exactly what happens to that picture.
+
+**`?only=sync` is the same deployment showing one button.** A second web app
+would be a second deployment to keep in step and a second URL to paste. The app
+frames it beside the theme switch: the work is Gmail and Drive under scopes this
+app deliberately does not hold, so only the script can do it, and a frame is how
+a page from another origin runs its own code with its own permissions. Nothing
+crosses — the frame cannot read the app and the app cannot read the frame — so
+there is no state to keep in step, and what it reports it reports on its own
+face.
+
+
+
 **Two halves, and only one of them was automatic.** Vercel's cron hits
 `/api/cron/sync` daily at 03:00 UTC — that drains the sync queue, the enrichment
 queue and the box reads, and sweeps the Drive renames. The Apps Script side had

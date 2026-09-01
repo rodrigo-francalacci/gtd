@@ -142,11 +142,16 @@ function panelJobs() {
  * Everything, in the order that makes each step useful to the next.
  *
  * Scans first, because a document has to exist before anything can read or
- * rename it. Then email. Then the project listings, which are a picture of
- * folders the earlier steps may have just added to. Then the app's own tick
- * last, because that is what drains the queues the first three filled — moving
- * files into the folders their rows now name, pushing titles out to Drive,
- * reading what arrived.
+ * rename it. Then email, which files what you have labelled and puts the
+ * labels right. Then the app's own tick, which is what drains the queues the
+ * first two filled — moving files into the folders their rows now name,
+ * pushing titles and renames out to Drive, reading what arrived.
+ *
+ * **The project listings go last, and that order matters.** A listing is a
+ * photograph of what is in a Drive folder and under a Gmail label. Taking it
+ * before the tick would photograph the folders as they were *before* the tick
+ * moved files into them and renamed them — a picture that is out of date the
+ * moment it is stored, and stored is exactly what happens to it.
  *
  * One failing step must not stop the rest: they are independent, and a Gmail
  * hiccup should not mean the scans stay unfiled. Each is reported, and the
@@ -156,8 +161,9 @@ function syncEverything() {
   const steps = [
     ['Scans', 'processFeedFolders'],
     ['Email', 'syncEmails'],
-    ['Project listings', 'walkProjectTrees'],
+    ['Reading what arrived', 'readWaitingDocuments'],
     ['The app’s own tick', 'syncDriveNames'],
+    ['Project listings', 'walkProjectTrees'],
   ];
 
   var failed = 0;
@@ -184,6 +190,64 @@ function syncEverything() {
   }
 
   Logger.log(failed === 0 ? 'All steps finished.' : failed + ' step(s) failed — see above.');
+}
+
+/**
+ * Read every document waiting, not five of them.
+ *
+ * `POST /api/box/read` takes a few at a time and says how many are left — it is
+ * written to be called again while `remaining` is non-zero, and nothing was
+ * doing the calling. So a batch of scans was read five a day by the cron: forty
+ * documents meant eight days, and the next batch pushed the last one further
+ * out. The symptom is a box full of rows with no title and no summary, which
+ * reads as the classifier being broken rather than as a queue moving slowly.
+ *
+ * Bounded by *elapsed time*, not by a count. A trigger gets six minutes and a
+ * reading is a download plus a model call, so how many fit is a fact about the
+ * documents rather than a number worth guessing. Stopping early is harmless —
+ * what is left is still queued, and the next run continues.
+ */
+function readWaitingDocuments() {
+  const props = PropertiesService.getScriptProperties();
+  const origin = (props.getProperty('APP_ORIGIN') || '').replace(/\/+$/, '');
+  // The reading endpoint takes the ingest secret, the same one the scanner
+  // bridge uses — not CRON_SECRET, which is only for the cron tick.
+  const secret = (props.getProperty('BOX_INGEST_SECRET') || '').trim();
+
+  if (!origin || !secret) {
+    Logger.log('  APP_ORIGIN or BOX_INGEST_SECRET is not set — skipped.');
+    return;
+  }
+
+  const started = Date.now();
+
+  // Four minutes, leaving room inside a six-minute trigger for the steps after
+  // this one to run at all.
+  const BUDGET_MS = 4 * 60 * 1000;
+
+  var read = 0;
+
+  for (;;) {
+    if (Date.now() - started > BUDGET_MS) {
+      Logger.log('  stopped on time — the rest stay queued');
+      break;
+    }
+
+    var answer;
+
+    try {
+      answer = postTo(origin, secret, '/api/box/read', {});
+    } catch (e) {
+      Logger.log('  FAILED: ' + e);
+      break;
+    }
+
+    read += (answer && answer.done) || 0;
+
+    if (!answer || !answer.remaining) break;
+  }
+
+  Logger.log('  read ' + read + ' document(s)');
 }
 
 /** How often the trigger runs, and at what hour. Google picks the minute. */
@@ -236,15 +300,26 @@ function dailyTriggerInstalled() {
   return false;
 }
 
-function doGet() {
-  const template = HtmlService.createTemplate(PANEL_HTML);
+function doGet(e) {
+  /*
+   * `?only=sync` is the same deployment showing one button.
+   *
+   * A second web app would be a second deployment to keep in step and a second
+   * URL to paste; a parameter is neither. What it renders is sized to sit in
+   * the app's own chrome as a control rather than a page — the app frames it
+   * beside the theme switch, so pressing sync is one click from wherever you
+   * are instead of a tab you have to go to and come back from.
+   */
+  const compact = e && e.parameter && e.parameter.only === 'sync';
+
+  const template = HtmlService.createTemplate(compact ? BUTTON_HTML : PANEL_HTML);
   template.jobs = panelJobs();
   // Said on the page rather than left to be remembered.
   template.daily = dailyTriggerInstalled();
 
   return template
     .evaluate()
-    .setTitle('GTD bridges')
+    .setTitle(compact ? 'Sync' : 'GTD bridges')
     .addMetaTag('viewport', 'width=device-width, initial-scale=1')
     /*
      * Embeddable, so the app can put it in a pane if that turns out to be
@@ -377,6 +452,71 @@ function panelRun(id) {
  * Dark by default via `prefers-color-scheme`, since it will usually be opened
  * from an app that is.
  */
+/**
+ * One button, sized to be embedded.
+ *
+ * Not a page made narrow — a *control*. The app puts this in a small frame
+ * beside the theme switch, so it has no heading, no padding of its own and no
+ * scroll: it is a button the size of the button, and everything it needs to say
+ * it says on its own face.
+ *
+ * It cannot use the app's colours, because a frame from another origin cannot
+ * read them. So it follows the *system* light/dark preference, which is the
+ * nearest thing both sides agree on, and stays deliberately plain — a control
+ * that tried to match four themes and got it wrong would look worse than one
+ * that never tried.
+ */
+var BUTTON_HTML =
+'<style>' +
+'  :root { color-scheme: light dark; }' +
+'  html, body { margin:0; padding:0; overflow:hidden; background:transparent; }' +
+'  button { display:flex; align-items:center; gap:5px; width:100%; height:100%;' +
+'           border:0; background:transparent; cursor:pointer; padding:0 4px;' +
+'           font:500 11px/1 ui-sans-serif, system-ui, sans-serif; color:#5f6368; }' +
+'  @media (prefers-color-scheme: dark) { button { color:#9aa0a6; } }' +
+'  button:hover:enabled { color:#1a73e8; }' +
+'  button:disabled { cursor:default; opacity:.6; }' +
+'  button.bad { color:#b3261e; }' +
+'  svg { width:13px; height:13px; flex:0 0 auto; }' +
+'  .spin { animation:t 1s linear infinite; }' +
+'  @keyframes t { to { transform:rotate(360deg); } }' +
+'</style>' +
+'<button id="b" onclick="go()" title="Scans, email, the app’s own tick, then the folder listings">' +
+'  <svg id="i" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"' +
+'       stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
+'    <path d="M14 8a6 6 0 1 1-1.8-4.3"/><path d="M14 2v3.6h-3.6"/>' +
+'  </svg>' +
+'  <span id="t">Sync</span>' +
+'</button>' +
+'<script>' +
+'  function go() {' +
+'    var b = document.getElementById("b");' +
+'    var i = document.getElementById("i");' +
+'    var t = document.getElementById("t");' +
+'    b.disabled = true; b.className = ""; i.classList.add("spin"); t.textContent = "Syncing";' +
+'    google.script.run' +
+'      .withSuccessHandler(function (r) {' +
+'        i.classList.remove("spin");' +
+'        /* `panelRun` reports both: whether the dispatch worked, and what the' +
+'           run logged. A step that failed inside a run that dispatched fine is' +
+'           still a failure worth showing. */' +
+'        var bad = !r.ok || /FAILED/.test(r.log || "");' +
+'        b.className = bad ? "bad" : "";' +
+'        t.textContent = bad ? "Check the panel" : "Synced";' +
+'        b.title = r.log || "";' +
+'        /* Back to resting after a moment: this is a control that lives on the' +
+'           screen, and one stuck reading "Synced" says nothing an hour later. */' +
+'        setTimeout(function () { b.disabled = false; b.className = ""; t.textContent = "Sync"; }, 6000);' +
+'      })' +
+'      .withFailureHandler(function (err) {' +
+'        i.classList.remove("spin");' +
+'        b.className = "bad"; t.textContent = "Failed"; b.title = String(err);' +
+'        setTimeout(function () { b.disabled = false; b.className = ""; t.textContent = "Sync"; }, 6000);' +
+'      })' +
+'      .panelRun("syncEverything");' +
+'  }' +
+'</script>';
+
 var PANEL_HTML =
 '<!doctype html>' +
 '<style>' +
