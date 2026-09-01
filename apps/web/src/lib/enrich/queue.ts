@@ -18,7 +18,11 @@ const MAX_ATTEMPTS = 4;
  */
 const READABLE = sql`(
   mime_type like 'text/%'
-  or mime_type like 'application/vnd.google-apps.%'
+  or (
+    mime_type like 'application/vnd.google-apps.%'
+    -- A gallery is a folder: Google-native, and nothing to export.
+    and mime_type <> 'application/vnd.google-apps.folder'
+  )
   or mime_type in (
     'application/pdf', 'application/json', 'application/xml', 'application/x-yaml',
     'image/jpeg', 'image/png', 'image/gif', 'image/webp'
@@ -28,7 +32,11 @@ const READABLE = sql`(
 /** Of those, the ones needing no model — so they run without an API key. */
 const READABLE_WITHOUT_MODEL = sql`(
   mime_type like 'text/%'
-  or mime_type like 'application/vnd.google-apps.%'
+  or (
+    mime_type like 'application/vnd.google-apps.%'
+    -- A gallery is a folder: Google-native, and nothing to export.
+    and mime_type <> 'application/vnd.google-apps.folder'
+  )
   or mime_type in ('application/json', 'application/xml', 'application/x-yaml')
 )`;
 

@@ -164,8 +164,6 @@ export function SidebarNav({
           count: counts.stalled,
           alert: counts.stalled > 0,
         },
-        { href: '/areas', label: 'Areas & goals', icon: IconAreas },
-        { href: '/contexts', label: 'Contexts', icon: IconContexts },
         { href: '/review', label: 'Weekly review', icon: IconReview },
         {
           href: '/archive',
@@ -173,7 +171,6 @@ export function SidebarNav({
           icon: IconArchive,
           count: counts.archived,
         },
-        { href: '/connections', label: 'Google', icon: IconConnections },
       ],
     },
     {
@@ -210,6 +207,21 @@ export function SidebarNav({
           drop: { kind: 'list' as const, listId: l.id },
         })),
         { href: '/lists', label: 'Manage lists', icon: IconLists, exact: true },
+      ],
+    },
+    {
+      /*
+       * Last, because these are the things you set up rather than the things
+       * you do. Areas and goals, the context vocabulary and the Google
+       * connection are each visited a handful of times a year, and sitting them
+       * among Projects and Stalled cost a permanent two lines at the top of the
+       * one column that is always on screen.
+       */
+      heading: 'Settings',
+      items: [
+        { href: '/areas', label: 'Areas & goals', icon: IconAreas },
+        { href: '/contexts', label: 'Contexts', icon: IconContexts },
+        { href: '/connections', label: 'Google', icon: IconConnections },
       ],
     },
   ];

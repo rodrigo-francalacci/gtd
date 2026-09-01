@@ -87,6 +87,8 @@ export async function POST(request: Request) {
     driveFileId: string;
     capturedAt: string;
     docDate: string;
+    title: string;
+    description: string;
     expires: string;
     sourceFolderId: string;
     email: EmailFacts;
@@ -153,6 +155,21 @@ export async function POST(request: Request) {
          * column and a client is not trusted with its shape.
          */
         /^\d{4}-\d{2}-\d{2}$/.test(body.docDate ?? '') ? body.docDate : undefined,
+        /*
+         * A title and summary the caller already holds — a backlog whose names
+         * and Drive descriptions carry them. Supplying a title is what says
+         * "do not read this", so it is bounded here rather than trusted: a
+         * title is a line and a summary is a paragraph, and neither is a place
+         * to put a novel.
+         */
+        body.title
+          ? {
+              title: String(body.title).slice(0, 300),
+              description: body.description
+                ? String(body.description).slice(0, 4000)
+                : undefined,
+            }
+          : undefined,
       );
 
       // Applied after the row exists rather than threaded through the insert:

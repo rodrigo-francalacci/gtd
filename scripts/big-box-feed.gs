@@ -120,16 +120,27 @@ function previewFeedFolders() {
       total++;
       if (named) fromName++;
 
+      /*
+       * Everything the app would be told, so the shape of a description can
+       * be checked before two hundred of them are written — and so it is
+       * plain which files cost a model call and which do not.
+       */
       Logger.log(
-        '  ' + name + '\n      arrives ' + dated.capturedAt.slice(0, 10) +
-        (named ? '  (from the name)' : '  (from Drive — no date in the name)'),
+        '  ' + name +
+        '\n      arrives  ' + dated.capturedAt.slice(0, 10) +
+        (named ? '  (from the name)' : '  (from Drive — no date in the name)') +
+        '\n      title    ' + (dated.title || '(none — the AI will write one)') +
+        '\n      summary  ' + (dated.description
+          ? '“' + dated.description.slice(0, 90) + (dated.description.length > 90 ? '…”' : '”')
+          : '(nothing in the file’s Drive description)') +
+        '\n      reading  ' + (dated.title ? 'skipped — nothing to pay for' : 'yes, one model call'),
       );
     }
   });
 
   Logger.log(
-    total + ' file(s): ' + fromName + ' dated from the name, ' +
-    (total - fromName) + ' from Drive’s own timestamp.',
+    total + ' file(s): ' + fromName + ' dated from the name and filed without a ' +
+    'model call, ' + (total - fromName) + ' dated from Drive and read as usual.',
   );
   Logger.log('Nothing was written. Run “File scans” when this looks right.');
 }
@@ -202,16 +213,60 @@ function datedFrom(name, file) {
 
   if (match) {
     const day = match[1] + '-' + match[2] + '-' + match[3];
+
+    /*
+     * A name of this shape was written by something that had already read the
+     * document — this app, or the process before it — so the title is the rest
+     * of the name and the summary is in Drive's own description field. Sending
+     * them means the model is never called: it would be paying to work out what
+     * is written on the file already.
+     *
+     * The extension goes, because a title is not a filename. `-> Description`
+     * is stripped from the front of the description for the same reason: it is
+     * a label from whatever wrote it, not part of what the document says.
+     */
+    const title = (name || '')
+      .slice(day.length)
+      .replace(/\.[A-Za-z0-9]{1,8}$/, '')
+      .replace(/^[\s\-–—:]+/, '')
+      .trim();
+
+    var description = '';
+    try {
+      description = (file.getDescription() || '')
+        // Tolerant of however the label was written: "-> Description",
+        // "--> Description:", "Description -", "Description:" and bare.
+        // Guessing narrowly here would leave the word sitting at the front of
+        // every summary in the box.
+        .replace(/^[\s>\-–—]*Description[\s>\-–—:]*/i, '')
+        .trim();
+    } catch (e) {
+      // A file we cannot read a description from is not a failure; it just
+      // means the app gets a title and no summary.
+    }
+
     /*
      * Midday, deliberately. A bare date is midnight UTC, which in a timezone
      * behind Greenwich is the *previous evening* — and the feed cuts its days
      * in the server's timezone, so the document would head a day it did not
      * arrive on. Midday is far from either edge.
      */
-    return { capturedAt: new Date(day + 'T12:00:00Z').toISOString(), docDate: day };
+    return {
+      capturedAt: new Date(day + 'T12:00:00Z').toISOString(),
+      docDate: day,
+      // Only a real title counts. A file called "2026-01-30.pdf" and nothing
+      // else has nothing to say, and should still be read.
+      title: title || null,
+      description: description || null,
+    };
   }
 
-  return { capturedAt: file.getDateCreated().toISOString(), docDate: null };
+  return {
+    capturedAt: file.getDateCreated().toISOString(),
+    docDate: null,
+    title: null,
+    description: null,
+  };
 }
 
 function ingestFile(origin, secret, box, file, sourceFolderId, startedAt) {
@@ -269,6 +324,13 @@ function ingestFile(origin, secret, box, file, sourceFolderId, startedAt) {
     capturedAt: dated.capturedAt,
     // And the printed date, when the filename carries one. See `datedFrom`.
     docDate: dated.docDate,
+    /*
+     * A title and summary already written down beside the file, which is what
+     * makes a backlog free to bring across. See `knownFacts`: sending a title
+     * is what tells the app not to read the document.
+     */
+    title: dated.title,
+    description: dated.description,
   });
 
   if (!done.ok) throw new Error('complete failed: ' + JSON.stringify(done));

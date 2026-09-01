@@ -2391,6 +2391,13 @@ found nothing" where `null` cannot be told apart from "never looked", which is
 also what `backfillEnrichment` keys on: it matches attachments with no *job*,
 never attachments with no *text*, so a blank page isn't paid for twice.
 
+**A folder is Google-native and is not a document.** A gallery's mime type is
+`application/vnd.google-apps.folder`, which `isGoogleNative` accepts — so one
+was queued for reading, the worker asked Drive to *export a folder*, and got a
+403 it would have kept getting for ever. The third time this family has caught
+something: the rename push, the name pull, and now the reader. "Google-native"
+is a family, and the folder is the member of it with no bytes.
+
 **Readable types are declared twice, deliberately.** `canRead` guards the
 insert in TypeScript; `READABLE` and `READABLE_WITHOUT_MODEL` in `queue.ts`
 filter the claim and the backfill count in SQL. They must agree — a type in one

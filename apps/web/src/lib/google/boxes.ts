@@ -314,6 +314,9 @@ export type EmailFacts = {
   text?: string;
 };
 
+/** A blank line between a title and its summary, as the box's own writer uses. */
+const SUMMARY_GAP = '\n\n';
+
 export async function completeBoxUpload(
   boxId: string,
   driveFileId: string,
@@ -332,6 +335,19 @@ export async function completeBoxUpload(
    * itself beats a filename.
    */
   docDate?: string,
+  /**
+   * A title and summary the caller already has, which means not paying to
+   * discover them.
+   *
+   * The case is a backlog that was read years ago: its filenames carry the
+   * title and Drive's own description field carries the summary, so a model
+   * would be spending money to work out what is already written down beside the
+   * file. The same argument an email is filed `ready` on, one door along.
+   *
+   * What it does not bring is tags, and that is the honest cost — "Read it
+   * again" on the pane is one press if a document turns out to want them.
+   */
+  known?: { title?: string; description?: string },
 ): Promise<{ id: string; name: string }> {
   const file = await getFile(driveFileId);
   if (!file) throw new BoxError('That upload could not be found in Drive.');
@@ -374,7 +390,9 @@ export async function completeBoxUpload(
    * again" away on the pane — which is the right shape, because whether an
    * email is worth tagging is a judgement about that email.
    */
-  const queue = readable && !email;
+  const described = Boolean(known?.title?.trim());
+
+  const queue = readable && !email && !described;
 
   const [row] = await db
     .insert(boxItems)
@@ -386,6 +404,22 @@ export async function completeBoxUpload(
       mimeType,
       sizeBytes: Number.isFinite(size) ? size : null,
       status: queue ? 'pending' : 'ready',
+      /*
+       * Written straight in when the caller knew them. `search_text` alongside
+       * the description, never instead of it: the vector is generated from that
+       * column, so a summary stored without it would be a document search could
+       * not see into — the rule this table carries a warning about.
+       */
+      ...(described
+        ? {
+            title: known!.title!.trim(),
+            description: known!.description?.trim() || null,
+            searchText: [known!.title, known!.description]
+              .filter(Boolean)
+              .join(SUMMARY_GAP)
+              .trim(),
+          }
+        : {}),
       ...(capturedAt ? { capturedAt } : {}),
       // Only when given. The reading fills it otherwise, and an email's own
       // branch below sets it from the sent date.

@@ -26,8 +26,21 @@ const IMAGE_TYPES = new Set([
   'image/webp',
 ]);
 
+/**
+ * A gallery is a Drive *folder*, and a folder has no bytes to read.
+ *
+ * It matches `isGoogleNative` because every Google type does, which is how one
+ * came to be queued: the worker then asked Drive to export a folder and got a
+ * 403, over and over, for a row that could never succeed. The same shape of
+ * mistake the rename sweeps made — "Google-native" is a family, and a folder is
+ * the member of it that is not a document.
+ */
+const FOLDER = 'application/vnd.google-apps.folder';
+
 export function canRead(mimeType: string | null): boolean {
   if (!mimeType) return false;
+  if (mimeType === FOLDER) return false;
+
   return (
     IMAGE_TYPES.has(mimeType) ||
     mimeType === 'application/pdf' ||
