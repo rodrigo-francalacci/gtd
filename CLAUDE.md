@@ -953,6 +953,12 @@ Turbopack is the default; `middleware` is now `proxy`.
   puts those back, keyed on a new `started_at`: `created_at` says when the work
   was *asked for*, so a job queued twenty minutes ago and claimed a second ago
   looks equally stale by it.
+  **All three queues need it, and only one had it.** `enrichment_jobs` and
+  `box_jobs` claim exactly the same way and had exactly the same hole — proved
+  by interrupting a drain and finding four readings stranded in `running` from
+  the day before, invisible on every page. `coalesce(started_at, created_at)` is
+  what let the rows that predate the column be recovered too. `attempts` is left
+  alone by the reclaim, so a job that keeps killing its worker still gives up.
 - **Every move of a row moves its file, and there were four of them.** The
   clarify path was only the first. Filing a capture in a box hands the
   `drive_file_id` to the `box_items` row and deletes the attachment, so nothing

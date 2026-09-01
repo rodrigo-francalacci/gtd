@@ -8,7 +8,7 @@ import {
   boxes,
   db,
 } from '@gtd/db';
-import { eq, sql } from 'drizzle-orm';
+import { and, eq, sql } from 'drizzle-orm';
 import { GoogleAuthError } from '@/lib/auth/token';
 import {
   GoogleApiError,
@@ -79,9 +79,38 @@ export async function drainBoxQueue(
   // so those jobs run regardless and only document jobs wait for a key.
   const model = classifier();
 
+  /*
+   * Anything abandoned mid-flight goes back on the queue first.
+   *
+   * Claiming writes `running`, and only the same invocation writes it back — so
+   * a worker torn down mid-drain (a function hitting its limit, a deploy, a
+   * command interrupted) leaves the row `running` for ever: never claimed
+   * again, never retried, and not visible as a failure. `sync_jobs` learned
+   * this; these two had the same hole.
+   *
+   * Fifteen minutes because nothing here can legitimately still be going — a
+   * serverless function's ceiling is five — so anything older is a corpse. That
+   * margin is also what makes this safe at the head of every drain: two
+   * overlapping workers cannot reset each other's live jobs. `attempts` is left
+   * alone, so a job that keeps killing its worker still gives up in the end.
+   */
+  await db
+    .update(boxJobs)
+    .set({ status: 'pending' })
+    .where(
+      and(
+        eq(boxJobs.status, 'running'),
+        sql`coalesce(${boxJobs.startedAt}, ${boxJobs.createdAt}) < now() - interval '15 minutes'`,
+      ),
+    );
+
   const claimed = await db
     .update(boxJobs)
-    .set({ status: 'running', attempts: sql`${boxJobs.attempts} + 1` })
+    .set({
+      status: 'running',
+      attempts: sql`${boxJobs.attempts} + 1`,
+      startedAt: new Date(),
+    })
     .where(
       sql`${boxJobs.id} in (
         select j.id from ${boxJobs} j

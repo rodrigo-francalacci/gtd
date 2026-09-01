@@ -987,6 +987,15 @@ export const enrichmentJobs = pgTable(
       .references(() => attachments.id, { onDelete: 'cascade' }),
     status: syncJobStatus('status').notNull().default('pending'),
     attempts: integer('attempts').notNull().default(0),
+    /**
+     * When a worker claimed it — how work abandoned mid-flight is recognised.
+     *
+     * `created_at` cannot answer that: it says when the work was *asked for*, so
+     * a job queued twenty minutes ago and claimed a second ago looks equally
+     * stale by it. Only the moment of claiming separates "still going" from
+     * "the worker that had this is gone".
+     */
+    startedAt: timestamp('started_at', { withTimezone: true }),
     lastError: text('last_error'),
     runAfter: timestamp('run_after', { withTimezone: true }).notNull().defaultNow(),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
@@ -1458,6 +1467,15 @@ export const boxJobs = pgTable(
       .references(() => boxItems.id, { onDelete: 'cascade' }),
     status: syncJobStatus('status').notNull().default('pending'),
     attempts: integer('attempts').notNull().default(0),
+    /**
+     * When a worker claimed it — how work abandoned mid-flight is recognised.
+     *
+     * `created_at` cannot answer that: it says when the work was *asked for*, so
+     * a job queued twenty minutes ago and claimed a second ago looks equally
+     * stale by it. Only the moment of claiming separates "still going" from
+     * "the worker that had this is gone".
+     */
+    startedAt: timestamp('started_at', { withTimezone: true }),
     lastError: text('last_error'),
     runAfter: timestamp('run_after', { withTimezone: true }).notNull().defaultNow(),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),

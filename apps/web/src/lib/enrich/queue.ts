@@ -2,7 +2,7 @@ import 'server-only';
 
 import { attachments, db, enrichmentJobs } from '@gtd/db';
 import type { EnrichmentJobKind } from '@gtd/db';
-import { eq, sql } from 'drizzle-orm';
+import { and, eq, sql } from 'drizzle-orm';
 import { nameAttachment } from '@/lib/ai/filename';
 import { GoogleAuthError } from '@/lib/auth/token';
 import { GoogleApiError, downloadFile, exportFile } from '@/lib/google/client';
@@ -83,9 +83,38 @@ export async function drainEnrichmentQueue(limit = 5): Promise<EnrichResult> {
   const model = reader();
   const read = model ?? new TextReader();
 
+  /*
+   * Anything abandoned mid-flight goes back on the queue first.
+   *
+   * Claiming writes `running`, and only the same invocation writes it back — so
+   * a worker torn down mid-drain (a function hitting its limit, a deploy, a
+   * command interrupted) leaves the row `running` for ever: never claimed
+   * again, never retried, and not visible as a failure. `sync_jobs` learned
+   * this; these two had the same hole.
+   *
+   * Fifteen minutes because nothing here can legitimately still be going — a
+   * serverless function's ceiling is five — so anything older is a corpse. That
+   * margin is also what makes this safe at the head of every drain: two
+   * overlapping workers cannot reset each other's live jobs. `attempts` is left
+   * alone, so a job that keeps killing its worker still gives up in the end.
+   */
+  await db
+    .update(enrichmentJobs)
+    .set({ status: 'pending' })
+    .where(
+      and(
+        eq(enrichmentJobs.status, 'running'),
+        sql`coalesce(${enrichmentJobs.startedAt}, ${enrichmentJobs.createdAt}) < now() - interval '15 minutes'`,
+      ),
+    );
+
   const claimed = await db
     .update(enrichmentJobs)
-    .set({ status: 'running', attempts: sql`${enrichmentJobs.attempts} + 1` })
+    .set({
+      status: 'running',
+      attempts: sql`${enrichmentJobs.attempts} + 1`,
+      startedAt: new Date(),
+    })
     .where(
       sql`${enrichmentJobs.id} in (
         select j.id from ${enrichmentJobs} j
