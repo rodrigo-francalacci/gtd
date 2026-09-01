@@ -23,6 +23,7 @@ import {
 import { readEmailPaste } from '@/lib/email-paste';
 import { soleUrl } from '@/lib/sole-url';
 import { CaptureDestination, type Destination } from './capture-destination';
+import { imagesToPdf, isImage, pdfNameFor } from '@/lib/images-to-pdf';
 import { LifetimePicker, expiryFor } from './lifetime-picker';
 import { PurchaseFieldsPanel } from './purchase-fields';
 import type { PurchaseRead } from '@/lib/ai/purchase';
@@ -96,6 +97,7 @@ export function MobileCapture({
   const [detail, setDetail] = useState(initialUrl);
   const [noteOpen, setNoteOpen] = useState(Boolean(initialUrl));
   const [staged, setStaged] = useState<File[]>([]);
+  const [combining, setCombining] = useState(false);
   /**
    * Where this one is going. Null is the inbox, and it resets to null after
    * every capture rather than remembering — see `CaptureDestination` for why
@@ -532,6 +534,55 @@ export function MobileCapture({
           Add a note
         </button>
       )}
+
+      {/*
+        Several photographs that are one thing.
+        
+        The desktop capture screen has offered this from the start and the phone
+        did not, which is precisely the wrong way round: photographing a letter
+        page by page is a thing you do *with a phone*, standing over the paper,
+        and it is the case the offer exists for. Only from two images upwards —
+        one picture is already one thing — and offered rather than done, because
+        six photographs of six different things are just as common.
+
+        Built here in the browser, like everywhere else it appears: the images
+        are already staged and the upload goes straight to Drive, so combining
+        first means the one PDF rides that route instead of megabytes going
+        through a function to come back smaller.
+      */}
+      {staged.filter(isImage).length > 1 && !busy ? (
+        <button
+          type="button"
+          disabled={combining}
+          onClick={() => {
+            const pictures = staged.filter(isImage);
+            setCombining(true);
+
+            void (async () => {
+              try {
+                // Named after whatever has been typed, if anything.
+                const pdf = await imagesToPdf(
+                  pictures,
+                  pdfNameFor(pictures.length, text.split('\n')[0]),
+                );
+                // The pictures leave and the document takes their place in the
+                // same list, so what is about to be sent is visible rather than
+                // implied.
+                setStaged((files) => [...files.filter((f) => !isImage(f)), pdf]);
+              } catch {
+                setErrors((e) => [...e, 'Those images would not combine.']);
+              } finally {
+                setCombining(false);
+              }
+            })();
+          }}
+          className="mb-2 w-full rounded-sm border border-grey-300 px-3 py-2 text-[13px] text-grey-700 disabled:opacity-40"
+        >
+          {combining
+            ? 'Combining…'
+            : `Combine ${staged.filter(isImage).length} photos into one PDF`}
+        </button>
+      ) : null}
 
       {staged.length > 0 ? (
         <ul className="shrink-0 space-y-1.5 pb-2">
