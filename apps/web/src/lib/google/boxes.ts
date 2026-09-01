@@ -319,6 +319,19 @@ export async function completeBoxUpload(
   driveFileId: string,
   capturedAt?: Date,
   email?: EmailFacts,
+  /**
+   * The date printed on the document, when the caller already knows it.
+   *
+   * Normally this is something the reading works out. A backlog being brought
+   * across is the exception: the files were named with their date years ago,
+   * and that is better evidence than anything a model will infer — and it is
+   * there *before* the reading, so the feed is right the moment it arrives
+   * rather than after forty model calls.
+   *
+   * A reading may still correct it, which is the right precedence: the page
+   * itself beats a filename.
+   */
+  docDate?: string,
 ): Promise<{ id: string; name: string }> {
   const file = await getFile(driveFileId);
   if (!file) throw new BoxError('That upload could not be found in Drive.');
@@ -374,6 +387,9 @@ export async function completeBoxUpload(
       sizeBytes: Number.isFinite(size) ? size : null,
       status: queue ? 'pending' : 'ready',
       ...(capturedAt ? { capturedAt } : {}),
+      // Only when given. The reading fills it otherwise, and an email's own
+      // branch below sets it from the sent date.
+      ...(docDate ? { docDate } : {}),
       ...(email
         ? {
             title: email.subject || file.name,

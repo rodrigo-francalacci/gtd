@@ -93,6 +93,17 @@ function panelJobs() {
       needs: 'gtd-email.gs',
     },
     {
+      id: 'previewFeedFolders',
+      group: 'One at a time',
+      title: 'Preview the scans',
+      detail:
+        'Lists every file the scan folders would file and the date each would ' +
+        'get, writing nothing. Worth a look before bringing a backlog across: a ' +
+        'copied file is dated today, so a filename’s own date is used where ' +
+        'there is one.',
+      needs: 'big-box-feed.gs',
+    },
+    {
       id: 'processFeedFolders',
       group: 'One at a time',
       title: 'File scans',

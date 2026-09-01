@@ -1725,6 +1725,25 @@ to be kept. They meet at `box_item_links` and nowhere else.
   of five values often enough and you get a sixth, and by then it is in the
   database and the filter has two tags meaning the same thing. Matching ignores
   case and space, so "tesco" reuses "Tesco" (the `resolveParty` reasoning).
+- **A filename's own date beats Drive's timestamp, and that is what makes a
+  backlog survive.** `getDateCreated` is right for a scan that has just appeared
+  and wrong for a folder being brought across: a file **copied** into the
+  watched folder is created *today*, so three years of correspondence would file
+  under this morning — one day holding everything, the single arrangement that
+  makes a feed useless. Moving preserves the date and copying does not, and
+  nobody should have to know that to get their history across.
+  So a leading `YYYY-MM-DD` wins, for both dates. It is there because somebody
+  put it there, which is better evidence than a filesystem timestamp, and it is
+  the convention this app's own Drive names follow — a document that has been
+  through here once carries its date home. A reading may still correct the
+  printed date: the page beats the filename.
+  **Midday, not midnight.** A bare date is midnight UTC, which west of Greenwich
+  is the previous evening — and the feed cuts its days in the server's timezone,
+  so the document would head a day it did not arrive on. Checked against London,
+  New York and Tokyo.
+  **`previewFeedFolders` writes nothing**, because bringing a backlog across is
+  one-way with an expensive mistake in it, and two hundred arrival dates are not
+  something anybody fixes by hand.
 - **`captured_at` and `doc_date` are different facts.** A bill that arrives in
   August is dated July. The feed orders and groups by arrival; the printed date
   is shown beside it. The ingest endpoint accepts the original file's date so a

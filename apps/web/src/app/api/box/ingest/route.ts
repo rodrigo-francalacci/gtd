@@ -86,6 +86,7 @@ export async function POST(request: Request) {
     mimeType: string;
     driveFileId: string;
     capturedAt: string;
+    docDate: string;
     expires: string;
     sourceFolderId: string;
     email: EmailFacts;
@@ -146,6 +147,12 @@ export async function POST(request: Request) {
          * having the app guess at them from markup.
          */
         body.email && body.email.subject ? body.email : undefined,
+        /*
+         * A printed date the caller already knows — a backlog whose filenames
+         * carry it. Validated to a bare ISO day, because it goes into a `date`
+         * column and a client is not trusted with its shape.
+         */
+        /^\d{4}-\d{2}-\d{2}$/.test(body.docDate ?? '') ? body.docDate : undefined,
       );
 
       // Applied after the row exists rather than threaded through the insert:

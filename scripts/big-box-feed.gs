@@ -81,6 +81,59 @@ const READ_BUDGET_MS = 3 * 60 * 1000;
 
 // --- MAIN -------------------------------------------------------------------
 
+/**
+ * What `processFeedFolders` *would* do, writing nothing.
+ *
+ * The reason this exists is that bringing a backlog across is a one-way move
+ * with an expensive mistake in it: get the dates wrong and a year of documents
+ * files under today, which is not something you fix by hand at two hundred
+ * rows. So the dates are shown first, in a list you read, and only then does
+ * anything happen.
+ *
+ * It touches nothing — no upload, no archive move, no request to the app. The
+ * only thing it needs the app for is nothing at all, which is also why it is
+ * safe to press at any time.
+ */
+function previewFeedFolders() {
+  var total = 0;
+  var fromName = 0;
+
+  FOLDERS.forEach(function (config) {
+    var folder;
+    try {
+      folder = DriveApp.getFolderById(config.folderId);
+    } catch (e) {
+      Logger.log('Cannot open folder ' + config.folderId + ': ' + e);
+      return;
+    }
+
+    Logger.log('— ' + folder.getName() + ' → box "' + config.box + '" —');
+
+    const files = folder.getFiles();
+
+    while (files.hasNext()) {
+      const file = files.next();
+      const name = file.getName();
+      const dated = datedFrom(name, file);
+      const named = dated.docDate !== null;
+
+      total++;
+      if (named) fromName++;
+
+      Logger.log(
+        '  ' + name + '\n      arrives ' + dated.capturedAt.slice(0, 10) +
+        (named ? '  (from the name)' : '  (from Drive — no date in the name)'),
+      );
+    }
+  });
+
+  Logger.log(
+    total + ' file(s): ' + fromName + ' dated from the name, ' +
+    (total - fromName) + ' from Drive’s own timestamp.',
+  );
+  Logger.log('Nothing was written. Run “File scans” when this looks right.');
+}
+
 function processFeedFolders() {
   const startedAt = Date.now();
   const props = PropertiesService.getScriptProperties();
@@ -120,6 +173,45 @@ function processFeedFolders() {
 
     Logger.log('  ' + sent + ' filed');
   });
+}
+
+/**
+ * What date a file should be filed under, and why the filename wins.
+ *
+ * `getDateCreated` is the ordinary answer and is right for a scan that has just
+ * appeared. It is *wrong* for a backlog being brought across: a file **copied**
+ * into the watched folder is created today, so a folder holding three years of
+ * correspondence would file every document under this morning — one day
+ * containing everything, which is the single arrangement that makes a feed
+ * useless. Moving a file preserves its date and copying does not, and nobody
+ * should have to know that to get their history across intact.
+ *
+ * So a leading `YYYY-MM-DD` in the name wins. It is there because somebody put
+ * it there, which makes it better evidence than a filesystem timestamp — and it
+ * is the convention this app's own Drive names already follow, so a document
+ * that has been through here once carries its date home.
+ *
+ * Used for **both** dates: the day it arrived and the day it was written. For a
+ * backlog those are usually the same, and being roughly right about the printed
+ * date immediately beats being empty until a model reads it. A reading may then
+ * correct the printed date, which is the right precedence — the page beats the
+ * filename.
+ */
+function datedFrom(name, file) {
+  const match = /^(\d{4})-(\d{2})-(\d{2})/.exec(name || '');
+
+  if (match) {
+    const day = match[1] + '-' + match[2] + '-' + match[3];
+    /*
+     * Midday, deliberately. A bare date is midnight UTC, which in a timezone
+     * behind Greenwich is the *previous evening* — and the feed cuts its days
+     * in the server's timezone, so the document would head a day it did not
+     * arrive on. Midday is far from either edge.
+     */
+    return { capturedAt: new Date(day + 'T12:00:00Z').toISOString(), docDate: day };
+  }
+
+  return { capturedAt: file.getDateCreated().toISOString(), docDate: null };
 }
 
 function ingestFile(origin, secret, box, file, sourceFolderId, startedAt) {
@@ -166,13 +258,17 @@ function ingestFile(origin, secret, box, file, sourceFolderId, startedAt) {
 
   const uploaded = JSON.parse(put.getContentText());
 
+  const dated = datedFrom(name, file);
+
   const done = post(origin, secret, {
     step: 'complete',
     box: box,
     driveFileId: uploaded.id,
     // The date the scan was made, so a backlog files under the days it
     // actually arrived instead of burying years of letters under today.
-    capturedAt: file.getDateCreated().toISOString(),
+    capturedAt: dated.capturedAt,
+    // And the printed date, when the filename carries one. See `datedFrom`.
+    docDate: dated.docDate,
   });
 
   if (!done.ok) throw new Error('complete failed: ' + JSON.stringify(done));
