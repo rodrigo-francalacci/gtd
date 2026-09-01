@@ -356,7 +356,7 @@ function fileLabelledEmails() {
          * one you can see and undo.
          */
         const ids = messages.map(function (msg) { return msg.getId(); });
-        const already = alreadyFiled(origin, secret, ids);
+        const already = alreadyFiled(origin, secret, ids, source.box);
 
         for (var m = 0; m < messages.length; m++) {
           if (already[messages[m].getId()]) {
@@ -377,6 +377,22 @@ function fileLabelledEmails() {
         if (ARCHIVE_WHEN_DONE) thread.moveToArchive();
         // Off by default now — see the constant. The label stays put.
         if (REMOVE_LABEL_WHEN_DONE) thread.removeLabel(source.label);
+
+        /*
+         * And make the thread's box labels say what the app says.
+         *
+         * Moving an entry to another box, copying it into a second one, or
+         * throwing it away are all things the app can do to its own records and
+         * cannot do to Gmail — it holds `gmail.labels`, which manages labels but
+         * cannot put one on a message. So it says what should be true and this
+         * puts it right.
+         *
+         * Deleting matters most: with the label no longer removed on filing, a
+         * thrown-away entry whose label stayed would simply be filed again on
+         * the next run. Asking for the complete set means "none" is an answer,
+         * and the label goes.
+         */
+        relabel(origin, secret, thread, ids);
       } catch (e) {
         // Keeps its label, so the next run tries again. Usually the app being
         // redeployed mid-run.
@@ -396,12 +412,12 @@ function fileLabelledEmails() {
  * visible in the box and can be thrown away, where a miss is a message you go
  * looking for in a year and do not find.
  */
-function alreadyFiled(origin, secret, ids) {
+function alreadyFiled(origin, secret, ids, box) {
   const seen = {};
   if (!ids.length) return seen;
 
   try {
-    const answer = postTo(origin, secret, '/api/box/filed', { ids: ids });
+    const answer = postTo(origin, secret, '/api/box/filed', { ids: ids, box: box });
     const filed = (answer && answer.filed) || [];
     for (var i = 0; i < filed.length; i++) seen[filed[i]] = true;
   } catch (e) {
@@ -409,6 +425,53 @@ function alreadyFiled(origin, secret, ids) {
   }
 
   return seen;
+}
+
+/**
+ * Make a thread's `GTD/Box/*` labels match what the app holds.
+ *
+ * Only labels under `GTD/Box/` are touched. Everything else on the thread —
+ * your own labels, `GTD/Relevant`, whatever Gmail put there — is left exactly
+ * alone, because none of it is this script's business.
+ *
+ * A failed lookup changes nothing rather than guessing: the labels stay as they
+ * are and the next run tries again, which is the same rule the filing follows.
+ */
+function relabel(origin, secret, thread, messageIds) {
+  var wanted;
+
+  try {
+    const answer = postTo(origin, secret, '/api/box/relabel', { ids: messageIds });
+    if (!answer || !answer.ok) return;
+    wanted = answer.labels || [];
+  } catch (e) {
+    Logger.log('  could not check labels: ' + e);
+    return;
+  }
+
+  const want = {};
+  for (var i = 0; i < wanted.length; i++) want[wanted[i]] = true;
+
+  const have = {};
+  const current = thread.getLabels();
+  for (var j = 0; j < current.length; j++) {
+    const name = current[j].getName();
+    if (name.indexOf(BOX_LABEL_PREFIX) === 0) have[name] = current[j];
+  }
+
+  for (var name in want) {
+    if (!have[name]) {
+      thread.addLabel(GmailApp.getUserLabelByName(name) || GmailApp.createLabel(name));
+      Logger.log('  + ' + name);
+    }
+  }
+
+  for (var had in have) {
+    if (!want[had]) {
+      thread.removeLabel(have[had]);
+      Logger.log('  − ' + had);
+    }
+  }
 }
 
 function fileMessage(origin, secret, message, box) {

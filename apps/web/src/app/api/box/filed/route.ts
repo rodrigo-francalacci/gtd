@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { boxItems, db } from '@gtd/db';
-import { inArray } from 'drizzle-orm';
+import { and, eq, inArray, sql } from 'drizzle-orm';
+import { boxes } from '@gtd/db';
 import { getSession } from '@/lib/auth/session';
 import { WHY, authoriseSecret } from '@/lib/box/auth';
 
@@ -27,6 +28,17 @@ export const dynamic = 'force-dynamic';
  * box is the record, and if it is not in the box it has not been filed. That is
  * also what makes a mistaken deletion recoverable — run the bridge again.
  */
+/** The box the script named, by id or by name — the ingest route's own rule. */
+async function resolveBoxId(hint: string): Promise<string | null> {
+  const [match] = await db
+    .select({ id: boxes.id })
+    .from(boxes)
+    .where(sql`${boxes.id}::text = ${hint} or lower(${boxes.name}) = lower(${hint})`)
+    .limit(1);
+
+  return match?.id ?? null;
+}
+
 export async function POST(request: Request) {
   const bySecret = authoriseSecret(request);
 
@@ -34,7 +46,10 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: WHY }, { status: 401 });
   }
 
-  const body = (await request.json().catch(() => ({}))) as { ids?: unknown };
+  const body = (await request.json().catch(() => ({}))) as {
+    ids?: unknown;
+    box?: unknown;
+  };
 
   /*
    * Taken by shape, never trusted: this is called by a script anyone with the
@@ -47,10 +62,24 @@ export async function POST(request: Request) {
 
   if (ids.length === 0) return NextResponse.json({ ok: true, filed: [] });
 
+  /*
+   * Per box, not globally.
+   *
+   * "Filed" has to mean "filed *here*". A message can legitimately belong in
+   * two boxes — a receipt that is also a tax record — and labelling it into a
+   * second one is exactly how you say so. Answering globally would make the
+   * second label do nothing, silently, for ever.
+   */
+  const box = typeof body.box === 'string' ? await resolveBoxId(body.box) : null;
+
   const rows = await db
     .select({ sourceId: boxItems.sourceId })
     .from(boxItems)
-    .where(inArray(boxItems.sourceId, ids));
+    .where(
+      box
+        ? and(inArray(boxItems.sourceId, ids), eq(boxItems.boxId, box))
+        : inArray(boxItems.sourceId, ids),
+    );
 
   return NextResponse.json({
     ok: true,

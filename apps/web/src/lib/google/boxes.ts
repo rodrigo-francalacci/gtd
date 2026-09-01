@@ -1,7 +1,7 @@
 import 'server-only';
 import { purgeGalleryPictures } from './attachments';
 
-import { boxItems, boxes, db } from '@gtd/db';
+import { attachments, boxItems, boxes, db } from '@gtd/db';
 import { and, eq, isNotNull, lte, sql } from 'drizzle-orm';
 import { hasSyncScopes } from '@/lib/auth/google';
 import { getGrant } from '@/lib/auth/token';
@@ -97,14 +97,84 @@ export async function trashBoxFolder(folderId: string | null): Promise<void> {
  * Returns the new Drive id, or null when there was nothing to copy: a note, a
  * link or a place has no file, and copying one is only a row.
  */
-export async function copyBoxItemFile(
-  driveFileId: string | null,
-  name: string,
-  toBoxId: string,
-): Promise<string | null> {
-  if (!driveFileId) return null;
+/** A gallery's `drive_file_id` is a folder, and Drive will not copy one. */
+const GALLERY_MIME = 'application/vnd.google-apps.folder';
 
-  return copyFile(driveFileId, name, await ensureBoxFolder(toBoxId));
+export type CopiedFile = {
+  driveFileId: string | null;
+  /**
+   * For a gallery: each picture, already copied into the new folder, ready to
+   * be given rows of its own. Empty for everything else.
+   */
+  pictures: { sourceId: string; driveFileId: string; name: string }[];
+};
+
+export async function copyBoxItemFile(
+  item: {
+    id: string;
+    driveFileId: string | null;
+    name: string;
+    mimeType: string | null;
+  },
+  toBoxId: string,
+): Promise<CopiedFile> {
+  if (!item.driveFileId) return { driveFileId: null, pictures: [] };
+
+  const into = await ensureBoxFolder(toBoxId);
+
+  /*
+   * A gallery is a *folder*, and Drive's copy does not copy folders — it
+   * refuses outright. So a gallery is rebuilt: a new folder, then each picture
+   * copied into it. Without this, copying a gallery would leave an entry
+   * pointing at nothing, which is the sort of half-success that is worse than a
+   * refusal.
+   *
+   * The pictures are handed back rather than written here, because they need
+   * `attachments` rows parented on the *new* gallery — and this module has no
+   * business knowing what a copy of a box entry looks like.
+   */
+  if (item.mimeType === GALLERY_MIME) {
+    const folder = await ensureFolder(safeName(item.name) || 'Gallery', into);
+
+    /*
+     * Its pictures are `attachments` parented on the gallery's own id — that is
+     * what lets a gallery reuse the whole file path — so they are found by that
+     * id. `parent_id` is a plain uuid addressing several tables, so this cannot
+     * be a join.
+     */
+    const rows = await db
+      .select({
+        id: attachments.id,
+        driveFileId: attachments.driveFileId,
+        name: attachments.name,
+      })
+      .from(attachments)
+      .where(
+        and(
+          eq(attachments.parentType, 'gallery'),
+          eq(attachments.parentId, item.id),
+          isNotNull(attachments.driveFileId),
+        ),
+      );
+
+    const pictures: CopiedFile['pictures'] = [];
+
+    for (const picture of rows) {
+      if (!picture.driveFileId) continue;
+      pictures.push({
+        sourceId: picture.id,
+        driveFileId: await copyFile(picture.driveFileId, picture.name, folder),
+        name: picture.name,
+      });
+    }
+
+    return { driveFileId: folder, pictures };
+  }
+
+  return {
+    driveFileId: await copyFile(item.driveFileId, item.name, into),
+    pictures: [],
+  };
 }
 
 export async function moveBoxItemFile(itemId: string): Promise<void> {

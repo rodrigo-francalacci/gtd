@@ -2070,6 +2070,42 @@ settings.
   it is "everything does". The Apps Script is not a published app. It is bound to
   one account, reading its own mail, and needs no verification at all. Exactly
   the asymmetry the scanner bridge already relies on, used a second time.
+- **Gmail labels mirror the app, and the script is what applies them.** Moving
+  an email entry to another box moves its stored copy in Drive, because that
+  file belongs to the app. It cannot move the *label*: putting one on a message
+  needs `gmail.modify`, a restricted scope, and the bridge exists precisely so
+  this app never asks for one. So `POST /api/box/relabel` says what a thread
+  should be wearing and the script makes it so, touching nothing outside
+  `GTD/Box/*`.
+  **Stateless, and the complete set rather than a diff.** A first attempt
+  tracked "the box whose label Gmail is known to carry" in a column, the way
+  `drive_name` tracks filenames — the right shape for a *file*, whose name only
+  this app changes, and the wrong one here: the script must ask what the labels
+  should be anyway, so the column recorded something already knowable, and it
+  could not answer for a message whose entry had been **deleted**, because a
+  deleted row leaves nothing to compare. Asking per thread and answering with
+  the whole set covers every case at once — moved, copied into a second box,
+  deleted, refiled by deleting a box, and a box renamed underneath.
+  **Deleting matters most.** With the label no longer removed on filing, a
+  thrown-away entry whose label stayed would simply be filed again next run.
+  "None" is a real answer, so the label goes and it does not come back.
+  **Thread-level, because `GmailApp` labels are.** The answer is the union over
+  every message in the thread, which is the only honest thing a thread-level
+  label can say about messages that ended up in different boxes.
+- **"Already filed" means *filed here*.** The check is per box. A message can
+  legitimately belong in two — a receipt that is also a tax record — and
+  labelling it into a second one is exactly how you say so; answering globally
+  would make that second label do nothing, silently, for ever. It is also what
+  lets a *copy* carry `source_id`, which it must, or Gmail could never be told
+  the message is in both places.
+- **Drive will not copy a folder, so a gallery is rebuilt.** `files.copy`
+  refuses one outright. Copying a gallery therefore makes a new folder, copies
+  each picture into it, and gives each a fresh `attachments` row parented on the
+  new gallery — without that last part the copy is a folder with files in it and
+  nothing in the app to show, which is the half-success worth avoiding. The
+  readings are deliberately not copied and no enrichment is queued: it is the
+  same picture, and paying a model to read it again buys what is already written
+  down beside the original.
 - **The label stays on the message, and the app is what remembers.** The bridge
   used to avoid filing twice by *consuming* the label — file it, take the label
   off, next run finds nothing. It worked, and it meant the label you had just

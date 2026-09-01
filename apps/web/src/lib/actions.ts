@@ -2709,7 +2709,7 @@ export async function copyDocument(itemId: string, boxId: string) {
    * order: a row claiming a document it has no copy of would be worse than no
    * row at all, and the reverse order cannot be undone without transactions.
    */
-  const driveFileId = await copyBoxItemFile(item.driveFileId, item.name, boxId);
+  const copied = await copyBoxItemFile(item, boxId);
 
   const [made] = await db
     .insert(boxItems)
@@ -2717,7 +2717,7 @@ export async function copyDocument(itemId: string, boxId: string) {
       boxId,
       kind: item.kind,
       status: item.status,
-      driveFileId,
+      driveFileId: copied.driveFileId,
       name: item.name,
       mimeType: item.mimeType,
       sizeBytes: item.sizeBytes,
@@ -2732,13 +2732,67 @@ export async function copyDocument(itemId: string, boxId: string) {
       lat: item.lat,
       lng: item.lng,
       /*
-       * Deliberately not carried: `source_id`, which says *this is the Gmail
-       * message* — two rows claiming the same message would make the bridge
-       * think it had filed one when it had filed the other. A copy is a new
-       * thing, not a second claim on the original.
+       * `source_id` *is* carried: a copy of an email entry is the same Gmail
+       * message, filed in a second box, and pretending otherwise would leave
+       * Gmail unable to say so. That is safe because the "already filed?" check
+       * is per box — a message filed in one box is still eligible for another,
+       * which is exactly what labelling it into a second box means.
+       *
+       * Gmail does not yet carry the new box's label; the bridge adds it on its
+       * next run, by comparing what a thread wears against what the app says it
+       * should.
        */
+      sourceId: item.sourceId,
     })
     .returning({ id: boxItems.id });
+
+  /*
+   * A gallery's pictures need rows of their own, parented on the new gallery.
+   * Without them the copy is a folder with the files in it and nothing in the
+   * app to show — the half-success `copyBoxItemFile` exists to avoid.
+   *
+   * Copied from the originals so every fact about each picture comes too: its
+   * size and type, and the dimensions, date and place read out of the file when
+   * it was first added. Deliberately *not* copied are `ocr_text` and
+   * `transcription`, and no enrichment is queued: it is the same picture, and
+   * paying a model to read it again would buy what is already written down
+   * beside the original.
+   */
+  if (copied.pictures.length > 0) {
+    const originals = await db
+      .select()
+      .from(attachments)
+      .where(
+        inArray(
+          attachments.id,
+          copied.pictures.map((picture) => picture.sourceId),
+        ),
+      );
+
+    const byId = new Map(originals.map((row) => [row.id, row]));
+
+    for (const picture of copied.pictures) {
+      const from = byId.get(picture.sourceId);
+      if (!from) continue;
+
+      await db.insert(attachments).values({
+        parentType: 'gallery',
+        parentId: made.id,
+        driveFileId: picture.driveFileId,
+        // Drive holds what was just written, so the sweep has nothing to do.
+        driveName: picture.name,
+        name: picture.name,
+        mimeType: from.mimeType,
+        sizeBytes: from.sizeBytes,
+        kind: from.kind,
+        width: from.width,
+        height: from.height,
+        takenAt: from.takenAt,
+        latitude: from.latitude,
+        longitude: from.longitude,
+      });
+    }
+  }
 
   const kept = await db
     .select({ id: boxTags.id })
