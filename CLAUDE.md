@@ -562,6 +562,29 @@ Turbopack is the default; `middleware` is now `proxy`.
   always used `Projects`, so a file attached to something finished last year
   landed beside the live work; it asks `containerPath` now, like everything
   else, so Drive and Gmail cannot disagree about where a thing lives.
+- **`move_project_links` reconciles a project's containers — where *and* what
+  they are called.** It moved the folder and never renamed it, which was fine
+  while a status change was the only thing that enqueued it: Gmail moves a label
+  by rewriting its path, so the label's name came along for free, and nobody
+  noticed the folder's did not. Renaming a project then left Drive holding the
+  old name for ever — the one thing you would go looking for the folder by — and
+  the label wrong until the next status change happened to rewrite it.
+  `updateProjectTitle` enqueues the same job now. `getFile` first, so a folder
+  already correctly named costs a read rather than a write and one deleted in
+  Drive is left alone rather than resurrected.
+- **The rename sweeps let folders through, and only folders.** Both excluded
+  every `application/vnd.google-apps.*` type, which is right for Docs, Sheets
+  and Slides — Google owns those names, you rename one by typing in its title
+  bar, and pushing ours would fight `refreshGoogleNames` on alternate ticks. A
+  *folder* is not that: a gallery's folder is named by this app and by nothing
+  else, so excluding it meant a renamed gallery kept its old folder name for
+  ever.
+- **A list item's files follow its project, exactly as an action's do.**
+  `attachmentFolder` resolves a `list_item` through its project, so
+  `setListItemProject` leaves every file in the folder of a project the item no
+  longer belongs to — findable only by remembering where the row used to be,
+  which is the opposite of files following the project. Same fix as
+  `moveActionToProject`.
 - **Gmail label nesting is naming, and the parents must exist.** The API
   creates literally the name given, so `ensureLabel` walks the path and
   creates every ancestor; a rename into a new container ensures that

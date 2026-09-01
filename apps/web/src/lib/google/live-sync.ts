@@ -10,6 +10,7 @@ import {
   getFile,
   getLabel,
   moveFile,
+  renameFolder,
   renameLabel,
 } from './client';
 import {
@@ -69,6 +70,27 @@ export class LiveGoogleSync implements GoogleSync {
       let parent = await ensureFolder(ROOT);
       for (const segment of segments) parent = await ensureFolder(segment, parent);
       await moveFile(project.driveFolderId, parent);
+
+      /*
+       * And the folder's *name*, not only its place.
+       *
+       * This job used to move a folder and never rename it, which was fine
+       * while the only thing that enqueued it was a status change. Renaming a
+       * project then left Drive holding the old name for ever — the one thing
+       * you would go looking for the folder by. Reconciling both here makes
+       * this "put the containers where and what they should be", which is a
+       * job a rename can enqueue too.
+       *
+       * `getFile` first so a folder already correctly named costs a read
+       * rather than a write, and so a folder deleted in Drive is left alone
+       * rather than resurrected.
+       */
+      if (title) {
+        const existing = await getFile(project.driveFolderId);
+        if (existing && !existing.trashed && existing.name !== title) {
+          await renameFolder(project.driveFolderId, title);
+        }
+      }
     }
 
     if (project.gmailLabelId && title) {

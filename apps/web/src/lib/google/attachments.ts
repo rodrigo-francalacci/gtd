@@ -537,7 +537,14 @@ export async function renameDriveAttachments(limit = 50): Promise<number> {
         isNotNull(attachments.driveFileId),
         isNotNull(attachments.driveName),
         ne(attachments.name, attachments.driveName),
-        sql`coalesce(${attachments.mimeType}, '') not like 'application/vnd.google-apps.%'`,
+        /*
+         * Docs-editor files are excluded because Google owns their names — you
+         * rename one by typing in its title bar. A *folder* is not that: a
+         * gallery's folder is named by this app and by nothing else, so it must
+         * come through or a renamed gallery keeps its old folder name for ever.
+         */
+        sql`coalesce(${attachments.mimeType}, '') not like 'application/vnd.google-apps.%'
+            or ${attachments.mimeType} = 'application/vnd.google-apps.folder'`,
       ),
     )
     .limit(limit);

@@ -144,6 +144,21 @@ export async function updateProjectTitle(projectId: string, title: string) {
     .set({ title: trimmed, updatedAt: new Date() })
     .where(eq(projects.id, projectId));
 
+  /*
+   * Carry the new name out to Drive and Gmail.
+   *
+   * A project's folder is named after it and its Gmail label *is* its name —
+   * `GTD/Projects/<title>` — so renaming here and nowhere else left the folder
+   * you would go looking in still called the old thing, for ever, and the label
+   * wrong until the next status change happened to rewrite its path.
+   *
+   * The same job a status change enqueues: it puts the containers where and
+   * what they should be, and a rename is one of the two ways they can become
+   * wrong. Queued rather than called, because this fires on every edit of a
+   * title field and must not wait on Google.
+   */
+  await enqueueSync('move_project_links', projectId);
+
   revalidateShell();
 }
 
@@ -1727,6 +1742,25 @@ export async function updateListItemFields(itemId: string, patch: PurchaseFields
 export async function setListItemProject(itemId: string, projectId: string | null) {
   await requireSession();
   await db.update(listItems).set({ projectId }).where(eq(listItems.id, itemId));
+
+  /*
+   * A list item's files live in its *project's* Drive folder, exactly as an
+   * action's do — `attachmentFolder` resolves a `list_item` through its project
+   * — so changing that project leaves them in the folder of a project the item
+   * no longer belongs to. The same fix `moveActionToProject` carries, for the
+   * same reason: a file findable only by remembering where the row used to be
+   * is the opposite of files following the project.
+   */
+  const files = await db
+    .select({ id: attachments.id })
+    .from(attachments)
+    .where(
+      and(eq(attachments.parentType, 'list_item'), eq(attachments.parentId, itemId)),
+    );
+
+  for (const file of files) await enqueueFileMove({ attachmentId: file.id });
+  drainMovesAfterResponse(files.length);
+
   revalidateShell();
 }
 

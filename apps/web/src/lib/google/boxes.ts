@@ -491,8 +491,14 @@ export async function renameBoxFiles(limit = 50): Promise<number> {
         eq(boxItems.status, 'ready'),
         isNotNull(boxItems.driveFileId),
         isNotNull(boxItems.title),
-        // Google's to name. See above.
-        sql`coalesce(${boxItems.mimeType}, '') not like 'application/vnd.google-apps.%'`,
+        /*
+         * Docs-editor files are excluded because Google owns their names — you
+         * rename one by typing in its title bar. A *folder* is not that: a
+         * gallery's folder is named by this app and by nothing else, so it must
+         * come through or a renamed gallery keeps its old folder name for ever.
+         */
+        sql`coalesce(${boxItems.mimeType}, '') not like 'application/vnd.google-apps.%'
+            or ${boxItems.mimeType} = 'application/vnd.google-apps.folder'`,
       ),
     );
 
