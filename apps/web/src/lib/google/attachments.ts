@@ -185,7 +185,29 @@ export async function attachmentFolder(
     .limit(1);
 
   if (!project) return ensureFolder(INBOX, root);
-  if (project.driveFolderId) return project.driveFolderId;
+
+  /*
+   * The stored folder, but only if it is still there.
+   *
+   * This used to be returned unchecked, and a folder deleted in Drive then made
+   * every upload to that project succeed **into the bin**: Drive accepts a
+   * parent that is trashed, so the app reported the file as attached, the row
+   * pointed at it, and it was invisible — until Drive emptied the bin after
+   * thirty days and took it for good. Silent, and the worst way for a mistake
+   * to behave.
+   *
+   * A box has always checked (`ensureBoxFolder`), so this is the same rule
+   * arriving where it was missing rather than a new idea. Making a fresh folder
+   * does not contradict one-way sync: the documents already filed keep their
+   * own ids and are unaffected, and this only decides where the *next* one
+   * lands — the alternative is refusing to accept a file at all.
+   *
+   * One `getFile` per upload, which is nothing beside the bytes.
+   */
+  if (project.driveFolderId) {
+    const existing = await getFile(project.driveFolderId);
+    if (existing && !existing.trashed) return project.driveFolderId;
+  }
 
   /*
    * This is where a project's Drive folder comes from.

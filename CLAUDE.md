@@ -349,6 +349,21 @@ Turbopack is the default; `middleware` is now `proxy`.
   project goes to `GTD/Inbox`. If the project has no folder yet, attaching
   creates it there and then: the alternative is filing the upload somewhere the
   user didn't ask for.
+- **A project's folder is checked before it is trusted, because Drive accepts a
+  parent that is in the bin.** `attachmentFolder` returned the stored
+  `drive_folder_id` unchecked, so a folder deleted in Drive made every upload to
+  that project *succeed into the bin*: the request returned 200, the row pointed
+  at a real file, the pane listed it — and it was invisible until Drive emptied
+  the bin thirty days later and took it for good. Measured, not reasoned about:
+  a file uploaded to a project whose folder had just been trashed came back `ok`
+  and landed inside the trashed folder.
+  A box has always checked (`ensureBoxFolder`), so this is the same rule
+  arriving where it was missing. Making a fresh folder does not contradict
+  one-way sync — the documents already filed keep their own ids and only the
+  *next* one is affected — and the alternative is refusing to accept a file.
+  **Trashing a folder trashes what is in it**, which is what makes this
+  dangerous rather than untidy, and is worth remembering before testing anything
+  against a real folder.
 - **A project can be half-linked**, precisely because of the above — a Drive
   folder made for an upload says nothing about Gmail. `UNLINKED` in `queue.ts`
   therefore matches *either* id being null, not both; the older `and` quietly
