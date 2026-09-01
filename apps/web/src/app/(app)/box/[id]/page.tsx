@@ -364,7 +364,12 @@ export default async function BoxPage(props: PageProps<'/box/[id]'>) {
                   is a folder, not a box. */}
               {boxView === 'gallery' ? (
                 day.items.map((item) => (
-                  <TagDrop key={item.id} itemId={item.id} accepts={item.kind !== 'event'}>
+                  <TagDrop
+                    key={item.id}
+                    itemId={item.id}
+                    label={documentLabel(item)}
+                    accepts={item.kind !== 'event'}
+                  >
                   <DocumentMenu
                     id={item.id}
                     name={documentLabel(item)}
@@ -380,7 +385,12 @@ export default async function BoxPage(props: PageProps<'/box/[id]'>) {
                 ))
               ) : (
                 day.items.map((item) => (
-                  <TagDrop key={item.id} itemId={item.id} accepts={item.kind !== 'event'}>
+                  <TagDrop
+                    key={item.id}
+                    itemId={item.id}
+                    label={documentLabel(item)}
+                    accepts={item.kind !== 'event'}
+                  >
                   <DocumentMenu
                     id={item.id}
                     name={documentLabel(item)}

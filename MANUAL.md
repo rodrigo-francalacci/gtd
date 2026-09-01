@@ -1209,6 +1209,15 @@ project, action or list item it hangs off.
 
 ## Views and preferences
 
+### Moving an entry to another box
+
+Drag it onto a box in the sidebar. Hold **Ctrl** while you drop and it is
+**copied** instead — the cursor tells you which before you let go.
+
+A copy is a real second document: its own file in the other box's Drive folder,
+so throwing either away leaves the other alone. Tags that mean the same thing in
+both boxes travel with it, either way.
+
 ### Tagging by dragging
 
 Open the tag panel and **drag a tag onto an entry** to put it on. The row lights

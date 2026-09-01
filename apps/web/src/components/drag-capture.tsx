@@ -1,7 +1,13 @@
 'use client';
 
 import { useTransition, type ReactNode } from 'react';
-import { dropCapture, type CaptureDrop } from '@/lib/actions';
+import {
+  copyDocument,
+  dropCapture,
+  moveDocument,
+  type CaptureDrop,
+} from '@/lib/actions';
+import { DRAG_BOX_ITEM } from './sortable';
 
 /**
  * Its own MIME type, like every other drag in the app.
@@ -62,17 +68,48 @@ export function CaptureTarget({
   return (
     <div
       onDragOver={(e) => {
-        // Only a capture. Everything else — an action being filed, a file from
-        // the desktop — must go on bubbling to whatever it was aimed at.
-        if (!e.dataTransfer.types.includes(DRAG_CAPTURE)) return;
+        /*
+         * A capture, or a box entry being moved to another box. Everything else
+         * — an action being filed, a file from the desktop — must go on bubbling
+         * to whatever it was aimed at.
+         */
+        const entry = e.dataTransfer.types.includes(DRAG_BOX_ITEM);
+        if (!e.dataTransfer.types.includes(DRAG_CAPTURE) && !entry) return;
+        // A box entry can only go to a box.
+        if (entry && drop.kind !== 'box') return;
+
         e.preventDefault();
-        e.dataTransfer.dropEffect = 'move';
+        /*
+         * Ctrl means copy, the convention every file manager uses — which is
+         * why it needs no button and no explaining. Setting `dropEffect` is
+         * also what changes the cursor, so the choice is visible before you let
+         * go rather than discovered afterwards.
+         */
+        e.dataTransfer.dropEffect = entry && (e.ctrlKey || e.metaKey) ? 'copy' : 'move';
         e.currentTarget.dataset.over = 'yes';
       }}
       onDragLeave={(e) => {
         delete e.currentTarget.dataset.over;
       }}
       onDrop={(e) => {
+        const entryId = e.dataTransfer.getData(DRAG_BOX_ITEM);
+
+        if (entryId && drop.kind === 'box') {
+          e.preventDefault();
+          e.stopPropagation();
+          delete e.currentTarget.dataset.over;
+
+          // Read before the transition: the event is pooled and its modifier
+          // keys are not readable once this handler has returned.
+          const copying = e.ctrlKey || e.metaKey;
+
+          startTransition(async () => {
+            if (copying) await copyDocument(entryId, drop.boxId);
+            else await moveDocument(entryId, drop.boxId);
+          });
+          return;
+        }
+
         if (!e.dataTransfer.types.includes(DRAG_CAPTURE)) return;
         e.preventDefault();
         e.stopPropagation();

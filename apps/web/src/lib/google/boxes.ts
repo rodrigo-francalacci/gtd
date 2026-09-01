@@ -11,6 +11,7 @@ import { FORMAT_BY_MIME } from '@/lib/text-formats';
 import {
   createGoogleFile,
   createResumableSession,
+  copyFile,
   createTextFile,
   ensureFolder,
   ensureLabel,
@@ -84,6 +85,26 @@ export async function trashBoxFolder(folderId: string | null): Promise<void> {
   } catch {
     // Deleting the box is what was asked for, and it has happened.
   }
+}
+
+/**
+ * A second, independent copy of a document in another box.
+ *
+ * The bytes are copied in Drive rather than shared, because two entries
+ * pointing at one file would mean throwing either away trashed the other's
+ * document — and a copy exists precisely so the two can be treated separately.
+ *
+ * Returns the new Drive id, or null when there was nothing to copy: a note, a
+ * link or a place has no file, and copying one is only a row.
+ */
+export async function copyBoxItemFile(
+  driveFileId: string | null,
+  name: string,
+  toBoxId: string,
+): Promise<string | null> {
+  if (!driveFileId) return null;
+
+  return copyFile(driveFileId, name, await ensureBoxFolder(toBoxId));
 }
 
 export async function moveBoxItemFile(itemId: string): Promise<void> {

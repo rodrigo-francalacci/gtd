@@ -138,6 +138,29 @@ export async function renameFile(fileId: string, name: string): Promise<void> {
     they mean. */
 export const renameFolder = renameFile;
 
+/**
+ * Duplicate a file into a folder, bytes and all.
+ *
+ * A real second file, not a second row pointing at the first. Sharing one Drive
+ * file between two box entries would mean throwing either away trashed the
+ * other's document — the copy exists precisely so the two are independent.
+ *
+ * `drive.file` covers it: the app created the original, and the copy is created
+ * by the app too.
+ */
+export async function copyFile(
+  fileId: string,
+  name: string,
+  parentId: string,
+): Promise<string> {
+  const made = await call(`${DRIVE}/files/${fileId}/copy?fields=id`, {
+    method: 'POST',
+    body: JSON.stringify({ name, parents: [parentId] }),
+  });
+
+  return (made as { id: string }).id;
+}
+
 /** Move a file by swapping its parents — Drive has no "move" verb. */
 export async function moveFile(fileId: string, newParentId: string): Promise<void> {
   const file = await getFile(fileId);

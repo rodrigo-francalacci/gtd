@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from 'react';
 import { applyDocumentTag } from '@/lib/actions';
-import { DRAG_TAG, dragPayload, hasDragType } from './sortable';
+import { DRAG_BOX_ITEM, DRAG_TAG, dragPayload, hasDragType } from './sortable';
 
 /**
  * An entry that a tag can be dropped onto.
@@ -24,10 +24,13 @@ import { DRAG_TAG, dragPayload, hasDragType } from './sortable';
  */
 export function TagDrop({
   itemId,
+  label,
   accepts,
   children,
 }: {
   itemId: string;
+  /** What it is called, so a drag carries something readable as `text/plain`. */
+  label: string;
   /**
    * Whether this row can be tagged at all.
    *
@@ -43,12 +46,24 @@ export function TagDrop({
   const [over, setOver] = useState(false);
   const [, startTransition] = useTransition();
 
-  if (!accepts) return <>{children}</>;
-
   return (
     <div
+      /*
+       * The row is also the thing you *drag* — onto a box in the sidebar, to
+       * move it there, or with Ctrl held to copy it. Draggable here rather than
+       * on the row components because this already wraps every entry in both
+       * densities, so one wrapper carries both halves of the gesture.
+       */
+      draggable
+      onDragStart={(e) => {
+        e.dataTransfer.setData(DRAG_BOX_ITEM, itemId);
+        e.dataTransfer.setData('text/plain', label);
+        // Both, so the sidebar can honour whichever the modifier asks for.
+        e.dataTransfer.effectAllowed = 'copyMove';
+      }}
       onDragOver={(e) => {
-        if (!hasDragType(e, DRAG_TAG)) return;
+        // A milestone can be dragged but not tagged — see `accepts`.
+        if (!accepts || !hasDragType(e, DRAG_TAG)) return;
         // Without this the drop never fires: preventing the default on
         // dragover is what marks an element as a valid target at all.
         e.preventDefault();
@@ -58,7 +73,7 @@ export function TagDrop({
       onDragLeaveCapture={() => setOver(false)}
       onDropCapture={() => setOver(false)}
       onDrop={(e) => {
-        if (!hasDragType(e, DRAG_TAG)) return;
+        if (!accepts || !hasDragType(e, DRAG_TAG)) return;
         e.preventDefault();
         e.stopPropagation();
 

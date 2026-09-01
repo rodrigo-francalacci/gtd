@@ -1917,6 +1917,23 @@ to be kept. They meet at `box_item_links` and nowhere else.
   of UTC is the previous day in UTC, so dividing by 86,400,000 floors to the
   day before and the label ended up a day behind the URL. `setDate` lets the
   calendar do it, daylight saving included.
+- **An entry is dragged between boxes; Ctrl copies it.** The picker on the
+  detail pane stays, but moving something is a two-pane gesture and the sidebar
+  is already the drop target for a capture — so the same wrapper answers both,
+  and a box entry can only be dropped on a box. Ctrl means copy, the convention
+  every file manager uses, which is why it needs no button: `dropEffect` is set
+  during `dragover`, so the cursor says which it will be *before* you let go.
+  The modifier is read out of the event before the transition starts, because a
+  pooled event's keys are unreadable once the handler has returned.
+  **A copy copies the bytes.** Two rows pointing at one Drive file would mean
+  throwing either away trashed the other's document, and the copy exists
+  precisely so the two are independent — verified by copying a document and
+  throwing both away separately. **`source_id` is deliberately not carried**: it
+  says *this is that Gmail message*, and two rows claiming it would make the
+  bridge think it had filed one when it had filed the other.
+  **The file is copied before the row is written.** There are no transactions on
+  this driver, so the order is the safeguard: a failure leaves nothing, where the
+  reverse would leave a row claiming a document it has no copy of.
 - **Moving a document keeps the tags both boxes know.** Matched on the category
   as well as the tag — "Vendor: Shell", not "Shell", or a vendor could land in
   a category about places — and resolved to the *destination's* own rows, since

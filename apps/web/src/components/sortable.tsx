@@ -28,6 +28,8 @@ export const DRAG_PROJECT = 'application/x-gtd-project';
  * up before it can see what it is being given.
  */
 export const DRAG_TAG = 'application/x-gtd-tag';
+/** A box entry being dragged onto another box, to move it or to copy it. */
+export const DRAG_BOX_ITEM = 'application/x-gtd-box-item';
 
 export function dragPayload(e: React.DragEvent, type: string): string | null {
   const raw = e.dataTransfer.getData(type);

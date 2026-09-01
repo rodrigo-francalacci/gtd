@@ -67,6 +67,7 @@ import {
   createBoxDocument,
   deleteBoxItem,
   ensureBoxFolder,
+  copyBoxItemFile,
   ensureBoxLabel,
   renameBoxContainers,
   trashBoxFolder,
@@ -2680,6 +2681,92 @@ export async function setAttachmentAddedAt(attachmentId: string, iso: string) {
 
 /** Move a document to another box. Its tags don't come with it — they belong
  *  to the box it left, so it is queued to be read again under the new one. */
+/**
+ * The same entry again, in another box, independent of the first.
+ *
+ * Dragging moves; dragging with Ctrl held copies — the convention every file
+ * manager uses, which is why it needs no button. The case is a document that
+ * genuinely belongs in two places: a receipt that is both a purchase and a tax
+ * record, a letter that is correspondence and evidence.
+ *
+ * **The bytes are copied, not shared.** Two rows pointing at one Drive file
+ * would mean throwing either away trashed the other's document, and a copy
+ * exists precisely so the two can be dealt with separately.
+ *
+ * Tags are carried the way a *move* carries them — matched on category and tag
+ * against the destination's own vocabulary — because the question "which of
+ * these labels means anything over there" has one answer whichever way the
+ * document travels.
+ */
+export async function copyDocument(itemId: string, boxId: string) {
+  await requireSession();
+
+  const [item] = await db.select().from(boxItems).where(eq(boxItems.id, itemId)).limit(1);
+  if (!item || item.boxId === boxId) return;
+
+  /*
+   * The file first. If Drive refuses, nothing is written — which is the right
+   * order: a row claiming a document it has no copy of would be worse than no
+   * row at all, and the reverse order cannot be undone without transactions.
+   */
+  const driveFileId = await copyBoxItemFile(item.driveFileId, item.name, boxId);
+
+  const [made] = await db
+    .insert(boxItems)
+    .values({
+      boxId,
+      kind: item.kind,
+      status: item.status,
+      driveFileId,
+      name: item.name,
+      mimeType: item.mimeType,
+      sizeBytes: item.sizeBytes,
+      title: item.title,
+      description: item.description,
+      searchText: item.searchText,
+      text: item.text,
+      emoji: item.emoji,
+      url: item.url,
+      docDate: item.docDate,
+      capturedAt: item.capturedAt,
+      lat: item.lat,
+      lng: item.lng,
+      /*
+       * Deliberately not carried: `source_id`, which says *this is the Gmail
+       * message* — two rows claiming the same message would make the bridge
+       * think it had filed one when it had filed the other. A copy is a new
+       * thing, not a second claim on the original.
+       */
+    })
+    .returning({ id: boxItems.id });
+
+  const kept = await db
+    .select({ id: boxTags.id })
+    .from(boxTags)
+    .innerJoin(boxCategories, eq(boxCategories.id, boxTags.categoryId))
+    .where(
+      sql`${boxCategories.boxId} = ${boxId} and exists (
+        select 1
+        from ${boxItemTags} it
+        join ${boxTags} ot on ot.id = it.tag_id
+        join ${boxCategories} oc on oc.id = ot.category_id
+        where it.item_id = ${itemId}
+          and lower(btrim(oc.name)) = lower(btrim(${boxCategories.name}))
+          and lower(btrim(ot.name)) = lower(btrim(${boxTags.name}))
+      )`,
+    );
+
+  if (kept.length > 0) {
+    await db
+      .insert(boxItemTags)
+      .values(kept.map((tag) => ({ itemId: made.id, tagId: tag.id })))
+      .onConflictDoNothing();
+  }
+
+  revalidateShell();
+  return made.id;
+}
+
 export async function moveDocument(itemId: string, boxId: string) {
   await requireSession();
 
