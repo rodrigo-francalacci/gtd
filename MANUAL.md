@@ -1567,6 +1567,28 @@ as it does on a desktop.
 
 ---
 
+## Keeping it in sync
+
+**Two things run. One was already automatic; the other needed setting up once.**
+
+| | Runs | What it does |
+|---|---|---|
+| The app | Daily, on its own | Drains the sync and reading queues, pushes Drive renames |
+| The bridges | Daily, **once you install the trigger** | Scans in, email in, project listings out |
+
+Open the bridge panel and press **Run this daily** — once, ever. The page tells
+you at the top whether it is set up.
+
+After that nothing needs pressing. When you want something *now* — you have just
+scanned a receipt, or labelled a message — press **Sync everything**, which is
+the one button: scans, then email, then listings, then the app's own tick, in
+the order where each feeds the next.
+
+The individual buttons are still there, grouped under *One at a time*, for when
+you want to run one step and watch it.
+
+---
+
 ## Google
 
 Everything lives under one root: `GTD/Projects/...`, `GTD/Archive/<year>/...`,

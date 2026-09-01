@@ -2455,6 +2455,28 @@ in the app at once, and pointing at the file rather than at the one page that
 fixes it. The pane reads the reason off the response body for the same reason:
 an `<img>` only knows that it failed.
 
+## Running it without pressing anything
+
+**Two halves, and only one of them was automatic.** Vercel's cron hits
+`/api/cron/sync` daily at 03:00 UTC — that drains the sync queue, the enrichment
+queue and the box reads, and sweeps the Drive renames. The Apps Script side had
+*no trigger-creating code at all*: the scanner and email bridges ran only when a
+button was pressed, which is a thing to remember rather than a thing that
+happens. `installDailyTrigger` is one press and fixes that; the panel says
+outright whether a daily run exists rather than leaving it to be recalled.
+
+**`syncEverything` is the one button.** Scans, then email, then the project
+listings, then the app's own tick — in that order, because each step feeds the
+next and the app's tick is what drains the queues the first three fill. A step
+that fails is reported and the rest carry on: a Gmail hiccup should not leave
+the scans unfiled. A function missing from the project is named rather than
+thrown, since a project with only some of the files pasted in is an ordinary
+state.
+
+The panel groups its buttons as *Everything*, *One at a time*, *Once, to set up*.
+A flat list of nine made the one that matters indistinguishable from the
+diagnostics.
+
 ## Deployment
 
 Vercel project root is `apps/web`. `@gtd/db` is a workspace dependency, so the

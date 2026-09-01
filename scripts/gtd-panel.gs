@@ -44,7 +44,34 @@
 function panelJobs() {
   return [
     {
+      id: 'syncEverything',
+      group: 'Everything',
+      primary: true,
+      title: 'Sync everything',
+      detail:
+        'Scans in, then email, then the project listings, then the app’s own tick. ' +
+        'The one button — the rest are here so you can run a step on its own.',
+      needs: 'this file',
+    },
+    {
+      id: 'installDailyTrigger',
+      group: 'Once, to set up',
+      title: 'Run this daily',
+      detail:
+        'Installs a time trigger that runs “Sync everything” once a day, so none ' +
+        'of this needs pressing. Safe to press twice — it replaces the old one.',
+      needs: 'this file',
+    },
+    {
+      id: 'removeDailyTrigger',
+      group: 'Once, to set up',
+      title: 'Stop running daily',
+      detail: 'Removes that trigger. Nothing else changes.',
+      needs: 'this file',
+    },
+    {
       id: 'syncEmails',
+      group: 'One at a time',
       title: 'Sync email',
       detail:
         'Files the messages you have labelled GTD/Relevant, then fetches the ones ' +
@@ -53,24 +80,28 @@ function panelJobs() {
     },
     {
       id: 'fileLabelledEmails',
+      group: 'One at a time',
       title: 'Labelled only',
       detail: 'Just the GTD/Relevant label. Useful when you know that is all there is.',
       needs: 'gtd-email.gs',
     },
     {
       id: 'fetchRequestedEmails',
+      group: 'One at a time',
       title: 'Requested only',
       detail: 'Just the ids and searches waiting in the app.',
       needs: 'gtd-email.gs',
     },
     {
       id: 'processFeedFolders',
+      group: 'One at a time',
       title: 'File scans',
       detail: 'Sweeps the scan folders into their boxes.',
       needs: 'big-box-feed.gs',
     },
     {
       id: 'walkProjectTrees',
+      group: 'One at a time',
       title: 'Project folders',
       detail:
         'Walks each project’s Drive folder and Gmail label and posts the listing ' +
@@ -80,6 +111,7 @@ function panelJobs() {
     },
     {
       id: 'syncDriveNames',
+      group: 'One at a time',
       title: 'Sync filenames',
       detail:
         'Asks the app to push its titles out to Drive, so a document renamed in ' +
@@ -89,6 +121,7 @@ function panelJobs() {
     },
     {
       id: 'testConnection',
+      group: 'Once, to set up',
       title: 'Test the connection',
       detail:
         'Sends nothing. Proves the app is reachable and the secret is right, which ' +
@@ -97,6 +130,7 @@ function panelJobs() {
     },
     {
       id: 'authoriseGmail',
+      group: 'Once, to set up',
       title: 'Authorise Gmail',
       detail: 'Run once, before the first sync, to grant this script access to your mail.',
       needs: 'gtd-email.gs',
@@ -104,9 +138,109 @@ function panelJobs() {
   ];
 }
 
+/**
+ * Everything, in the order that makes each step useful to the next.
+ *
+ * Scans first, because a document has to exist before anything can read or
+ * rename it. Then email. Then the project listings, which are a picture of
+ * folders the earlier steps may have just added to. Then the app's own tick
+ * last, because that is what drains the queues the first three filled — moving
+ * files into the folders their rows now name, pushing titles out to Drive,
+ * reading what arrived.
+ *
+ * One failing step must not stop the rest: they are independent, and a Gmail
+ * hiccup should not mean the scans stay unfiled. Each is reported, and the
+ * whole thing says at the end whether anything went wrong.
+ */
+function syncEverything() {
+  const steps = [
+    ['Scans', 'processFeedFolders'],
+    ['Email', 'syncEmails'],
+    ['Project listings', 'walkProjectTrees'],
+    ['The app’s own tick', 'syncDriveNames'],
+  ];
+
+  var failed = 0;
+
+  for (var i = 0; i < steps.length; i++) {
+    const label = steps[i][0];
+    const name = steps[i][1];
+
+    Logger.log('— ' + label + ' —');
+
+    // A project with only some of the files pasted in should say which is
+    // missing rather than dying on a reference error.
+    if (typeof this[name] !== 'function') {
+      Logger.log('  skipped: ' + name + ' is not in this project');
+      continue;
+    }
+
+    try {
+      this[name]();
+    } catch (e) {
+      failed++;
+      Logger.log('  FAILED: ' + e);
+    }
+  }
+
+  Logger.log(failed === 0 ? 'All steps finished.' : failed + ' step(s) failed — see above.');
+}
+
+/** How often the trigger runs, and at what hour. Google picks the minute. */
+const DAILY_HOUR = 4;
+
+/**
+ * Run `syncEverything` once a day, without anybody pressing anything.
+ *
+ * The app's own half already runs daily on Vercel's cron. This is the other
+ * half: nothing in Apps Script runs on its own until a trigger exists, and
+ * until now there was no code that made one — so the bridges only ever ran when
+ * a button was pressed, which is a thing to remember rather than a thing that
+ * happens.
+ *
+ * Replaces rather than adds. Pressing this twice is the most likely thing
+ * anybody will do, and two triggers would mean two runs racing each other into
+ * the same boxes.
+ */
+function installDailyTrigger() {
+  removeDailyTrigger();
+
+  ScriptApp.newTrigger('syncEverything').timeBased().everyDays(1).atHour(DAILY_HOUR).create();
+
+  Logger.log('Installed. “Sync everything” will run daily at about ' + DAILY_HOUR + ':00.');
+}
+
+function removeDailyTrigger() {
+  const all = ScriptApp.getProjectTriggers();
+  var removed = 0;
+
+  for (var i = 0; i < all.length; i++) {
+    if (all[i].getHandlerFunction() === 'syncEverything') {
+      ScriptApp.deleteTrigger(all[i]);
+      removed++;
+    }
+  }
+
+  Logger.log(removed === 0 ? 'There was no daily trigger.' : 'Removed ' + removed + '.');
+  return removed;
+}
+
+/** Whether a daily run is set up, for the page to say so without guessing. */
+function dailyTriggerInstalled() {
+  const all = ScriptApp.getProjectTriggers();
+
+  for (var i = 0; i < all.length; i++) {
+    if (all[i].getHandlerFunction() === 'syncEverything') return true;
+  }
+
+  return false;
+}
+
 function doGet() {
   const template = HtmlService.createTemplate(PANEL_HTML);
   template.jobs = panelJobs();
+  // Said on the page rather than left to be remembered.
+  template.daily = dailyTriggerInstalled();
 
   return template
     .evaluate()
@@ -266,6 +400,10 @@ var PANEL_HTML =
 '           border-radius:3px; padding:5px 12px; font:inherit; font-size:12px; cursor:pointer; }' +
 '  button:hover:enabled { border-color:var(--quiet); }' +
 '  button:disabled { opacity:.45; cursor:default; }' +
+'  button.primary { background:#1a73e8; border-color:#1a73e8; color:#fff; font-weight:600; }' +
+'  button.primary:hover:enabled { background:#1765cc; border-color:#1765cc; }' +
+'  h2 { margin:22px 0 6px; font-size:11px; text-transform:uppercase; letter-spacing:.08em;' +
+'       color:var(--quiet); font-weight:600; }' +
 '  pre { margin:10px 0 0; padding:8px 10px; background:var(--wash); border-radius:3px;' +
 '        font:12px/1.5 ui-monospace, Menlo, monospace; white-space:pre-wrap;' +
 '        word-break:break-word; max-height:16rem; overflow:auto; }' +
@@ -274,19 +412,36 @@ var PANEL_HTML =
 '</style>' +
 '<main>' +
 '  <h1>GTD bridges</h1>' +
-'  <p class="sub">Run one now instead of waiting for the trigger.</p>' +
-'  <ul>' +
-'    <? for (var i = 0; i < jobs.length; i++) { ?>' +
-'      <li>' +
-'        <div class="row">' +
-'          <strong><?= jobs[i].title ?></strong>' +
-'          <span><?= jobs[i].detail ?></span>' +
-'          <button id="b-<?= jobs[i].id ?>" onclick="go(\'<?= jobs[i].id ?>\')">Run</button>' +
-'        </div>' +
-'        <pre id="o-<?= jobs[i].id ?>" hidden></pre>' +
-'      </li>' +
+'  <p class="sub">' +
+'    <? if (daily) { ?>' +
+'      Running on its own once a day. Press something here to make it happen now.' +
+'    <? } else { ?>' +
+'      <strong>Nothing here runs on its own yet.</strong> Press &#8220;Run this daily&#8221; below once, and it will.' +
 '    <? } ?>' +
-'  </ul>' +
+'  </p>' +
+/*
+ * Grouped, in the order you meet them: the one button, then the parts it is
+ * made of for when a step needs running alone, then the things you do once and
+ * forget. A flat list of nine made the important one indistinguishable from the
+ * diagnostics.
+ */
+'  <? var groups = ["Everything", "One at a time", "Once, to set up"];' +
+'     for (var g = 0; g < groups.length; g++) { ?>' +
+'    <h2><?= groups[g] ?></h2>' +
+'    <ul>' +
+'      <? for (var i = 0; i < jobs.length; i++) {' +
+'           if (jobs[i].group !== groups[g]) continue; ?>' +
+'        <li>' +
+'          <div class="row">' +
+'            <strong><?= jobs[i].title ?></strong>' +
+'            <span><?= jobs[i].detail ?></span>' +
+'            <button id="b-<?= jobs[i].id ?>" class="<?= jobs[i].primary ? "primary" : "" ?>" onclick="go(\'<?= jobs[i].id ?>\')">Run</button>' +
+'          </div>' +
+'          <pre id="o-<?= jobs[i].id ?>" hidden></pre>' +
+'        </li>' +
+'      <? } ?>' +
+'    </ul>' +
+'  <? } ?>' +
 '  <footer>Changed a script? Deploy &#9656; Manage deployments &#9656; edit &#9656; New version.</footer>' +
 '</main>' +
 '<script>' +
