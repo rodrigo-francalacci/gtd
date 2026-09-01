@@ -965,6 +965,31 @@ Turbopack is the default; `middleware` is now `proxy`.
   begin with. `moveLinkToProject` inserts before it deletes — there are no
   transactions on this driver, so the order is the only thing stopping a failure
   between the two statements leaving the document cited nowhere.
+- **Arrows walk a list; Delete arms, Enter confirms.** Clicking a row and then
+  reaching for the mouse again to click the next one is the motion made most in
+  this app. Rows are already addressed by the URL, so moving the selection is a
+  navigation and `ListKeys` never learns what a row *is*: a page hands over its
+  ids in the order it drew them, each paired with the href it opens at.
+  **The order comes from the page, never from the DOM.** Reading the rendered
+  rows would be a second source of truth that a filter, a grouping or a re-sort
+  could put out of step — and in a box, where editing an entry's arrival date
+  *moves it*, the two would disagree the moment anything was edited.
+  **No wrapping at the ends.** In a list of two hundred, arriving at the bottom
+  and being thrown to the top loses your place with no way back; stopping says
+  "that is the end" and costs nothing.
+  **Delete never destroys on one keystroke.** It sits beside Backspace, there is
+  no undo in this app, and two keys is still faster than any mouse route —
+  Backspace only ever *arms*, because it is the browser's Back on some setups.
+  Where to go afterwards is worked out *before* the delete, while the row is
+  still in the list: the next row down, or the one above when the last goes.
+  The armed row is **derived** (`armed === selectedId`) rather than cleared in
+  an effect, which would be a second render on every arrow press.
+- **A box keeps the entry selected when its date moves it.** `targetId` is
+  `selectedId ?? shown[0]`, and `selectedId` comes from the URL — so re-dating an
+  entry, which is the one edit that reorders the feed, leaves it selected and in
+  the pane while the list rearranges underneath. Verified: an entry at position 1
+  of 15 re-dated to 2019 went to position 14, stayed selected, stayed open, and
+  the arrows continued from its new neighbours.
 - **`c` captures from anywhere.** The barrier is almost never the typing, it is
   that the thought arrives three clicks from the inbox. `CaptureHotkey` yields
   to any focused field — `isContentEditable` included, or the note editor would

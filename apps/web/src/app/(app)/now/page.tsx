@@ -2,10 +2,12 @@ import { ActionDetail } from '@/components/action-detail';
 import { SortableActionList } from '@/components/sortable-action-list';
 import { EmojifyButton } from '@/components/emojify-button';
 import { ContextFilter } from '@/components/context-filter';
+import { ListKeys } from '@/components/list-keys';
 import { DetailPane, EmptyDetail, EmptyList, ListPane } from '@/components/panes';
 import { QuickAddAction } from '@/components/quick-add';
 import { ACTION_COLUMNS } from '@/lib/columns';
 import { attachmentsFor, documentsFor } from '@/lib/file-lists';
+import { deleteAction } from '@/lib/actions';
 import { getProjectOptions } from '@/lib/queries';
 import {
   getAction,
@@ -70,6 +72,17 @@ export default async function NowPage(props: PageProps<'/now'>) {
           />
         }
       >
+        {/* Arrows walk the list; Delete asks, then removes. The order is
+            this page's own, so a context filter narrows what the arrows
+            walk rather than leaving them out of step with the rows. */}
+        <ListKeys
+          rows={rows.map((a) => ({ id: a.id, href: qs(a.id) }))}
+          selectedId={selectedId}
+          onDelete={deleteAction}
+          deleteLabel="Done and delete"
+          deleteNote="Its files go to the Drive bin with it."
+        />
+
         <QuickAddAction />
         <SortableActionList
           actions={rows.map((a) => ({ ...a, href: qs(a.id) }))}

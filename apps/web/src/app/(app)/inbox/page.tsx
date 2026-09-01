@@ -3,6 +3,7 @@ import { attachmentsFor } from '@/lib/file-lists';
 import { CaptureMenu } from '@/components/entry-menu';
 import { ClarifyPanel } from '@/components/clarify-panel';
 import { InboxCapture } from '@/components/inbox-capture';
+import { ListKeys } from '@/components/list-keys';
 import { DetailPane, EmptyDetail, EmptyList, ListPane } from '@/components/panes';
 import {
   getAreasAndGoals,
@@ -119,6 +120,14 @@ export default async function InboxPage(props: PageProps<'/inbox'>) {
         }
       >
         <InboxCapture />
+
+        {/* Arrows walk the queue in the order it is drawn — reversed in the
+            simple view, which groups by day newest-first — so they never
+            disagree with the rows. */}
+        <ListKeys
+          rows={ordered.map((item) => ({ id: item.id, href: `/inbox?item=${item.id}` }))}
+          selectedId={targetId}
+        />
 
         {items.length === 0 ? (
           <EmptyList message="Nothing here. Capture anything above — you can decide what it is later." />

@@ -4,6 +4,8 @@ import { attachmentsFor, documentsFor } from '@/lib/file-lists';
 import { BudgetSummary } from '@/components/budget-summary';
 import { BudgetTrialProvider, TrialTotal } from '@/components/budget-trial';
 import { ListItemDetail } from '@/components/list-item-detail';
+import { ListKeys } from '@/components/list-keys';
+import { deleteListItem } from '@/lib/actions';
 import { DetailPane, EmptyDetail, EmptyList, ListPane } from '@/components/panes';
 import { QuickAddListItem } from '@/components/quick-add-list-item';
 import { SortableListItems } from '@/components/sortable-list-items';
@@ -236,6 +238,16 @@ export default async function ListPage(props: PageProps<'/lists/[id]'>) {
                       : null
                   }
                 >
+                  {/* Arrows walk whatever this list is currently showing — the layout
+                      decides the order, so a timeline or an impact grouping is walked as
+                      drawn rather than as stored. */}
+                  <ListKeys
+                    rows={items.map((i) => ({ id: i.id, href: qs(i.id) }))}
+                    selectedId={selectedId}
+                    onDelete={deleteListItem}
+                    deleteLabel="Delete"
+                  />
+
                   <SortableListItems
                     items={mine.map((i) => ({ ...i, href: qs(i.id) }))}
                     selectedId={selectedId}

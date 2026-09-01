@@ -1,4 +1,6 @@
 import { ActionDetail } from '@/components/action-detail';
+import { ListKeys } from '@/components/list-keys';
+import { deleteAction } from '@/lib/actions';
 import { attachmentsFor, documentsFor } from '@/lib/file-lists';
 import { SortableActionList } from '@/components/sortable-action-list';
 import { EmojifyButton } from '@/components/emojify-button';
@@ -64,6 +66,13 @@ export default async function WaitingPage(props: PageProps<'/waiting'>) {
           />
         }
       >
+        <ListKeys
+          rows={rows.map((a) => ({ id: a.id, href: `/waiting?action=${a.id}` }))}
+          selectedId={selectedId}
+          onDelete={deleteAction}
+          deleteLabel="Done and delete"
+          deleteNote="Its files go to the Drive bin with it."
+        />
         <SortableActionList
           actions={rows.map((a) => ({ ...a, href: `/waiting?action=${a.id}` }))}
           selectedId={selectedId}

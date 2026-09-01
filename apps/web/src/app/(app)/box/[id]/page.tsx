@@ -5,6 +5,8 @@ import { DayJournal } from '@/components/day-journal';
 import { DocumentDetail } from '@/components/document-detail';
 import { BoxComposer } from '@/components/box-composer';
 import { BoxLayoutToggle } from '@/components/box-layout-toggle';
+import { deleteDocument } from '@/lib/actions';
+import { ListKeys } from '@/components/list-keys';
 import { TagDrop } from '@/components/tag-drop';
 import { TagPanelButton } from '@/components/tag-panel-button';
 import { DateRange } from '@/components/date-range';
@@ -318,6 +320,23 @@ export default async function BoxPage(props: PageProps<'/box/[id]'>) {
           </div>
         }
       >
+        {/*
+          Walked in the order the feed is drawn, days and all — flattened from
+          the same grouping the rows come out of, so the arrows and the list
+          cannot disagree. That matters here more than anywhere: editing an
+          entry's arrival date *moves it*, and the selection stays with the
+          entry rather than the position because it lives in the URL.
+        */}
+        <ListKeys
+          rows={groupByDay(shown, (i) => i.capturedAt).flatMap((day) =>
+            day.items.map((item) => ({ id: item.id, href: href(item.id) })),
+          )}
+          selectedId={targetId}
+          onDelete={deleteDocument}
+          deleteLabel="Throw it away"
+          deleteNote="The file goes to Drive’s bin."
+        />
+
         <BoxComposer boxId={id} />
         <EmailRequests requests={asked} />
 

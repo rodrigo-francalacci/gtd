@@ -1143,6 +1143,33 @@ recording it makes the entry findable when linking documents.
 
 ---
 
+## Keyboard
+
+Click a row, then use the keyboard:
+
+| Key | Does |
+|---|---|
+| **↑ / ↓** | Move the selection up and down the list |
+| **Delete** | Ask to delete what is selected |
+| **Enter** | Confirm that deletion |
+| **Esc** | Cancel it |
+| **c** | Capture, from anywhere |
+
+Arrows work in every list and every box, in the order the list is currently
+drawn — so a filtered, grouped or re-sorted list is walked as you see it. They
+stop at the ends rather than wrapping round.
+
+**Delete always asks.** It sits next to Backspace and there is no undo here, so
+one keypress arms it and Enter confirms — still faster than reaching for the
+mouse. On a phone, where there is no Delete key, the same thing is **Done and
+delete** in a row's own menu (right-click, or press and hold).
+
+**A task ends one of two ways.** Tick it off and it is done and kept — in its
+project's Done fold, or in the archive if it had no project. Delete it and it is
+gone for good, with its files.
+
+---
+
 ## Search
 
 The box at the top of the sidebar searches **projects, actions, list items,

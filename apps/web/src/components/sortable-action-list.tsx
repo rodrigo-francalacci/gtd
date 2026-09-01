@@ -53,6 +53,14 @@ export function SortableActionList({
           name={action.title}
           onRename={(next) => updateActionTitle(action.id, next)}
           onDelete={() => deleteAction(action.id)}
+          /*
+           * "Done and delete", not "Delete", because that is what it means for
+           * an action. A task ends one of two ways: ticked, which keeps it in
+           * the archive as a record, or finished with no record wanted at all.
+           * This is the second. It is also the only route to it on a phone,
+           * where there is no Delete key to press.
+           */
+          deleteLabel="Done and delete"
           deleteNote="Its files go to the Drive bin with it."
         >
         <ActionItem
