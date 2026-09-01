@@ -19,6 +19,7 @@ import {
   inboxItems,
   listItems,
   lists,
+  nowSections,
   preferences,
   projects,
   reviews,
@@ -32,7 +33,7 @@ import {
   aiTopups,
 } from '@gtd/db';
 import type { PurchaseFields } from './queries.shared';
-import { and, eq, inArray, isNull, sql } from 'drizzle-orm';
+import { and, desc, eq, inArray, isNull, sql } from 'drizzle-orm';
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import {
@@ -558,6 +559,102 @@ export async function deleteCompletedActions(projectId: string) {
   revalidateShell();
 
   return { actions: ids.length, files };
+}
+
+/*
+ * ---------------------------------------------------------------------------
+ * Sections in "What can I do now"
+ * ---------------------------------------------------------------------------
+ *
+ * Headings you write yourself and drag actions underneath, so the list reads in
+ * the order you intend to work through it. They are arrangement and nothing
+ * else: no query outside this list looks at them, nothing is scheduled by them,
+ * and an action carries on being exactly what it was.
+ */
+
+/** A new heading, at the bottom, ready to be dragged into place. */
+export async function createNowSection(title: string) {
+  await requireSession();
+  const trimmed = title.trim();
+  if (!trimmed) return;
+
+  const [last] = await db
+    .select({ position: nowSections.position })
+    .from(nowSections)
+    .orderBy(desc(nowSections.position))
+    .limit(1);
+
+  await db
+    .insert(nowSections)
+    .values({ title: trimmed, position: (last?.position ?? 0) + 1 });
+
+  revalidateShell();
+}
+
+export async function renameNowSection(sectionId: string, title: string) {
+  await requireSession();
+  const trimmed = title.trim();
+  if (!trimmed) return;
+
+  await db
+    .update(nowSections)
+    .set({ title: trimmed, updatedAt: new Date() })
+    .where(eq(nowSections.id, sectionId));
+
+  revalidateShell();
+}
+
+/**
+ * Remove a heading. The actions under it stay exactly where they were.
+ *
+ * `section_id` is `on delete set null`, so they fall back into the ungrouped run
+ * at the bottom rather than going anywhere. Deleting a heading is a change of
+ * mind about the arrangement, and an arrangement must never be able to take the
+ * work with it.
+ */
+export async function deleteNowSection(sectionId: string) {
+  await requireSession();
+  await db.delete(nowSections).where(eq(nowSections.id, sectionId));
+  revalidateShell();
+}
+
+/** Put an action under a heading, or back into the ungrouped run. */
+export async function moveActionToSection(actionId: string, sectionId: string | null) {
+  await requireSession();
+
+  await db
+    .update(actions)
+    .set({ sectionId, updatedAt: new Date() })
+    .where(eq(actions.id, actionId));
+
+  revalidateShell();
+}
+
+/**
+ * Reorder the headings themselves, by the midpoint rule the rest of the app
+ * uses: dropping between two writes the average of their positions and touches
+ * one row, so nothing is renumbered.
+ */
+export async function moveNowSectionBetween(
+  sectionId: string,
+  prevId: string | null,
+  nextId: string | null,
+) {
+  await requireSession();
+
+  const neighbours = await db
+    .select({ id: nowSections.id, position: nowSections.position })
+    .from(nowSections);
+
+  const at = (id: string | null) =>
+    id ? (neighbours.find((n) => n.id === id)?.position ?? null) : null;
+
+  await db
+    .update(nowSections)
+    .set({ position: positionBetween(at(prevId), at(nextId)), updatedAt: new Date() })
+    .where(eq(nowSections.id, sectionId));
+
+  revalidateShell();
 }
 
 export async function moveActionToProject(actionId: string, projectId: string | null) {

@@ -32,6 +32,8 @@ export type ActionRow = {
   projectId: string | null;
   projectTitle: string | null;
   position: number | null;
+  /** Which of your own headings it sits under in the Now list, if any. */
+  sectionId: string | null;
   contexts: { id: string; name: string; dimension: string }[];
 };
 

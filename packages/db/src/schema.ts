@@ -366,6 +366,17 @@ export const actions = pgTable(
      * still lands in the right place globally.
      */
     position: doublePrecision('position'),
+    /**
+     * Which of your own headings this sits under in the Now list, if any.
+     *
+     * `set null`, not `cascade`: deleting a heading is a change of mind about
+     * the arrangement, and it must never take the work with it. The actions
+     * simply stop being under anything and fall back into the ungrouped run at
+     * the bottom, exactly where they were before there were headings at all.
+     */
+    sectionId: uuid('section_id').references(() => nowSections.id, {
+      onDelete: 'set null',
+    }),
     /** When this was last ticked off in a weekly review. */
     lastReviewedAt: timestamp('last_reviewed_at', { withTimezone: true }),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
@@ -377,6 +388,7 @@ export const actions = pgTable(
     index('actions_status_idx').on(t.status),
     index('actions_waiting_since_idx').on(t.waitingSince),
     index('actions_waiting_on_idx').on(t.waitingOnId),
+    index('actions_section_idx').on(t.sectionId),
     index('actions_search_idx').using('gin', t.searchVector),
   ],
 );
@@ -781,6 +793,33 @@ export const aiTopups = pgTable('ai_topups', {
  * remains for the one caller that really does mean both: the button on the
  * connections page that says so.
  */
+/**
+ * Headings you write yourself, down the middle of "What can I do now".
+ *
+ * They hold nothing and mean nothing to the rest of the app: a section is a
+ * line of text you drag actions underneath so the list reads in the order you
+ * intend to work — "after sorting the money", "once the parts arrive". That is
+ * a plan for *how*, which nothing else here expresses. A project says what a
+ * step belongs to and a context says where it can be done; neither says what
+ * has to happen first.
+ *
+ * Deliberately not a project, a context or a status. Those are facts about the
+ * work and are used by queries all over the app; this is arrangement, and the
+ * moment it started meaning something the list would stop being free to
+ * rearrange.
+ */
+export const nowSections = pgTable('now_sections', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  title: text('title').notNull(),
+  /**
+   * A float, like every other manual order here: dropping between two headings
+   * writes the midpoint and touches one row, rather than renumbering the list.
+   */
+  position: doublePrecision('position').notNull().default(0),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+});
+
 export const syncJobKind = pgEnum('sync_job_kind', [
   'create_project_links',
   'create_project_folder',

@@ -5,6 +5,7 @@ import { cache } from 'react';
 import {
   actionContexts,
   actions,
+  nowSections,
   areasOfFocus,
   attachments,
   boxCategories,
@@ -170,6 +171,8 @@ const actionSelect = {
   projectId: actions.projectId,
   projectTitle: projects.title,
   position: actions.position,
+  /** Which of your own headings it sits under in Now, if any. */
+  sectionId: actions.sectionId,
 };
 
 /**
@@ -190,6 +193,26 @@ const byPosition = [
  * Actions with no contexts at all are included only when no filter is active —
  * an unfiled action shouldn't silently vanish from every filtered view.
  */
+export type NowSectionRow = { id: string; title: string; position: number };
+
+/**
+ * Your own headings for the Now list, in the order you put them.
+ *
+ * Read even when there are none, which is the ordinary state — an empty result
+ * is one round trip and renders nothing, and the alternative is a preference
+ * somewhere saying whether to bother asking.
+ */
+export async function getNowSections(): Promise<NowSectionRow[]> {
+  return db
+    .select({
+      id: nowSections.id,
+      title: nowSections.title,
+      position: nowSections.position,
+    })
+    .from(nowSections)
+    .orderBy(asc(nowSections.position), asc(nowSections.createdAt));
+}
+
 export async function getNowActions(contextIds: string[]): Promise<ActionRow[]> {
   const base = and(eq(actions.status, 'next'), isNull(actions.completedAt));
 

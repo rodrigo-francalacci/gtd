@@ -5,10 +5,11 @@ import { ContextFilter } from '@/components/context-filter';
 import { ListKeys } from '@/components/list-keys';
 import { DetailPane, EmptyDetail, EmptyList, ListPane } from '@/components/panes';
 import { QuickAddAction } from '@/components/quick-add';
+import { AddNowSection, NowLoose, NowSection } from '@/components/now-sections';
 import { ACTION_COLUMNS } from '@/lib/columns';
 import { attachmentsFor, documentsFor } from '@/lib/file-lists';
 import { deleteAction } from '@/lib/actions';
-import { getProjectOptions } from '@/lib/queries';
+import { getNowSections, getProjectOptions } from '@/lib/queries';
 import {
   getAction,
   getContextsByDimension,
@@ -26,9 +27,10 @@ export default async function NowPage(props: PageProps<'/now'>) {
   const selectedId = typeof searchParams.action === 'string' ? searchParams.action : null;
 
   const viewKey = densityKeys.path('/now');
-  const [groups, rows, selected, prefs, view] = await Promise.all([
+  const [groups, rows, sections, selected, prefs, view] = await Promise.all([
     getContextsByDimension(),
     getNowActions(contextIds),
+    getNowSections(),
     selectedId ? getAction(selectedId) : Promise.resolve(null),
     getPreferences(),
     getView(viewKey),
@@ -41,6 +43,29 @@ export default async function NowPage(props: PageProps<'/now'>) {
     p.set('action', id);
     return `/now?${p}`;
   };
+
+  /*
+   * Cut into the headings you made, in their order, with everything else last.
+   *
+   * In memory rather than in SQL: the rows are already fetched and already
+   * ordered, and grouping them here keeps `getNowActions` a single query that
+   * knows nothing about an arrangement no other page uses.
+   */
+  const bySection = new Map<string, typeof rows>();
+  const loose: typeof rows = [];
+
+  for (const action of rows) {
+    if (action.sectionId && sections.some((s) => s.id === action.sectionId)) {
+      bySection.set(action.sectionId, [
+        ...(bySection.get(action.sectionId) ?? []),
+        action,
+      ]);
+    } else {
+      // Including an action pointing at a heading that has gone: it is loose,
+      // which is what `on delete set null` will make it on the next write.
+      loose.push(action);
+    }
+  }
 
   // Read once, above the JSX. Each of these is a query plus a
   // preference lookup, and calling them inline would run both twice —
@@ -84,20 +109,65 @@ export default async function NowPage(props: PageProps<'/now'>) {
         />
 
         <QuickAddAction />
-        <SortableActionList
-          actions={rows.map((a) => ({ ...a, href: qs(a.id) }))}
-          selectedId={selectedId}
-          mode={viewMode}
-          emptyState={
-            <EmptyList
-              message={
-                contextIds.length > 0
-                  ? 'Nothing matches this combination of contexts. Loosen a filter.'
-                  : 'No next actions. Either you are done, or something needs clarifying.'
-              }
-            />
-          }
-        />
+
+        {/*
+          With no headings this is the list exactly as it was — one sortable
+          run, dragged into whatever order you like. Headings are opt-in and
+          cost nothing until the first one exists.
+        */}
+        {sections.length === 0 ? (
+          <SortableActionList
+            actions={rows.map((a) => ({ ...a, href: qs(a.id) }))}
+            selectedId={selectedId}
+            mode={viewMode}
+            emptyState={
+              <EmptyList
+                message={
+                  contextIds.length > 0
+                    ? 'Nothing matches this combination of contexts. Loosen a filter.'
+                    : 'No next actions. Either you are done, or something needs clarifying.'
+                }
+              />
+            }
+          />
+        ) : (
+          <>
+            {sections.map((section, at) => (
+              <NowSection
+                key={section.id}
+                id={section.id}
+                title={section.title}
+                count={bySection.get(section.id)?.length ?? 0}
+                prevId={sections[at - 1]?.id ?? null}
+              >
+                {/*
+                  A real sortable run per heading, which is what makes the
+                  gesture work: dragging inside one reorders, and dragging to
+                  another is ignored by the list and caught by the heading it
+                  lands on — the same bubbling the project buckets rely on.
+                */}
+                <SortableActionList
+                  actions={(bySection.get(section.id) ?? []).map((a) => ({
+                    ...a,
+                    href: qs(a.id),
+                  }))}
+                  selectedId={selectedId}
+                  mode={viewMode}
+                />
+              </NowSection>
+            ))}
+
+            <NowLoose count={loose.length}>
+              <SortableActionList
+                actions={loose.map((a) => ({ ...a, href: qs(a.id) }))}
+                selectedId={selectedId}
+                mode={viewMode}
+              />
+            </NowLoose>
+          </>
+        )}
+
+        <AddNowSection />
       </ListPane>
 
       {selected ? (

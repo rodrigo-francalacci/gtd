@@ -139,6 +139,29 @@ Turbopack is the default; `middleware` is now `proxy`.
   `paper`, `ink`). The only colour tokens are `waiting`, `stale`, and
   `selected`, plus their `-bg` pairs. Nothing decorative. Sidebar icons are
   monochrome strokes for this reason — no emoji, no colour.
+- **Sections in Now are arrangement, and nothing else.** The list already
+  answers *what could I do*; a heading you write yourself answers *in what order
+  am I going to* — "after sorting the money", "once the parts arrive" — which
+  nothing else here expresses. A project says what a step belongs to and a
+  context says where it can be done; neither says what has to happen first.
+  So `now_sections` holds a title and a position and is read by exactly one
+  page. Deliberately not a project, a context or a status: those are facts about
+  the work that queries all over the app depend on, and the moment an
+  arrangement started meaning something the list would stop being free to
+  rearrange.
+  **`actions.section_id` is `on delete set null`, never cascade.** Removing a
+  heading is a change of mind about the arrangement and must never take the work
+  with it — the actions fall back into the ungrouped run, exactly where they
+  were before any heading existed. Verified by deleting a heading with an action
+  under it and watching the action survive.
+  **"Everything else" is always rendered once any heading exists**, the same
+  rule the project status buckets follow: without a visible group for the
+  ungrouped there would be no way to drag an action back *out* of a section.
+  **With no headings the list is exactly what it was** — one sortable run —
+  because a feature nobody has opted into should cost nothing at all. Each
+  section holds a real `SortableActionList`, which is what makes the gesture
+  work: dragging inside one reorders, and dragging to another is ignored by the
+  list and caught by the heading it lands on, the bubbling the buckets rely on.
 - **`future` actions are parked, not next.** They stay on the project, never
   reach the Now view, and deliberately don't satisfy the stalled check — a
   project whose only remaining steps are future still needs a real next action.

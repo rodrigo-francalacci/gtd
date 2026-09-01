@@ -215,6 +215,23 @@ on low energy" reads exactly as it looks. Actions with no contexts at all
 appear only when no filter is active, so an unfiled action never silently
 vanishes from every view.
 
+### Your own headings
+
+**What can I do now** can be cut into sections you write yourself — *After
+sorting the money*, *Once the parts arrive* — so the list reads in the order you
+actually intend to work through it.
+
+Type one into the field at the foot of the list, then drag actions underneath.
+Right-click a heading (or press and hold) to rename or remove it. Drag a heading
+onto another to reorder them.
+
+They are purely an arrangement: an action under a heading is exactly the action
+it was, and nothing else in the app looks at them. **Removing a heading never
+removes the work** — those actions drop back into *Everything else*, which is
+also where you drag one to take it out of a section.
+
+With no headings, the list is exactly as it always was.
+
 ### Waiting for
 
 Actions where someone else owes you something. Each is date-stamped, and
