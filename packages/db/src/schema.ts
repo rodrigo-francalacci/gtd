@@ -1263,6 +1263,18 @@ export const boxItems = pgTable(
     /** The address a `link` entry points at, and what gets read to fill it in. */
     url: text('url'),
     /**
+     * The id this came from in the system that produced it — a Gmail message
+     * id, today.
+     *
+     * It is what lets the email bridge ask "have you already filed this?"
+     * instead of *consuming* the Gmail label to remember. Removing the label
+     * was how a message avoided being filed twice, and it meant the label you
+     * put a message in emptied itself — so Gmail could not be browsed the way
+     * the Drive folders can. The app is the record of what has been filed, so
+     * the app is the right thing to ask.
+     */
+    sourceId: text('source_id'),
+    /**
      * A link's picture, as the address the page itself advertises.
      *
      * Kept as a URL and proxied rather than copied into Drive: a preview image
@@ -1346,6 +1358,7 @@ export const boxItems = pgTable(
     index('box_items_use_count_idx').on(t.useCount),
     index('box_items_box_idx').on(t.boxId, t.capturedAt),
     index('box_items_drive_idx').on(t.driveFileId),
+    index('box_items_source_idx').on(t.sourceId),
     index('box_items_search_idx').using('gin', t.searchVector),
   ],
 );

@@ -2053,6 +2053,24 @@ settings.
   it is "everything does". The Apps Script is not a published app. It is bound to
   one account, reading its own mail, and needs no verification at all. Exactly
   the asymmetry the scanner bridge already relies on, used a second time.
+- **The label stays on the message, and the app is what remembers.** The bridge
+  used to avoid filing twice by *consuming* the label — file it, take the label
+  off, next run finds nothing. It worked, and it meant the label you had just
+  put a message into emptied itself, so Gmail could not be browsed the way the
+  Drive folders can. That is most of the point of having a label per box.
+  `box_items.source_id` holds the Gmail message id and `POST /api/box/filed`
+  answers "which of these have you got", batched per thread. The app is the
+  record of what is in a box, so the app is the right thing to ask — and
+  `REMOVE_LABEL_WHEN_DONE` is now off, kept only as a way back to the old
+  behaviour.
+  **A failed check is treated as "none filed"**, which risks a duplicate rather
+  than a silent miss: a duplicate is visible in the box and can be thrown away,
+  where a miss is a message you go looking for in a year and do not find.
+  **Deleting an entry makes its message eligible again**, which is right — the
+  box is the record, so if it is not in the box it has not been filed, and a
+  mistaken deletion is undone by running the bridge again. Every message filed
+  before the column existed still carries its id at the end of the stored
+  permalink, so the backfill was a `split_part` rather than a re-read.
 - **A label per box, and the thread is archived once it is filed.** Filing a
   message is the moment it stops needing to be in an inbox, so
   `ARCHIVE_WHEN_DONE` sends the thread out of it — the app itself could never

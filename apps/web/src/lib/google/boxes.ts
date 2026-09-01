@@ -199,6 +199,12 @@ export async function startBoxUpload(
  * rendered message has all three somewhere in its markup and none of them
  * reliably, which is why the bridge reads them from Gmail and passes them.
  */
+/** The message id out of a Gmail permalink, which ends in exactly that. */
+export function messageIdFrom(permalink: string | null | undefined): string | null {
+  const tail = (permalink ?? '').split('/').pop() ?? '';
+  return /^[A-Za-z0-9_-]{8,}$/.test(tail) ? tail : null;
+}
+
 export type EmailFacts = {
   subject: string;
   from: string;
@@ -206,6 +212,11 @@ export type EmailFacts = {
   date?: string;
   /** Back to the real thing, which is where you reply from. */
   permalink?: string;
+  /**
+   * Gmail's own message id, stored so the bridge can ask whether this has been
+   * filed before rather than removing the label to remember.
+   */
+  messageId?: string;
   /** Gmail’s own one-line preview, good enough to be the summary. */
   snippet?: string;
   /** The body as text, so search can see inside it without a model. */
@@ -277,6 +288,12 @@ export async function completeBoxUpload(
             title: email.subject || file.name,
             description: emailSummary(email),
             url: email.permalink ?? null,
+            /*
+             * Falls back to the tail of the permalink, which is where the id
+             * has always been — every message filed before this column existed
+             * is therefore still recognisable without a backfill.
+             */
+            sourceId: email.messageId ?? messageIdFrom(email.permalink),
             docDate: email.date ? email.date.slice(0, 10) : null,
             text: email.text ?? null,
             /*

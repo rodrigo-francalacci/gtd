@@ -90,13 +90,22 @@ const BOX_LABEL_PREFIX = 'GTD/Box/';
 const ARCHIVE_WHEN_DONE = true;
 
 /**
- * Remove the label once filed.
+ * Remove the label once filed. **Off, and it should stay off.**
  *
- * This is what stops a message being filed twice, so leaving it on means every
- * run files every labelled message again. Set it false only while you are
- * watching the log to see what would happen.
+ * This used to be how a message avoided being filed twice: file it, take the
+ * label off, and the next run finds nothing to do. It worked, and it meant the
+ * label you had just put a message into emptied itself — so Gmail could not be
+ * browsed the way the Drive folders can, which is most of the point of having a
+ * label per box.
+ *
+ * What stops a second filing now is the app: it records the Gmail message id of
+ * everything it has filed, and this asks before uploading. The app is the record
+ * of what is in a box, so the app is the right thing to ask — and the label is
+ * left alone for ever, exactly as a file stays in its Drive folder.
+ *
+ * Turn it on only if you want the old behaviour back.
  */
-const REMOVE_LABEL_WHEN_DONE = true;
+const REMOVE_LABEL_WHEN_DONE = false;
 
 /** A trigger gets six minutes; stop well before it is taken away mid-message. */
 const BUDGET_MS = 4 * 60 * 1000;
@@ -300,6 +309,7 @@ function fileLabelledEmails() {
   );
 
   var filed = 0;
+  var skipped = 0;
 
   for (var srcIndex = 0; srcIndex < sources.length; srcIndex++) {
     const source = sources[srcIndex];
@@ -336,7 +346,23 @@ function fileLabelledEmails() {
          */
         const messages = thread.getMessages();
 
+        /*
+         * Ask the app which of these it already has, in one call for the whole
+         * thread rather than one per message. Anything it names is skipped —
+         * that is what replaced taking the label off.
+         *
+         * A failed check is treated as "none filed", which risks a duplicate
+         * rather than a silent miss. Of the two, filing something twice is the
+         * one you can see and undo.
+         */
+        const ids = messages.map(function (msg) { return msg.getId(); });
+        const already = alreadyFiled(origin, secret, ids);
+
         for (var m = 0; m < messages.length; m++) {
+          if (already[messages[m].getId()]) {
+            skipped++;
+            continue;
+          }
           if (fileMessage(origin, secret, messages[m], source.box)) filed++;
         }
 
@@ -349,6 +375,7 @@ function fileLabelledEmails() {
          * one that is not in the inbox.
          */
         if (ARCHIVE_WHEN_DONE) thread.moveToArchive();
+        // Off by default now — see the constant. The label stays put.
         if (REMOVE_LABEL_WHEN_DONE) thread.removeLabel(source.label);
       } catch (e) {
         // Keeps its label, so the next run tries again. Usually the app being
@@ -358,7 +385,30 @@ function fileLabelledEmails() {
     }
   }
 
-  Logger.log(filed + ' message(s) filed');
+  Logger.log(filed + ' message(s) filed, ' + skipped + ' already in a box');
+}
+
+/**
+ * Which of these message ids the app already holds, as a lookup.
+ *
+ * One request for a whole thread. A failure comes back empty, which risks
+ * filing something twice rather than silently missing it — and a duplicate is
+ * visible in the box and can be thrown away, where a miss is a message you go
+ * looking for in a year and do not find.
+ */
+function alreadyFiled(origin, secret, ids) {
+  const seen = {};
+  if (!ids.length) return seen;
+
+  try {
+    const answer = postTo(origin, secret, '/api/box/filed', { ids: ids });
+    const filed = (answer && answer.filed) || [];
+    for (var i = 0; i < filed.length; i++) seen[filed[i]] = true;
+  } catch (e) {
+    Logger.log('  could not check what is already filed: ' + e);
+  }
+
+  return seen;
 }
 
 function fileMessage(origin, secret, message, box) {
