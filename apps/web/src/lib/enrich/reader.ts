@@ -1,5 +1,7 @@
 import 'server-only';
 
+import { recordSpend } from '@/lib/ai/spend';
+
 import { isGoogleNative } from '@/lib/google/sync';
 
 /**
@@ -215,7 +217,128 @@ export class ClaudeReader implements Reader {
  * a model stays pending untouched, so adding a key later picks up every file
  * captured in the meantime instead of stranding them as failures.
  */
+/**
+ * The same reading, asked of OpenAI.
+ *
+ * The box classifier has always run on OpenAI and this queue on Anthropic, for
+ * no better reason than the order they were written — and the cost of that was
+ * not theoretical: with only a ChatGPT key set, every photograph and PDF ever
+ * attached sat in the queue waiting for a key that was never coming, while the
+ * page cheerfully said they were "waiting, not lost". They were both.
+ *
+ * `/v1/responses` with the file inline, which is the shape the rest of this app
+ * already uses — one place to look when a model call misbehaves, and one
+ * spend record to read.
+ */
+export class OpenAiReader implements Reader {
+  constructor(
+    private readonly apiKey: string,
+    private readonly model = process.env.ENRICH_MODEL ??
+      process.env.BOX_MODEL ??
+      'gpt-5.4-mini',
+  ) {}
+
+  async read({
+    name,
+    mimeType,
+    bytes,
+  }: {
+    name: string;
+    mimeType: string;
+    bytes: ArrayBuffer;
+  }): Promise<string> {
+    // Plain text needs no model at all, exactly as above.
+    if (isPlainText(mimeType)) {
+      return new TextReader().read({ name, mimeType, bytes });
+    }
+
+    if (!IMAGE_TYPES.has(mimeType) && mimeType !== 'application/pdf') {
+      throw new UnreadableFile(`Nothing here can read ${mimeType}.`);
+    }
+
+    const data = Buffer.from(bytes).toString('base64');
+
+    /*
+     * A PDF goes as a file and an image as an image — the two are different
+     * content parts, and sending a PDF as an image is the mistake that makes a
+     * scan come back as a description of a grey rectangle.
+     */
+    const part =
+      mimeType === 'application/pdf'
+        ? {
+            type: 'input_file',
+            filename: name.toLowerCase().endsWith('.pdf') ? name : `${name}.pdf`,
+            file_data: `data:application/pdf;base64,${data}`,
+          }
+        : { type: 'input_image', image_url: `data:${mimeType};base64,${data}` };
+
+    const response = await fetch('https://api.openai.com/v1/responses', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${this.apiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: this.model,
+        max_output_tokens: 2048,
+        input: [
+          {
+            role: 'user',
+            content: [
+              part,
+              { type: 'input_text', text: PROMPT + '\n' + '\n' + 'Filename: ' + name },
+            ],
+          },
+        ],
+      }),
+    });
+
+    if (!response.ok) {
+      const detail = await response.text();
+      const error = new Error(`OpenAI ${response.status}: ${detail.slice(0, 400)}`);
+      // A 4xx that is not a rate limit means the request was wrong, and the
+      // worker must not spend five attempts proving it again.
+      if (response.status >= 400 && response.status < 500 && response.status !== 429) {
+        throw new UnreadableFile(error.message);
+      }
+      throw error;
+    }
+
+    const body = (await response.json()) as {
+      model?: string;
+      usage?: Record<string, unknown>;
+      output?: { content?: { type: string; text?: string }[] }[];
+    };
+
+    // Counted like every other call here, so one page answers "what is this
+    // costing" for the whole app.
+    void recordSpend('reading', body.model, body.usage);
+
+    return (body.output ?? [])
+      .flatMap((o) => o.content ?? [])
+      .filter((c) => c.type === 'output_text')
+      .map((c) => c.text ?? '')
+      .join('\n')
+      .trim();
+  }
+}
+
+/**
+ * Null when there is no key at all.
+ *
+ * The queue treats that as "do not claim work you cannot do" rather than
+ * "fail it": text still runs through `TextReader`, and anything needing a model
+ * stays pending and untouched.
+ *
+ * OpenAI first, because that is the key this app is actually run with and the
+ * one the box classifier already uses. Anthropic is still honoured if its key
+ * is present — the reader was written for it and there is no reason to refuse
+ * a key somebody has deliberately set.
+ */
 export function reader(): Reader | null {
-  const key = process.env.ANTHROPIC_API_KEY;
-  return key ? new ClaudeReader(key) : null;
+  const openAi = process.env.CHATGPT_API_KEY ?? process.env.OPENAI_API_KEY;
+  if (openAi) return new OpenAiReader(openAi);
+
+  const anthropic = process.env.ANTHROPIC_API_KEY;
+  return anthropic ? new ClaudeReader(anthropic) : null;
 }

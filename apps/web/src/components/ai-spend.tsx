@@ -26,6 +26,7 @@ const PURPOSES: Record<string, string> = {
   link: 'Reading links',
   filename: 'Naming files',
   contexts: 'Suggesting contexts',
+  reading: 'Reading attachments',
 };
 
 /** Money, to the cent, because these are small numbers and rounding hides them. */

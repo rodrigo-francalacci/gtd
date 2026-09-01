@@ -120,9 +120,11 @@ export function EnrichmentControls({
     <>
       {configured ? null : (
         <p className="mt-2 max-w-prose text-[12px] leading-relaxed text-stale">
-          No <code className="text-[11px]">ANTHROPIC_API_KEY</code> is set.
-          Plain text is still read — that needs no model — but photos and PDFs
-          are left alone.{' '}
+          No model key is set — the same{' '}
+          <code className="text-[11px]">CHATGPT_API_KEY</code> the boxes use, or{' '}
+          <code className="text-[11px]">ANTHROPIC_API_KEY</code>. Plain text is
+          still read, since that needs no model, but photos and PDFs are left
+          alone.{' '}
           {pending > 0
             ? `${pending} ${pending === 1 ? 'file is' : 'files are'} queued and will be read the moment there is a key; they are waiting, not lost.`
             : null}
