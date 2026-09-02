@@ -17,6 +17,7 @@ import {
   ensureLabel,
   getFile,
   getLabel,
+  folderChildIds,
   moveFile,
   renameLabel,
   renameFile,
@@ -652,6 +653,87 @@ export async function expireBoxItems(limit = 50): Promise<number> {
  * usual cause is a document removed from Drive by hand, which is not a reason
  * to stop renaming the other forty.
  */
+/**
+ * Put every box document back in its box's folder.
+ *
+ * The mirror of `renameBoxFiles`, for the other half of what Drive shows you.
+ * That one reconciles a document's *name*; nothing reconciled where it sat, and
+ * the gap was not theoretical — a real box held 18 files out of 76 in the wrong
+ * folder. Thirteen were still in `Feed`, having been filed into the default box
+ * and then moved elsewhere in the app; five were still in `GTD/Inbox`, having
+ * arrived as captures whose file never followed the row.
+ *
+ * `move_box_file` already moves one file, but only ever at the moment an entry
+ * changes box — so a file that is *already* in the wrong place has nothing that
+ * will ever queue it. Nothing was broken and everything looked broken, which is
+ * the combination this codebase keeps running into: the app was right, Drive
+ * disagreed, and no page said so.
+ *
+ * **One listing per box, not a read per file.** Asking Drive where each of 76
+ * documents lives is 76 round trips a tick; asking what is in each of six
+ * folders is six, and a document missing from its folder's contents is exactly
+ * the set we are looking for. A box with no folder yet is skipped rather than
+ * given one — a folder is made when there is a file to put in it, and this
+ * sweep is not that moment.
+ *
+ * Capped like the rename sweep, and capped on *moves* rather than candidates,
+ * for the reason that one learned the hard way: limiting the query bounds the
+ * wrong thing and spends the budget confirming files that were already right.
+ */
+export async function reconcileBoxFiles(limit = 50): Promise<number> {
+  const rows = await db
+    .select({
+      id: boxItems.id,
+      name: boxItems.name,
+      driveFileId: boxItems.driveFileId,
+      boxId: boxItems.boxId,
+      boxFolderId: boxes.driveFolderId,
+    })
+    .from(boxItems)
+    .innerJoin(boxes, eq(boxItems.boxId, boxes.id))
+    .where(isNotNull(boxItems.driveFileId));
+
+  /** What each box folder actually holds, fetched once per box. */
+  const contents = new Map<string, Set<string>>();
+  let moved = 0;
+
+  for (const row of rows) {
+    if (moved >= limit) break;
+    if (!row.boxFolderId || !row.driveFileId) continue;
+
+    let inFolder = contents.get(row.boxFolderId);
+    if (!inFolder) {
+      try {
+        inFolder = await folderChildIds(row.boxFolderId);
+      } catch (error) {
+        // A folder deleted in Drive, or a refused call. Skip the box rather
+        // than the sweep: the other five still get reconciled.
+        console.error('could not list a box folder', row.boxFolderId, error);
+        contents.set(row.boxFolderId, new Set());
+        continue;
+      }
+      contents.set(row.boxFolderId, inFolder);
+    }
+
+    if (inFolder.has(row.driveFileId)) continue;
+
+    try {
+      await moveFile(row.driveFileId, row.boxFolderId);
+      // Kept in step so a second document in the same box does not think this
+      // one is still missing and move it again.
+      inFolder.add(row.driveFileId);
+      moved += 1;
+    } catch (error) {
+      // Logged rather than swallowed, the lesson `renameBoxFiles` paid for: a
+      // move that can never succeed would otherwise fail silently every tick
+      // with nothing to show for it but a folder that never catches up.
+      console.error('could not move a box document', row.name, error);
+    }
+  }
+
+  return moved;
+}
+
 export async function renameBoxFiles(limit = 50): Promise<number> {
   const grant = await getGrant();
   if (!grant?.refreshToken || !hasSyncScopes(grant.scope)) return 0;

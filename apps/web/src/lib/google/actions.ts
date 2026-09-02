@@ -4,7 +4,7 @@ import { revalidatePath } from 'next/cache';
 import { requireSession } from '@/lib/auth/session';
 import { backfillProjectLinks, drainSyncQueue, retryFailedJobs } from './queue';
 import { refreshGoogleNames, renameDriveAttachments } from './attachments';
-import { renameBoxFiles } from './boxes';
+import { reconcileBoxFiles, renameBoxFiles } from './boxes';
 import { LiveGoogleSync } from './live-sync';
 import type { LinkDrift } from './sync';
 import {
@@ -21,6 +21,7 @@ export async function runSyncNow() {
     drainSyncQueue(25),
     refreshGoogleNames(),
     renameBoxFiles(),
+    reconcileBoxFiles(),
     renameDriveAttachments(),
   ]);
   revalidateShell();

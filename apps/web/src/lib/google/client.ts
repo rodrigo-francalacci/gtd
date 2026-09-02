@@ -495,6 +495,37 @@ export async function downloadFile(
  * app should never be able to destroy something of yours outright.
  */
 /**
+ * The ids of everything sitting in a folder.
+ *
+ * One listing rather than a read per file, which is what makes reconciling a
+ * whole box affordable: asking Drive "where is this file" 76 times is 76 round
+ * trips, and asking "what is in this folder" six times is six. Paged, because
+ * a box that has been filling for a year is well past the default hundred.
+ */
+export async function folderChildIds(folderId: string): Promise<Set<string>> {
+  const ids = new Set<string>();
+  let pageToken: string | undefined;
+
+  do {
+    const params = new URLSearchParams({
+      q: `${driveQuote(folderId)} in parents and trashed = false`,
+      fields: 'nextPageToken,files(id)',
+      pageSize: '1000',
+    });
+    if (pageToken) params.set('pageToken', pageToken);
+
+    const page = await call<{ files?: DriveFile[]; nextPageToken?: string }>(
+      `${DRIVE}/files?${params}`,
+    );
+
+    for (const file of page.files ?? []) ids.add(file.id);
+    pageToken = page.nextPageToken;
+  } while (pageToken);
+
+  return ids;
+}
+
+/**
  * Has anything been put in this folder yet?
  *
  * Asked before binning a folder that lost a creation race — see

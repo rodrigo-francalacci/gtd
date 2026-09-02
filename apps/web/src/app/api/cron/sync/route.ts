@@ -3,7 +3,7 @@ import { timingSafeEqual } from 'node:crypto';
 import { drainBoxQueue } from '@/lib/box/queue';
 import { drainEnrichmentQueue } from '@/lib/enrich/queue';
 import { refreshGoogleNames, renameDriveAttachments } from '@/lib/google/attachments';
-import { expireBoxItems, renameBoxFiles } from '@/lib/google/boxes';
+import { expireBoxItems, reconcileBoxFiles, renameBoxFiles } from '@/lib/google/boxes';
 import { drainSyncQueue } from '@/lib/google/queue';
 import { getSession } from '@/lib/auth/session';
 
@@ -43,7 +43,7 @@ export async function GET(request: Request) {
   // APIs — push to Google, read an attachment, read a document — and a second
   // cron entry would be a second thing to forget to configure. Hobby accounts
   // allow one daily schedule, so there is only one tick to put them in.
-  const [sync, enrich, box, renamed, filed, refiled, expired] = await Promise.all([
+  const [sync, enrich, box, renamed, filed, replaced, refiled, expired] = await Promise.all([
     drainSyncQueue(),
     drainEnrichmentQueue(),
     drainBoxQueue(),
@@ -52,11 +52,16 @@ export async function GET(request: Request) {
     // come back from the Docs files Google owns, and go out to the box
     // documents this app named.
     renameBoxFiles(),
+    // Where a document sits, not just what it is called — the other half of
+    // what opening the Drive folder shows you, and the half nothing swept.
+    reconcileBoxFiles(),
     // The same push for an attachment the user has renamed here.
     renameDriveAttachments(),
     // Documents that have reached the end of the life you gave them.
     expireBoxItems(),
   ]);
 
-  return NextResponse.json({ ok: true, sync, enrich, box, renamed, filed, refiled, expired });
+  return NextResponse.json({
+    ok: true, sync, enrich, box, renamed, filed, replaced, refiled, expired,
+  });
 }
