@@ -2544,6 +2544,15 @@ settings.
   else cites it — a document on two projects losing one stays where it is —
   and applied at all three places a citation can be removed: deleting the
   parent, unlinking from a pane, unlinking from an action.
+  **Verified across every route that can destroy a citing row**, each through
+  its real button and each with a deliberately *unlisted* document, which is
+  the case that used to strand: deleting a project, deleting an action inside
+  that project (the cascade — `deleteProject` purges its actions first, while
+  they can still be found by their project), deleting a lone action, deleting a
+  list item, and "delete these N finished steps". All four kept the document in
+  its box and gave it back to the feed. Only those three parent types can cite
+  a document — a list cannot be deleted at all and a capture cannot cite — so
+  that is the whole surface.
 - **It is a listing decision, not a storage one.** The entry is still in a box,
   because a `box_item` belongs to one by definition and a message that existed
   only as a project's evidence would go with the project. It is still
