@@ -4,32 +4,35 @@ import { useEffect, useRef } from 'react';
 import { setNoteHeight, type NoteSurface } from '@/lib/actions';
 
 /**
- * Keeps the height you dragged an editor to.
+ * Keeps the height you dragged *this* note to.
  *
- * Every note field in the app opened at the same four rows however you had left
- * it, so writing anything longer than a sentence began with dragging the corner
- * — every time, on every row. The height is a preference about how you like to
- * write, not a fact about the document, which is why it is remembered per
- * *surface* rather than per row: one for the rich editor that projects, actions
- * and list items share, one for a box entry's field. Per row would still open
- * every new document short, which is the case that annoys most.
+ * Every note field opened at the same few rows however you had left it, so
+ * writing anything longer began with dragging the corner — every time, on every
+ * row. Remembered per row rather than per kind of editor, because the useful
+ * height is a fact about the note in front of you: a one-line reminder and a
+ * page about a renovation want different things.
  *
  * **Written once, when the drag ends.** A `ResizeObserver` fires continuously
- * while the corner is moving, and saving there would be a request per pixel —
- * the mistake the pane resize already made and fixed. This waits for the
- * movement to stop.
+ * while the corner moves, and saving there would be a request per pixel — the
+ * mistake the pane resize already made and fixed. This waits for the movement
+ * to stop.
  *
- * The *applying* is not done here at all: the height arrives as a CSS variable
- * set by the app layout, which is server-rendered, so the editor is already the
- * right size on first paint. Setting it from an effect would show four rows and
- * then jump, which is the flash the preferences table exists to avoid.
+ * The *applying* is not done here: the row's height is rendered by the server
+ * as an inline style, so the editor is already right on the first paint.
+ * Setting it from an effect would show a short box and then jump, which is the
+ * flash the preferences table exists to avoid.
+ *
+ * Note that a hidden tab runs no rendering lifecycle, so `ResizeObserver` never
+ * delivers there — which is a fact about testing this, not about using it.
  */
 export function RememberedHeight({
   surface,
+  id,
   /** The element to watch — a ref shared with whatever is resizable. */
   target,
 }: {
   surface: NoteSurface;
+  id: string;
   target: React.RefObject<HTMLElement | null>;
 }) {
   const saved = useRef<number | null>(null);
@@ -37,6 +40,10 @@ export function RememberedHeight({
   useEffect(() => {
     const element = target.current;
     if (!element || typeof ResizeObserver === 'undefined') return;
+
+    // A different note is a different height: nothing carried over from the
+    // one that was open a moment ago.
+    saved.current = null;
 
     let idle: ReturnType<typeof setTimeout> | null = null;
 
@@ -48,25 +55,7 @@ export function RememberedHeight({
         if (!height || height === saved.current) return;
 
         saved.current = height;
-
-        /*
-         * Set on the element the server set it on, so the *other* editors of
-         * this surface follow immediately rather than after a navigation.
-         *
-         * Deliberately not `documentElement`: the layout defines these on a
-         * wrapper, and a custom property is inherited from the nearest ancestor
-         * that sets it — so a value on `<html>` would sit *outside* the wrapper
-         * and be shadowed by it, and the live update would silently do nothing
-         * while looking exactly right in the devtools.
-         */
-        document
-          .querySelector<HTMLElement>('[data-note-heights]')
-          ?.style.setProperty(
-            surface === 'note' ? '--note-height' : '--box-note-height',
-            `${height}px`,
-          );
-
-        void setNoteHeight(surface, height);
+        void setNoteHeight(surface, id, height);
       }, 400);
     });
 
@@ -76,7 +65,7 @@ export function RememberedHeight({
       if (idle) clearTimeout(idle);
       observer.disconnect();
     };
-  }, [surface, target]);
+  }, [surface, id, target]);
 
   return null;
 }

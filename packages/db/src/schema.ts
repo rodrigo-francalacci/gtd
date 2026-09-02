@@ -282,6 +282,20 @@ export const projects = pgTable(
     driveFolderId: text('drive_folder_id'),
     gmailLabelId: text('gmail_label_id'),
     /** TipTap (ProseMirror) document. */
+    /**
+     * How tall this note was last dragged, in pixels.
+     *
+     * Per row, because a note's useful height is a fact about *that* note — a
+     * one-line reminder and a page of notes on a renovation want different
+     * things, and one shared height means resizing on every visit, which is the
+     * complaint this started as. Null means never dragged, and the last height
+     * used anywhere fills in as the default so a fresh note is not short again.
+     *
+     * On the row rather than in a side table keyed by (type, id): four bytes,
+     * it goes when the row goes, and there is nothing to orphan — the trap a
+     * polymorphic key walks straight into.
+     */
+    noteHeight: integer('note_height'),
     notes: jsonb('notes'),
     /** Plaintext flattened from `notes`, kept in sync by the app for search. */
     searchText: text('search_text'),
@@ -366,6 +380,20 @@ export const actions = pgTable(
      * archive when the action is done, exactly as a project's folder is.
      */
     driveFolderId: text('drive_folder_id'),
+    /**
+     * How tall this note was last dragged, in pixels.
+     *
+     * Per row, because a note's useful height is a fact about *that* note — a
+     * one-line reminder and a page of notes on a renovation want different
+     * things, and one shared height means resizing on every visit, which is the
+     * complaint this started as. Null means never dragged, and the last height
+     * used anywhere fills in as the default so a fresh note is not short again.
+     *
+     * On the row itself rather than in a side table keyed by (type, id): it
+     * costs four bytes, it goes when the row goes, and there is nothing to
+     * orphan — the trap a polymorphic key would walk straight into.
+     */
+    noteHeight: integer('note_height'),
     notes: jsonb('notes'),
     searchText: text('search_text'),
     searchVector: searchVector('title', 'search_text'),
@@ -512,6 +540,20 @@ export const listItems = pgTable(
      * in a year, and the sentence explaining why you wrote it down is the part
      * worth keeping.
      */
+    /**
+     * How tall this note was last dragged, in pixels.
+     *
+     * Per row, because a note's useful height is a fact about *that* note — a
+     * one-line reminder and a page of notes on a renovation want different
+     * things, and one shared height means resizing on every visit, which is the
+     * complaint this started as. Null means never dragged, and the last height
+     * used anywhere fills in as the default so a fresh note is not short again.
+     *
+     * On the row rather than in a side table keyed by (type, id): four bytes,
+     * it goes when the row goes, and there is nothing to orphan — the trap a
+     * polymorphic key walks straight into.
+     */
+    noteHeight: integer('note_height'),
     notes: jsonb('notes'),
     /** Plaintext flattened from `notes`, kept in sync by the app for search. */
     searchText: text('search_text'),
@@ -1307,6 +1349,13 @@ export const boxItems = pgTable(
      */
     emoji: text('emoji'),
     description: text('description'),
+    /**
+     * How tall this entry's field was last dragged, in pixels. Per entry, for
+     * the reason the note tables carry one: a two-word note and a page of
+     * transcript want different heights, and sharing one means resizing on
+     * every visit.
+     */
+    noteHeight: integer('note_height'),
     /**
      * Where you were, for a `location` entry. Two columns rather than a blob
      * because a coordinate is two numbers and will one day be worth querying

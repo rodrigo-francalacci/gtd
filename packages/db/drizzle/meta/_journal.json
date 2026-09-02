@@ -414,6 +414,13 @@
       "when": 1788348825370,
       "tag": "0058_cold_obadiah_stane",
       "breakpoints": true
+    },
+    {
+      "idx": 59,
+      "version": "7",
+      "when": 1788349783762,
+      "tag": "0059_broad_blob",
+      "breakpoints": true
     }
   ]
 }

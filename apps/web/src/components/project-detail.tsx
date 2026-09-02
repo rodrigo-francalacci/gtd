@@ -31,6 +31,8 @@ import { LinkedDocuments } from './linked-documents';
 import { NoteEditor } from './note-editor';
 
 type ProjectDetailData = {
+  /** How tall this note was last dragged, in pixels. Null means never. */
+  noteHeight: number | null;
   /** Its emoji, or null. Editable here whatever the model chose. */
   emoji: string | null;
   id: string;
@@ -273,6 +275,9 @@ export function ProjectDetail({
       <section className="mt-7 border-t border-grey-150 pt-5">
         <NoteEditor
           key={project.id}
+          surface="project"
+          id={project.id}
+          height={project.noteHeight ?? null}
           initialContent={project.notes}
           placeholder="Project notes, outcome, reference…"
           onSave={async (doc) => {

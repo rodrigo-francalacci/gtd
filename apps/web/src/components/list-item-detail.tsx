@@ -192,6 +192,9 @@ export function ListItemDetail({
             items is handled by remounting rather than by an effect. */}
         <NoteEditor
           key={item.id}
+          surface="list_item"
+          id={item.id}
+          height={item.noteHeight ?? null}
           initialContent={item.notes}
           placeholder="Why this is here, what it depends on…"
           onSave={async (doc) => {

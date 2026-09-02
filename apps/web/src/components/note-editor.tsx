@@ -6,6 +6,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { emptyDoc } from '@/lib/tiptap';
 import { EditorToolbar } from './editor-toolbar';
 import { RememberedHeight } from './remembered-height';
+import type { NoteSurface } from '@/lib/actions';
 
 type SaveState = 'idle' | 'dirty' | 'saving' | 'saved';
 
@@ -36,9 +37,20 @@ export function NoteEditor({
   initialContent,
   onSave,
   placeholder = 'Notes…',
+  surface,
+  id,
+  height,
 }: {
   initialContent: unknown;
   onSave: (doc: unknown) => Promise<void>;
+  /** Which table this note lives in, so its height is saved against the row. */
+  surface: NoteSurface;
+  id: string;
+  /**
+   * What this note was last dragged to. Null means never, and the variable's
+   * default — the last height used anywhere — applies instead.
+   */
+  height: number | null;
   placeholder?: string;
 }) {
   const [state, setState] = useState<SaveState>('idle');
@@ -149,14 +161,20 @@ export function NoteEditor({
         and the height comes from a variable the layout sets on the server so it
         is right on first paint rather than jumping after one.
       */}
+      {/*
+        This note's own height wins; the variable is the fallback for one that
+        has never been dragged, and carries the last height used anywhere so a
+        fresh note is not short again.
+      */}
       <div
         ref={box}
+        style={height ? { height: `${height}px` } : undefined}
         className="h-[var(--note-height,16rem)] min-h-24 resize-y overflow-auto rounded-sm"
       >
         <EditorContent editor={editor} />
       </div>
 
-      <RememberedHeight surface="note" target={box} />
+      <RememberedHeight surface={surface} id={id} target={box} />
     </div>
   );
 }

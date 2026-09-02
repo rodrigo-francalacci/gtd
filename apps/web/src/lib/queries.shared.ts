@@ -131,6 +131,8 @@ export const WHERE_LABELS: Record<PurchaseWhere, string> = {
 export type ItemStage = 'candidate' | 'committed' | 'settled';
 
 export type ListItemRow = {
+  /** How tall this note was last dragged, in pixels. Null means never. */
+  noteHeight: number | null;
   id: string;
   listId: string;
   title: string;
@@ -338,6 +340,8 @@ export type BoxLinkRow = {
 };
 
 export type BoxItemDetail = BoxItemRow & {
+  /** How tall this note was last dragged, in pixels. Null means never. */
+  noteHeight: number | null;
   boxName: string;
   text: string | null;
   /** Whether it appears in its box's feed. See the column for why. */

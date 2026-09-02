@@ -377,10 +377,11 @@ export function DocumentDetail({
                 ? 'Not summarised yet.'
                 : 'Write something.'
           }
+          style={item.noteHeight ? { height: `${item.noteHeight}px` } : undefined}
           className="h-[var(--box-note-height,7rem)] min-h-16 w-full resize-y rounded-sm border border-grey-200 bg-paper px-2 py-1.5 text-[13px] leading-relaxed text-grey-800 placeholder:text-grey-400 focus:border-grey-400 focus:outline-none"
         />
 
-        <RememberedHeight surface="box" target={field} />
+        <RememberedHeight surface="box_item" id={item.id} target={field} />
 
         {dirty ? (
           <div className="flex items-center gap-3">

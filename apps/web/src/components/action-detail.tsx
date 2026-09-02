@@ -29,6 +29,8 @@ import { TurnIntoNextAction } from './turn-into-next';
 import { WaitingOnField } from './waiting-on-field';
 
 type ActionDetailData = {
+  /** How tall this note was last dragged, in pixels. Null means never. */
+  noteHeight: number | null;
   /** Its emoji, or null. Editable here whatever the model chose. */
   emoji: string | null;
   id: string;
@@ -264,6 +266,9 @@ export function ActionDetail({
       <section className="mt-7 border-t border-grey-150 pt-5">
         <NoteEditor
           key={action.id}
+          surface="action"
+          id={action.id}
+          height={action.noteHeight ?? null}
           initialContent={action.notes}
           placeholder="Notes on this action…"
           onSave={async (doc) => {

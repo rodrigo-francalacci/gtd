@@ -2358,6 +2358,17 @@ settings.
   ask. The emails list borrows the documents' sort rather than carrying a
   control of its own: two controls writing one preference key is a setting that
   appears to be in two places and is in one.
+- **`getBoxItem` no longer casts either, and it was hiding two drifts.** The
+  same `as` that the linked-document queries were caught by: it does not
+  describe a shape the compiler cannot work out, it overrides one it worked out
+  correctly. Adding `noteHeight` to `BoxItemDetail` changed nothing at runtime —
+  it arrived `undefined` and every box entry silently ignored its own stored
+  height. Removing the cast then surfaced a second one the pane had been
+  carrying for months: `linkCount` is required by the row type and was never
+  selected, invisible only because nothing in the detail pane reads it. Counted
+  from the links the query already fetches rather than asked for again. **Third
+  time this exact cast has hidden a missing column — if a query's row needs a
+  cast, the query is wrong.**
 - **`getLinkedDocuments` and `getLinkableDocuments` no longer cast their rows.**
   `return rows as LinkedDocumentRow[]` was not describing a shape the compiler
   could not work out, it was overriding one it had worked out correctly — and

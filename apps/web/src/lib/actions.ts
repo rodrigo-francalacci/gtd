@@ -1726,23 +1726,52 @@ export async function correctUsage(type: UsableType, id: string, count: number) 
  * Called once on pointer-up, not during the drag — the pane follows the cursor
  * locally, and only the final width is written.
  */
-/** Which note field a remembered height belongs to. */
-export type NoteSurface = 'note' | 'box';
+/** Which table a note's height belongs to. */
+export type NoteSurface = 'action' | 'project' | 'list_item' | 'box_item';
+
+const NOTE_TABLE = {
+  action: actions,
+  project: projects,
+  list_item: listItems,
+  box_item: boxItems,
+} as const;
 
 /**
- * Remember how tall a note editor was left.
+ * Remember how tall a note was left — that note, not notes in general.
+ *
+ * Per row, because the useful height is a fact about the note in front of you:
+ * a one-line reminder and a page about a renovation want different things, and
+ * one shared height means resizing on every visit, which is what this set out
+ * to fix.
+ *
+ * The last height used is *also* kept on `preferences`, and that is not a
+ * second source of truth — it is the default for a note nobody has dragged yet.
+ * Without it every new note would open short again and the complaint would be
+ * half fixed. The row always wins where it has a value.
  *
  * Clamped rather than trusted: this is a number a client sends, and a stored
- * height of two pixels or of forty thousand is an editor you cannot use and
- * cannot drag back, on every row, until somebody edits the database.
+ * height of two pixels is an editor you can neither use nor drag back.
  */
-export async function setNoteHeight(surface: NoteSurface, height: number) {
+export async function setNoteHeight(
+  surface: NoteSurface,
+  id: string,
+  height: number,
+) {
   await requireSession();
 
   if (!Number.isFinite(height)) return;
   const px = Math.round(Math.min(2000, Math.max(80, height)));
 
-  const patch = surface === 'note' ? { noteHeight: px } : { boxNoteHeight: px };
+  const table = NOTE_TABLE[surface];
+  if (!table) return;
+
+  await db.update(table).set({ noteHeight: px }).where(eq(table.id, id));
+
+  // The fallback for notes that have never been dragged. A box entry's plain
+  // field and the rich editor are different shapes, so they keep separate
+  // defaults.
+  const patch =
+    surface === 'box_item' ? { boxNoteHeight: px } : { noteHeight: px };
 
   await db
     .insert(preferences)
@@ -1753,8 +1782,8 @@ export async function setNoteHeight(surface: NoteSurface, height: number) {
     });
 
   // Deliberately no `revalidateShell()`: the height is already applied in the
-  // browser, and re-rendering the whole shell on the end of a drag would throw
-  // away the caret and the scroll position of the note being written.
+  // browser, and re-rendering the shell at the end of a drag would throw away
+  // the caret and the scroll position of the note being written.
 }
 
 export async function setListPaneWidth(width: number) {

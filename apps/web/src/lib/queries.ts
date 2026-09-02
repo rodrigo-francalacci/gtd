@@ -443,6 +443,7 @@ export async function getProject(id: string) {
       status: projects.status,
       standbyReason: projects.standbyReason,
       notes: projects.notes,
+      noteHeight: projects.noteHeight,
       areaId: projects.areaId,
       goalId: projects.goalId,
       areaName: areasOfFocus.name,
@@ -481,6 +482,7 @@ export async function getAction(id: string) {
       waitingSince: actions.waitingSince,
       waitingOn: waitingParty.name,
       notes: actions.notes,
+      noteHeight: actions.noteHeight,
       projectId: actions.projectId,
       projectTitle: projects.title,
       createdAt: actions.createdAt,
@@ -809,8 +811,10 @@ export async function getListItems(listId: string): Promise<ListItemRow[]> {
     fields: (r.fields as PurchaseFields | null) ?? null,
     stage: stageOf(r.promotedActionId, r.promotedActionStatus),
     // A list renders titles. Selecting a row fetches its body separately, so
-    // a long note on one item costs nothing to draw the other twenty.
+    // a long note on one item costs nothing to draw the other twenty — and the
+    // height that goes with it is part of that body, not of the line.
     notes: null,
+    noteHeight: null,
   }));
 }
 
@@ -828,6 +832,7 @@ export async function getListItem(id: string): Promise<ListItemRow | null> {
       promotedActionStatus: actions.status,
       position: listItems.position,
       notes: listItems.notes,
+      noteHeight: listItems.noteHeight,
       createdAt: listItems.createdAt,
     })
     .from(listItems)
@@ -1238,6 +1243,7 @@ export async function getBoxItem(id: string): Promise<BoxItemDetail | null> {
       title: boxItems.title,
       emoji: boxItems.emoji,
       description: boxItems.description,
+      noteHeight: boxItems.noteHeight,
       docDate: boxItems.docDate,
       /*
        * The two an event needs, and the reason this query has to know about
@@ -1268,7 +1274,25 @@ export async function getBoxItem(id: string): Promise<BoxItemDetail | null> {
 
   if (!row) return null;
 
-  return { ...row, links: await getBoxItemLinks(id) } as BoxItemDetail;
+  /*
+   * No cast. It was `as BoxItemDetail`, which does not describe a shape the
+   * compiler cannot work out — it overrides one it has worked out correctly,
+   * and the row had already drifted from the type it claimed to return. Adding
+   * a field to `BoxItemDetail` changed nothing at runtime: it arrived
+   * `undefined`, silently, exactly as it did for `kind` on the linked-document
+   * queries. If a query's row needs a cast, the query is wrong.
+   */
+  const links = await getBoxItemLinks(id);
+
+  /*
+   * `linkCount` counted from the links themselves rather than fetched again.
+   *
+   * The cast was hiding this too: the feed's row type requires a count, this
+   * query never selected one, and every detail pane has been carrying
+   * `undefined` — invisible only because nothing in that pane reads it. A
+   * second subquery would be a round trip to count rows already in hand.
+   */
+  return { ...row, links, linkCount: links.length };
 }
 
 /** What a document has been cited by — one row per project, action or item. */
