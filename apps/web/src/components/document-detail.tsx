@@ -161,7 +161,19 @@ export function DocumentDetail({
    * fail — which is what it did, until the queue started refusing the job.
    */
   const isAudio = item.mimeType?.startsWith('audio/') ?? false;
-  const readable = (isDocument && !isAudio) || item.kind === 'link';
+  /*
+   * An email is readable too, and leaving it out cost it its tags.
+   *
+   * A message is filed `ready` and never queued — everything a document is read
+   * to discover, a message already states — but tags are the one thing it
+   * misses, and the whole plan was that they are one press of "Read it again"
+   * away. That press was never offered: this asked for `kind === 'document'`,
+   * and an email's kind is `email`. So the button the design leant on did not
+   * exist, and every filed message sat there untagged and without an emoji.
+   * The body is stored as `text/html`, which `canClassify` has always accepted.
+   */
+  const readable =
+    ((isDocument || item.kind === 'email') && !isAudio) || item.kind === 'link';
 
   const asPreview = (): PreviewFile | null =>
     file

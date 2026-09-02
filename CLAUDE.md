@@ -469,6 +469,25 @@ Turbopack is the default; `middleware` is now `proxy`.
   `Content-Disposition: inline`, and is `Cache-Control: private` — one person's
   file behind one person's session must never sit in a shared cache. The
   session gate is the only authorisation: a uuid in a URL is not one.
+- **Closing the preview goes back only if the marker is still the entry on
+  top.** Opening a *focused* preview pushes a `{ gtdPreview: true }` history
+  entry so Android's back closes the pane instead of the app, and the × goes
+  through history too so both end in the same place. The flag saying "an entry
+  was pushed" is not the same claim as "that entry is what a back would undo",
+  though, and any navigation in between buries it — so closing the pane called
+  `history.back()` on somebody else's entry and left the page. Open a document
+  with its preview, click through to another box, press the ×, and the app
+  jumped to whichever row you were looking at before. `history.state` is the
+  authority, because the browser keeps it per entry: after a navigation it is
+  Next's own state with no marker in it. A stale entry left behind costs one
+  dead back press, which is a great deal better than being thrown to another
+  page.
+- **Closing a preloaded preview has to stick.** The pane is loaded ahead of time
+  for the selected row, and `preload`'s identity changes with the provider's
+  state — so closing it re-ran the effect that opened it and the file came
+  straight back. The × was a no-op on exactly the previews you never asked for,
+  which is most of them. The dismissed file's id is remembered until a
+  different row is chosen, which is the moment you want the pane again.
 - **The preview pane is the fourth column, and its state lives in the shell.**
   `FilePreviewProvider` *is* the flex row, so the pane is a sibling of the
   other three rather than an overlay on top of them. Not a search param: the

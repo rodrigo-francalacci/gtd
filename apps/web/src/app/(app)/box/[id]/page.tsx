@@ -38,6 +38,7 @@ import {
   getProject,
   getProjectActions,
   getProjectOptions,
+  getProjectTree,
 } from '@/lib/queries';
 import { ENTRY_TYPE_ORDER, entryTypeOf, type EntryType } from '@/lib/queries.shared';
 import { getPreferences, paneWidth } from '@/lib/view-mode';
@@ -229,6 +230,17 @@ export default async function BoxPage(props: PageProps<'/box/[id]'>) {
         getLinkableDocuments('project', eventProjectId, ''),
         getBoxes(),
         timelinesFor(eventProjectId),
+        /*
+         * The Drive and Gmail listing, which this pane was missing.
+         *
+         * Selecting a milestone opens the project in the pane a document would
+         * have used — and it was the same component with one prop short, so the
+         * project you reached from a timeline had no way to browse its files
+         * while the same project reached from the list did. A shortcut that
+         * arrives somewhere less capable than the long way round is a shortcut
+         * you stop trusting.
+         */
+        getProjectTree(eventProjectId),
       ])
     : null;
 
@@ -435,6 +447,16 @@ export default async function BoxPage(props: PageProps<'/box/[id]'>) {
               horizons={timeline[2]}
               boxes={timeline[6]}
               timelines={timeline[7]}
+              tree={
+                timeline[8]
+                  ? {
+                      drive: timeline[8].drive,
+                      gmail: timeline[8].gmail,
+                      fetchedAt: timeline[8].fetchedAt.toISOString(),
+                      error: timeline[8].error,
+                    }
+                  : null
+              }
             />
           ) : (
             <DocumentDetail

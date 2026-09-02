@@ -108,15 +108,36 @@ const Context = createContext<PreviewApi | null>(null);
  * to be threaded through five separate pages that each own their own panes.
  */
 export function FilePreviewProvider({ children }: { children: ReactNode }) {
-  const [state, setState] = useState<{ file: PreviewFile | null; focused: boolean }>({
+  const [state, setState] = useState<{
+    file: PreviewFile | null;
+    focused: boolean;
+    /**
+     * A file the pane was closed on, so selecting nothing new does not bring it
+     * straight back.
+     *
+     * Closing a *preloaded* preview did nothing you could see. The row is still
+     * selected, so the detail pane preloads its file again the moment anything
+     * re-renders — and `preload`'s own identity changes with this state, which
+     * is what re-runs that effect. The × was therefore a no-op on exactly the
+     * previews you have not asked for, which is most of them.
+     *
+     * Remembering which file was dismissed is enough: the same one is ignored
+     * until a different row is chosen, and choosing that row is precisely when
+     * you want the pane back.
+     */
+    dismissed: string | null;
+  }>({
     file: null,
     focused: false,
+    dismissed: null,
   });
   const { file, focused } = state;
 
   const api = useMemo<PreviewApi>(
     () => ({
-      open: (next) => setState({ file: next, focused: true }),
+      // Asking for a file outright clears any dismissal: you have just said you
+      // want to see this one.
+      open: (next) => setState({ file: next, focused: true, dismissed: null }),
       /*
        * Always unfocused, never inheriting. If it kept a focus already set,
        * then once you had opened one document every later selection would drag
@@ -135,13 +156,25 @@ export function FilePreviewProvider({ children }: { children: ReactNode }) {
              * A file you opened deliberately is left alone: the pane belongs
              * to the window, and only the section change closes that.
              */
-            return s.focused || s.file === null ? s : { file: null, focused: false };
+            return s.focused || s.file === null
+              ? s
+              : { file: null, focused: false, dismissed: s.dismissed };
           }
-          return s.file?.id === next.id ? s : { file: next, focused: false };
+
+          // The one you closed, offered again by a re-render rather than by a
+          // new selection. Left alone until a different row asks.
+          if (next.id === s.dismissed) return s;
+
+          return s.file?.id === next.id
+            ? s
+            : { file: next, focused: false, dismissed: null };
         }),
-      close: () => setState({ file: null, focused: false }),
+      close: () =>
+        setState((s) => ({ file: null, focused: false, dismissed: s.file?.id ?? null })),
       closeIf: (id) =>
-        setState((s) => (s.file?.id === id ? { file: null, focused: false } : s)),
+        setState((s) =>
+          s.file?.id === id ? { file: null, focused: false, dismissed: null } : s,
+        ),
       openId: file?.id ?? null,
       file,
       focused,

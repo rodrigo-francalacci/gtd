@@ -203,9 +203,32 @@ export function AppShell({
   }, [preview, focused, close]);
 
   const closePreview = () => {
-    // Through history, so the button and the gesture end in the same place.
-    if (pushed.current) window.history.back();
-    else close();
+    /*
+     * Go back only if the entry on top is still the marker this pushed.
+     *
+     * `pushed.current` says a marker was pushed *at some point*, not that it is
+     * still the entry a back would undo — and any navigation since buries it
+     * under a real one. Trusting the ref alone, closing the pane called
+     * `history.back()` on somebody else's entry and left the page: open a
+     * document with its preview, click through to another box, press the ×, and
+     * the app jumped to whichever row you had been looking at before. Reported
+     * as "it goes to the Journal box and selects the second item", which is
+     * exactly what going back one entry does.
+     *
+     * `history.state` is the authority, because the browser keeps it per entry:
+     * navigate and it is Next's own state, with no marker in it. The ref only
+     * survives as a cheap first check.
+     */
+    if (pushed.current && window.history.state?.gtdPreview) {
+      window.history.back();
+      return;
+    }
+
+    // The marker is buried or was never pushed. Closing the pane is the whole
+    // job, and leaving that entry behind is the lesser fault by a long way —
+    // one dead back press against being thrown to another page.
+    pushed.current = false;
+    close();
   };
 
   return (
