@@ -1,0 +1,1 @@
+ALTER TABLE "lists" ADD COLUMN "drive_folder_id" text;

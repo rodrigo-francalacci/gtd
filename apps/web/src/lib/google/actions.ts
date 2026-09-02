@@ -3,7 +3,11 @@
 import { revalidatePath } from 'next/cache';
 import { requireSession } from '@/lib/auth/session';
 import { backfillProjectLinks, drainSyncQueue, retryFailedJobs } from './queue';
-import { refreshGoogleNames, renameDriveAttachments } from './attachments';
+import {
+  reconcileAttachmentFiles,
+  refreshGoogleNames,
+  renameDriveAttachments,
+} from './attachments';
 import { reconcileBoxFiles, renameBoxFiles } from './boxes';
 import { LiveGoogleSync } from './live-sync';
 import type { LinkDrift } from './sync';
@@ -23,6 +27,7 @@ export async function runSyncNow() {
     renameBoxFiles(),
     reconcileBoxFiles(),
     renameDriveAttachments(),
+    reconcileAttachmentFiles(),
   ]);
   revalidateShell();
 }

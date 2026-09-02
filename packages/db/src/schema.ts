@@ -445,6 +445,19 @@ export const lists = pgTable('lists', {
    * without a scaling rule that only one of them knows about.
    */
   budget: doublePrecision('budget'),
+  /**
+   * Where this list's files live in Drive, once it has any.
+   *
+   * A list is a *container* — an item belongs to exactly one — which is what
+   * makes it something Drive can mirror. The sidebar's other entries are views:
+   * the same action appears in "What can I do now" and in "File actions", and a
+   * file can only be in one folder, so a folder per view would be a lie.
+   * Containers get folders; views do not.
+   *
+   * Made on demand like a project's, and holding an id rather than a path, so a
+   * rename in Drive cannot break the link.
+   */
+  driveFolderId: text('drive_folder_id'),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 });
 

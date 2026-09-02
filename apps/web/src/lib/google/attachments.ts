@@ -1,6 +1,6 @@
 import 'server-only';
 
-import { attachments, actions, boxItems, db, listItems, projects } from '@gtd/db';
+import { attachments, actions, boxItems, db, listItems, lists, projects } from '@gtd/db';
 import type { AttachmentKind, AttachmentParentType } from '@gtd/db';
 import { and, eq, isNotNull, isNull, ne, sql } from 'drizzle-orm';
 import { getGrant } from '@/lib/auth/token';
@@ -15,6 +15,7 @@ import {
   createTextFile,
   ensureFolder,
   getFile,
+  folderChildIds,
   moveFile,
   renameFile,
   trashFile,
@@ -128,6 +129,75 @@ export async function moveAttachmentFile(attachmentId: string): Promise<void> {
  * drift — one of them learning about the archive container and the other not,
  * which is the bug this module already fixed once.
  */
+/** Where a list keeps its files: `GTD/Lists/<name>`. */
+const LISTS = 'Lists';
+
+/**
+ * A list's Drive folder, made the first time something needs one.
+ *
+ * A list item with no project used to land in `GTD/Inbox` along with every
+ * loose capture — so a photograph of something on the Purchases list was filed
+ * under a name that says the opposite of where it belongs, and opening Drive
+ * showed no Purchases folder at all. The app said one thing and Drive said
+ * another, which is the state this app exists not to be in.
+ *
+ * **A list gets a folder because it is a container**: an item belongs to
+ * exactly one, so there is a single right answer to where its file goes. The
+ * sidebar's other entries are *views* — the same action shows in "What can I do
+ * now" and in "File actions" — and a file can only be in one folder, so a
+ * folder per view would be a lie dressed as tidiness. That is the line, and it
+ * is why loose actions still go to the inbox folder rather than getting a
+ * container invented for them.
+ *
+ * On demand, never on create, for the reason a project's is: most lists never
+ * hold a file, and making a folder for every one fills an account with empty
+ * containers named after things nobody attached anything to.
+ *
+ * Checked before it is trusted, and raced-for safely — the same two rules the
+ * project folder learned, both the hard way.
+ */
+async function listFolder(listId: string): Promise<string | null> {
+  const [list] = await db
+    .select({ name: lists.name, driveFolderId: lists.driveFolderId })
+    .from(lists)
+    .where(eq(lists.id, listId))
+    .limit(1);
+
+  if (!list) return null;
+
+  if (list.driveFolderId) {
+    const existing = await getFile(list.driveFolderId);
+    if (existing && !existing.trashed) return list.driveFolderId;
+  }
+
+  const root = await ensureFolder(ROOT);
+  const container = await ensureFolder(LISTS, root);
+  const folderId = await ensureFolder(safeName(list.name) || 'List', container);
+
+  const [won] = await db
+    .update(lists)
+    .set({ driveFolderId: folderId })
+    .where(
+      and(
+        eq(lists.id, listId),
+        list.driveFolderId === null
+          ? isNull(lists.driveFolderId)
+          : eq(lists.driveFolderId, list.driveFolderId),
+      ),
+    )
+    .returning({ id: lists.id });
+
+  if (won) return folderId;
+
+  const [now] = await db
+    .select({ driveFolderId: lists.driveFolderId })
+    .from(lists)
+    .where(eq(lists.id, listId))
+    .limit(1);
+
+  return settleFolderRace(folderId, now?.driveFolderId ?? null);
+}
+
 export async function attachmentFolder(
   parentType: AttachmentParentType,
   parentId: string,
@@ -172,6 +242,28 @@ export async function attachmentFolder(
             )[0]?.projectId;
 
   const root = await ensureFolder(ROOT);
+
+  /*
+   * No project, but it is on a list — so there *is* a container, and the list
+   * is it. This has to come before the inbox fallback: a list item with no
+   * project used to be indistinguishable from a loose capture here, which is
+   * how a photograph of something on the Purchases list ended up filed under
+   * `GTD/Inbox` with no Purchases folder anywhere in Drive.
+   */
+  if (!projectId && parentType === 'list_item') {
+    const onList = await listFolder(
+      (
+        await db
+          .select({ listId: listItems.listId })
+          .from(listItems)
+          .where(eq(listItems.id, parentId))
+          .limit(1)
+      )[0]?.listId ?? '',
+    );
+
+    if (onList) return onList;
+  }
+
   if (!projectId) return ensureFolder(INBOX, root);
 
   const [project] = await db
@@ -273,6 +365,96 @@ export async function attachmentFolder(
     .limit(1);
 
   return settleFolderRace(folderId, now?.driveFolderId ?? null);
+}
+
+/**
+ * Put every attachment where its row now says it belongs.
+ *
+ * `reconcileBoxFiles` for the other table that owns files. A box document and
+ * an attachment drift for the same reason — something moved in the app and the
+ * file did not — and neither had anything that would notice afterwards.
+ *
+ * **`attachmentFolder` is asked, rather than the answer being worked out
+ * again here.** Restating "where does this file go" would be a second
+ * definition of the rule that already exists, and the two would disagree the
+ * first time either changed — the trap this codebase has been caught by more
+ * than once. Memoised per parent, because a project with six files asks the
+ * same question six times and the answer cannot differ.
+ *
+ * One listing per destination rather than a read per file, exactly as the box
+ * sweep does it: a file missing from the contents of the folder it should be in
+ * is precisely the set that needs moving.
+ */
+export async function reconcileAttachmentFiles(limit = 50): Promise<number> {
+  const rows = await db
+    .select({
+      id: attachments.id,
+      name: attachments.name,
+      driveFileId: attachments.driveFileId,
+      parentType: attachments.parentType,
+      parentId: attachments.parentId,
+    })
+    .from(attachments)
+    .where(isNotNull(attachments.driveFileId));
+
+  /** Where each distinct parent's files belong, asked once per parent. */
+  const wanted = new Map<string, string | null>();
+  /** What each destination folder holds, listed once per folder. */
+  const contents = new Map<string, Set<string>>();
+  let moved = 0;
+
+  for (const row of rows) {
+    if (moved >= limit) break;
+    if (!row.driveFileId) continue;
+
+    /*
+     * A gallery's members are already inside the gallery's own folder, and that
+     * folder is itself an attachment this loop will place. Asking where a
+     * picture goes would send it to the project instead, emptying every gallery
+     * in the app — so they are left to travel with the folder that holds them.
+     */
+    if (row.parentType === 'gallery') continue;
+
+    const key = `${row.parentType}:${row.parentId}`;
+    if (!wanted.has(key)) {
+      try {
+        wanted.set(key, await attachmentFolder(row.parentType, row.parentId));
+      } catch (error) {
+        console.error('could not work out where a file belongs', row.name, error);
+        wanted.set(key, null);
+      }
+    }
+
+    const destination = wanted.get(key);
+    if (!destination) continue;
+
+    let inFolder = contents.get(destination);
+    if (!inFolder) {
+      try {
+        inFolder = await folderChildIds(destination);
+      } catch (error) {
+        console.error('could not list a destination folder', destination, error);
+        contents.set(destination, new Set());
+        continue;
+      }
+      contents.set(destination, inFolder);
+    }
+
+    if (inFolder.has(row.driveFileId)) continue;
+
+    try {
+      await moveFile(row.driveFileId, destination);
+      inFolder.add(row.driveFileId);
+      moved += 1;
+    } catch (error) {
+      // Logged, never swallowed: a move that can never succeed would otherwise
+      // fail silently on every tick with nothing to show but a folder that
+      // never catches up.
+      console.error('could not move an attachment', row.name, error);
+    }
+  }
+
+  return moved;
 }
 
 /**

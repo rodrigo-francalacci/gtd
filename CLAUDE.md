@@ -349,6 +349,42 @@ Turbopack is the default; `middleware` is now `proxy`.
   project goes to `GTD/Inbox`. If the project has no folder yet, attaching
   creates it there and then: the alternative is filing the upload somewhere the
   user didn't ask for.
+- **A list is a container and gets a folder; a view is not and does not.** A
+  list item with no project used to land in `GTD/Inbox` beside every loose
+  capture — so a photograph of something on the Purchases list was filed under a
+  name saying the opposite of where it belonged, and Drive showed no Purchases
+  folder at all. `GTD/Lists/<name>` now, made on demand like a project's.
+  The line is what an item *belongs to*, not what it appears in. An item is on
+  exactly one list, so there is a single right answer to where its file goes.
+  The sidebar's other entries are views — the same action shows in "What can I
+  do now" and in "File actions" — and a file can only be in one folder, so a
+  folder per view would be a lie dressed as tidiness. That is why an action with
+  no project still goes to the inbox folder rather than having a container
+  invented for it: it is genuinely loose, and saying so is more honest than
+  filing it somewhere that mirrors nothing.
+  **A list cannot be renamed and its items never move between lists** — the only
+  write to `lists` is `setListBudget`, and `list_items.list_id` is set on insert
+  and never again — so unlike a box, there is no rename to carry out and no move
+  to enqueue. If either ever becomes possible, both become necessary.
+- **Two sweeps put files back where the rows say they belong.**
+  `reconcileBoxFiles` and `reconcileAttachmentFiles`, one per table that owns a
+  file. Both exist because the move paths only fire *at the moment* something
+  moves: a file already sitting in the wrong place has nothing that will ever
+  queue it, and the queue being empty looks exactly like everything being fine.
+  Measured before they were written — 18 of 76 box documents were in the wrong
+  folder, thirteen still in `Feed` after being moved to another box and five
+  still in `GTD/Inbox` after arriving as captures.
+  **One listing per destination, never a read per file.** Asking Drive where
+  each of 76 documents lives is 76 round trips a tick; asking what is in each of
+  six folders is six, and a file missing from the contents of the folder it
+  should be in is exactly the set that needs moving.
+  **The attachment sweep asks `attachmentFolder` rather than working the
+  destination out again**, memoised per parent. Restating "where does this file
+  go" would be a second definition of a rule that already exists, and the two
+  would disagree the first time either changed. A gallery's pictures are skipped
+  outright: they live inside the gallery's own folder, which is itself an
+  attachment the sweep places, and asking where a picture belongs would send it
+  to the project and empty every gallery in the app.
 - **A project's folder is checked before it is trusted, because Drive accepts a
   parent that is in the bin.** `attachmentFolder` returned the stored
   `drive_folder_id` unchecked, so a folder deleted in Drive made every upload to
