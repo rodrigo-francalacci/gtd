@@ -2452,6 +2452,39 @@ places in the whole codebase call it.
   without being awaited and swallows its own errors, and it is written even
   when the reply turns out to be unusable — a truncated answer is charged for
   exactly like a good one.
+- **Two models, and the split is about which mistake you can see.** Everything
+  a model is asked here runs on `gpt-5.6-luna` except the reading, which runs on
+  `gpt-5.6-terra`. Luna is a generation newer than the `gpt-5.4-mini` all of
+  this used to run on, has a 1.05M context against 400k and a later cutoff, and
+  costs roughly a quarter as much — so for the tags, the emoji, the filename,
+  the suggested contexts and a purchase's price it is strictly the better answer.
+  Every one of those lands in front of you with a control to correct it.
+  The reading is the exception because it is the one job whose output nothing
+  ever shows. It fills `ocr_text` so search can reach inside a file, and a scan
+  read badly is a document that quietly never turns up again — you would not
+  know to go and fix it, because no page ever says it went wrong. That is worth
+  paying ten times the input rate for, and at this volume the whole difference
+  is a pound or two a year: measured against the real `ai_spend` rows, every
+  call the app had ever made came to **$0.63**.
+  **`ENRICH_MODEL` no longer falls through to `BOX_MODEL`.** It did while every
+  job ran on one model and that fallback was how you set them all at once. Now
+  that the two differ on purpose, it would drag the reading back down to the
+  cheap model the moment `BOX_MODEL` was set, undoing the choice without anybody
+  changing it.
+- **A price is keyed on the model *as the API reports it*, which is not always
+  what you asked for.** The spend page matches exactly, and the request names an
+  alias where the reply names a build: asking for `gpt-5.4-mini` files the spend
+  under `gpt-5.4-mini-2026-03-17`, so a price row under the alias would leave
+  every call unpriced. The two 5.6 models report their bare names — probed with
+  a real call rather than assumed, which also proves the key can use them before
+  the whole app is switched over to a name it might be refused.
+- **Cache *writes* are billed above the input rate and are not counted.** The
+  price table has three rates and Google's — OpenAI's — has four, the fourth
+  being 1.25x input for writing to the cache. For luna that is $0.25 against
+  $0.20 per million, which at this app's volume is far below the rounding on
+  every other figure here, and a fourth rate and a fourth column would be real
+  machinery to carry it. Worth revisiting only if a backlog import ever makes
+  the cache figures large.
 
 ## Weekly review
 

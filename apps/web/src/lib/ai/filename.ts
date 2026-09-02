@@ -110,7 +110,7 @@ export async function nameAttachment(attachmentId: string): Promise<void> {
     method: 'POST',
     headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      model: process.env.BOX_MODEL ?? 'gpt-5.4-mini',
+      model: process.env.BOX_MODEL ?? 'gpt-5.6-luna',
       // A short name and the JSON around it. Nothing here should be long.
       max_output_tokens: 80,
       input: [

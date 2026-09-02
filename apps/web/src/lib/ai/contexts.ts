@@ -97,7 +97,7 @@ export async function suggestContexts(
       method: 'POST',
       headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        model: process.env.CONTEXT_MODEL ?? process.env.BOX_MODEL ?? 'gpt-5.4-mini',
+        model: process.env.CONTEXT_MODEL ?? process.env.BOX_MODEL ?? 'gpt-5.6-luna',
         // Three ids and the structure around them. Nothing here is long.
         max_output_tokens: 200,
         input: [

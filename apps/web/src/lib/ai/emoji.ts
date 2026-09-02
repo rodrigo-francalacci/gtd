@@ -151,7 +151,7 @@ async function askForBatch(
     method: 'POST',
     headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      model: process.env.EMOJI_MODEL ?? process.env.BOX_MODEL ?? 'gpt-5.4-mini',
+      model: process.env.EMOJI_MODEL ?? process.env.BOX_MODEL ?? 'gpt-5.6-luna',
       // Three characters and an id per row, plus room for the structure.
       max_output_tokens: 120 + batch.length * 40,
       input: [

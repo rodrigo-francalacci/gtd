@@ -295,7 +295,7 @@ function buildPrompt(
 export class OpenAiClassifier implements Classifier {
   constructor(
     private readonly apiKey: string,
-    private readonly model = process.env.BOX_MODEL ?? 'gpt-5.4-mini',
+    private readonly model = process.env.BOX_MODEL ?? 'gpt-5.6-luna',
   ) {}
 
   async classify(

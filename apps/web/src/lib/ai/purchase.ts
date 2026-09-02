@@ -192,7 +192,7 @@ export async function readPurchase(text: string): Promise<PurchaseRead> {
       method: 'POST',
       headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        model: process.env.BOX_MODEL ?? 'gpt-5.4-mini',
+        model: process.env.BOX_MODEL ?? 'gpt-5.6-luna',
         max_output_tokens: 400,
         input: [
           {

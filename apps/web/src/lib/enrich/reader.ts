@@ -233,9 +233,29 @@ export class ClaudeReader implements Reader {
 export class OpenAiReader implements Reader {
   constructor(
     private readonly apiKey: string,
-    private readonly model = process.env.ENRICH_MODEL ??
-      process.env.BOX_MODEL ??
-      'gpt-5.4-mini',
+    /**
+     * A bigger model here than anywhere else in the app, and the only place
+     * that is true.
+     *
+     * Everything else a model is asked — an emoji, a filename, a document's
+     * tags, which contexts a capture wants — is either trivial or sits in
+     * front of you afterwards with a control to correct it. This is the one
+     * job whose output nothing ever shows you: it fills `ocr_text` so search
+     * can reach inside a file, and a scan read badly is a document that
+     * quietly never turns up again. You would not know to go and fix it,
+     * because there is nothing on any page that says it went wrong.
+     *
+     * So the reading is worth more than the rest, and at this volume the whole
+     * difference is a pound or two a year.
+     *
+     * **`BOX_MODEL` is deliberately not in this chain.** It used to be, back
+     * when every job ran on one model and falling through to it was how you
+     * set them all at once. Now that the two are different on purpose, that
+     * fallback would quietly drag the reading back down to whatever the cheap
+     * jobs are using the moment `BOX_MODEL` was set — undoing this choice
+     * without anybody changing it.
+     */
+    private readonly model = process.env.ENRICH_MODEL ?? 'gpt-5.6-terra',
   ) {}
 
   async read({
