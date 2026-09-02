@@ -11,6 +11,9 @@ import {
 } from '@/lib/google/boxes';
 import { setDocumentExpiry } from '@/lib/actions';
 
+import { GoogleAuthError } from '@/lib/auth/token';
+import { disconnected } from '@/lib/google/serve';
+
 export const dynamic = 'force-dynamic';
 /** Opening a Drive session and reading a file back are both Google calls. */
 export const maxDuration = 60;
@@ -208,6 +211,8 @@ export async function POST(request: Request) {
     if (error instanceof BoxError) {
       return NextResponse.json({ error: error.message }, { status: 400 });
     }
+
+    if (error instanceof GoogleAuthError) return disconnected('filing will work again');
 
     console.error('box ingest failed', error);
     return NextResponse.json(

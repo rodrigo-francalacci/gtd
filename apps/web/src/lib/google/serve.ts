@@ -119,3 +119,26 @@ export async function serveDriveFile(
     headers,
   });
 }
+
+/**
+ * The one answer every route should give when Google has gone.
+ *
+ * A dead grant is not "Drive refused that": it is a thing with a page and a
+ * button that fixes it, and the difference between those two sentences is
+ * whether the person reading knows where to go. The upload routes were saying
+ * the first — pointing at the Google page, which was most of the value, but
+ * naming Drive as the culprit when Drive was never asked.
+ *
+ * 401 rather than 502, matching `serveDriveFile`: nothing here is broken, the
+ * app simply is not authorised any more. `reconnect` is the flag a client can
+ * act on without parsing prose.
+ */
+export function disconnected(what: string) {
+  return NextResponse.json(
+    {
+      error: `Google has disconnected. Reconnect it on the Google page and ${what}.`,
+      reconnect: true,
+    },
+    { status: 401 },
+  );
+}

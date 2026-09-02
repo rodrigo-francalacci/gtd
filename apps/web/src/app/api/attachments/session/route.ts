@@ -4,6 +4,9 @@ import { apiSession } from '@/lib/auth/session';
 import { AttachmentError, startUploadSession } from '@/lib/google/attachments';
 import { PARENT_TYPES } from '@/lib/upload';
 
+import { GoogleAuthError } from '@/lib/auth/token';
+import { disconnected } from '@/lib/google/serve';
+
 export const dynamic = 'force-dynamic';
 
 /**
@@ -57,6 +60,8 @@ export async function POST(request: Request) {
     if (error instanceof AttachmentError) {
       return NextResponse.json({ error: error.message }, { status: 400 });
     }
+
+    if (error instanceof GoogleAuthError) return disconnected('this upload will work again');
 
     console.error('could not open a Drive upload session', error);
     return NextResponse.json(

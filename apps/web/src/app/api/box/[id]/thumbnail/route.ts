@@ -3,6 +3,7 @@ import { and, asc, eq } from 'drizzle-orm';
 import { NextResponse } from 'next/server';
 import { requireSession } from '@/lib/auth/session';
 import { isFetchableUrl } from '@/lib/box/link';
+import { GoogleAuthError } from '@/lib/auth/token';
 import { getFile } from '@/lib/google/client';
 
 export const dynamic = 'force-dynamic';
@@ -121,7 +122,23 @@ export async function GET(
     return NextResponse.json({ error: 'No such document.' }, { status: 404 });
   }
 
-  const file = await getFile(sourceId);
+  /*
+   * A disconnected Google is answered the same way a missing thumbnail is.
+   *
+   * Uncaught, it was a bare 500 with an empty body — and a feed in gallery view
+   * is a hundred of those at once, every card a broken image, with nothing on
+   * the page saying why. The fallback this route already designed for is
+   * exactly right for it: no picture, so show the icon. A whole box of icons
+   * is a box you can still read.
+   *
+   * The reconnect message belongs where somebody can act on it — the file
+   * route, and the Google page — not in an `<img>`, which can do nothing with
+   * a sentence.
+   */
+  const file = await getFile(sourceId).catch((error) => {
+    if (error instanceof GoogleAuthError) return null;
+    throw error;
+  });
 
   // Not every file has one — a plain text file, or a scan Drive hasn't got
   // round to rendering yet. 404 so the card falls back to its icon instead of

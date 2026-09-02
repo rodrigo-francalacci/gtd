@@ -1,0 +1,430 @@
+/*
+ * SMART DOCUMENT FEED PROCESSOR
+ *
+ * CHANGES IN THIS REVISION:
+ * 1. API key moved out of source into Script Properties (one-time setup below).
+ * 2. Tags are now validated in code against each category's allowed list -
+ *    anything invented gets dropped and logged, not silently written to Drive.
+ * 3. The "you may add a new value" exception is now scoped to just the one
+ *    category that needs it (Fuel Receipts > City), via allowNewTags: true,
+ *    instead of a folder-wide instruction that bled into every category.
+ * 4. Tags are stored clean (no leading '#') and joined with ", " instead of
+ *    a bare space, so multi-word tags (e.g. a city) don't get corrupted when
+ *    the viewer parses them back.
+ * 5. Retry with exponential backoff on transient OpenAI errors (429/5xx).
+ * 6. Fixed a trailing space in "Cooperative " in two configs - harmless
+ *    before, but would have broken exact-match validation.
+ */
+
+// --- ONE-TIME SETUP ---
+// In the Apps Script editor: gear icon (Project Settings) > Script Properties
+// > Add script property > key "OPENAI_API_KEY", value your key.
+// Never paste the key directly into this file. If it's ever pasted into a
+// chat, committed, or shared, treat it as compromised and rotate it in your
+// OpenAI dashboard immediately.
+const CHATGPT_API_KEY = //this is in the .env.local variable already
+
+// gpt-4o-mini's rough successor tier as of mid-2026. Swap to "gpt-5.5" if you
+// want better accuracy on messier scans, or "gpt-5.4-nano" if cost matters
+// more than accuracy - worth checking OpenAI's current pricing page since
+// this space moves fast.
+const CHATGPT_MODEL = "gpt-5.4-mini";
+const MAX_CHARS_FOR_SUMMARY = 10000;
+
+// FOLDER CONFIGURATIONS
+const FOLDER_CONFIGS = [
+  {
+    folderId: "1OQ1JoO0BPY0ub6oRhpXKMhyzT98ltlrA", //#Feed
+    instruction: "This folder contains all sorts of documents about my life that need to be categorized according to the categories defined. Analyze the document content and apply appropriate tags from the available categories.",
+    categories: [
+      {
+        categoryName: "Issued By",
+        availableTags: ["McFarlane", "SwindonCouncil", "HMRC", "Marshmallow", "BritishGas", "LondonCityCouncil", "Lebara", "1pMobile", "UPS", "RoyalMail", "AmericanExpress", "Nationwide", "Monzo", "Revolut", "InstituteOfAcoustics", "Aegon", "BW_Legal"]
+      },
+      {
+        categoryName: "Type of Document",
+        availableTags: ["Bill", "Receipt", "Contract", "Notice", "Certificate", "PCN", "UserManual", "Report", "Invoice"]
+      },
+      {
+        categoryName: "Area of Life",
+        availableTags: ["Car", "House", "Work", "Health", "Finances"]
+      }
+    ]
+  },
+  {
+    folderId: "1o404XcD1kKjioeNxBkHpeQV18OfKlX1E", //Shopping Receipts
+    instruction: "This folder contains shopping receipts to be categorized according to the categories defined.",
+    categories: [
+      {
+        categoryName: "Vendor",
+        availableTags: ["Aldi", "Tesco", "Morrisons", "Zara", "BEM", "Cooperative"]
+      },
+      {
+        categoryName: "Type of Expense",
+        availableTags: ["Supermarket", "EatOut", "Clothing"]
+      }
+    ]
+  },
+  {
+    folderId: "1UZXjx3dXPUsmWyYO4kapzuyIf_sPYWfh", //Fuel Receipts
+    instruction: "This folder contains fuel receipts for tax return purposes.",
+    categories: [
+      {
+        categoryName: "Vendor",
+        availableTags: ["MFG", "Tesco", "Breeze", "Shell", "Esso", "Cooperative"]
+      },
+      {
+        categoryName: "City",
+        availableTags: ["Swindon"],
+        allowNewTags: true
+      },
+      {
+        categoryName: "Type of Document",
+        availableTags: ["Receipt"]
+      },
+      {
+        categoryName: "Area of Life",
+        availableTags: ["Car"]
+      }
+    ]
+  }
+  // Add more folder configurations as needed
+];
+
+// --- MAIN FUNCTION TO BE TRIGGERED ---
+function processFeedFolders() {
+    if (!CHATGPT_API_KEY) {
+        Logger.log('OPENAI_API_KEY is not set. Add it under Project Settings > Script Properties, then re-run.');
+        return;
+    }
+
+    const folders = getTargetFolders();
+    if (folders.length === 0) {
+        Logger.log('No folders found from FOLDER_CONFIGS.');
+        return;
+    }
+
+    folders.forEach(folderData => {
+        const folder = folderData.folder;
+        const config = folderData.config;
+
+        Logger.log('Processing folder: ' + folder.getName() + ' (ID: ' + folder.getId() + ')');
+        const files = folder.getFiles();
+
+        while (files.hasNext()) {
+            const file = files.next();
+            const fileId = file.getId();
+            const fileName = file.getName();
+            const currentDescription = file.getDescription();
+
+            if (currentDescription && currentDescription.trim() !== "") {
+                continue;
+            }
+
+            Logger.log('Processing file (no existing description): ' + fileName + ' (ID: ' + fileId + ')');
+
+            try {
+                const textContent = extractTextFromFile(file);
+                if (!textContent) {
+                    Logger.log('Could not extract text from: ' + fileName + '. Will be re-attempted.');
+                    continue;
+                }
+
+                const relevantText = textContent.substring(0, MAX_CHARS_FOR_SUMMARY);
+                const gptResponse = callChatGPT(config, relevantText);
+
+                if (gptResponse && gptResponse.title && gptResponse.description) {
+
+                    let driveDescription = '-> Description: ' + gptResponse.description;
+
+                    if (gptResponse.applied_tags && gptResponse.applied_tags.length > 0) {
+                        const tagsByCategory = {};
+                        gptResponse.applied_tags.forEach(tagObj => {
+                            if (!tagsByCategory[tagObj.category]) {
+                                tagsByCategory[tagObj.category] = [];
+                            }
+                            tagsByCategory[tagObj.category].push(tagObj.tag);
+                        });
+
+                        Object.keys(tagsByCategory).forEach(category => {
+                            // Comma-separated (not space-separated) so multi-word
+                            // tags survive parsing on the viewer side.
+                            driveDescription += '\n-> ' + category + ': ' + tagsByCategory[category].join(', ');
+                        });
+                    }
+
+                    file.setDescription(driveDescription);
+                    Logger.log('Set description for ' + fileName + ': ' + driveDescription);
+
+                    const fileDate = file.getDateCreated();
+                    const datePrefix = Utilities.formatDate(fileDate, Session.getScriptTimeZone(), 'yyyy-MM-dd');
+                    let newFileName = datePrefix + ' ' + sanitizeFileName(gptResponse.title);
+
+                    const originalExtension = getFileExtension(fileName);
+                    const isGoogleType = isGoogleWorkspaceFile(file.getMimeType());
+
+                    if (originalExtension && !isGoogleType && !newFileName.toLowerCase().endsWith('.' + originalExtension.toLowerCase())) {
+                        newFileName += '.' + originalExtension;
+                    }
+
+                    if (newFileName.length > 255) {
+                        Logger.log('Filename too long (' + newFileName.length + ' chars). Truncating.');
+                        const maxTitleLength = 255 - datePrefix.length - 1 - (originalExtension ? originalExtension.length + 1 : 0);
+                        const truncatedTitle = sanitizeFileName(gptResponse.title)
+                            .substring(0, Math.max(0, maxTitleLength));
+                        newFileName = datePrefix + (truncatedTitle ? ' ' + truncatedTitle : '');
+                        if (originalExtension && !isGoogleType) {
+                            newFileName += '.' + originalExtension;
+                        }
+                    }
+
+                    if (newFileName !== fileName) {
+                        file.setName(newFileName);
+                        Logger.log('Renamed ' + fileName + ' to ' + newFileName);
+                    } else {
+                        Logger.log('New filename matches current name. Skipping rename.');
+                    }
+
+                } else {
+                    Logger.log('Failed to get valid title/description from ChatGPT for: ' + fileName + '. Will be re-attempted.');
+                }
+            } catch (e) {
+                Logger.log('Error processing file ' + fileName + ': ' + e.toString() + '\nStack: ' + e.stack + '. Will be re-attempted.');
+            }
+        }
+    });
+    Logger.log('Processing complete.');
+}
+
+// --- HELPER FUNCTIONS ---
+
+function getTargetFolders() {
+    Logger.log('Getting folders from FOLDER_CONFIGS...');
+    const folders = [];
+
+    try {
+        FOLDER_CONFIGS.forEach(config => {
+            try {
+                const folder = DriveApp.getFolderById(config.folderId);
+                folders.push({ folder: folder, config: config });
+                Logger.log('Found folder: ' + folder.getName() + ' (ID: ' + config.folderId + ')');
+            } catch (e) {
+                Logger.log('Error accessing folder with ID ' + config.folderId + ': ' + e.toString());
+            }
+        });
+        Logger.log('Successfully loaded ' + folders.length + ' folders from FOLDER_CONFIGS.');
+    } catch (e) {
+        Logger.log('Error in getTargetFolders: ' + e.toString());
+        throw e;
+    }
+
+    return folders;
+}
+
+function extractTextFromFile(file) {
+    const mimeType = file.getMimeType();
+    let textContent = '';
+
+    try {
+        if (mimeType === MimeType.GOOGLE_DOCS) {
+            textContent = DocumentApp.openById(file.getId()).getBody().getText();
+        } else if (mimeType === MimeType.PLAIN_TEXT) {
+            textContent = file.getBlob().getDataAsString();
+        } else if (mimeType === MimeType.PDF || mimeType.startsWith('image/')) {
+            const tempDocName = 'Temp_OCR_' + file.getName() + '_' + new Date().getTime();
+            let parentFolder;
+            const parents = file.getParents();
+            if (parents.hasNext()) {
+                parentFolder = parents.next();
+            } else {
+                parentFolder = DriveApp.getRootFolder();
+            }
+            const resource = {
+                title: tempDocName,
+                parents: [{ id: parentFolder.getId() }]
+            };
+            const blob = file.getBlob();
+            const tempFile = Drive.Files.insert(resource, blob, {
+                ocr: true,
+                ocrLanguage: 'en'
+            });
+            if (!tempFile || !tempFile.id) {
+                Logger.log("Failed to create temporary OCR file for " + file.getName());
+                return null;
+            }
+            const tempDocId = tempFile.id;
+            try {
+                textContent = DocumentApp.openById(tempDocId).getBody().getText();
+            } catch (docError) {
+                Logger.log("Error reading temp doc " + tempDocId + ": " + docError);
+                textContent = null;
+            } finally {
+                try {
+                    DriveApp.getFileById(tempDocId).setTrashed(true);
+                    Logger.log("Trashed temporary OCR file: " + tempDocName + " (ID: " + tempDocId + ")");
+                } catch (trashError) {
+                    Logger.log("Error trashing temp OCR file " + tempDocId + ": " + trashError);
+                }
+            }
+        } else {
+            Logger.log('Unsupported file type for text extraction: ' + mimeType + ' for file ' + file.getName());
+            return null;
+        }
+    } catch (e) {
+        Logger.log('Error extracting text from ' + file.getName() + ': ' + e.toString());
+        return null;
+    }
+    return textContent ? textContent.trim() : null;
+}
+
+function buildCategoryInstructions(folderConfig) {
+    if (!folderConfig.categories || folderConfig.categories.length === 0) return '';
+
+    let instructions = '\n\nCATEGORIZATION INSTRUCTIONS:\n' + folderConfig.instruction + '\n\n';
+    instructions += 'Available categories and tags:\n';
+
+    folderConfig.categories.forEach(category => {
+        instructions += `- ${category.categoryName}: ${category.availableTags.join(', ')}`;
+        if (category.allowNewTags) {
+            instructions += ' (you may add a new value here if none of these fit, e.g. a city not yet listed)';
+        } else {
+            instructions += ' (choose ONLY from this exact list - do not invent, pluralize, abbreviate, or rename a tag)';
+        }
+        instructions += '\n';
+    });
+
+    instructions += '\nFor each category, pick zero or more tags that apply. If nothing in a category fits, omit that category entirely rather than forcing a match. Return tag text exactly as spelled above, with no leading "#" or other prefix. Include an "applied_tags" array of objects with "category" and "tag" fields.';
+
+    return instructions;
+}
+
+function validateAppliedTags(folderConfig, appliedTags) {
+    if (!appliedTags || !Array.isArray(appliedTags)) return [];
+
+    const categoryMap = {};
+    folderConfig.categories.forEach(cat => { categoryMap[cat.categoryName] = cat; });
+
+    const validated = [];
+    appliedTags.forEach(tagObj => {
+        if (!tagObj || !tagObj.category || !tagObj.tag) return;
+
+        const cat = categoryMap[tagObj.category];
+        if (!cat) {
+            Logger.log('Dropping tag for unknown category "' + tagObj.category + '": ' + tagObj.tag);
+            return;
+        }
+
+        const tagValue = String(tagObj.tag).trim();
+        const canonical = cat.availableTags.find(t => t.toLowerCase() === tagValue.toLowerCase());
+
+        if (canonical) {
+            validated.push({ category: tagObj.category, tag: canonical });
+        } else if (cat.allowNewTags) {
+            validated.push({ category: tagObj.category, tag: tagValue });
+        } else {
+            Logger.log('Dropping invented tag "' + tagValue + '" for category "' + tagObj.category + '" - not in the allowed list.');
+        }
+    });
+
+    return validated;
+}
+
+function callChatGPT(folderConfig, text) {
+    if (!text || text.trim().length === 0) {
+        return { title: "No Content", description: "The document was empty.", date: null, applied_tags: [] };
+    }
+    if (text.trim().length < 50) {
+        Logger.log('Text too short for meaningful summary: ' + text.trim().substring(0, 50) + '...');
+        return { title: "Brief Content", description: "Document contains very brief text.", date: null, applied_tags: [] };
+    }
+
+    const categoryInstructions = buildCategoryInstructions(folderConfig);
+
+    const prompt = `You are an expert document analyst. Based on the following text (which represents the beginning of a document, roughly the first 4 pages), please perform these tasks:
+
+1. Create a concise, descriptive title for the document (max 10-15 words), suitable for a filename.
+2. Write a brief summary of what the document is about, approximately 4 lines long if formatted in Arial 12 on an A4 page. Avoid starting with "This document...".
+3. Identify the most relevant date associated with the document's content, in 'YYYY-MM-DD' format. If no clear date is found, return null.
+4. If this is a shopping or fuel receipt, include the items bought and the final total price in the description.${categoryInstructions}
+
+TEXT:
+"""
+${text}
+"""
+
+Provide your response as a JSON object with keys: "title", "description", "date", and "applied_tags".`;
+
+    const payload = {
+        model: CHATGPT_MODEL,
+        messages: [{ role: 'user', content: prompt }],
+        temperature: 0.1,
+        response_format: { "type": "json_object" }
+    };
+
+    const options = {
+        method: 'post',
+        contentType: 'application/json',
+        headers: { 'Authorization': 'Bearer ' + CHATGPT_API_KEY },
+        payload: JSON.stringify(payload),
+        muteHttpExceptions: true
+    };
+
+    const maxAttempts = 3;
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+        try {
+            const response = UrlFetchApp.fetch('https://api.openai.com/v1/chat/completions', options);
+            const code = response.getResponseCode();
+
+            if (code === 200) {
+                const jsonResponse = JSON.parse(response.getContentText());
+                const chatGptContent = JSON.parse(jsonResponse.choices[0].message.content);
+                return {
+                    title: chatGptContent.title ? chatGptContent.title.trim() : "Untitled",
+                    description: chatGptContent.description ? chatGptContent.description.trim() : "No description available",
+                    date: chatGptContent.date || null,
+                    applied_tags: validateAppliedTags(folderConfig, chatGptContent.applied_tags)
+                };
+            }
+
+            if ((code === 429 || code >= 500) && attempt < maxAttempts) {
+                const waitMs = Math.pow(2, attempt) * 1000;
+                Logger.log('ChatGPT API returned ' + code + ', retrying in ' + waitMs + 'ms (attempt ' + attempt + '/' + maxAttempts + ')');
+                Utilities.sleep(waitMs);
+                continue;
+            }
+
+            Logger.log('ChatGPT API request failed. Code: ' + code + '. Response: ' + response.getContentText());
+            return null;
+
+        } catch (e) {
+            if (attempt < maxAttempts) {
+                Logger.log('Fetch error on attempt ' + attempt + ': ' + e.toString() + '. Retrying.');
+                Utilities.sleep(Math.pow(2, attempt) * 1000);
+                continue;
+            }
+            Logger.log('Error during ChatGPT fetch after ' + maxAttempts + ' attempts: ' + e.toString());
+            return null;
+        }
+    }
+    return null;
+}
+
+function sanitizeFileName(name) {
+    let sanitized = name.replace(/[\\\/:\*\?"<>\|#\{\}%\&~\+]/g, '_').replace(/\s+/g, ' ').trim();
+    sanitized = sanitized.replace(/__+/g, '_');
+    if (sanitized.length > 150) {
+        sanitized = sanitized.substring(0, 150).trim();
+        if (sanitized.endsWith('_')) sanitized = sanitized.slice(0, -1);
+    }
+    return sanitized;
+}
+
+function getFileExtension(filename) {
+    const lastDot = filename.lastIndexOf('.');
+    if (lastDot <= 0 || lastDot === filename.length - 1) return "";
+    return filename.substring(lastDot + 1);
+}
+
+function isGoogleWorkspaceFile(mimeType) {
+    return mimeType.startsWith('application/vnd.google-apps');
+}
