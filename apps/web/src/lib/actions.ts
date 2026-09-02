@@ -160,6 +160,21 @@ export async function updateProjectTitle(projectId: string, title: string) {
    */
   await enqueueSync('move_project_links', projectId);
 
+  /*
+   * Drained now, not on the next tick.
+   *
+   * Queueing is right — a title field must never wait on Google — but nothing
+   * was draining it, and the cron runs *daily* on a Hobby plan. So renaming a
+   * project left the folder you would go looking in under its old name until
+   * the following morning: the app said one thing, Drive said another, and no
+   * page admitted it. Exactly the trap the box's Drive renames fell into and
+   * were fixed for; this is the same fix on the other table.
+   *
+   * `after` runs once the response is flushed, so the rename still costs the
+   * person nothing, and a failure leaves the job pending for the tick.
+   */
+  drainMovesAfterResponse(1);
+
   revalidateShell();
 }
 
@@ -207,6 +222,10 @@ export async function setProjectStatus(
     .returning();
 
   await enqueueSync('move_project_links', project.id);
+
+  // Archiving is the moment you would go and look at the folder, so it moves
+  // now rather than overnight.
+  drainMovesAfterResponse(1);
 
   /*
    * Any timeline this project is on has to hear about it.
@@ -318,7 +337,7 @@ export async function updateActionTitle(actionId: string, title: string) {
    * `updateProjectTitle` follows, and free for the actions that have no folder,
    * which is nearly all of them: the job reads one row and stops.
    */
-  await enqueueActionFolder(actionId);
+  drainMovesAfterResponse((await enqueueActionFolder(actionId)) ? 1 : 0);
 
   revalidateShell();
 }
@@ -342,7 +361,7 @@ export async function setActionStatus(actionId: string, status: ActionStatus) {
   // Finishing an action archives its folder the way finishing a project
   // archives one, and reopening brings it back — a folder under `Archive` for
   // something you are working on again is a record of what did not happen.
-  await enqueueActionFolder(actionId);
+  drainMovesAfterResponse((await enqueueActionFolder(actionId)) ? 1 : 0);
 
   revalidateShell();
 }
@@ -607,7 +626,7 @@ async function purgeFilesOf(
  * guard every tick of a checkbox would put a row in the queue for a worker to
  * pick up and discard.
  */
-async function enqueueActionFolder(actionId: string): Promise<void> {
+async function enqueueActionFolder(actionId: string): Promise<boolean> {
   const [row] = await db
     .select({ projectId: actions.projectId, driveFolderId: actions.driveFolderId })
     .from(actions)
@@ -616,9 +635,10 @@ async function enqueueActionFolder(actionId: string): Promise<void> {
 
   // No folder and nothing that would want one: a folder is made when a file
   // arrives, and neither renaming nor finishing is that moment.
-  if (!row?.driveFolderId) return;
+  if (!row?.driveFolderId) return false;
 
   await enqueueFileMove({ actionId });
+  return true;
 }
 
 async function purgeActions(ids: string[]): Promise<number> {
@@ -814,8 +834,8 @@ export async function moveActionToProject(actionId: string, projectId: string | 
    * out of one is the mirror: the action now needs a folder of its own, and the
    * files queued a moment ago will be sent into it.
    */
-  await enqueueActionFolder(actionId);
-  drainMovesAfterResponse(files.length + 1);
+  const folderQueued = await enqueueActionFolder(actionId);
+  drainMovesAfterResponse(files.length + (folderQueued ? 1 : 0));
 
   revalidateShell();
 }

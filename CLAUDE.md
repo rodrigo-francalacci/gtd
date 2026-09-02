@@ -689,6 +689,22 @@ Turbopack is the default; `middleware` is now `proxy`.
   always used `Projects`, so a file attached to something finished last year
   landed beside the live work; it asks `containerPath` now, like everything
   else, so Drive and Gmail cannot disagree about where a thing lives.
+- **Queue for durability, drain after the response — never queue and wait for
+  the tick.** The rule that a request must not *block* on Google is about
+  latency and it still holds; it was being read as "Google catches up
+  tomorrow", which is a different and much worse thing. On a Hobby plan the
+  cron runs **daily**, so renaming a project left the folder you would go
+  looking in under its old name until the following morning — the app right,
+  Drive wrong, and no page admitting it. The box's Drive renames had already
+  been fixed for exactly this and the lesson had not been carried across.
+  `after()` is what makes both true at once: the job is written down, so a
+  failure is retried and nothing is lost, and it is drained once the response
+  is flushed, so the person waits for none of it. Every enqueue a person can
+  immediately go and check now drains this way — renaming a project or an
+  action, changing a project's status, finishing an action, asking for a Gmail
+  label. `deleteBox` is the deliberate exception: it drains inside its own
+  `after` because it must read the drain's report before trashing a folder that
+  still holds documents.
 - **`move_project_links` reconciles a project's containers — where *and* what
   they are called.** It moved the folder and never renamed it, which was fine
   while a status change was the only thing that enqueued it: Gmail moves a label
