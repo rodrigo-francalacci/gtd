@@ -2530,6 +2530,20 @@ settings.
   a journal is the app filing something on your behalf that you never filed.
   A labelled message is untouched: nobody asked for that one on behalf of
   anything, so the box is where it goes.
+- **Losing its last citation gives a hidden document back to its box.** An
+  entry is `listed: false` for exactly one reason — the bridge fetched it
+  because a request carried a parent, so it lives on that project and is kept
+  out of the feed deliberately. Take the project away and that reasoning
+  collapses: the citation goes, which is right and is the whole point of a link
+  rather than an attachment, but an unlisted entry that nothing cites is
+  invisible from every direction — not in the box, and evidence for nothing.
+  Found in real data by `check-orphans`, which has a check for exactly this: a
+  filed email from August had quietly become unreachable when its project was
+  deleted. So the box takes it back, which is where it always belonged; being
+  hidden was a courtesy to a project that no longer exists. Only when *nothing*
+  else cites it — a document on two projects losing one stays where it is —
+  and applied at all three places a citation can be removed: deleting the
+  parent, unlinking from a pane, unlinking from an action.
 - **It is a listing decision, not a storage one.** The entry is still in a box,
   because a `box_item` belongs to one by definition and a message that existed
   only as a project's evidence would go with the project. It is still

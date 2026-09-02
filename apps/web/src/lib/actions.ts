@@ -510,6 +510,43 @@ export async function updateListItemNotes(listItemId: string, notes: unknown) {
  * A link to a Big Box document is only unlinked. The document belongs to the
  * box, and tidying a project has no business reaching into the archive.
  */
+/**
+ * A document that has just lost its last citation must not vanish.
+ *
+ * `box_items.listed` is false for exactly one case: a message the bridge
+ * fetched because a *request carried a parent*. You asked for it on a project,
+ * so it lives on the project and is deliberately kept out of the box's feed —
+ * having it appear in a journal you read as well would be the app filing
+ * something you never filed.
+ *
+ * Take the project away and that reasoning collapses. The citation goes, which
+ * is right — deleting a project must never reach into a box and destroy
+ * documents — but an unlisted entry with nothing citing it is invisible from
+ * every direction: not in the box, and evidence for nothing. Found in real
+ * data, a filed email from August that had quietly become unreachable.
+ *
+ * So the box takes it back. That is where it always belonged; being hidden was
+ * a courtesy to a project that no longer exists.
+ */
+async function relistUncitedDocuments(itemIds: string[]): Promise<void> {
+  if (itemIds.length === 0) return;
+
+  await db
+    .update(boxItems)
+    .set({ listed: true, updatedAt: new Date() })
+    .where(
+      and(
+        inArray(boxItems.id, itemIds),
+        eq(boxItems.listed, false),
+        // Only when nothing else cites it. A document on two projects loses one
+        // and stays where it is.
+        sql`not exists (
+          select 1 from ${boxItemLinks} l where l.item_id = ${boxItems.id}
+        )`,
+      ),
+    );
+}
+
 async function purgeFilesOf(
   parentType: AttachmentParentType,
   parentIds: string[],
@@ -534,6 +571,16 @@ async function purgeFilesOf(
 
   // Only the citation goes. The document belongs to its box, and tidying up
   // here has no business reaching into the archive.
+  const cited = await db
+    .select({ itemId: boxItemLinks.itemId })
+    .from(boxItemLinks)
+    .where(
+      and(
+        eq(boxItemLinks.parentType, parentType),
+        inArray(boxItemLinks.parentId, parentIds),
+      ),
+    );
+
   await db
     .delete(boxItemLinks)
     .where(
@@ -542,6 +589,10 @@ async function purgeFilesOf(
         inArray(boxItemLinks.parentId, parentIds),
       ),
     );
+
+  // Anything that was only here is given back to its box, or it would be in no
+  // feed and cited by nothing.
+  await relistUncitedDocuments(cited.map((row) => row.itemId));
 
   return files.length;
 }
@@ -3630,6 +3681,8 @@ export async function moveLinkToProject(itemId: string, actionId: string) {
       ),
     );
 
+  await relistUncitedDocuments([itemId]);
+
   revalidateShell();
 }
 
@@ -3649,6 +3702,8 @@ export async function unlinkDocument(
         eq(boxItemLinks.parentId, parentId),
       ),
     );
+
+  await relistUncitedDocuments([itemId]);
 
   revalidateShell();
 }
