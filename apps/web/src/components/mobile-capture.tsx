@@ -364,10 +364,26 @@ export function MobileCapture({
         setDest({ kind: 'inbox' });
         router.refresh();
         dismissIfPopup();
-      } catch {
+      } catch (e) {
         setText(note);
         setStaged(files);
-        setErrors((e) => [...e, 'That did not save. Check your connection.']);
+        /*
+         * Say the actual reason where there is one.
+         *
+         * A refused email request is the case that exposed this: pasting a
+         * Gmail permalink is refused with a sentence naming the two things
+         * that do work, and this screen replaced it with "check your
+         * connection" — advice about a network that was fine, in place of the
+         * only text that could have got the person unstuck. A bare `catch`
+         * with nothing bound is how that happened, so the reason is bound and
+         * preferred, and the connection is what is guessed at only when
+         * nothing better was thrown.
+         */
+        const said = e instanceof Error && e.message ? e.message : null;
+        setErrors((errs) => [
+          ...errs,
+          said ?? 'That did not save. Check your connection.',
+        ]);
       } finally {
         setBusy(false);
       }
