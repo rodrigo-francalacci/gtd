@@ -34,3 +34,10 @@ yarn-error.log*
 
 # Local scratch
 vercel_deployment_log.txt
+
+# Notes and a pasted copy of the Apps Script, kept beside the repo and never in
+# it: this repo is public, and the script carries folder ids and is a working
+# copy rather than the version in `scripts/`. Listed here because `git add -A`
+# swept them in once, which is exactly the accident an ignore rule is for.
+big_box.txt.txt
+my_current_google_app_script.txt
