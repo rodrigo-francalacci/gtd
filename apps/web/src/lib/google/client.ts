@@ -494,6 +494,22 @@ export async function downloadFile(
  * Bin a file this app created. Drive's trash, not a permanent delete — the
  * app should never be able to destroy something of yours outright.
  */
+/**
+ * Has anything been put in this folder yet?
+ *
+ * Asked before binning a folder that lost a creation race — see
+ * `settleFolderRace`. Drive's answer rather than our assumption, because being
+ * wrong would mean trashing somebody's documents to tidy up a duplicate.
+ */
+export async function folderIsEmpty(folderId: string): Promise<boolean> {
+  const q = `${driveQuote(folderId)} in parents and trashed = false`;
+  const children = await call<{ files?: DriveFile[] }>(
+    `${DRIVE}/files?q=${encodeURIComponent(q)}&fields=files(id)&pageSize=1`,
+  );
+
+  return (children.files ?? []).length === 0;
+}
+
 export async function trashFile(fileId: string): Promise<void> {
   await call(`${DRIVE}/files/${fileId}?fields=id`, {
     method: 'PATCH',

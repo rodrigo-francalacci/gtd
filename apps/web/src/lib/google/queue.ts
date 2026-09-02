@@ -6,6 +6,7 @@ import { GoogleAuthError } from '@/lib/auth/token';
 import { moveAttachmentFile } from './attachments';
 import { moveBoxItemFile } from './boxes';
 import { GoogleApiError } from './client';
+import { settleFolderRace } from './folder-race';
 import { LiveGoogleSync } from './live-sync';
 
 const MAX_ATTEMPTS = 5;
@@ -231,18 +232,63 @@ async function runJob(
     const wantsFolder = kind === 'create_project_links' || kind === 'create_project_folder';
     const wantsLabel = kind === 'create_project_links' || kind === 'create_project_label';
 
-    const [driveFolderId, gmailLabelId] = await Promise.all([
+    const [made, gmailLabelId] = await Promise.all([
       project.driveFolderId ??
         (wantsFolder ? sync.createProjectFolder(project.id, project.title) : null),
       project.gmailLabelId ??
         (wantsLabel ? sync.createGmailLabel(project.id, project.title) : null),
     ]);
 
+    /*
+     * The worker races the upload path, and this is the worse half of it.
+     *
+     * A job is claimed by exactly one worker, so two workers cannot collide —
+     * but `attachmentFolder` makes a project's folder *inline*, during an
+     * upload, and knows nothing about a job sitting in the queue. This read
+     * happened before that folder existed, so without a guard the worker would
+     * make a second one and overwrite the pointer to the first — and unlike the
+     * upload path's own race, the folder being orphaned here has had time to
+     * receive the file.
+     *
+     * So the write is conditional on nothing having changed since the read, and
+     * a worker that loses adopts what it finds and bins the empty folder it
+     * made for nothing.
+     */
+    let driveFolderId = made;
+
     if (driveFolderId !== project.driveFolderId || gmailLabelId !== project.gmailLabelId) {
-      await db
+      const [won] = await db
         .update(projects)
         .set({ driveFolderId, gmailLabelId })
-        .where(eq(projects.id, project.id));
+        .where(
+          and(
+            eq(projects.id, project.id),
+            project.driveFolderId === null
+              ? isNull(projects.driveFolderId)
+              : eq(projects.driveFolderId, project.driveFolderId),
+          ),
+        )
+        .returning({ id: projects.id });
+
+      if (!won) {
+        const [now] = await db
+          .select({ driveFolderId: projects.driveFolderId })
+          .from(projects)
+          .where(eq(projects.id, project.id))
+          .limit(1);
+
+        driveFolderId = driveFolderId
+          ? await settleFolderRace(driveFolderId, now?.driveFolderId ?? null)
+          : (now?.driveFolderId ?? null);
+
+        // The label is not what was contended; write it beside whatever won.
+        if (gmailLabelId !== project.gmailLabelId) {
+          await db
+            .update(projects)
+            .set({ gmailLabelId })
+            .where(eq(projects.id, project.id));
+        }
+      }
     }
 
     /*

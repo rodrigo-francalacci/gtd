@@ -2,7 +2,7 @@ import 'server-only';
 import { purgeGalleryPictures } from './attachments';
 
 import { attachments, boxItems, boxes, db } from '@gtd/db';
-import { and, eq, isNotNull, lte, sql } from 'drizzle-orm';
+import { and, eq, isNotNull, isNull, lte, sql } from 'drizzle-orm';
 import { hasSyncScopes } from '@/lib/auth/google';
 import { getGrant } from '@/lib/auth/token';
 import { canClassify } from '@/lib/box/classify';
@@ -23,6 +23,7 @@ import {
   renameFolder,
   trashFile,
 } from './client';
+import { settleFolderRace } from './folder-race';
 import { ROOT, driveNameFor, safeName } from './sync';
 
 export { driveNameFor };
@@ -224,12 +225,32 @@ export async function ensureBoxFolder(boxId: string): Promise<string> {
   const container = await ensureFolder(BOX_CONTAINER, root);
   const folderId = await ensureFolder(wanted, container);
 
-  await db
+  // The same race a project's folder has, for the same reason: two documents
+  // filed into a box that has no folder yet, at the same moment. See
+  // `settleFolderRace` — compared against what was read, because the branch
+  // above falls through on a folder that was trashed in Drive.
+  const [won] = await db
     .update(boxes)
     .set({ driveFolderId: folderId, updatedAt: new Date() })
-    .where(eq(boxes.id, boxId));
+    .where(
+      and(
+        eq(boxes.id, boxId),
+        box.driveFolderId === null
+          ? isNull(boxes.driveFolderId)
+          : eq(boxes.driveFolderId, box.driveFolderId),
+      ),
+    )
+    .returning({ id: boxes.id });
 
-  return folderId;
+  if (won) return folderId;
+
+  const [now] = await db
+    .select({ driveFolderId: boxes.driveFolderId })
+    .from(boxes)
+    .where(eq(boxes.id, boxId))
+    .limit(1);
+
+  return settleFolderRace(folderId, now?.driveFolderId ?? null);
 }
 
 /**

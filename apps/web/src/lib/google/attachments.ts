@@ -2,7 +2,7 @@ import 'server-only';
 
 import { attachments, actions, boxItems, db, listItems, projects } from '@gtd/db';
 import type { AttachmentKind, AttachmentParentType } from '@gtd/db';
-import { and, eq, isNotNull, ne, sql } from 'drizzle-orm';
+import { and, eq, isNotNull, isNull, ne, sql } from 'drizzle-orm';
 import { getGrant } from '@/lib/auth/token';
 import { hasSyncScopes } from '@/lib/auth/google';
 import { enqueueEnrichment } from '@/lib/enrich/queue';
@@ -20,6 +20,7 @@ import {
   trashFile,
   uploadFile,
 } from './client';
+import { settleFolderRace } from './folder-race';
 import { ROOT, containerPath, safeName } from './sync';
 
 /**
@@ -237,12 +238,41 @@ export async function attachmentFolder(
 
   const folderId = await ensureFolder(safeName(project.title), container);
 
-  await db
+  /*
+   * Written only if nobody has changed it since it was read.
+   *
+   * Two tabs attaching to the same folderless project both got here, both made
+   * a folder, and one upload went into the folder the row does not point at.
+   * There are no transactions here, so this single conditional statement is the
+   * referee: exactly one caller can match, and the others adopt what it wrote.
+   *
+   * Compared against the value that was *read*, not against null — the branch
+   * above deliberately falls through when the stored folder has been trashed in
+   * Drive, and demanding null there would refuse to replace it and send the
+   * upload back into the bin, which is the bug that check exists to prevent.
+   */
+  const [won] = await db
     .update(projects)
     .set({ driveFolderId: folderId })
-    .where(eq(projects.id, projectId));
+    .where(
+      and(
+        eq(projects.id, projectId),
+        project.driveFolderId === null
+          ? isNull(projects.driveFolderId)
+          : eq(projects.driveFolderId, project.driveFolderId),
+      ),
+    )
+    .returning({ id: projects.id });
 
-  return folderId;
+  if (won) return folderId;
+
+  const [now] = await db
+    .select({ driveFolderId: projects.driveFolderId })
+    .from(projects)
+    .where(eq(projects.id, projectId))
+    .limit(1);
+
+  return settleFolderRace(folderId, now?.driveFolderId ?? null);
 }
 
 /**
