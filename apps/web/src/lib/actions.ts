@@ -3989,14 +3989,25 @@ export async function emojifyRows(
     title: (row.title ?? '').split('\n')[0].trim(),
   }));
 
-  const found = await pickEmoji(asked, target === 'box' ? 'document' : 'task');
+  const { found, failure } = await pickEmoji(
+    asked,
+    target === 'box' ? 'document' : 'task',
+  );
 
   if (found.size === 0) {
+    /*
+     * The reason, not a guess at it.
+     *
+     * This used to say "that usually means CHATGPT_API_KEY is not set", which
+     * was one possibility out of many stated as a finding — and reported
+     * exactly the same way when the key was present and OpenAI had refused for
+     * some other reason entirely. A retired model in `EMOJI_MODEL`, an
+     * exhausted quota and a rate limit all read as a missing key, sending you
+     * to look at a Vercel setting that was correct all along.
+     */
     return {
       ok: false as const,
-      error:
-        'No emoji came back. That usually means CHATGPT_API_KEY is not set — ' +
-        'without it nothing here can choose one.',
+      error: failure ?? 'No emoji came back, and OpenAI gave no reason.',
     };
   }
 

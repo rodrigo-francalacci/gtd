@@ -140,6 +140,24 @@ export function oneEmoji(raw: unknown): string | null {
   return glyphs.length >= 1 && glyphs.length <= 4 ? trimmed : null;
 }
 
+/** Raised when the API itself refused, so the reason can reach the screen. */
+export class EmojiError extends Error {}
+
+/** One definition, so the request and any complaint about it agree. */
+function modelName(): string {
+  return process.env.EMOJI_MODEL ?? process.env.BOX_MODEL ?? 'gpt-5.6-luna';
+}
+
+/** The sentence out of OpenAI's error envelope, or the raw body if it is not one. */
+function apiMessage(body: string): string {
+  try {
+    const parsed = JSON.parse(body) as { error?: { message?: string } };
+    return parsed.error?.message ?? body.slice(0, 200);
+  } catch {
+    return body.slice(0, 200);
+  }
+}
+
 async function askForBatch(
   key: string,
   batch: EmojiRequest[],
@@ -151,7 +169,7 @@ async function askForBatch(
     method: 'POST',
     headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      model: process.env.EMOJI_MODEL ?? process.env.BOX_MODEL ?? 'gpt-5.6-luna',
+      model: modelName(),
       // Three characters and an id per row, plus room for the structure.
       max_output_tokens: 120 + batch.length * 40,
       input: [
@@ -174,7 +192,24 @@ async function askForBatch(
     }),
   });
 
-  if (!response.ok) return found;
+  /*
+   * Say what went wrong, rather than returning nothing and letting the caller
+   * guess.
+   *
+   * This used to `return found` — an empty map — so a refused key, a retired
+   * model name, an exhausted quota and a rate limit were all reported to the
+   * person pressing the button as "that usually means CHATGPT_API_KEY is not
+   * set". A guess presented as a diagnosis, and wrong in every case but one.
+   * The model is named too, because the commonest way for this to break is an
+   * `EMOJI_MODEL` or `BOX_MODEL` left pointing at something retired.
+   */
+  if (!response.ok) {
+    const detail = await response.text().catch(() => '');
+    throw new EmojiError(
+      `OpenAI refused the request (${response.status}) for model ` +
+        `${modelName()}: ${apiMessage(detail)}`,
+    );
+  }
 
   /*
    * The Responses API nests the text inside `output[].content[]` rather than
@@ -238,11 +273,26 @@ async function askForBatch(
 export async function pickEmoji(
   items: EmojiRequest[],
   flavour: EmojiFlavour = 'task',
-): Promise<Map<string, string>> {
+): Promise<{ found: Map<string, string>; failure: string | null }> {
   const key = process.env.CHATGPT_API_KEY ?? process.env.OPENAI_API_KEY;
   const found = new Map<string, string>();
 
-  if (!key) return found;
+  /*
+   * Carried back beside the results, not parked in module scope: two presses
+   * in flight at once would otherwise read each other's reason, and a
+   * diagnostic that can be about a different run is worse than none.
+   */
+  let failure: string | null = null;
+
+  if (!key) {
+    return {
+      found,
+      failure:
+        'No OpenAI key is visible to this deployment. CHATGPT_API_KEY may be ' +
+        'set in Vercel but added after the build that is running — a variable ' +
+        'only reaches deployments made after it was saved, so redeploy once.',
+    };
+  }
 
   const usable = items.filter((item) => item.title.trim().length > 1);
 
@@ -251,12 +301,16 @@ export async function pickEmoji(
       for (const [id, emoji] of await askForBatch(key, usable.slice(at, at + BATCH), flavour)) {
         found.set(id, emoji);
       }
-    } catch {
+    } catch (error) {
       // One batch failing must not lose the ones that worked. A long list part
       // marked is better than a long list unmarked, and pressing again fills in
-      // the rest.
+      // the rest — but the reason is kept, because a run that marked nothing
+      // has to be able to say why rather than blaming the key.
+      failure ??= error instanceof Error ? error.message : String(error);
     }
   }
 
-  return found;
+  // Never thrown: partial success is the ordinary case and must not become an
+  // error, so the reason rides alongside whatever did come back.
+  return { found, failure };
 }

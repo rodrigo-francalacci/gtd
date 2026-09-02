@@ -291,6 +291,19 @@ Turbopack is the default; `middleware` is now `proxy`.
   search, Drive filenames and every export with nothing to undo it with — so
   `actions.emoji` and `inbox_items.emoji` are a layer over the text, the same
   shape `inbox_items.ai_suggestion` already is.
+- **When the model refuses, say what it said.** `askForBatch` used to
+  `return found` — an empty map — on any non-OK response, and the button then
+  reported "that usually means CHATGPT_API_KEY is not set". One possibility out
+  of several, stated as a finding: a retired name in `EMOJI_MODEL`, an
+  exhausted quota, a rate limit and a genuinely absent key all read the same,
+  and the first three sent you to check a Vercel setting that was correct. The
+  status and OpenAI's own sentence come back now, with the model named —
+  because the commonest way for this to break is an `EMOJI_MODEL` or
+  `BOX_MODEL` left pointing at something that no longer exists, which the code
+  default cannot fix since an env var overrides it.
+  The reason rides back beside the results rather than in module scope: partial
+  success is ordinary and must not become an error, and two presses in flight
+  would otherwise read each other's explanation.
 - **Emojify is pressed, never automatic, and asks about the whole list at
   once.** A list that called a model each time it rendered would spend money on
   a queue you open twenty times a day. One request for forty rows is also the
