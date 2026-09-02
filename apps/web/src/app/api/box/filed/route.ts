@@ -2,8 +2,7 @@ import { NextResponse } from 'next/server';
 import { boxItems, db } from '@gtd/db';
 import { and, eq, inArray, sql } from 'drizzle-orm';
 import { boxes } from '@gtd/db';
-import { getSession } from '@/lib/auth/session';
-import { WHY, authoriseSecret } from '@/lib/box/auth';
+import { authoriseBoxRequest } from '@/lib/box/auth';
 
 export const dynamic = 'force-dynamic';
 
@@ -40,11 +39,8 @@ async function resolveBoxId(hint: string): Promise<string | null> {
 }
 
 export async function POST(request: Request) {
-  const bySecret = authoriseSecret(request);
-
-  if (!bySecret && !(await getSession())) {
-    return NextResponse.json({ error: WHY }, { status: 401 });
-  }
+  const allowed = await authoriseBoxRequest(request);
+  if (!allowed.ok) return allowed.response;
 
   const body = (await request.json().catch(() => ({}))) as {
     ids?: unknown;

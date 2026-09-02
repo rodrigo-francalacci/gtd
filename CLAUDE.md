@@ -1796,6 +1796,25 @@ to be kept. They meet at `box_item_links` and nowhere else.
   tidying a project could gut the archive. Linking and unlinking touch nothing
   in Drive. `box_item_links` reuses `attachment_parent_type` because that is
   already the list of things a file can hang off.
+- **One helper answers "may this caller in", because asked by hand it was asked
+  backwards.** `authoriseSecret` returns the *reason* a caller was refused and
+  `null` when it was fine, which reads naturally and inverts silently the moment
+  it is treated as a boolean. Two of the three box routes did exactly that —
+  `if (!authoriseSecret(request) && !session)`. A correct secret returns null,
+  so `!null` is true and the bridge was refused with a 401; a *wrong* secret
+  returns a string, so `!string` is false and the request went straight
+  through. Backwards in both directions at once, and only the failing half is
+  visible — the open half is silent by construction.
+  So the shape changed rather than the call sites being corrected one at a time:
+  `authoriseBoxRequest` hands back a response or permission, there is no
+  truthiness to get wrong, and a route that forgets to check gets a type error
+  instead of an open door. Verified on both routes in all three states: correct
+  secret 200, wrong secret 401, no header 401.
+  **The 401 body names one reason, not the whole table.** Sent as the entire
+  `WHY` record, an Apps Script log printed every explanation at once and led
+  with the least likely — so a perfectly good secret was reported as an unset
+  one, and the fault looked like a Vercel misconfiguration for as long as
+  anybody read the first line.
 - **Ingest goes through an Apps Script, and the scope is why.** `drive.file`
   sees only files the app created, so the app cannot look inside the folder the
   Drive scanner saves to; `drive.readonly` could, and can also read every file

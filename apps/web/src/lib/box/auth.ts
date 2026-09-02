@@ -1,6 +1,8 @@
 import 'server-only';
 
 import { timingSafeEqual } from 'node:crypto';
+import { NextResponse } from 'next/server';
+import { getSession } from '@/lib/auth/session';
 
 /**
  * Who may drive the Big Box from outside the browser.
@@ -52,3 +54,42 @@ export const WHY: Record<AuthFailure, string> = {
     'stray space or newline at either end, and that the value was set for the ' +
     'environment you are calling.',
 };
+
+/**
+ * The whole question, answered once, so it cannot be asked backwards.
+ *
+ * `authoriseSecret` returns the *reason* a caller was refused and `null` when
+ * it was fine — which reads naturally at the call site and inverts silently the
+ * moment somebody treats it as a boolean. Two of the three routes did exactly
+ * that: `if (!authoriseSecret(request) && !session)`. A correct secret returns
+ * null, so `!null` is true and the script was refused; a *wrong* secret returns
+ * a string, so `!string` is false and the request sailed through. Backwards in
+ * both directions at once, and the failing half is the half you notice.
+ *
+ * So the shape changes rather than the call sites being corrected one by one. A
+ * response comes back, or permission does; there is no truthiness to get wrong,
+ * and a route that forgets to check gets a type error rather than an open door.
+ */
+export async function authoriseBoxRequest(
+  request: Request,
+): Promise<
+  | { ok: true; bySecret: boolean }
+  | { ok: false; response: NextResponse }
+> {
+  const failure = authoriseSecret(request);
+  if (failure === null) return { ok: true, bySecret: true };
+
+  // A person, rather than the script. Their session is the whole authorisation.
+  if (await getSession()) return { ok: true, bySecret: false };
+
+  return {
+    ok: false,
+    response: NextResponse.json(
+      // The one reason, not the whole table. Sent as the table, an Apps Script
+      // log showed every explanation at once and led with the least likely —
+      // so a working secret was reported as an unset one.
+      { error: 'unauthorised', why: WHY[failure] },
+      { status: 401 },
+    ),
+  };
+}

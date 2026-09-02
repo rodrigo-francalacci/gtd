@@ -1,8 +1,7 @@
 import { NextResponse } from 'next/server';
 import { boxes, db } from '@gtd/db';
 import { eq, sql } from 'drizzle-orm';
-import { getSession } from '@/lib/auth/session';
-import { WHY, authoriseSecret } from '@/lib/box/auth';
+import { authoriseBoxRequest } from '@/lib/box/auth';
 import {
   BoxError,
   completeBoxUpload,
@@ -72,15 +71,12 @@ export async function POST(request: Request) {
   // A signed-in session works too: it lets the endpoint be exercised while
   // setting the script up, and it is how the app itself will file a document
   // without going round through Drive.
-  const failure = authoriseSecret(request);
-  const bySecret = failure === null;
+  const allowed = await authoriseBoxRequest(request);
+  if (!allowed.ok) return allowed.response;
 
-  if (!bySecret && !(await getSession())) {
-    return NextResponse.json(
-      { error: 'unauthorised', why: WHY[failure] },
-      { status: 401 },
-    );
-  }
+  // Which of the two it was still matters here: it decides whether the Drive
+  // upload session is bound to a browser's origin or opened for a script.
+  const { bySecret } = allowed;
 
   const body = (await request.json().catch(() => ({}))) as Partial<{
     step: 'open' | 'complete';

@@ -1,8 +1,7 @@
 import { NextResponse } from 'next/server';
 import { boxItems, boxes, db } from '@gtd/db';
 import { and, eq, inArray } from 'drizzle-orm';
-import { getSession } from '@/lib/auth/session';
-import { WHY, authoriseSecret } from '@/lib/box/auth';
+import { authoriseBoxRequest } from '@/lib/box/auth';
 import { ROOT, safeName } from '@/lib/google/sync';
 
 export const dynamic = 'force-dynamic';
@@ -36,9 +35,8 @@ export const dynamic = 'force-dynamic';
  * only honest thing a thread-level label can say.
  */
 export async function POST(request: Request) {
-  if (!authoriseSecret(request) && !(await getSession())) {
-    return NextResponse.json({ error: WHY }, { status: 401 });
-  }
+  const allowed = await authoriseBoxRequest(request);
+  if (!allowed.ok) return allowed.response;
 
   const body = (await request.json().catch(() => ({}))) as { ids?: unknown };
 
