@@ -260,7 +260,7 @@ export function SidebarNav({
         back on hover or while the pane is being scrolled, which is the only
         time it says anything.
       */}
-      <ScrollFade selector=".scrollbar-fade" />
+      <ScrollFade />
       <div className="scrollbar-fade min-h-0 flex-1 overflow-y-auto py-2">
         {groups.map((group) => (
           <div key={group.heading} className="mb-4 md:mb-3">

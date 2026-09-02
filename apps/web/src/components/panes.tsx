@@ -132,7 +132,17 @@ export function ListPane({
       {/* `z-0` is not cosmetic: it makes this a stacking context, which is what
           caps the sticky headings inside at their own level instead of letting
           them compete with the header's menus. See the header above. */}
-      <div className="relative z-0 min-h-0 flex-1 overflow-y-auto">{children}</div>
+      {/*
+        The list scrolls, and its scrollbar keeps to itself until it is being
+        used — the same rule the sidebar follows and for a stronger reason:
+        this is the pane you scroll most, and a permanent bar down the inside
+        edge of it sits directly beside the hairlines the layout is made of.
+        `ScrollFade` in the shell hears the scroll; the class is the whole
+        opt-in.
+      */}
+      <div className="scrollbar-fade relative z-0 min-h-0 flex-1 overflow-y-auto">
+        {children}
+      </div>
     </>
   );
 
@@ -200,7 +210,12 @@ function ColumnHeader({ columns }: { columns: ColumnSet }) {
  */
 export function DetailPane({ children }: { children: ReactNode }) {
   return (
-    <div className={['min-w-0 flex-1 overflow-y-auto bg-paper', CAPPED_BY_PREVIEW].join(' ')}>
+    <div
+      className={[
+        'scrollbar-fade min-w-0 flex-1 overflow-y-auto bg-paper',
+        CAPPED_BY_PREVIEW,
+      ].join(' ')}
+    >
       {/*
         `data-pane="detail"` is a marker for one theme and inert in the other
         three: console mode deals this pane's sections in one at a time when a

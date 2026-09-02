@@ -8,38 +8,53 @@ import { useEffect } from 'react';
  * Hover alone is not enough: a touchpad flick or a wheel scroll moves the list
  * without the pointer ever being over the bar, and a scrollbar that stayed
  * invisible through that would leave you with no idea where you are in a long
- * sidebar. So the pane wears `.scrolling` while it moves and for a breath
- * afterwards.
+ * list. So a pane wears `.scrolling` while it moves and for a breath afterwards.
  *
- * A class on the element rather than React state, and a `ref`-free query for
- * the same reason `ListKeys` finds rows by href: the pane is rendered by a
- * server component several files away, and threading a ref through it to
- * animate a scrollbar is more machinery than the effect is worth.
+ * **One listener on the document, not one per pane.** It began as a
+ * `querySelector` for a single element, which was right while the sidebar was
+ * the only pane that faded — the sidebar is rendered once by the shell and
+ * stays put. Panes two and three do not: they are rendered by whichever route
+ * segment is showing and are replaced on every navigation, so an element found
+ * once and listened to would be a stale node a click later, and the fade would
+ * work until you went anywhere.
  *
- * Passive, because this listener never calls `preventDefault` and telling the
- * browser so is what keeps a scroll off the main thread.
+ * `scroll` does not bubble, but it *does* capture — which is what makes one
+ * listener at the top able to hear a pane four segments below it, including
+ * panes that did not exist when this mounted. Nothing is queried, nothing is
+ * re-attached on navigation, and a pane opts in by wearing the class.
+ *
+ * Passive, because this never calls `preventDefault` and saying so is what
+ * keeps a scroll off the main thread.
  */
-export function ScrollFade({ selector }: { selector: string }) {
+export function ScrollFade() {
   useEffect(() => {
-    const pane = document.querySelector(selector);
-    if (!pane) return;
+    /*
+     * Weak, so a pane that has been navigated away from is collectable while
+     * its timer is still pending. The stray timeout that follows removes a
+     * class from a detached node, which costs nothing — where a `Map` would
+     * hold every pane the session ever scrolled.
+     */
+    const idle = new WeakMap<Element, ReturnType<typeof setTimeout>>();
 
-    let idle: ReturnType<typeof setTimeout> | null = null;
+    const onScroll = (event: Event) => {
+      const pane = event.target;
+      if (!(pane instanceof Element) || !pane.classList.contains('scrollbar-fade')) {
+        return;
+      }
 
-    const onScroll = () => {
       pane.classList.add('scrolling');
-      if (idle) clearTimeout(idle);
-      idle = setTimeout(() => pane.classList.remove('scrolling'), 700);
+
+      const running = idle.get(pane);
+      if (running) clearTimeout(running);
+      idle.set(
+        pane,
+        setTimeout(() => pane.classList.remove('scrolling'), 700),
+      );
     };
 
-    pane.addEventListener('scroll', onScroll, { passive: true });
-
-    return () => {
-      if (idle) clearTimeout(idle);
-      pane.removeEventListener('scroll', onScroll);
-      pane.classList.remove('scrolling');
-    };
-  }, [selector]);
+    document.addEventListener('scroll', onScroll, { capture: true, passive: true });
+    return () => document.removeEventListener('scroll', onScroll, { capture: true });
+  }, []);
 
   return null;
 }

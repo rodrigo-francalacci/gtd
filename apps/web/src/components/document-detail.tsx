@@ -512,6 +512,7 @@ export function DocumentDetail({
 
           <TagEditor
             itemId={item.id}
+            boxId={item.boxId}
             itemName={documentLabel(item)}
             categories={categories}
             applied={[...applied]}

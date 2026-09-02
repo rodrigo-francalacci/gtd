@@ -3,7 +3,11 @@
 import { useState, useTransition } from 'react';
 import { createPortal } from 'react-dom';
 import { useRouter } from 'next/navigation';
-import { toggleDocumentTag } from '@/lib/actions';
+import {
+  createBoxCategory,
+  createTagOnDocument,
+  toggleDocumentTag,
+} from '@/lib/actions';
 import type { BoxCategoryRow } from '@/lib/queries.shared';
 import { useSidebarSlot } from './sidebar-slot';
 
@@ -30,11 +34,14 @@ import { useSidebarSlot } from './sidebar-slot';
  */
 export function TagEditor({
   itemId,
+  boxId,
   itemName,
   categories,
   applied,
 }: {
   itemId: string;
+  /** Which box's vocabulary this is, so the panel can add to it. */
+  boxId: string;
   /** What is being tagged, so the panel says what it is acting on. */
   itemName: string;
   categories: BoxCategoryRow[];
@@ -44,6 +51,7 @@ export function TagEditor({
   const slot = useSidebarSlot();
   const router = useRouter();
   const [query, setQuery] = useState('');
+  const [newCategory, setNewCategory] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
 
   const owner = `tag-editor:${itemId}`;
@@ -52,21 +60,72 @@ export function TagEditor({
   const needle = query.trim().toLowerCase();
   const on = new Set(applied);
 
-  const groups = categories
-    .map((category) => ({
-      ...category,
-      tags: needle
-        ? category.tags.filter((tag) => tag.name.toLowerCase().includes(needle))
-        : category.tags,
-    }))
+  const matched = categories.map((category) => ({
+    ...category,
+    tags: needle
+      ? category.tags.filter((tag) => tag.name.toLowerCase().includes(needle))
+      : category.tags,
+  }));
+
+  /*
+   * Is what has been typed already a tag somewhere?
+   *
+   * Compared case- and space-insensitively, the rule every tag comparison here
+   * follows, and against an *exact* name rather than the substring the list
+   * filters on — typing "Shell" while "Shell Swindon" exists is still a new
+   * tag, and offering to make it is right.
+   */
+  const exists =
+    needle.length > 0 &&
+    categories.some((category) =>
+      category.tags.some((tag) => tag.name.trim().toLowerCase() === needle),
+    );
+
+  const offering = needle.length > 0 && !exists;
+
+  const groups = matched
     // A category with nothing left after a search is noise; one that is simply
     // empty still shows, because it is a real part of the vocabulary and its
     // absence would read as a mistake.
-    .filter((category) => category.tags.length > 0 || !needle);
+    //
+    // The exception is a name that is not in the box at all: then every
+    // category has to stay, empty or not, because the question has stopped
+    // being "which of these" and become "where should this go" — and filtering
+    // them away would leave nothing to answer it with.
+    .filter((category) => offering || category.tags.length > 0 || !needle);
 
   const toggle = (tagId: string) => {
     startTransition(async () => {
       await toggleDocumentTag(itemId, tagId);
+      router.refresh();
+    });
+  };
+
+  /** Make what has been typed, in this category, and put it on straight away. */
+  const create = (categoryId: string) => {
+    const name = query.trim();
+    if (!name) return;
+
+    startTransition(async () => {
+      await createTagOnDocument(itemId, categoryId, name);
+      // The field empties because the question it was asking has been
+      // answered — the tag is made and on, and the full list is what you want
+      // to see next rather than a search for something now applied.
+      setQuery('');
+      router.refresh();
+    });
+  };
+
+  const addCategory = () => {
+    const name = (newCategory ?? '').trim();
+    if (!name) return;
+
+    startTransition(async () => {
+      // `allowNewTags` false, matching the Manage boxes default: a category
+      // made by hand is a list somebody is choosing to keep, and letting the
+      // model add to it is a separate decision made there.
+      await createBoxCategory(boxId, name, false);
+      setNewCategory(null);
       router.refresh();
     });
   };
@@ -106,8 +165,8 @@ export function TagEditor({
         <input
           value={query}
           onChange={(event) => setQuery(event.target.value)}
-          placeholder="Find a tag…"
-          aria-label="Find a tag"
+          placeholder="Find a tag, or type a new one…"
+          aria-label="Find a tag, or type a new one"
           /* 16px, or iOS Safari zooms the page in when it takes focus — and on a
              phone this panel *is* the screen. */
           className="mt-2 w-full rounded-sm border border-grey-300 bg-paper px-2 py-1 text-[16px] text-grey-800 placeholder:text-grey-400 focus:border-selected focus:outline-none md:text-[12px]"
@@ -120,9 +179,30 @@ export function TagEditor({
         ) : (
           groups.map((category) => (
             <div key={category.id} className="mb-3">
-              <h3 className="px-1 pb-1 text-[10px] font-semibold uppercase tracking-wider text-grey-500">
-                {category.name}
-              </h3>
+              <div className="flex items-baseline justify-between gap-2 px-1 pb-1">
+                <h3 className="min-w-0 truncate text-[10px] font-semibold uppercase tracking-wider text-grey-500">
+                  {category.name}
+                </h3>
+
+                {/*
+                  Which category the new tag goes in is answered by pressing the
+                  one you mean, rather than by a picker beside the field. The
+                  heading is already on screen, already says what the category
+                  is, and is where your eye is while you decide — a select would
+                  be a second list of the same names to read.
+                */}
+                {offering ? (
+                  <button
+                    type="button"
+                    disabled={pending}
+                    onClick={() => create(category.id)}
+                    title={`Add “${query.trim()}” to ${category.name}`}
+                    className="shrink-0 rounded-sm px-1 text-[11px] text-grey-500 hover:bg-grey-200 hover:text-grey-800 disabled:opacity-50"
+                  >
+                    + Add here
+                  </button>
+                ) : null}
+              </div>
 
               {category.tags.length === 0 ? (
                 <p className="px-1 text-[11px] text-grey-400">No tags yet.</p>
@@ -150,6 +230,54 @@ export function TagEditor({
             </div>
           ))
         )}
+
+        {/*
+          A category is made far more rarely than a tag — it is the shape of the
+          vocabulary rather than a word in it — so it sits at the foot behind
+          one press, out of the way of the thing you came here to do.
+        */}
+        <div className="mt-2 border-t border-grey-200 pt-2">
+          {newCategory === null ? (
+            <button
+              type="button"
+              disabled={pending}
+              onClick={() => setNewCategory('')}
+              className="px-1 text-[11px] text-grey-500 underline underline-offset-2 hover:text-grey-800 disabled:opacity-50"
+            >
+              New category
+            </button>
+          ) : (
+            <div className="flex items-center gap-1 px-1">
+              <input
+                autoFocus
+                value={newCategory}
+                onChange={(event) => setNewCategory(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter') addCategory();
+                  if (event.key === 'Escape') setNewCategory(null);
+                }}
+                placeholder="Category name"
+                aria-label="New category name"
+                className="min-w-0 flex-1 rounded-sm border border-grey-300 bg-paper px-2 py-1 text-[16px] text-grey-800 placeholder:text-grey-400 focus:border-selected focus:outline-none md:text-[12px]"
+              />
+              <button
+                type="button"
+                disabled={pending || !newCategory.trim()}
+                onClick={addCategory}
+                className="shrink-0 rounded-sm bg-grey-200 px-1.5 py-0.5 text-[11px] text-grey-600 hover:bg-grey-300 disabled:opacity-50"
+              >
+                Add
+              </button>
+              <button
+                type="button"
+                onClick={() => setNewCategory(null)}
+                className="shrink-0 px-1 text-[11px] text-grey-500 hover:text-grey-800"
+              >
+                Cancel
+              </button>
+            </div>
+          )}
+        </div>
       </div>
     </div>,
     slot.node,

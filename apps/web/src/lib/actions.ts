@@ -2490,6 +2490,66 @@ export async function createBoxTag(categoryId: string, name: string) {
   revalidateShell();
 }
 
+/**
+ * Make a tag and put it on this document, in one press.
+ *
+ * The vocabulary is managed on the Manage boxes page, and that is still where
+ * you go to tidy one up — but the moment you most often discover a tag is
+ * missing is the moment you are trying to apply it, and being sent to another
+ * page to add it means losing the document you were looking at and coming back
+ * to find your place. So the tag panel can make one.
+ *
+ * Creating and applying are one action rather than two, because a tag you have
+ * just made and then have to go and find in a list of two hundred is most of
+ * the friction still there. Applying rather than toggling, for the same reason:
+ * you did not type a name in order to turn it off.
+ *
+ * Reuses an existing tag that differs only in case or surrounding space, which
+ * is the rule every other tag comparison here follows — "tesco" typed in a
+ * hurry is the Tesco already in the box, and a second row meaning the same
+ * thing splits a filter in two for ever.
+ */
+export async function createTagOnDocument(
+  itemId: string,
+  categoryId: string,
+  name: string,
+) {
+  await requireSession();
+
+  const trimmed = name.trim();
+  if (!trimmed) return;
+
+  const [existing] = await db
+    .select({ id: boxTags.id })
+    .from(boxTags)
+    .where(
+      and(
+        eq(boxTags.categoryId, categoryId),
+        sql`lower(trim(${boxTags.name})) = lower(trim(${trimmed}))`,
+      ),
+    )
+    .limit(1);
+
+  /*
+   * `returning` on a plain insert, with the lookup above rather than an
+   * `onConflictDoNothing` — that returns nothing at all when it collides, and
+   * this needs the id whichever way it went, or the tag is made and not
+   * applied. There are no transactions on this driver, so a name that appears
+   * between the two statements would throw on the unique index, which is the
+   * right failure: nothing is applied and pressing again finds it.
+   */
+  const tagId =
+    existing?.id ??
+    (await db.insert(boxTags).values({ categoryId, name: trimmed }).returning({ id: boxTags.id }))[0]
+      ?.id;
+
+  if (!tagId) return;
+
+  await db.insert(boxItemTags).values({ itemId, tagId }).onConflictDoNothing();
+
+  revalidateShell();
+}
+
 export async function renameBoxTag(tagId: string, name: string) {
   await requireSession();
   const trimmed = name.trim();
