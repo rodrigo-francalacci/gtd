@@ -33,7 +33,7 @@ import {
   aiTopups,
 } from '@gtd/db';
 import type { PurchaseFields } from './queries.shared';
-import { and, desc, eq, inArray, isNull, sql } from 'drizzle-orm';
+import { and, desc, eq, inArray, isNull, ne, sql } from 'drizzle-orm';
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import {
@@ -2616,13 +2616,137 @@ export async function createTagOnDocument(
   revalidateShell();
 }
 
+/**
+ * Put a tag under a category, with a name, and fold it into whatever is
+ * already there under that name.
+ *
+ * A vocabulary is not written once. Categories get renamed, a tag turns out to
+ * belong somewhere else, and the same shop gets typed twice in different
+ * places — so renaming and re-filing have to be ordinary operations rather than
+ * things you rebuild a box to achieve.
+ *
+ * **Every entry follows for free, and that is not luck.** `box_item_tags`
+ * points at a tag by id, so a tag can be renamed or moved to another category
+ * without a single document row changing: what a document is tagged *with* is
+ * a reference, not a copy of a word. The same reason renaming a box leaves
+ * every citation intact.
+ *
+ * **A collision merges rather than failing.** `box_tags` is unique on
+ * (category, lower(name)), so renaming "tesco" to "Tesco" where Tesco already
+ * exists, or moving a Vendor "Shell" into a Place that has one, would violate
+ * that index and throw — which is the wrong answer to what was plainly meant.
+ * Two tags with one name are one tag, so the documents are handed over and the
+ * duplicate goes. `onConflictDoNothing` covers a document that carried both:
+ * the pair is the primary key, so it is already tagged and there is nothing to
+ * insert.
+ *
+ * Returns which tag survived, and whether anything was folded in, so the page
+ * can say so — a count silently doubling is the kind of thing you want told
+ * about rather than left to notice.
+ */
+async function settleTagInto(
+  tagId: string,
+  categoryId: string,
+  name: string,
+): Promise<{ id: string; merged: boolean } | null> {
+  const trimmed = name.trim();
+  if (!trimmed) return null;
+
+  const [existing] = await db
+    .select({ id: boxTags.id })
+    .from(boxTags)
+    .where(
+      and(
+        eq(boxTags.categoryId, categoryId),
+        ne(boxTags.id, tagId),
+        sql`lower(trim(${boxTags.name})) = lower(trim(${trimmed}))`,
+      ),
+    )
+    .limit(1);
+
+  if (!existing) {
+    await db
+      .update(boxTags)
+      .set({ categoryId, name: trimmed })
+      .where(eq(boxTags.id, tagId));
+
+    return { id: tagId, merged: false };
+  }
+
+  /*
+   * Hand the documents over before the tag goes.
+   *
+   * There are no transactions on this driver, so the order is the safeguard:
+   * done this way a failure part-way leaves both tags with the documents shared
+   * between them, which is untidy and recoverable. The other order would delete
+   * the tag first and lose every document that was only on it.
+   */
+  const carried = await db
+    .select({ itemId: boxItemTags.itemId })
+    .from(boxItemTags)
+    .where(eq(boxItemTags.tagId, tagId));
+
+  for (const row of carried) {
+    await db
+      .insert(boxItemTags)
+      .values({ itemId: row.itemId, tagId: existing.id })
+      .onConflictDoNothing();
+  }
+
+  await db.delete(boxTags).where(eq(boxTags.id, tagId));
+
+  return { id: existing.id, merged: true };
+}
+
 export async function renameBoxTag(tagId: string, name: string) {
   await requireSession();
-  const trimmed = name.trim();
-  if (!trimmed) return;
 
-  await db.update(boxTags).set({ name: trimmed }).where(eq(boxTags.id, tagId));
+  const [tag] = await db
+    .select({ categoryId: boxTags.categoryId })
+    .from(boxTags)
+    .where(eq(boxTags.id, tagId))
+    .limit(1);
+
+  if (!tag) return { ok: false as const, merged: false };
+
+  const settled = await settleTagInto(tagId, tag.categoryId, name);
   revalidateShell();
+
+  return { ok: settled !== null, merged: settled?.merged ?? false };
+}
+
+/**
+ * File a tag under a different category.
+ *
+ * The destination must be in the same box, checked rather than assumed: a tag
+ * dragged into another box's category would leave every document tagged with
+ * something its own box has never heard of, and every facet count wrong with
+ * nothing on screen explaining it.
+ */
+export async function moveBoxTag(tagId: string, categoryId: string) {
+  await requireSession();
+
+  const [tag] = await db
+    .select({ name: boxTags.name, boxId: boxCategories.boxId })
+    .from(boxTags)
+    .innerJoin(boxCategories, eq(boxTags.categoryId, boxCategories.id))
+    .where(eq(boxTags.id, tagId))
+    .limit(1);
+
+  const [target] = await db
+    .select({ boxId: boxCategories.boxId })
+    .from(boxCategories)
+    .where(eq(boxCategories.id, categoryId))
+    .limit(1);
+
+  if (!tag || !target || tag.boxId !== target.boxId) {
+    return { ok: false as const, merged: false };
+  }
+
+  const settled = await settleTagInto(tagId, categoryId, tag.name);
+  revalidateShell();
+
+  return { ok: settled !== null, merged: settled?.merged ?? false };
 }
 
 /**

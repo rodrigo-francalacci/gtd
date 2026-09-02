@@ -1791,6 +1791,35 @@ to be kept. They meet at `box_item_links` and nowhere else.
   authorised one. Verified against the real API in both directions before it
   was written, and then again when passing null for a browser produced a
   "Failed to fetch" indistinguishable from a broken upload.
+- **A vocabulary drifts, so tags can be renamed, re-filed and merged.** A
+  category can be renamed, a tag can be renamed, and a tag can be moved to a
+  different category in the same box — none of which was reachable before: a
+  tag's rename was hidden behind a double-click with no affordance, and a
+  category could only be *deleted*, which takes its tags and every document's
+  tagging with it.
+  **Every entry follows for free, and that is the point of ids.**
+  `box_item_tags` names a tag by id, so renaming one or moving it between
+  categories changes no document row at all — what a document is tagged with is
+  a reference, not a copy of a word. The same reason renaming a box leaves every
+  citation intact.
+  **A collision merges rather than throwing.** `box_tags` is unique on
+  (category, `lower(name)`), so renaming "tesco" to "Tesco" where Tesco exists,
+  or moving a Vendor "Shell" into a Place that has one, would violate that index
+  — and failing is the wrong answer to what was plainly meant. Two tags with one
+  name are one tag: the documents are handed to the survivor with
+  `onConflictDoNothing` (the pair is the primary key, so a document that carried
+  both is already right) and the duplicate goes. Verified on a document holding
+  both tags: nothing lost, nothing duplicated, no tagging left pointing at a tag
+  that no longer exists.
+  **Documents move before the tag is deleted**, because there are no
+  transactions here: that order leaves a failure part-way with both tags and the
+  documents shared between them, which is untidy and recoverable, where the
+  other order would delete the tag first and lose every document that was only
+  on it.
+  **The destination must be in the same box**, checked rather than assumed — a
+  tag filed into another box's category would leave documents tagged with
+  something their own box has never heard of, and every facet count wrong with
+  nothing on screen to explain it.
 - **The model proposes tags; code disposes.** What comes back is matched
   against that box's own vocabulary and anything invented is dropped, unless
   the category is explicitly allowed to grow — a city on a fuel receipt. The

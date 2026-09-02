@@ -10,6 +10,7 @@ import {
   deleteBox,
   deleteBoxCategory,
   deleteBoxTag,
+  moveBoxTag,
   renameBoxTag,
   updateBox,
   updateBoxCategory,
@@ -146,7 +147,11 @@ export function BoxManager({
         ) : null}
 
         {categories.map((category) => (
-          <CategoryEditor key={category.id} category={category} />
+          <CategoryEditor
+            key={category.id}
+            category={category}
+            categories={categories}
+          />
         ))}
 
         <NewCategoryForm boxId={box.id} />
@@ -208,19 +213,106 @@ export function BoxManager({
  * contexts: deleting one takes it off every document that carried it, and
  * that's a thing to know before rather than after.
  */
-function CategoryEditor({ category }: { category: BoxCategoryRow }) {
+function CategoryEditor({
+  category,
+  /** Every category in this box, so a tag can be filed under a different one. */
+  categories,
+}: {
+  category: BoxCategoryRow;
+  categories: BoxCategoryRow[];
+}) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [tag, setTag] = useState('');
   const [editing, setEditing] = useState<string | null>(null);
   const [draft, setDraft] = useState('');
+  /** Which category the tag being edited should end up in. */
+  const [into, setInto] = useState(category.id);
+  const [renaming, setRenaming] = useState(false);
+  const [heading, setHeading] = useState(category.name);
+  /** Said out loud when two tags turn out to be one. */
+  const [note, setNote] = useState<string | null>(null);
+
+  /*
+   * Renaming and re-filing are one action, because they are one thought.
+   *
+   * A vocabulary drifts — a tag turns out to belong under a different axis, or
+   * to have been typed twice under two names — and making those two separate
+   * operations means doing the second only after noticing the first did not
+   * finish the job. Both go through the same server helper, which folds the tag
+   * into whatever already carries that name rather than failing on the unique
+   * index, so "tesco" being renamed to "Tesco" does what was plainly meant.
+   */
+  const commit = (tagId: string) => {
+    const value = draft.trim();
+    if (!value) return;
+
+    startTransition(async () => {
+      const renamed = await renameBoxTag(tagId, value);
+      let merged = renamed.merged;
+
+      // Only if it survived the rename; a merged tag no longer exists to move,
+      // and its documents are already on the tag that absorbed it.
+      if (!merged && into !== category.id) {
+        const moved = await moveBoxTag(tagId, into);
+        merged = moved.merged;
+      }
+
+      setNote(merged ? `Folded into the “${value}” that was already there.` : null);
+      setEditing(null);
+      router.refresh();
+    });
+  };
 
   return (
     <div className="rounded-sm border border-grey-200 px-3 py-2">
       <div className="flex items-center justify-between gap-2">
-        <span className="text-[12px] font-medium text-grey-800">
-          {category.name}
-        </span>
+        {renaming ? (
+          <input
+            autoFocus
+            value={heading}
+            onChange={(e) => setHeading(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Escape') {
+                setHeading(category.name);
+                setRenaming(false);
+              }
+              if (e.key !== 'Enter') return;
+              const value = heading.trim();
+              if (!value) return;
+              startTransition(async () => {
+                // The existing action, which takes the flag alongside the name;
+                // passing the current one keeps this a rename and nothing else.
+                await updateBoxCategory(category.id, value, category.allowNewTags);
+                setRenaming(false);
+                router.refresh();
+              });
+            }}
+            className="min-w-0 flex-1 rounded-sm border border-grey-400 bg-paper px-1 py-px text-[12px] font-medium focus:outline-none"
+          />
+        ) : (
+          /*
+           * Click to rename, and it says so.
+           *
+           * The tags underneath have been renameable on a double-click since
+           * they were built, and nobody found it — a gesture with no affordance
+           * is a gesture that does not exist. A category could not be renamed
+           * at all, which is worse: the only way to correct one was to delete
+           * it, and deleting a category takes its tags and every document's
+           * tagging with it.
+           */
+          <button
+            type="button"
+            onClick={() => {
+              setHeading(category.name);
+              setRenaming(true);
+            }}
+            title="Rename this category"
+            className="min-w-0 truncate text-left text-[12px] font-medium text-grey-800 underline decoration-grey-300 decoration-dotted underline-offset-4 hover:decoration-grey-500"
+          >
+            {category.name}
+          </button>
+        )}
 
         <div className="flex items-center gap-3 text-[11px]">
           <label className="flex items-center gap-1 text-grey-500">
@@ -269,25 +361,60 @@ function CategoryEditor({ category }: { category: BoxCategoryRow }) {
       <div className="mt-2 flex flex-wrap items-center gap-1">
         {category.tags.map((t) =>
           editing === t.id ? (
-            <input
+            <span
               key={t.id}
-              autoFocus
-              value={draft}
-              onChange={(e) => setDraft(e.target.value)}
-              onBlur={() => setEditing(null)}
-              onKeyDown={(e) => {
-                if (e.key === 'Escape') setEditing(null);
-                if (e.key !== 'Enter') return;
-                const value = draft.trim();
-                if (!value) return;
-                startTransition(async () => {
-                  await renameBoxTag(t.id, value);
-                  setEditing(null);
-                  router.refresh();
-                });
-              }}
-              className="w-28 rounded-sm border border-grey-400 bg-paper px-1 py-px text-[11px] focus:outline-none"
-            />
+              className="flex items-center gap-1 rounded-sm bg-grey-100 px-1 py-px"
+            >
+              <input
+                autoFocus
+                value={draft}
+                onChange={(e) => setDraft(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Escape') setEditing(null);
+                  if (e.key === 'Enter') commit(t.id);
+                }}
+                aria-label={`Rename ${t.name}`}
+                className="w-28 rounded-sm border border-grey-400 bg-paper px-1 py-px text-[11px] focus:outline-none"
+              />
+
+              {/*
+                Where it should live, offered only when there is somewhere else
+                for it to go. A select rather than a drag: this is the page you
+                come to when the vocabulary has drifted, it is reachable with a
+                finger, and it names the destinations rather than making you aim
+                at them.
+              */}
+              {categories.length > 1 ? (
+                <select
+                  value={into}
+                  onChange={(e) => setInto(e.target.value)}
+                  aria-label={`Category for ${t.name}`}
+                  className="max-w-[8rem] rounded-sm border border-grey-300 bg-paper px-1 py-px text-[11px] focus:outline-none"
+                >
+                  {categories.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.name}
+                    </option>
+                  ))}
+                </select>
+              ) : null}
+
+              <button
+                type="button"
+                disabled={pending}
+                onClick={() => commit(t.id)}
+                className="text-[11px] text-grey-600 underline underline-offset-2 hover:text-grey-800 disabled:opacity-50"
+              >
+                Save
+              </button>
+              <button
+                type="button"
+                onClick={() => setEditing(null)}
+                className="text-[11px] text-grey-500 hover:text-grey-800"
+              >
+                Cancel
+              </button>
+            </span>
           ) : (
             <span
               key={t.id}
@@ -295,11 +422,13 @@ function CategoryEditor({ category }: { category: BoxCategoryRow }) {
             >
               <button
                 type="button"
-                onDoubleClick={() => {
+                onClick={() => {
                   setEditing(t.id);
                   setDraft(t.name);
+                  setInto(category.id);
+                  setNote(null);
                 }}
-                title={`${t.usageCount} document${t.usageCount === 1 ? '' : 's'} — double-click to rename`}
+                title={`${t.usageCount} document${t.usageCount === 1 ? '' : 's'} — click to rename or re-file`}
               >
                 {t.name}
               </button>
@@ -322,6 +451,10 @@ function CategoryEditor({ category }: { category: BoxCategoryRow }) {
           ),
         )}
       </div>
+
+      {note ? (
+        <p className="mt-1 text-[11px] text-grey-500">{note}</p>
+      ) : null}
 
       <form
         onSubmit={(e) => {
