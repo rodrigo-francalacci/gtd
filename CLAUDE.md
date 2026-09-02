@@ -565,7 +565,7 @@ Turbopack is the default; `middleware` is now `proxy`.
 - **A bare `or` inside an `and()` is a silent bug, and both rename sweeps had
   it.** A raw `sql` fragment goes into the enclosing `and()` exactly as written,
   and SQL binds `and` tighter than `or` — so
-  `and(A, B, C, sql\`X or Y\`)` means `(A and B and C and X) or Y`, and anything
+  ``and(A, B, C, sql`X or Y`)`` means `(A and B and C and X) or Y`, and anything
   matching Y alone is selected however wrong it is. Both the attachment and box
   rename sweeps carried the Docs-versus-folder exclusion this way, so *every*
   gallery folder matched: whatever its status, with no title, with no file, and
