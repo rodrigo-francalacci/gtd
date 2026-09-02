@@ -311,6 +311,15 @@ export async function updateActionTitle(actionId: string, title: string) {
     .set({ title: trimmed, updatedAt: new Date() })
     .where(eq(actions.id, actionId));
 
+  /*
+   * A project-less action's folder is named after the action, so a rename that
+   * did not follow would leave Drive holding the old name for ever — the one
+   * thing you would go looking for the folder by. The same rule
+   * `updateProjectTitle` follows, and free for the actions that have no folder,
+   * which is nearly all of them: the job reads one row and stops.
+   */
+  await enqueueActionFolder(actionId);
+
   revalidateShell();
 }
 
@@ -329,6 +338,11 @@ export async function setActionStatus(actionId: string, status: ActionStatus) {
       updatedAt: new Date(),
     })
     .where(eq(actions.id, actionId));
+
+  // Finishing an action archives its folder the way finishing a project
+  // archives one, and reopening brings it back — a folder under `Archive` for
+  // something you are working on again is a record of what did not happen.
+  await enqueueActionFolder(actionId);
 
   revalidateShell();
 }
@@ -532,12 +546,54 @@ async function purgeFilesOf(
   return files.length;
 }
 
+/**
+ * Queue a project-less action's folder to be put where its row now says.
+ *
+ * Guarded on the action having no project *and* on it either owning a folder
+ * already or being the kind of thing that could want one — because this is
+ * called from renaming and from ticking off, which happen constantly, and the
+ * overwhelming majority of actions have no folder and never will. Without the
+ * guard every tick of a checkbox would put a row in the queue for a worker to
+ * pick up and discard.
+ */
+async function enqueueActionFolder(actionId: string): Promise<void> {
+  const [row] = await db
+    .select({ projectId: actions.projectId, driveFolderId: actions.driveFolderId })
+    .from(actions)
+    .where(eq(actions.id, actionId))
+    .limit(1);
+
+  // No folder and nothing that would want one: a folder is made when a file
+  // arrives, and neither renaming nor finishing is that moment.
+  if (!row?.driveFolderId) return;
+
+  await enqueueFileMove({ actionId });
+}
+
 async function purgeActions(ids: string[]): Promise<number> {
   if (ids.length === 0) return 0;
 
   const files = await purgeFilesOf('action', ids);
   await clearEmailRequestParents('action', ids);
-  await db.delete(actions).where(inArray(actions.id, ids));
+
+  /*
+   * The folder goes too, once its files have.
+   *
+   * The same rule deleting a project follows and for the same reason: the
+   * purge above takes every file individually and would otherwise leave the
+   * container standing, so deleting actions would slowly fill the account with
+   * empty folders named after things that no longer exist. Read from the
+   * `returning` of the delete, so there is no second query and no chance of
+   * binning the folder of an action that was not the one removed.
+   */
+  const gone = await db
+    .delete(actions)
+    .where(inArray(actions.id, ids))
+    .returning({ driveFolderId: actions.driveFolderId });
+
+  // The same helper the project delete uses, which already swallows a failure
+  // for the right reason: deleting was what was asked for, and it has happened.
+  for (const row of gone) await trashProjectFolder(row.driveFolderId);
 
   return files;
 }
@@ -698,7 +754,17 @@ export async function moveActionToProject(actionId: string, projectId: string | 
     );
 
   for (const file of files) await enqueueFileMove({ attachmentId: file.id });
-  drainMovesAfterResponse(files.length);
+
+  /*
+   * Queued *after* the files, and the order matters.
+   *
+   * Filing into a project makes the action's own folder a leftover, and it is
+   * only binned once empty — so the file moves have to have run first. Filing
+   * out of one is the mirror: the action now needs a folder of its own, and the
+   * files queued a moment ago will be sent into it.
+   */
+  await enqueueActionFolder(actionId);
+  drainMovesAfterResponse(files.length + 1);
 
   revalidateShell();
 }

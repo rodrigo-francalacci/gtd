@@ -4,6 +4,7 @@ import { db, projects, syncJobs } from '@gtd/db';
 import { and, eq, isNull, or, sql } from 'drizzle-orm';
 import { GoogleAuthError } from '@/lib/auth/token';
 import { moveAttachmentFile } from './attachments';
+import { ensureActionFolder } from './action-folders';
 import { moveBoxItemFile } from './boxes';
 import { GoogleApiError } from './client';
 import { settleFolderRace } from './folder-race';
@@ -38,7 +39,11 @@ export type ProjectSyncKind =
   | 'move_project_links';
 
 /** Those, plus the two that are about one row's file. */
-export type SyncKind = ProjectSyncKind | 'move_attachment' | 'move_box_file';
+export type SyncKind =
+  | ProjectSyncKind
+  | 'move_attachment'
+  | 'move_box_file'
+  | 'move_action_folder';
 
 export async function enqueueSync(kind: ProjectSyncKind, projectId: string): Promise<void> {
   await db.insert(syncJobs).values({ kind, projectId });
@@ -54,12 +59,17 @@ export async function enqueueSync(kind: ProjectSyncKind, projectId: string): Pro
  * type says so.
  */
 export async function enqueueFileMove(
-  target: { attachmentId: string } | { boxItemId: string },
+  target: { attachmentId: string } | { boxItemId: string } | { actionId: string },
 ): Promise<void> {
   await db.insert(syncJobs).values(
     'attachmentId' in target
       ? { kind: 'move_attachment', attachmentId: target.attachmentId }
-      : { kind: 'move_box_file', boxItemId: target.boxItemId },
+      : 'boxItemId' in target
+        ? { kind: 'move_box_file', boxItemId: target.boxItemId }
+        : // Not a file but the folder around one, which is the same job to
+          // anyone reading this queue: put a thing where its row now says it
+          // goes.
+          { kind: 'move_action_folder', actionId: target.actionId },
   );
 }
 
@@ -116,6 +126,7 @@ export async function drainSyncQueue(limit = 10): Promise<DrainResult> {
       projectId: syncJobs.projectId,
       attachmentId: syncJobs.attachmentId,
       boxItemId: syncJobs.boxItemId,
+      actionId: syncJobs.actionId,
       attempts: syncJobs.attempts,
     });
 
@@ -178,6 +189,7 @@ async function runJob(
     projectId: string | null;
     attachmentId: string | null;
     boxItemId: string | null;
+    actionId: string | null;
   },
 ): Promise<void> {
   const { kind, projectId } = job;
@@ -197,6 +209,18 @@ async function runJob(
 
   if (kind === 'move_box_file') {
     if (job.boxItemId) await moveBoxItemFile(job.boxItemId);
+    return;
+  }
+
+  /*
+   * A project-less action's folder, put in the container its status calls for
+   * and renamed to match the action. The third thing here that owns a Drive
+   * container, and it reconciles rather than being told where to go — so
+   * several changes before one drain all converge on the same answer, which is
+   * what makes the queue safe to leave alone until the tick.
+   */
+  if (kind === 'move_action_folder') {
+    if (job.actionId) await ensureActionFolder(job.actionId);
     return;
   }
 

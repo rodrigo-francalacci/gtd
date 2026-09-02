@@ -354,6 +354,18 @@ export const actions = pgTable(
       onDelete: 'set null',
     }),
     completedAt: timestamp('completed_at', { withTimezone: true }),
+    /**
+     * Where this action's files live, for an action with no project.
+     *
+     * An action *with* a project keeps its files in the project's folder — that
+     * is the unit you go looking in a year later, and a folder per action would
+     * bury it. One without a project has no such unit, and putting its files in
+     * `GTD/Inbox` said something false about them: the inbox is where things go
+     * that have not been decided about, and an action is a decision already
+     * taken. So `GTD/Actions/<title>`, made on demand and moved into the
+     * archive when the action is done, exactly as a project's folder is.
+     */
+    driveFolderId: text('drive_folder_id'),
     notes: jsonb('notes'),
     searchText: text('search_text'),
     searchVector: searchVector('title', 'search_text'),
@@ -840,6 +852,13 @@ export const syncJobKind = pgEnum('sync_job_kind', [
   'move_project_links',
   'move_attachment',
   'move_box_file',
+  /**
+   * Put a project-less action's folder in the container its status calls for —
+   * `Actions` while it is live, `Archive/<year>/Actions` once it is done — and
+   * rename it if the action has been renamed. `move_project_links` for the
+   * other kind of thing that owns a folder.
+   */
+  'move_action_folder',
 ]);
 
 export const syncJobStatus = pgEnum('sync_job_status', [
@@ -901,6 +920,19 @@ export const syncJobs = pgTable(
      * deleted. There are exactly two tables that own a file; two real
      * references cost one nullable column and make a stranded job impossible.
      */
+    /**
+     * The third kind of row that owns a Drive container, for the jobs that move
+     * a project-less action's folder between `Actions` and the archive.
+     *
+     * A real reference like the other two rather than a polymorphic pair: a
+     * deleted action takes its pending jobs with it, which is what stops a job
+     * pointing at a row that no longer exists. Proved useful rather than
+     * assumed — deleting an attachment mid-flight was measured to remove its
+     * queued move, leaving nothing stranded.
+     */
+    actionId: uuid('action_id').references(() => actions.id, {
+      onDelete: 'cascade',
+    }),
     boxItemId: uuid('box_item_id').references(() => boxItems.id, {
       onDelete: 'cascade',
     }),

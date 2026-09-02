@@ -21,6 +21,7 @@ import {
   trashFile,
   uploadFile,
 } from './client';
+import { ensureActionFolder } from './action-folders';
 import { settleFolderRace } from './folder-race';
 import { ROOT, containerPath, safeName } from './sync';
 
@@ -250,6 +251,18 @@ export async function attachmentFolder(
    * how a photograph of something on the Purchases list ended up filed under
    * `GTD/Inbox` with no Purchases folder anywhere in Drive.
    */
+  /*
+   * An action with no project has a container of its own now.
+   *
+   * It used to land in `GTD/Inbox`, which said the opposite of what is true:
+   * the inbox holds what has not been decided about, and a promoted action is
+   * a decision already taken. It simply has nothing above it.
+   */
+  if (!projectId && parentType === 'action') {
+    const own = await ensureActionFolder(parentId);
+    if (own) return own;
+  }
+
   if (!projectId && parentType === 'list_item') {
     const onList = await listFolder(
       (

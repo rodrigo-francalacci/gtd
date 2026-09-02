@@ -349,6 +349,37 @@ Turbopack is the default; `middleware` is now `proxy`.
   project goes to `GTD/Inbox`. If the project has no folder yet, attaching
   creates it there and then: the alternative is filing the upload somewhere the
   user didn't ask for.
+- **A project-less action gets a folder; `GTD/Inbox` is for what has not been
+  decided.** An action with a project keeps its files in the project's folder —
+  that is the unit you go looking in a year later, and a folder per action would
+  bury it. One *without* a project used to fall through to `GTD/Inbox` alongside
+  every unclarified capture, and that said something false: the inbox holds
+  things still waiting to be clarified, and a promoted action is a decision
+  already taken. It simply has nothing above it. So `GTD/Actions/<title>`, named
+  after the action so the folder is recognisable without opening it.
+  **Archived like a project's, with one more level.**
+  `GTD/Archive/<year>/Actions/<title>`: the year first so a year's work stays
+  together, and the `Actions` level under it so a finished step does not sit
+  among the finished *projects*, padding a list of twenty projects out with
+  single steps that were never projects at all. Reopening brings it back — a
+  folder under `Archive` for something you are working on again is a record of
+  what did not happen.
+  **The attachments travel because they are inside it**, which is the whole
+  reason to put the folder in the archive rather than the files: an email saved
+  as `.html`, a photograph, a PDF quote all move when the folder does, with no
+  per-file work and nothing to miss.
+  **`ensureActionFolder` reconciles rather than recreates.** `ensureFolder`
+  searches *inside* a container, so once an action is done it would find nothing
+  under `Archive/<year>/Actions` and cheerfully make a second folder — leaving
+  the files in the first, under a name now wrong, with nothing pointing at it.
+  The folder an action already has is moved and renamed instead, which is what
+  keeps it one folder per action.
+  **Filing an action into a project makes its own folder a leftover**, and it is
+  binned only once empty, on Drive's word. `moveActionToProject` queues the file
+  moves and *then* the folder job, so by the time the folder is considered the
+  files have gone; if they have not, it is left standing and the next tick takes
+  it. A stray empty folder is untidy, and binning one with a document still in
+  it is not.
 - **A list is a container and gets a folder; a view is not and does not.** A
   list item with no project used to land in `GTD/Inbox` beside every loose
   capture — so a photograph of something on the Purchases list was filed under a
