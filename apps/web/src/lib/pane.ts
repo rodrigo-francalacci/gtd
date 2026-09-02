@@ -64,6 +64,16 @@ export type Preferences = {
    * Google's own ticked state decides — see the column comment in the schema.
    */
   hiddenCalendars: string[] | null;
+  /**
+   * How tall the note editors were last left, in pixels. Null means "never
+   * dragged" and the stylesheet's own default applies.
+   *
+   * Per surface rather than per row: a height is a statement about how you like
+   * writing notes, not about the document in front of you, and per-row would
+   * still open every new one short.
+   */
+  noteHeight: number | null;
+  boxNoteHeight: number | null;
 };
 
 /** The width to render, honouring an explicit choice over the mode default. */

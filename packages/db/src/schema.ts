@@ -1642,6 +1642,21 @@ export const preferences = pgTable('preferences', {
    * its title is read.
    */
   boxView: text('box_view'),
+  /**
+   * How tall the note editors were left, in pixels. Null means the default.
+   *
+   * Two, because there are two surfaces and they are read differently: the
+   * rich editor on a project, an action or a list item, and the plain field on
+   * a box entry. Per *surface* rather than per row — a height set on one
+   * project is a statement about how you like writing notes, not about that
+   * project, and per-row would still open every new document short.
+   *
+   * In the database rather than `localStorage` for the ordinary reason: the
+   * server has to render it or the editor jumps from four rows to twenty after
+   * the first paint, which is the flash this table exists to avoid.
+   */
+  noteHeight: integer('note_height'),
+  boxNoteHeight: integer('box_note_height'),
   /** 'light' | 'dark'. Null means "whatever the operating system says". */
   theme: text('theme'),
   /**

@@ -5,6 +5,7 @@ import StarterKit from '@tiptap/starter-kit';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { emptyDoc } from '@/lib/tiptap';
 import { EditorToolbar } from './editor-toolbar';
+import { RememberedHeight } from './remembered-height';
 
 type SaveState = 'idle' | 'dirty' | 'saving' | 'saved';
 
@@ -117,6 +118,9 @@ export function NoteEditor({
     };
   }, [flush]);
 
+  /** The resizable box around the editor, watched so its height is kept. */
+  const box = useRef<HTMLDivElement>(null);
+
   // NOTE: there is deliberately no effect resyncing `initialContent`.
   //
   // Saving revalidates the route, so the server sends a fresh `notes` object
@@ -133,7 +137,26 @@ export function NoteEditor({
         </span>
       </div>
       <EditorToolbar editor={editor} />
-      <EditorContent editor={editor} />
+
+      {/*
+        Resizable, and it remembers.
+
+        TipTap renders a plain div that grows with its content, so there was no
+        way to make the editor taller at all — the only "resize" available was
+        the one on a textarea somewhere else in the app. A wrapper with
+        `resize-y` gives it the handle, `overflow-auto` is what makes the handle
+        do anything (an element that cannot scroll has nothing to resize *to*),
+        and the height comes from a variable the layout sets on the server so it
+        is right on first paint rather than jumping after one.
+      */}
+      <div
+        ref={box}
+        className="h-[var(--note-height,16rem)] min-h-24 resize-y overflow-auto rounded-sm"
+      >
+        <EditorContent editor={editor} />
+      </div>
+
+      <RememberedHeight surface="note" target={box} />
     </div>
   );
 }

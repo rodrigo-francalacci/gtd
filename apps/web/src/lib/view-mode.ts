@@ -51,5 +51,7 @@ export async function getPreferences(): Promise<Preferences> {
     // Null and [] mean different things here — "never chosen" versus "chosen,
     // hide nothing" — so an absent value must not collapse to an empty array.
     hiddenCalendars: Array.isArray(row?.hiddenCalendars) ? row.hiddenCalendars : null,
+    noteHeight: row?.noteHeight ?? null,
+    boxNoteHeight: row?.boxNoteHeight ?? null,
   };
 }

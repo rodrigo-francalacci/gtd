@@ -4,8 +4,9 @@ import Link from 'next/link';
 import { TagEditor, TagEditorButton } from './tag-editor';
 import { useSidebarSlot } from './sidebar-slot';
 import { EmojiPicker } from './emoji-picker';
+import { RememberedHeight } from './remembered-height';
 import { useRouter } from 'next/navigation';
-import { useEffect, useState, useTransition } from 'react';
+import { useEffect, useRef, useState, useTransition } from 'react';
 import {
   deleteDocument,
   setBoxItemListed,
@@ -85,6 +86,8 @@ export function DocumentDetail({
 }) {
   const router = useRouter();
   const slot = useSidebarSlot();
+  /** The description field, watched so the height you drag it to is kept. */
+  const field = useRef<HTMLTextAreaElement>(null);
   const preview = useFilePreview();
   const [pending, startTransition] = useTransition();
 
@@ -358,10 +361,15 @@ export function DocumentDetail({
                 ? 'What this is'
                 : 'Note'}
         </label>
+        {/*
+          Already resizable; now it stays where you put it. `rows` is dropped,
+          because a height and a row count are two answers to one question and
+          the row count would win on first paint before the variable applied.
+        */}
         <textarea
+          ref={field}
           value={description}
           onChange={(e) => edit({ description: e.target.value })}
-          rows={4}
           placeholder={
             isAudio
               ? 'Not transcribed — nothing here reads speech yet. Write what it was about and search will find it.'
@@ -369,8 +377,10 @@ export function DocumentDetail({
                 ? 'Not summarised yet.'
                 : 'Write something.'
           }
-          className="w-full resize-y rounded-sm border border-grey-200 bg-paper px-2 py-1.5 text-[13px] leading-relaxed text-grey-800 placeholder:text-grey-400 focus:border-grey-400 focus:outline-none"
+          className="h-[var(--box-note-height,7rem)] min-h-16 w-full resize-y rounded-sm border border-grey-200 bg-paper px-2 py-1.5 text-[13px] leading-relaxed text-grey-800 placeholder:text-grey-400 focus:border-grey-400 focus:outline-none"
         />
+
+        <RememberedHeight surface="box" target={field} />
 
         {dirty ? (
           <div className="flex items-center gap-3">
@@ -409,15 +419,38 @@ export function DocumentDetail({
             under today, a scan made on Friday and filed on Monday. */}
         <label className="flex items-center gap-2 text-grey-500">
           Arrived
+          {/*
+            Saved when you have finished, never on every change.
+            
+            `onChange` fires on each segment a native picker touches — choose a
+            month and it fires — and saving there re-dated the entry, which
+            *reorders the feed*, which re-rendered the list and closed the
+            picker underneath the cursor. You got exactly one click before it
+            shut, so navigating to another year and setting a time was
+            impossible. The one control in the app whose own save destroys the
+            thing you are using to set it.
+
+            Blur is the moment the picker is done with. Enter blurs by hand,
+            because a native date field does not.
+          */}
           <input
             type="datetime-local"
             defaultValue={localInput(item.capturedAt)}
             disabled={pending}
-            onChange={(e) => {
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') e.currentTarget.blur();
+            }}
+            onBlur={(e) => {
               const value = e.target.value;
-              if (!value) return;
+              // Unchanged, or half-typed and not a date yet: a refresh here
+              // would reorder the feed for nothing.
+              if (!value || value === localInput(item.capturedAt)) return;
+
+              const when = new Date(value);
+              if (Number.isNaN(when.getTime())) return;
+
               startTransition(async () => {
-                await setDocumentArrivedAt(item.id, new Date(value).toISOString());
+                await setDocumentArrivedAt(item.id, when.toISOString());
                 router.refresh();
               });
             }}

@@ -1314,6 +1314,17 @@ Turbopack is the default; `middleware` is now `proxy`.
   with a download link. What it did before was leave the transport disabled for
   ever, which reads as a broken player rather than an unplayable file and offers
   no way out.
+- **A backgrounded tab cannot be used to test anything tied to a frame.** The
+  media note below is one instance of a wider rule that has now cost three
+  diagnoses in one sitting: a hidden tab runs no rendering lifecycle, so
+  `requestAnimationFrame` never fires and **`ResizeObserver` never delivers** —
+  a resize handler looks dead when it is merely unobserved. Timers still run
+  (throttled), and `dispatchEvent` is synchronous and unaffected, which is why
+  those are the tools for an automated check. Anything that waits on a frame
+  needs a real, focused window.
+  React's synthetic `onBlur` is a related trap for the same kind of test: it is
+  delegated from the bubbling `focusout`, so dispatching a plain non-bubbling
+  `blur` reaches nothing and the handler looks broken.
 - **A backgrounded tab cannot be used to test media playback.** Chrome suspends
   media element loading when `document.hidden`, and every `<audio>` probe stalls
   at `readyState 0` with neither `loadedmetadata` nor `error` — including one on

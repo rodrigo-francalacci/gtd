@@ -1726,6 +1726,37 @@ export async function correctUsage(type: UsableType, id: string, count: number) 
  * Called once on pointer-up, not during the drag — the pane follows the cursor
  * locally, and only the final width is written.
  */
+/** Which note field a remembered height belongs to. */
+export type NoteSurface = 'note' | 'box';
+
+/**
+ * Remember how tall a note editor was left.
+ *
+ * Clamped rather than trusted: this is a number a client sends, and a stored
+ * height of two pixels or of forty thousand is an editor you cannot use and
+ * cannot drag back, on every row, until somebody edits the database.
+ */
+export async function setNoteHeight(surface: NoteSurface, height: number) {
+  await requireSession();
+
+  if (!Number.isFinite(height)) return;
+  const px = Math.round(Math.min(2000, Math.max(80, height)));
+
+  const patch = surface === 'note' ? { noteHeight: px } : { boxNoteHeight: px };
+
+  await db
+    .insert(preferences)
+    .values({ id: SINGLETON, ...patch, updatedAt: new Date() })
+    .onConflictDoUpdate({
+      target: preferences.id,
+      set: { ...patch, updatedAt: new Date() },
+    });
+
+  // Deliberately no `revalidateShell()`: the height is already applied in the
+  // browser, and re-rendering the whole shell on the end of a drag would throw
+  // away the caret and the scroll position of the note being written.
+}
+
 export async function setListPaneWidth(width: number) {
   await requireSession();
   const clamped = Math.round(

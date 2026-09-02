@@ -30,6 +30,28 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   return (
     /* Preview state only — `AppShell` decides where the pane goes, because
        that differs between the two layouts and nothing else does. */
+    /*
+      The note heights ride down as CSS variables rather than as props.
+
+      Every editor that wants one is several route segments below this, behind
+      a page and a detail pane, and threading a number through all of them to
+      size a textarea is more plumbing than the setting is worth. A variable on
+      a wrapper is inherited by all of them, is server-rendered so the editor is
+      already the right size on first paint, and is the same trick the theme
+      uses one layout up.
+    */
+    <div
+      style={
+        {
+          ...(prefs.noteHeight ? { '--note-height': `${prefs.noteHeight}px` } : {}),
+          ...(prefs.boxNoteHeight
+            ? { '--box-note-height': `${prefs.boxNoteHeight}px` }
+            : {}),
+        } as React.CSSProperties
+      }
+      data-note-heights
+      className="contents"
+    >
     <FilePreviewProvider>
       <SidebarSlotProvider>
         {/* Both render nothing. One listens for `c` so a thought can be captured
@@ -64,5 +86,6 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         </AppShell>
       </SidebarSlotProvider>
     </FilePreviewProvider>
+    </div>
   );
 }
