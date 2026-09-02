@@ -562,6 +562,19 @@ Turbopack is the default; `middleware` is now `proxy`.
   read before this existed. A failure at read time is deliberately quiet in the
   caller for the same reason: the title is already saved, and a filename must
   never take a read down with it and cost a model call to redo.
+- **A bare `or` inside an `and()` is a silent bug, and both rename sweeps had
+  it.** A raw `sql` fragment goes into the enclosing `and()` exactly as written,
+  and SQL binds `and` tighter than `or` — so
+  `and(A, B, C, sql\`X or Y\`)` means `(A and B and C and X) or Y`, and anything
+  matching Y alone is selected however wrong it is. Both the attachment and box
+  rename sweeps carried the Docs-versus-folder exclusion this way, so *every*
+  gallery folder matched: whatever its status, with no title, with no file, and
+  with its name already in agreement.
+  The symptom is what makes it worth remembering: the tick reported one rename
+  every single run, for ever, renaming one folder to the name it already had. A
+  wasted Drive write a day, and a counter in which a genuine rename was
+  indistinguishable from the noise. Found by asking why an idle app was never
+  idle. **Bracket every `or` inside a fragment that goes into `and()`.**
 - **The sweep caps renames, not candidates.** `.limit(50)` on the *query* bounded
   the wrong thing — the first fifty rows with a title and a file, in whatever
   order Postgres felt like, most of which are already correct. Past fifty

@@ -807,8 +807,20 @@ export async function renameDriveAttachments(limit = 50): Promise<number> {
          * gallery's folder is named by this app and by nothing else, so it must
          * come through or a renamed gallery keeps its old folder name for ever.
          */
-        sql`coalesce(${attachments.mimeType}, '') not like 'application/vnd.google-apps.%'
-            or ${attachments.mimeType} = 'application/vnd.google-apps.folder'`,
+        /*
+         * The brackets are load-bearing.
+         *
+         * Without them this fragment goes into the enclosing `and()` as a bare
+         * `or`, and SQL binds `and` tighter — so the whole predicate collapsed
+         * to "(everything else AND not a Google type) OR is a folder", and
+         * *every* gallery folder matched whether or not its name disagreed with
+         * Drive. The symptom was a sweep that reported one rename on every
+         * tick, for ever, renaming one folder to the name it already had: a
+         * wasted Drive write a day, and a count in which a real rename was
+         * indistinguishable from the noise.
+         */
+        sql`(coalesce(${attachments.mimeType}, '') not like 'application/vnd.google-apps.%'
+             or ${attachments.mimeType} = 'application/vnd.google-apps.folder')`,
       ),
     )
     .limit(limit);

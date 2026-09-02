@@ -758,8 +758,15 @@ export async function renameBoxFiles(limit = 50): Promise<number> {
          * gallery's folder is named by this app and by nothing else, so it must
          * come through or a renamed gallery keeps its old folder name for ever.
          */
-        sql`coalesce(${boxItems.mimeType}, '') not like 'application/vnd.google-apps.%'
-            or ${boxItems.mimeType} = 'application/vnd.google-apps.folder'`,
+        /*
+         * Bracketed, and it matters: a bare `or` inside an `and()` binds
+         * looser, so this read as "(ready AND has a file AND has a title AND
+         * not a Google type) OR is a folder" — pulling in every gallery folder
+         * whatever its status, whether it had a title, and whether it had a
+         * file at all. The same slip as the attachment sweep next door.
+         */
+        sql`(coalesce(${boxItems.mimeType}, '') not like 'application/vnd.google-apps.%'
+             or ${boxItems.mimeType} = 'application/vnd.google-apps.folder')`,
       ),
     );
 
