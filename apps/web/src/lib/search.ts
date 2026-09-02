@@ -97,10 +97,40 @@ export async function search(
               and (pr.id is null or pr.status not in ('completed', 'dropped'))`;
 
   /*
-   * Everything that is not a project or an action is live by definition — a
-   * box document, a capture, a list item and a file have no finished state — so
-   * in `archive` scope they are excluded outright rather than filtered. A box
-   * is for keeping, not for finishing, and it has its own search.
+   * A capture *does* have a finished state, and missing that was a real bug.
+   *
+   * This used to read "a capture has no finished state" and lump captures in
+   * with box documents and list items, which are live by definition. They are
+   * not the same: clarifying a capture takes it out of the inbox for good.
+   * The row survives — raw capture is immutable, and it stays as the record of
+   * what was actually typed — but it is no longer a thing you can go and look
+   * at in the inbox.
+   *
+   * So every clarified capture was coming back from live search for ever, as a
+   * hit labelled `inbox`, for a row the inbox does not contain. Searching for
+   * "Pink hair mask" returned the list item it became *and* the capture it came
+   * from, and clicking the second landed on an inbox with no such row. Worse,
+   * it is a duplicate by construction: the capture's first line becomes the
+   * outcome's title and its note becomes the outcome's notes, so both halves are
+   * already searchable through the thing it turned into.
+   *
+   * Clarified is therefore the capture's archived state, filtered exactly like a
+   * project's and an action's. That also keeps the one case whose words live
+   * nowhere else reachable: a `trashed` capture has no outcome row, so `A:` is
+   * the only way back to it, and now there is one.
+   */
+  const captureScope =
+    scope === 'all'
+      ? sql`true`
+      : scope === 'archive'
+        ? sql`ib.status = 'clarified'`
+        : sql`ib.status <> 'clarified'`;
+
+  /*
+   * The rest really are live by definition — a box document, a list item and a
+   * file have no finished state — so in `archive` scope they are excluded
+   * outright rather than filtered. A box is for keeping, not for finishing, and
+   * it has its own search.
    */
   const otherScope = scope === 'archive' ? sql`false` : sql`true`;
 
@@ -164,7 +194,7 @@ export async function search(
         ts_rank(ib.search_vector, q.tsq)
       from inbox_items ib
       cross join q
-      where ib.search_vector @@ q.tsq and ${otherScope}
+      where ib.search_vector @@ q.tsq and ${captureScope}
 
       union all
 
