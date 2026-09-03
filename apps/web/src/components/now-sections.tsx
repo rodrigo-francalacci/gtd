@@ -8,7 +8,7 @@ import {
   moveNowSectionBetween,
   renameNowSection,
 } from '@/lib/actions';
-import { DRAG_ACTION, dragPayload, hasDragType } from './sortable';
+import { DRAG_ACTION, dragPayload, hasDragType, reallyLeft } from './sortable';
 import { RowMenu } from './row-menu';
 
 /**
@@ -64,7 +64,7 @@ export function NowSection({
        * bubble-phase clear would then never run and leave the heading lit.
        */
       onDragLeaveCapture={(e) => {
-        if (e.currentTarget === e.target) setOver(null);
+        if (reallyLeft(e)) setOver(null);
       }}
       onDropCapture={() => setOver(null)}
       onDrop={(e) => {
@@ -150,7 +150,7 @@ export function NowLoose({ count, children }: { count: number; children: ReactNo
         setOver(true);
       }}
       onDragLeaveCapture={(e) => {
-        if (e.currentTarget === e.target) setOver(false);
+        if (reallyLeft(e)) setOver(false);
       }}
       onDropCapture={() => setOver(false)}
       onDrop={(e) => {

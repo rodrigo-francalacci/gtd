@@ -36,6 +36,27 @@ export function dragPayload(e: React.DragEvent, type: string): string | null {
   return raw === '' ? null : raw;
 }
 
+/**
+ * Has the pointer really left this element, or only moved onto a child?
+ *
+ * `dragleave` fires on the way out of every descendant and bubbles, so a
+ * handler on the container sees one leave per child with `target` set to the
+ * child. The obvious guard — `currentTarget === target` — therefore only
+ * recognises a departure that happens to cross the container's own edge, and
+ * the ordinary case does not: move over a row inside a bucket and then out of
+ * the bucket, and the last leave carries the *row* as its target. The guard
+ * refuses it and the highlight stays lit until the page is re-rendered, which
+ * is the stuck border you get after dragging between two lists.
+ *
+ * `relatedTarget` is what is being entered instead. Outside the subtree, or
+ * null when the drag leaves the window entirely — and `contains(null)` is
+ * false, so that case falls out for free.
+ */
+export function reallyLeft(e: React.DragEvent): boolean {
+  const entering = e.relatedTarget;
+  return !(entering instanceof Node) || !e.currentTarget.contains(entering);
+}
+
 export function hasDragType(e: React.DragEvent, type: string): boolean {
   return Array.from(e.dataTransfer.types).includes(type);
 }
@@ -255,7 +276,7 @@ export function SortableList<T extends Identified>({
   return (
     <div
       ref={container}
-      onDragLeave={(e) => e.currentTarget === e.target && setInsertAt(null)}
+      onDragLeave={(e) => reallyLeft(e) && setInsertAt(null)}
     >
       {order.map((item, index) => (
         <div

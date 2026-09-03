@@ -68,7 +68,7 @@ export function DocumentGalleryRow({
   return (
     <div
       className={[
-        'relative flex gap-3 border-b border-grey-150 px-3 py-2.5',
+        'relative flex gap-3 border-b border-grey-200 px-3 py-2.5',
         /*
          * A note reads as a message here too. It is the line you *wrote*, where
          * everything around it was filed, sent, scanned or pasted — the same

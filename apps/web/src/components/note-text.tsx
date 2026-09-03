@@ -138,7 +138,15 @@ function render(node: Node, key: string): ReactNode {
        * out as nothing at all. The one node here where "degrade to the
        * contents" degrades to silence.
        */
-      return <hr key={key} className="my-[0.5em] border-t border-grey-300" />;
+      /*
+       * Lighter than the line between two entries, deliberately.
+       *
+       * It was `grey-300` against a `grey-200` boundary, so a break *inside* one
+       * note looked stronger than the break between two records — the hierarchy
+       * upside down. A rule within a note is a whisper; the row's own edge is
+       * the statement.
+       */
+      return <hr key={key} className="my-[0.5em] border-t border-grey-150" />;
     case 'bulletList':
       return (
         <ul key={key} className="list-disc pl-4">

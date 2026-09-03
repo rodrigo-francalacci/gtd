@@ -2,7 +2,7 @@
 
 import { useState, useTransition, type ReactNode } from 'react';
 import { setActionStatus } from '@/lib/actions';
-import { DRAG_ACTION, dragPayload, hasDragType } from './sortable';
+import { DRAG_ACTION, dragPayload, hasDragType, reallyLeft } from './sortable';
 
 /**
  * A drop zone that moves an action into a given status.
@@ -36,7 +36,7 @@ export function ActionBucket({
         setOver(true);
       }}
       onDragLeave={(e) => {
-        if (e.currentTarget === e.target) setOver(false);
+        if (reallyLeft(e)) setOver(false);
       }}
       onDrop={(e) => {
         if (!hasDragType(e, DRAG_ACTION)) return;

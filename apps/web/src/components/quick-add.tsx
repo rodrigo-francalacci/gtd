@@ -7,7 +7,19 @@ import { createAction, createProject } from '@/lib/actions';
  * Zero-friction add: one field, Enter to commit, stays focused for the next
  * one. Nothing else is required — clarification happens later.
  */
-export function QuickAddAction({ projectId }: { projectId?: string }) {
+export function QuickAddAction({
+  projectId,
+  /**
+   * Which bucket the new action joins. Omitted means Active, which is what
+   * adding an action almost always means.
+   */
+  status,
+  placeholder = 'Add an action…',
+}: {
+  projectId?: string;
+  status?: 'next' | 'future';
+  placeholder?: string;
+}) {
   const formRef = useRef<HTMLFormElement>(null);
 
   return (
@@ -20,9 +32,10 @@ export function QuickAddAction({ projectId }: { projectId?: string }) {
       className="border-b border-grey-200 bg-paper px-4 py-2"
     >
       {projectId ? <input type="hidden" name="projectId" value={projectId} /> : null}
+      {status ? <input type="hidden" name="status" value={status} /> : null}
       <input
         name="title"
-        placeholder="Add an action…"
+        placeholder={placeholder}
         autoComplete="off"
         className="w-full bg-transparent text-[13px] text-grey-800 placeholder:text-grey-400 focus:outline-none"
       />

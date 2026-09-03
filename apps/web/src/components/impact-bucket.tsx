@@ -4,6 +4,7 @@ import { useState, useTransition, type ReactNode } from 'react';
 import { updateListItemFields } from '@/lib/actions';
 import type { PurchaseImpact } from '@/lib/queries.shared';
 import { DRAG_LIST_ITEM } from './sortable-list-items';
+import { reallyLeft } from './sortable';
 
 /**
  * One impact, as a place you can drop something.
@@ -65,7 +66,7 @@ export function ImpactBucket({
        */
       onDropCapture={() => setOver(false)}
       onDragLeave={(event) => {
-        if (event.currentTarget === event.target) setOver(false);
+        if (reallyLeft(event)) setOver(false);
       }}
       onDrop={(event) => {
         if (!accepts(event)) return;

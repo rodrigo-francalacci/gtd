@@ -166,6 +166,30 @@ Turbopack is the default; `middleware` is now `proxy`.
   reach the Now view, and deliberately don't satisfy the stalled check — a
   project whose only remaining steps are future still needs a real next action.
   Dragging between the Active and Future buckets sets the status.
+- **`dragleave` fires per descendant, so `currentTarget === target` is the
+  wrong test.** It bubbles out of every child, and a handler on the container
+  sees one leave per child with `target` set to the child — so that guard only
+  recognises a departure that happens to cross the container's own edge, which
+  the ordinary case does not. Move over a row inside a bucket and then out of
+  the bucket and the last leave carries the *row*: the guard refuses it and the
+  highlight stays lit until something re-renders. That is the border left
+  behind after dragging a purchase between two lists, and after moving a
+  heading in Now.
+  `reallyLeft` asks `relatedTarget` instead — what is being *entered* — and
+  clears when that is outside the subtree, or null because the drag has left
+  the window (`contains(null)` is false, so that falls out for free). One
+  helper, because five components had written the same wrong test.
+- **A new action can be parked without passing through Active.** `createAction`
+  takes a `status` from the form, from an allowlist of the two buckets a new
+  action can sensibly join. Without it, parking a step meant creating it in
+  Active — where it appeared in "what can I do now" — and then dragging it
+  down: two moves, and in between a wrong answer to the only question that list
+  exists to answer.
+- **The line inside a note is lighter than the line between two entries.** It
+  was `grey-300` against a `grey-150` row boundary, so a break *within* one note
+  read as stronger than the break between two records. The row's edge went up a
+  step and the note's rule went below it: a rule inside a note is a whisper,
+  the row's own edge is the statement.
 - **A cross-list drop must be allowed to bubble.** `SortableList` ignores drops
   of items it doesn't contain (no `preventDefault`, no `stopPropagation`) so an
   enclosing `ActionBucket` or `ProjectBucket` can act on them. Reorder-within

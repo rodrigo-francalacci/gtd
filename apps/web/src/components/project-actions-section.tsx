@@ -85,6 +85,14 @@ export function ProjectActionsSection({
         hint="parked, not forgotten"
         count={future.length}
       >
+        {/* Straight into Future, rather than into Active and then dragged down
+            — which put a step you are not doing into "what can I do now" for
+            as long as it took to move it. */}
+        <QuickAddAction
+          projectId={projectId}
+          status="future"
+          placeholder="Park an action for later…"
+        />
         <SortableActionList
           actions={withHref(future)}
           showProject={false}

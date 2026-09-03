@@ -315,7 +315,23 @@ export async function createAction(formData: FormData) {
 
   const projectId = (formData.get('projectId') as string) || null;
 
-  await db.insert(actions).values({ title, projectId: projectId || null });
+  /*
+   * Which bucket it lands in, when the form says.
+   *
+   * Adding a step you have no intention of doing yet meant creating it in
+   * Active — where it immediately showed up in "what can I do now" — and then
+   * dragging it down to Future. Two moves, and in between a wrong answer to the
+   * one question that list exists to answer.
+   *
+   * Taken from an allowlist rather than trusted: this is a form field, and the
+   * only two buckets a *new* action can sensibly go into are the two on offer.
+   * Anything else falls back to `next`, which is the default the column has
+   * anyway.
+   */
+  const asked = String(formData.get('status') ?? '');
+  const status = asked === 'future' ? 'future' as const : 'next' as const;
+
+  await db.insert(actions).values({ title, projectId: projectId || null, status });
 
   revalidateShell();
 }
