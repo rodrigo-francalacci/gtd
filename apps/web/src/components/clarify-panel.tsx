@@ -83,7 +83,6 @@ export function ClarifyPanel({
   lists: { id: string; name: string; type: string }[];
   boxes: { id: string; name: string }[];
   contextGroups: {
-    place: Context[];
     time: Context[];
     energy: Context[];
     person: Context[];
@@ -235,7 +234,6 @@ export function ClarifyPanel({
    */
   const needsTitle = kind !== null && kind !== 'trashed' && kind !== 'attached';
   const dimensions: { key: keyof typeof contextGroups; label: string }[] = [
-    { key: 'place', label: 'Where' },
     { key: 'time', label: 'Time' },
     { key: 'energy', label: 'Energy' },
     { key: 'person', label: 'Who' },

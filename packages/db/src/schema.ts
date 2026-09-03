@@ -127,6 +127,16 @@ export const actionStatus = pgEnum('action_status', [
   'done',
 ]);
 
+/**
+ * The dimensions a context can be on.
+ *
+ * `place` is **retired** and nothing reads it any more: "Where" stopped
+ * meaning anything once the work was all in one place, and a dimension nobody
+ * filters by is a question asked of every capture for nothing. The value stays
+ * in the enum because Postgres has no way to drop one without rewriting the
+ * type, and rewriting it to reclaim a word no code mentions is a migration
+ * with nothing on the other side of it. Do not use it.
+ */
 export const contextDimension = pgEnum('context_dimension', [
   'place',
   'time',

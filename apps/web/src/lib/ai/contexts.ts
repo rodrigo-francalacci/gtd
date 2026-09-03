@@ -27,9 +27,15 @@ import { recordSpend } from './spend';
 
 export type ContextOption = { id: string; name: string };
 
-/** The three dimensions worth guessing, in the order the pane shows them. */
+/**
+ * The dimensions worth guessing, in the order the pane shows them.
+ *
+ * `place` was the third and is gone: "Where" stopped meaning anything once the
+ * work was all in one place, and a dimension nobody filters by is a question
+ * asked of every capture for nothing. `who` was never guessed — see the
+ * clarify rule — so this is now the whole of what a model is asked for.
+ */
 export type ContextGroups = {
-  place: ContextOption[];
   time: ContextOption[];
   energy: ContextOption[];
 };
@@ -43,19 +49,17 @@ const INSTRUCTIONS = [
   '',
   'Pick AT MOST ONE from each group, using the exact id given. Leave a group out',
   'entirely when the text does not say — a guess that is wrong costs more to',
-  'undo than an empty field costs to fill in. "Where" is the place or tool the',
-  'work needs, "Time" is roughly how long it takes, "Energy" is how much',
-  'concentration it wants.',
+  'undo than an empty field costs to fill in. "Time" is roughly how long it',
+  'takes, "Energy" is how much concentration it wants.',
 ].join('\n');
 
 const SCHEMA = {
   type: 'object',
   additionalProperties: false,
-  required: ['place', 'time', 'energy'],
+  required: ['time', 'energy'],
   properties: {
     // Nullable rather than optional: `strict` requires every key to be present,
     // and null is how the model says "this one does not apply".
-    place: { type: ['string', 'null'] },
     time: { type: ['string', 'null'] },
     energy: { type: ['string', 'null'] },
   },
@@ -79,10 +83,10 @@ export async function suggestContexts(
   if (!trimmed) return [];
 
   // Nothing to choose from is not a failure, but it is not worth a request.
-  const all = [...groups.place, ...groups.time, ...groups.energy];
+  const all = [...groups.time, ...groups.energy];
   if (all.length === 0) return [];
 
-  const vocabulary = (['place', 'time', 'energy'] as const)
+  const vocabulary = (['time', 'energy'] as const)
     .map((dimension) => {
       const options = groups[dimension];
       if (options.length === 0) return null;
@@ -141,7 +145,7 @@ export async function suggestContexts(
      * `place` is a mistake, not a preference, and letting it through would put
      * "30 min" in the Where row where nothing would ever explain it.
      */
-    return (['place', 'time', 'energy'] as const)
+    return (['time', 'energy'] as const)
       .map((dimension) => {
         const proposed = parsed[dimension];
         if (typeof proposed !== 'string') return null;

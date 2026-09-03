@@ -117,7 +117,6 @@ export async function getContextsByDimension() {
     .orderBy(asc(contexts.dimension), asc(contexts.name));
 
   return {
-    place: rows.filter((c) => c.dimension === 'place'),
     time: rows.filter((c) => c.dimension === 'time'),
     energy: rows.filter((c) => c.dimension === 'energy'),
     person: rows.filter((c) => c.dimension === 'person'),

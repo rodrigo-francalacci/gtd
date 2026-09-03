@@ -874,7 +874,17 @@ Turbopack is the default; `middleware` is now `proxy`.
 ` in
   the middle of the document, a stray carriage return that survives `trim()` and
   surfaces later as a blank line nobody typed.
-- **Where, Time and Energy are guessed when you say it is actionable — never
+- **"Where" is retired.** The dimension stopped meaning anything once the work
+  was all in one place, and a dimension nobody filters by is a question asked of
+  every capture for nothing. Removed from the pickers, the manage page, the
+  filter bar, the clarify write and the model's schema; the five contexts
+  (Home, Office, Site, Errands, Computer) are gone, checked first for taggings
+  on real actions — there were none, and the script refused to run if there had
+  been.
+  **The enum value stays**, marked retired in the schema. Postgres cannot drop
+  one without rewriting the type, and rewriting it to reclaim a word no code
+  mentions is a migration with nothing on the other side of it.
+- **Time and Energy are guessed when you say it is actionable — never
   `who`.** Filling in three dimensions by hand is the slow part of clarifying,
   and slow in a particular way: none of them is hard, they are three more
   decisions between a thought and being done with it. Amending one wrong guess
@@ -1758,6 +1768,17 @@ Turbopack is the default; `middleware` is now `proxy`.
 - **Inputs on the phone are 16px minimum.** iOS Safari zooms the page in when a
   smaller field takes focus. The fix is the type size, never
   `user-scalable=no` — blocking pinch-zoom to stop it is a bad trade.
+- **`fixed z-50` is not "above everything" — it is 50 inside whatever stacking
+  context encloses it.** Both context menus were `fixed z-50` inside the list
+  pane, which is `relative z-0`: the whole context sits at zero, so the part of
+  a menu overhanging the pane edge was painted over by pane three. And because
+  the thing covering it was pane three's *content* on the menu's white ground,
+  it read as a see-through menu rather than as one behind something — which is
+  the wrong diagnosis to start from, and the reason to measure the computed
+  background before believing it. It was opaque white the whole time.
+  Both now portal to `document.body`, which leaves that context entirely.
+  Position is unaffected: `fixed` is relative to the viewport and the
+  coordinates already came from the pointer.
 - **A "click away to close" listener must test containment, not rely on
   `stopPropagation`.** Both context menus registered their close on `document`
   in the **capture** phase and tried to protect themselves with

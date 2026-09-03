@@ -13,7 +13,7 @@ import type { Context } from '@gtd/db';
 export function ContextFilter({
   groups,
 }: {
-  groups: { place: Context[]; time: Context[]; energy: Context[]; person: Context[] };
+  groups: { time: Context[]; energy: Context[]; person: Context[] };
 }) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -33,7 +33,6 @@ export function ContextFilter({
   const clear = () => router.replace('/now', { scroll: false });
 
   const dimensions: { key: keyof typeof groups; label: string }[] = [
-    { key: 'place', label: 'Where' },
     { key: 'time', label: 'Time' },
     { key: 'energy', label: 'Energy' },
     { key: 'person', label: 'Who' },

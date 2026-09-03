@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState, useTransition } from 'react';
+import { createPortal } from 'react-dom';
 
 /**
  * Rename and delete, on the row itself.
@@ -188,8 +189,24 @@ export function RowMenu({
         {children}
       </div>
 
-      {at ? (
-        <div
+      {/*
+        Portalled to the body, and that is what makes it visible.
+
+        The menu is `fixed z-50`, which reads as "above everything" and is not:
+        the list pane it lives in is `relative z-0`, and that establishes a
+        stacking context, so this `z-50` is only ever 50 *within* a context that
+        itself sits at zero. Pane three is painted after it, so the part of the
+        menu that overhangs the pane edge was covered — and since the covering
+        thing is pane three's own content on the menu's white ground, it read as
+        a transparent menu rather than as one behind something.
+
+        A portal takes it out of that context entirely. Position is unaffected
+        because `fixed` is relative to the viewport, and the coordinates were
+        already computed from the pointer.
+      */}
+      {at && typeof document !== 'undefined'
+        ? createPortal(
+          <div
           role="menu"
           aria-label={name}
           ref={menu}
@@ -303,8 +320,10 @@ export function RowMenu({
               </button>
             )
           ) : null}
-        </div>
-      ) : null}
+          </div>,
+          document.body,
+        )
+        : null}
     </>
   );
 }

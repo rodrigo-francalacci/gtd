@@ -1125,7 +1125,6 @@ export async function suggestClarifyContexts(itemId: string): Promise<string[]> 
     rows.filter((r) => r.dimension === dimension).map((r) => ({ id: r.id, name: r.name }));
 
   return suggestContexts(item.rawText, {
-    place: pick('place'),
     time: pick('time'),
     energy: pick('energy'),
   });

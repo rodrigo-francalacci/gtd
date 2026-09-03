@@ -69,7 +69,6 @@ export function ActionDetail({
   /** Existing waiting-on names, offered as suggestions. */
   parties: string[];
   contextGroups: {
-    place: Context[];
     time: Context[];
     energy: Context[];
     person: Context[];
@@ -94,7 +93,6 @@ export function ActionDetail({
   ];
 
   const dimensions: { key: keyof typeof contextGroups; label: string }[] = [
-    { key: 'place', label: 'Where' },
     { key: 'time', label: 'Time' },
     { key: 'energy', label: 'Energy' },
     { key: 'person', label: 'Who' },

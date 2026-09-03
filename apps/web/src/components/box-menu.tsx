@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState, useTransition } from 'react';
+import { createPortal } from 'react-dom';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { clearBoxEmoji, createBoxLabel, emojifyBox } from '@/lib/actions';
@@ -180,8 +181,14 @@ export function BoxMenu({
         {children}
       </div>
 
-      {at ? (
-        <div
+      {/*
+        Portalled for the reason the row menu is: `fixed z-50` is only ever 50
+        within whatever stacking context encloses it, and a pane at `z-0` traps
+        it there. See `RowMenu`.
+      */}
+      {at && typeof document !== 'undefined'
+        ? createPortal(
+          <div
           role="menu"
           aria-label={name}
           ref={menu}
@@ -309,8 +316,10 @@ export function BoxMenu({
               {note}
             </p>
           ) : null}
-        </div>
-      ) : null}
+          </div>,
+          document.body,
+        )
+        : null}
     </>
   );
 }

@@ -13,11 +13,6 @@ export type ManagedContext = {
 
 const DIMENSIONS: { key: ContextDimension; label: string; blurb: string }[] = [
   {
-    key: 'place',
-    label: 'Where',
-    blurb: 'Somewhere you are, or a tool you need — Home, Office, Site, Computer.',
-  },
-  {
     key: 'time',
     label: 'Time',
     blurb: 'How long a gap you have — 5 min, 30 min, 2 hours.',
