@@ -259,6 +259,20 @@ export const IconPin = (p: IconProps) => (
   </Glyph>
 );
 
+/**
+ * Riso — two circles, offset.
+ *
+ * Misregistration is the signature of the process: two screens, two inks, laid
+ * down a hair apart. It is also the one thing about riso that draws at 14
+ * pixels — a halftone dot field at this size is a smudge.
+ */
+export const IconRiso = (p: IconProps) => (
+  <Glyph {...p}>
+    <circle cx="6.4" cy="9.4" r="4.1" />
+    <circle cx="9.6" cy="6.6" r="4.1" />
+  </Glyph>
+);
+
 /** Simple view — titles and nothing else, so: lines. */
 export const IconViewSimple = (p: IconProps) => (
   <Glyph {...p}>

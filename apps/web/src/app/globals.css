@@ -150,7 +150,7 @@
    * win on source order alone — which is a rule that works until somebody
    * moves a block.
    */
-  :root:not([data-theme='light']):not([data-theme='paper']):not([data-theme='sci']):not([data-theme='amber']) {
+  :root:not([data-theme='light']):not([data-theme='paper']):not([data-theme='sci']):not([data-theme='amber']):not([data-theme='riso']) {
   color-scheme: dark;
 
   --color-paper: #17181a;
@@ -400,6 +400,163 @@
     display: none;
   }
 }
+
+/* Riso ---------------------------------------------------------------------- */
+
+/*
+ * A screen-printed zine.
+ *
+ * The sixth theme, and the second one whose argument is fatigue rather than
+ * taste — paper mode's argument, reached from the other end. Nothing here is
+ * pure black or pure white either: warm bone ink on a grained charcoal board,
+ * which is what a riso print on heavy stock actually looks like and why it is
+ * easy to sit with.
+ *
+ * The palette is taken from the reference rather than invented. Riso inks are a
+ * short list and a print uses two or three of them, so the accents are the ones
+ * that recur across the sheets: vermilion, mustard, sage, and an indigo for the
+ * one line you wrote yourself. They are *ink* colours — flat, slightly chalky,
+ * never the saturated screen versions — which is what stops four hues on one
+ * dark ground looking like a dashboard.
+ *
+ * The same ramp again, walked from the dark end like dark mode and the console
+ * themes: `grey-800` is still prominent text and `grey-200` is still a
+ * hairline, so no component knows it is in here. One selector only — nothing
+ * asks an operating system for a zine.
+ */
+:root[data-theme='riso'] {
+  color-scheme: dark;
+
+  /*
+   * Charcoal board, not black. The grain has to have something to sit in: over
+   * pure black a light fleck is the only thing visible and the sheet reads as
+   * dust on a screen rather than as paper.
+   */
+  --color-paper: #2b2926;
+  /*
+   * Bone. Measured off the reference rather than remembered — the temptation is
+   * a cream that is far too yellow, where the real thing is barely warm and
+   * quite grey, which is what keeps a page of it comfortable.
+   */
+  --color-ink: #e4ded0;
+
+  --color-grey-50: #322f2b;
+  --color-grey-100: #383530;
+  --color-grey-150: #3f3b36;
+  --color-grey-200: #4a4640;
+  --color-grey-300: #5d584f;
+  --color-grey-400: #7b746a;
+  --color-grey-500: #968e82;
+  --color-grey-600: #b0a89a;
+  --color-grey-700: #c6bdad;
+  --color-grey-800: #d9d1c1;
+  --color-grey-900: #efe9dc;
+
+  /* The semantic four, as riso inks. */
+  --color-waiting: #e0a63c;
+  --color-waiting-bg: #3a3226;
+  --color-stale: #e2593a;
+  --color-stale-bg: #3b2a24;
+  /*
+   * Sage for selection rather than a blue. On this ground the vermilion and the
+   * mustard are the loud pair and a third warm accent would fight them; the
+   * green is the one ink in the reference that sits quietly under everything
+   * else, which is what a selected row wants to do.
+   */
+  --color-selected: #a9bd8b;
+  --color-selected-bg: #33382c;
+
+  --color-journal: #9b96d8;
+  --color-journal-bg: #302f42;
+
+  /* Note inks, from the same short list. */
+  --note-blue: #8fa9d6;
+  --note-green: #a9bd8b;
+  --note-amber: #e0a63c;
+  --note-red: #e2593a;
+
+  /*
+   * Monospace, and only the second theme that touches the typeface.
+   *
+   * The console themes do it because a terminal is monospaced; this does it
+   * because every line of body copy in the reference is set that way — the
+   * display type is the loud part and everything you actually read is a
+   * typewriter. The cost is the one the console theme documents and it is real:
+   * mono is wider, and this layout is built around a narrow list column.
+   */
+  --font-sans: 'Cascadia Mono', 'Segoe UI Mono', ui-monospace, 'SF Mono', Menlo,
+    Consolas, monospace;
+}
+
+/*
+ * The labels are the display type, and this is where the look lives.
+ *
+ * Every small-caps label in the app becomes a pressed heading: heavier, opened
+ * out, and in the bone rather than the grey it wears elsewhere. It costs one
+ * rule because the app already sets every one of them in uppercase — the same
+ * hook the console themes use for their phosphor bloom.
+ */
+:root[data-theme='riso'] .uppercase {
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  color: var(--color-grey-800);
+}
+
+/*
+ * The sheet itself.
+ *
+ * The same machinery paper mode uses and for the same reasons: a PNG tiled and
+ * composited normally, never a filter and never a blend mode, because a
+ * blending layer over the whole viewport forces the page to be composited and
+ * blended again on every paint. Drawn by `scripts/make-paper-grain.mjs` under
+ * its own profile — coarser than writing paper and much more present, with the
+ * tones inverted so the fleck is the *light* one, which is what an eye picks up
+ * on a dark board.
+ */
+:root[data-theme='riso'] body::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  pointer-events: none;
+  background-image:
+    url('/riso-grain.png'),
+    radial-gradient(
+      130% 95% at 50% 40%,
+      rgba(0, 0, 0, 0) 58%,
+      rgba(0, 0, 0, 0.16) 100%
+    );
+  background-repeat: repeat, no-repeat;
+  background-size: 256px 256px, cover;
+}
+
+/*
+ * A second, heavier sheet on the one column that holds nothing you read at
+ * length — the trick paper mode uses to stop the window looking like one flat
+ * surface with lines ruled on it. Two pieces of board meeting, rather than a
+ * brightness step in one.
+ */
+:root[data-theme='riso'] [data-pane='nav'] {
+  background-image: url('/paper-grain-strong.png');
+  background-repeat: repeat;
+  background-size: 256px 256px;
+}
+
+/*
+ * And it stops at the preview pane, exactly as paper mode does: that pane is a
+ * window onto somebody's file, and ageing their PDF would be the app
+ * decorating their document rather than its own furniture.
+ */
+:root[data-theme='riso'] [data-pane='preview'] {
+  position: relative;
+  z-index: 10000;
+}
+
+/*
+ * Reduced motion keeps the palette and the grain — neither moves. Nothing to
+ * turn off here, which is worth saying because the console themes do have
+ * something.
+ */
 
 /* Console mode ------------------------------------------------------------ */
 
@@ -1152,7 +1309,7 @@ body {
 
 /* A null preference means "ask the operating system", exactly as above. */
 @media (prefers-color-scheme: dark) {
-  :root:not([data-theme='light']):not([data-theme='paper']):not([data-theme='sci']):not([data-theme='amber']) {
+  :root:not([data-theme='light']):not([data-theme='paper']):not([data-theme='sci']):not([data-theme='amber']):not([data-theme='riso']) {
     --code-heading: #7fa9e0;
     --code-marker: #cfa94e;
     --code-keyword: #b795dd;

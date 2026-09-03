@@ -41,3 +41,9 @@ vercel_deployment_log.txt
 # swept them in once, which is exactly the accident an ignore rule is for.
 big_box.txt.txt
 my_current_google_app_script.txt
+
+# Reference screenshots dropped in the root to design a theme from. Somebody
+# else's artwork, and this repo is public — the theme they informed lives in
+# the stylesheet, which is the part worth keeping.
+inspiration*.png
+inspirations_summary.png

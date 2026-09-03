@@ -77,6 +77,42 @@ Turbopack is the default; `middleware` is now `proxy`.
   which is lifted above it. That pane is a window onto a file, and ageing a PDF
   or a photograph would be the app colouring somebody's document rather than
   decorating its own furniture.
+- **Riso is a screen-printed zine, and the second theme whose argument is
+  fatigue.** Paper mode's argument reached from the other end: warm bone ink on
+  a grained charcoal board, nothing pure black and nothing pure white, which is
+  what a riso print on heavy stock looks like and why it is easy to sit with.
+  The same ramp again, walked from the dark end like dark mode and the consoles,
+  so `grey-800` is still prominent text and no component knows where it is. One
+  selector — nothing asks an operating system for a zine.
+  **The palette is taken from the reference, not invented**: riso inks are a
+  short list and a print uses two or three, so the accents are the ones that
+  recur — vermilion, mustard, sage, indigo. Flat and slightly chalky, never the
+  saturated screen versions, which is what stops four hues on one dark ground
+  reading as a dashboard. Sage carries *selected*, because the two warm inks are
+  the loud pair and a selected row wants to sit under everything else.
+  **It is the second theme to override `--font-sans`**, and the console theme's
+  warning applies unchanged: mono is wider and this layout is built around a
+  narrow list column. It earns it here because every line of body copy in the
+  reference is set that way — the display type is the loud part and everything
+  you actually read is a typewriter. The uppercase labels do the display work
+  through the one hook the consoles already use.
+  **The grain is fine, and a first attempt got that wrong.** Weighted to 32 and
+  64 pixels it came out as cloud — soft blotches reading as smoke behind the
+  page. The reference is dense small fibre, which lives at four and eight, with
+  just enough above to stop it looking mechanical. Its tones are inverted from
+  the paper sheets too: on a dark board the eye picks up the *light* fleck, and
+  painting the warm pair over near-black gives a sheet that merely looks dirty.
+  **A new grain profile goes on the end of the list.** Every profile draws from
+  one sequence, so inserting one in the middle changes the numbers the later
+  ones get — which silently rewrote `paper-grain-strong.png`, a file that is
+  supposed to re-render byte for byte.
+- **Six themes, so the switcher is a menu.** The cycle's own comment said a
+  sixth was the point to stop arguing, and it was right: five presses to reach
+  the last one is more than anybody should count. Portalled to the body like
+  the context menus, closed by containment rather than `stopPropagation`, and
+  positioned from the button at click time — measuring it in an effect once open
+  is a setState inside an effect, which the compiler refuses and which the click
+  already knows the answer to.
 - **The console is one theme in two phosphors**, `sci` (green) and `amber`, and
   the first themes here that are a *look* rather than an argument about
   legibility. One set of rules for the structure and two palettes: a P1 and a P3

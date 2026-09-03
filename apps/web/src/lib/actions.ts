@@ -1665,7 +1665,7 @@ async function savePreference(patch: {
   viewMode?: ViewMode;
   boxView?: BoxView;
   listPaneWidth?: number;
-  theme?: 'light' | 'dark' | 'paper' | 'sci' | 'amber' | null;
+  theme?: 'light' | 'dark' | 'paper' | 'sci' | 'amber' | 'riso' | null;
   hiddenCalendars?: string[];
 }) {
   await db
@@ -1910,7 +1910,16 @@ export async function setListPaneWidth(width: number) {
  * the server can render the right one on the first paint and so the choice
  * follows the account rather than the browser.
  */
-export async function setTheme(theme: 'light' | 'dark' | 'paper' | 'sci' | 'amber') {
+/**
+ * The themes there are, spelled out rather than taken as a string.
+ *
+ * A sixth was added and this list had to be found by the compiler rather than
+ * by remembering it existed — which is the argument for writing the union here
+ * instead of accepting `string` and trusting the caller.
+ */
+export async function setTheme(
+  theme: 'light' | 'dark' | 'paper' | 'sci' | 'amber' | 'riso',
+) {
   await requireSession();
   await savePreference({ theme });
   revalidateShell();
