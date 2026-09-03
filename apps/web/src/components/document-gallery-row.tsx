@@ -7,6 +7,7 @@ import { AudioClip } from './audio-clip';
 import { EntryTypeIcon } from './entry-type-icon';
 import { IconAudio, IconDocument, IconLink, IconPlace } from './icons';
 import { Linkified } from './linkified';
+import { NoteText } from './note-text';
 
 const printed = new Intl.DateTimeFormat('en-GB', {
   day: 'numeric',
@@ -140,6 +141,7 @@ export function DocumentGalleryRow({
           className={[
             'text-[13px] leading-snug',
             item.kind === 'note' ? 'whitespace-pre-wrap' : 'truncate',
+            item.kind === 'note' && item.noteDense ? 'note-tight' : '',
             unread
               ? 'italic text-grey-500'
               : selected
@@ -148,7 +150,14 @@ export function DocumentGalleryRow({
           ].join(' ')}
         >
           {item.kind === 'note' ? (
-            <Linkified text={item.description ?? ''} />
+            // The rich note where there is one, the plain mirror otherwise —
+            // the same rule the list row follows, because a box in pictures
+            // view is still pane two.
+            item.notes ? (
+              <NoteText doc={item.notes} />
+            ) : (
+              <Linkified text={item.description ?? ''} />
+            )
           ) : (
             label
           )}

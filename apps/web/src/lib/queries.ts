@@ -1175,6 +1175,16 @@ export async function getBoxItems(
       title: boxItems.title,
       emoji: boxItems.emoji,
       description: boxItems.description,
+      /*
+       * The rich note, but only for the rows that draw one.
+       *
+       * A feed row renders the note body for a `note` and the filename for
+       * everything else, so sending the document for two hundred scanned
+       * receipts would be paying to ship what nothing displays. The case
+       * expression keeps the payload to what pane two will actually use.
+       */
+      notes: sql<unknown>`case when ${boxItems.kind} = 'note' then ${boxItems.notes} else null end`,
+      noteDense: boxItems.noteDense,
       docDate: boxItems.docDate,
       status: boxItems.status,
       capturedAt: boxItems.capturedAt,

@@ -8,6 +8,7 @@ import { AudioClip } from './audio-clip';
 import { EntryTypeIcon } from './entry-type-icon';
 import { IconLink, IconPlace } from './icons';
 import { Linkified } from './linkified';
+import { NoteText } from './note-text';
 import { SimpleRow } from './simple-row';
 
 const printed = new Intl.DateTimeFormat('en-GB', {
@@ -138,6 +139,9 @@ export function DocumentRow({
           // A note is read, not scanned: it wraps to a few lines the way a
           // message does, where a filename is one line and truncates.
           written ? 'line-clamp-4 whitespace-pre-wrap' : 'truncate',
+          // A note set compact in pane three reads compact here too, or the
+          // list and the pane would disagree about the same note.
+          written && item.noteDense ? 'note-tight' : '',
           unread
             ? 'italic text-grey-500'
             : selected
@@ -148,7 +152,20 @@ export function DocumentRow({
         ].join(' ')}
       >
         {item.kind === 'note' ? (
-          <Linkified text={item.description ?? ''} />
+          /*
+           * What you wrote, as you wrote it.
+           *
+           * The plain mirror is still the fallback — a note filed before rich
+           * text existed has only `description`, and so does one nobody has
+           * opened since — but where there is a document, pane two shows the
+           * formatting. What you emphasised is most of what makes a note
+           * recognisable at a glance, which is the job of a list.
+           */
+          item.notes ? (
+            <NoteText doc={item.notes} />
+          ) : (
+            <Linkified text={item.description ?? ''} />
+          )
         ) : (
           label
         )}

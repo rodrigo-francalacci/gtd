@@ -299,6 +299,15 @@ export type AppliedTag = { id: string; name: string; category: string };
 
 export type BoxItemRow = {
   id: string;
+  /**
+   * The note as a rich document, for the rows that render one.
+   *
+   * Null for every kind but `note` — the query nulls it rather than the row
+   * type pretending otherwise, because a feed shows a filename for a document
+   * and the body only for something written.
+   */
+  notes?: unknown;
+  noteDense?: boolean | null;
   boxId: string;
   kind: BoxItemKind;
   /** For an `event`: which project, and which moment in its life. */

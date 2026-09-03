@@ -1591,6 +1591,26 @@ Turbopack is the default; `middleware` is now `proxy`.
   The note saves itself, as notes do everywhere else here, which is why Save and
   Discard on that pane now belong to the title alone: a rich editor owns its
   content, and a manual save over the top is two sources of truth for one field.
+- **Pane two shows the formatting, and there are two row components to change.**
+  A note written with bold, colour and bullets arrived in the feed as a wall of
+  grey, because the row rendered `description` — the plain mirror. What you
+  emphasised is most of what makes a note recognisable at a glance, which is
+  the job of a list, so `NoteText` walks the document and returns React.
+  Hand-written rather than TipTap's `generateHTML`, which wants the whole
+  extension set loaded to draw a line of text in a list of two hundred rows —
+  and this way there is no `dangerouslySetInnerHTML` anywhere near it and
+  nothing a note contains can become markup. Unknown nodes render their
+  children rather than vanishing, the rule the LaTeX reading view follows: a
+  silently dropped paragraph would make the list lie about the note.
+  **`document-row.tsx` is not the only one.** A box in pictures view renders
+  `DocumentGalleryRow`, which has its own copy of the same text block — an edit
+  to the list row alone changes nothing there, and the box being looked at
+  happened to be in that view, which cost an hour of chasing a data path that
+  was correct the whole time. The probe that settled it was one attribute on
+  the row: absent from the DOM, so the component was not the one rendering.
+  **Only the rows that draw a note carry one.** The feed shows a filename for a
+  document and the body only for a `note`, so the query nulls `notes` for every
+  other kind rather than shipping a document per scanned receipt.
 - **A note can be set compact, per note, and the spacing runs through
   variables.** How much air a note wants is a fact about *that* note — a list of
   dates and part numbers reads better closed up and the paragraph under it does
