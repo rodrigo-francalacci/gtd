@@ -1,6 +1,6 @@
 import { Fragment, type ReactNode } from 'react';
 import { isNoteColour, colourVar } from '@/lib/note-colour';
-import { leavesApp, readToken } from '@/lib/internal-link';
+import { readToken } from '@/lib/internal-link';
 
 /**
  * A note's rich text, rendered small enough for a list row.
@@ -106,15 +106,15 @@ function withMarks(
         if (!known) break;
 
         /*
-         * A Drive folder opens where it lives, in a tab of its own.
+         * Whether this leaves is read off the address rather than the kind.
          *
-         * The same answer the project tree gives, for the same reason: these
-         * are precisely the files this app has no scope to read, so no version
-         * of them belongs in our pane — and on a phone a `drive.google.com`
-         * navigation is handed to the installed app, which is better than
-         * anything we could show.
+         * The page decides where a link goes — a box sends all three to its own
+         * pane three, a page with no pane sends each to where it lives — so the
+         * only thing that can honestly answer "does this leave the app" is the
+         * href that came back. Asking the kind instead would have to be updated
+         * every time a page changed its mind.
          */
-        const away = leavesApp(target);
+        const away = !known.href.startsWith('/');
 
         out = (
           <a

@@ -169,7 +169,7 @@ export function TagEditor({
           aria-label="Find a tag, or type a new one"
           /* 16px, or iOS Safari zooms the page in when it takes focus — and on a
              phone this panel *is* the screen. */
-          className="mt-2 w-full rounded-sm border border-grey-300 bg-paper px-2 py-1 text-[16px] text-grey-800 placeholder:text-grey-400 focus:border-selected focus:outline-none md:text-[12px]"
+          className="mt-2 w-full rounded-sm border border-grey-300 bg-paper px-2 py-1 text-[16px] text-grey-800 placeholder:text-grey-500 focus:border-selected focus:outline-none md:text-[12px]"
         />
       </div>
 
@@ -258,7 +258,7 @@ export function TagEditor({
                 }}
                 placeholder="Category name"
                 aria-label="New category name"
-                className="min-w-0 flex-1 rounded-sm border border-grey-300 bg-paper px-2 py-1 text-[16px] text-grey-800 placeholder:text-grey-400 focus:border-selected focus:outline-none md:text-[12px]"
+                className="min-w-0 flex-1 rounded-sm border border-grey-300 bg-paper px-2 py-1 text-[16px] text-grey-800 placeholder:text-grey-500 focus:border-selected focus:outline-none md:text-[12px]"
               />
               <button
                 type="button"

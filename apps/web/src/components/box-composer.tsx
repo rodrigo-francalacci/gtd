@@ -519,7 +519,7 @@ export function BoxComposer({ boxId }: { boxId: string }) {
         }}
         rows={2}
         placeholder="Write something, paste a link, drop a file…"
-        className="w-full resize-none bg-transparent text-[13px] leading-relaxed text-grey-800 placeholder:text-grey-400 focus:outline-none"
+        className="w-full resize-none bg-transparent text-[13px] leading-relaxed text-grey-800 placeholder:text-grey-500 focus:outline-none"
       />
 
       {/*

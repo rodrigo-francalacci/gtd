@@ -23,7 +23,7 @@ export function QuickAddListItem({ listId }: { listId: string }) {
         name="title"
         placeholder="Add to this list…"
         autoComplete="off"
-        className="w-full bg-transparent text-[13px] text-grey-800 placeholder:text-grey-400 focus:outline-none"
+        className="w-full bg-transparent text-[13px] text-grey-800 placeholder:text-grey-500 focus:outline-none"
       />
     </form>
   );

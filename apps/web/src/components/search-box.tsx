@@ -48,7 +48,7 @@ export function SearchBox() {
         onChange={(e) => setTerm(e.target.value)}
         placeholder="Search…"
         aria-label="Search"
-        className="w-full rounded-sm border border-grey-300 bg-paper px-2 py-1 text-[12px] text-grey-800 placeholder:text-grey-400 focus:border-grey-500 focus:outline-none"
+        className="w-full rounded-sm border border-grey-300 bg-paper px-2 py-1 text-[12px] text-grey-800 placeholder:text-grey-500 focus:border-grey-500 focus:outline-none"
       />
     </form>
   );

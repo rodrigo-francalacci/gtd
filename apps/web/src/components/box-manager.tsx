@@ -83,7 +83,7 @@ export function BoxManager({
           onChange={(e) => setInstruction(e.target.value)}
           rows={3}
           placeholder="e.g. Fuel receipts, kept for a tax return."
-          className="w-full resize-y rounded-sm border border-grey-200 bg-paper px-2 py-1.5 text-[13px] leading-relaxed text-grey-800 placeholder:text-grey-400 focus:border-grey-400 focus:outline-none"
+          className="w-full resize-y rounded-sm border border-grey-200 bg-paper px-2 py-1.5 text-[13px] leading-relaxed text-grey-800 placeholder:text-grey-500 focus:border-grey-400 focus:outline-none"
         />
         <p className="text-[11px] text-grey-500">
           Read by the model before it tags anything filed here.
@@ -99,7 +99,7 @@ export function BoxManager({
           onChange={(e) => setRules(e.target.value)}
           rows={3}
           placeholder="e.g. Include the items bought and the final total. Put the vendor first in the title."
-          className="w-full resize-y rounded-sm border border-grey-200 bg-paper px-2 py-1.5 text-[13px] leading-relaxed text-grey-800 placeholder:text-grey-400 focus:border-grey-400 focus:outline-none"
+          className="w-full resize-y rounded-sm border border-grey-200 bg-paper px-2 py-1.5 text-[13px] leading-relaxed text-grey-800 placeholder:text-grey-500 focus:border-grey-400 focus:outline-none"
         />
         <p className="text-[11px] leading-relaxed text-grey-500">
           Rules for the title and summary of documents in this box. Separate
@@ -473,7 +473,7 @@ function CategoryEditor({
           value={tag}
           onChange={(e) => setTag(e.target.value)}
           placeholder="Add a tag…"
-          className="w-full rounded-sm border border-grey-200 bg-paper px-2 py-1 text-[11px] placeholder:text-grey-400 focus:border-grey-400 focus:outline-none"
+          className="w-full rounded-sm border border-grey-200 bg-paper px-2 py-1 text-[11px] placeholder:text-grey-500 focus:border-grey-400 focus:outline-none"
         />
       </form>
     </div>
@@ -503,7 +503,7 @@ function NewCategoryForm({ boxId }: { boxId: string }) {
         disabled={pending}
         onChange={(e) => setName(e.target.value)}
         placeholder="New category — e.g. Issued by"
-        className="w-full rounded-sm border border-grey-200 bg-paper px-2 py-1.5 text-[12px] placeholder:text-grey-400 focus:border-grey-400 focus:outline-none"
+        className="w-full rounded-sm border border-grey-200 bg-paper px-2 py-1.5 text-[12px] placeholder:text-grey-500 focus:border-grey-400 focus:outline-none"
       />
     </form>
   );
@@ -535,7 +535,7 @@ export function NewBoxForm() {
         disabled={pending}
         onChange={(e) => setName(e.target.value)}
         placeholder="New box…"
-        className="w-full rounded-sm border border-grey-200 bg-paper px-2 py-1 text-[12px] placeholder:text-grey-400 focus:border-grey-400 focus:outline-none"
+        className="w-full rounded-sm border border-grey-200 bg-paper px-2 py-1 text-[12px] placeholder:text-grey-500 focus:border-grey-400 focus:outline-none"
       />
     </form>
   );

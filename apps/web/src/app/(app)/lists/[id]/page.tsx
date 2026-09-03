@@ -25,6 +25,7 @@ import { LayoutToggle } from '@/components/layout-toggle';
 import { EmojifyButton } from '@/components/emojify-button';
 import { ListItemRow } from '@/components/list-item-row';
 import { ImpactBucket } from '@/components/impact-bucket';
+import { Board } from '@/components/board';
 import { IMPACT_LABELS, type PurchaseImpact } from '@/lib/queries.shared';
 import { groupByDay } from '@/lib/days';
 
@@ -51,6 +52,16 @@ export default async function ListPage(props: PageProps<'/lists/[id]'>) {
    * It wins over a selected item rather than clearing it: come back from the
    * budget and the item you were looking at is still the one selected.
    */
+  /**
+   * The board, which is a place rather than a mode.
+   *
+   * In the URL like everything else here: it survives a refresh, it is a link
+   * the header can point at, and the server renders it — so there is no moment
+   * where the panes are drawn and then replaced. Only a purchases list has the
+   * four buckets it is made of, so nothing else can be asked for it.
+   */
+  const wantsBoard = isPurchases && searchParams.board !== undefined;
+
   const wantsBudget = isPurchases && searchParams.budget !== undefined;
   const selectedId =
     !wantsBudget && typeof searchParams.item === 'string' ? searchParams.item : null;
@@ -93,6 +104,9 @@ export default async function ListPage(props: PageProps<'/lists/[id]'>) {
         ? groupByDay(items, (i) => i.createdAt).flatMap((day) => day.items)
         : items;
 
+  /** Selecting a row on the board keeps you on the board. */
+  const boardItemHref = (itemId: string) => listUrl({ board: true, item: itemId });
+
   const qs = (itemId: string) => {
     const p = new URLSearchParams();
     if (impact) p.set('impact', impact);
@@ -100,6 +114,27 @@ export default async function ListPage(props: PageProps<'/lists/[id]'>) {
     p.set('item', itemId);
     return `/lists/${id}?${p}`;
   };
+
+  /**
+   * The board, with or without something selected, and the way back out.
+   *
+   * One builder rather than three near-identical ones: the filters have to
+   * survive opening the board, selecting a row on it, clicking empty space to
+   * get the budget back, and closing it — and four separate constructions of
+   * the same query string is how one of those quietly stops carrying a filter.
+   */
+  const listUrl = (opts: { board?: boolean; item?: string | null }) => {
+    const p = new URLSearchParams();
+    if (impact) p.set('impact', impact);
+    if (where) p.set('where', where);
+    if (opts.item) p.set('item', opts.item);
+    if (opts.board) p.set('board', '1');
+    const query = p.toString();
+    return query ? `/lists/${id}?${query}` : `/lists/${id}`;
+  };
+
+  const boardHref = listUrl({ board: true, item: selectedId });
+  const closeBoardHref = listUrl({ item: selectedId });
 
   /** The budget, keeping whichever filters are on. */
   const budgetHref = (() => {
@@ -133,6 +168,129 @@ export default async function ListPage(props: PageProps<'/lists/[id]'>) {
    */
   const Frame = isPurchases ? BudgetTrialProvider : Passthrough;
 
+  /**
+   * The four buckets, described once.
+   *
+   * The pane stacks them and the board lays them side by side, but *what* they
+   * are — which impact, what it is called, what it comes to — is one answer.
+   * Written twice it would be four labels and four totals to keep in agreement,
+   * and the two views would drift the first time either changed.
+   */
+  const impactBuckets: {
+    impact: PurchaseImpact | null;
+    title: string;
+    hint: string;
+  }[] = [
+    { impact: 'blocks', title: IMPACT_LABELS.blocks, hint: 'in the way' },
+    { impact: 'improves', title: IMPACT_LABELS.improves, hint: 'worth doing' },
+    { impact: 'nice_to_have', title: IMPACT_LABELS.nice_to_have, hint: 'some day' },
+    { impact: null, title: 'Not said yet', hint: 'drag these somewhere' },
+  ];
+
+  const bucketFacts = (bucket: (typeof impactBuckets)[number]) => {
+    const mine = items.filter((i) => (i.fields?.impact ?? null) === bucket.impact);
+
+    // Only what has a price. A bucket of six unpriced wants totalling zero
+    // would be a lie with a number on it.
+    const priced = mine.filter((i) => typeof i.fields?.cost === 'number');
+
+    return {
+      mine,
+      total:
+        priced.length > 0
+          ? formatMoney(priced.reduce((t, i) => t + (i.fields?.cost ?? 0), 0))
+          : null,
+    };
+  };
+
+  if (wantsBoard) {
+    /*
+     * The board *instead of* the panes, not on top of them.
+     *
+     * It covers the window either way, so drawing both would be work nobody
+     * sees — and worse than wasted: the note editor inside pane three would be
+     * mounted twice against the same row, two autosaves for one document, which
+     * is exactly the shape of bug that costs somebody a paragraph.
+     */
+  /*
+     * The reading side of the board, which is pane three by another name: the
+     * selected item, or the budget when nothing is selected. Built here because
+     * both halves are Server Components with their own queries behind them, and
+     * the board only decides where they sit.
+     */
+    const boardSide = selected ? (
+      <ListItemDetail
+        key={selected.id}
+        item={selected}
+        attachments={files!.rows}
+        fileOrder={files!.order}
+        documents={docs!.rows}
+        docOrder={docs!.order}
+        documentOptions={await getLinkableDocuments('list_item', selected.id, '')}
+        isPurchases={isPurchases}
+        projectOptions={projectOptions}
+      />
+    ) : (
+      <BudgetSummary
+        items={allItems}
+        filters={{ impact, where }}
+        basePath={`/lists/${id}`}
+        listId={id}
+        budget={list.budget}
+      />
+    );
+
+    return (
+      <Frame>
+        <Board
+          title={list.name}
+          subtitle={`${candidates} candidate${candidates === 1 ? '' : 's'} · ${formatMoney(openTotal)} open${
+            impact || where ? ` · showing ${items.length} of ${allItems.length}` : ''
+          }`}
+          closeHref={closeBoardHref}
+          deselectHref={listUrl({ board: true })}
+          viewMode={viewMode}
+          viewKey={viewKey}
+          laneCount={impactBuckets.length}
+          side={boardSide}
+          columns={impactBuckets.map((bucket) => {
+            const { mine, total } = bucketFacts(bucket);
+
+            /*
+             * Every lane is drawn, *including* the undecided one — which the
+             * pane hides when it is empty. A lane is a place here, and a board
+             * whose columns come and went as you emptied them would rearrange
+             * itself under the drag that emptied it.
+             */
+            return (
+              <ImpactBucket
+                key={bucket.impact ?? 'unsaid'}
+                variant="column"
+                impact={bucket.impact}
+                title={bucket.title}
+                hint={bucket.hint}
+                count={mine.length}
+                total={total}
+              >
+                <SortableListItems
+                  items={mine.map((i) => ({ ...i, href: boardItemHref(i.id) }))}
+                  selectedId={selectedId}
+                  isPurchases={isPurchases}
+                  mode={viewMode}
+                  emptyState={
+                    <p className="px-3 py-6 text-center text-[11px] text-grey-400">
+                      Drag something in.
+                    </p>
+                  }
+                />
+              </ImpactBucket>
+            );
+          })}
+        />
+      </Frame>
+    );
+  }
+
   return (
     <Frame>
       <ListPane
@@ -153,6 +311,21 @@ export default async function ListPage(props: PageProps<'/lists/[id]'>) {
               marked={items.filter((i) => i.emoji).length}
             />
             <LayoutToggle layout={layout} viewKey={viewKey} impact={isPurchases} />
+            {isPurchases ? (
+              /*
+               * Hidden on a phone, and that is the honest bound rather than a
+               * preference: the board is four lanes you drag between, and
+               * HTML5 drag-and-drop has no touch support anywhere in this app.
+               * A button that opened a view you could look at and not use would
+               * be worse than no button.
+               */
+              <Link
+                href={boardHref}
+                className="hidden text-[11px] text-grey-500 underline underline-offset-2 hover:text-grey-800 lg:inline"
+              >
+                Board
+              </Link>
+            ) : null}
             {isPurchases ? (
               <Link
                 href={budgetHref}
@@ -230,30 +403,11 @@ export default async function ListPage(props: PageProps<'/lists/[id]'>) {
            * view exists for could not be performed.
            */
           (() => {
-            const buckets: {
-              impact: PurchaseImpact | null;
-              title: string;
-              hint: string;
-            }[] = [
-              { impact: 'blocks', title: IMPACT_LABELS.blocks, hint: 'in the way' },
-              { impact: 'improves', title: IMPACT_LABELS.improves, hint: 'worth doing' },
-              {
-                impact: 'nice_to_have',
-                title: IMPACT_LABELS.nice_to_have,
-                hint: 'some day',
-              },
-              { impact: null, title: 'Not said yet', hint: 'drag these somewhere' },
-            ];
+            return impactBuckets.map((bucket) => {
+              const { mine, total } = bucketFacts(bucket);
 
-            return buckets.map((bucket) => {
-              const mine = items.filter(
-                (i) => (i.fields?.impact ?? null) === bucket.impact,
-              );
-
-              // Only what has a price. A bucket of six unpriced wants totalling
-              // zero would be a lie with a number on it.
-              const priced = mine.filter((i) => typeof i.fields?.cost === 'number');
-
+              // The undecided bucket is a backlog, not a category: it appears
+              // while something is unplaced and goes when the last one lands.
               if (bucket.impact === null && mine.length === 0) return null;
 
               return (
@@ -263,11 +417,7 @@ export default async function ListPage(props: PageProps<'/lists/[id]'>) {
                   title={bucket.title}
                   hint={bucket.hint}
                   count={mine.length}
-                  total={
-                    priced.length > 0
-                      ? formatMoney(priced.reduce((t, i) => t + (i.fields?.cost ?? 0), 0))
-                      : null
-                  }
+                  total={total}
                 >
 
                   <SortableListItems

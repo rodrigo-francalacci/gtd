@@ -257,7 +257,7 @@ export function DocumentDetail({
             value={title}
             onChange={(e) => edit({ title: e.target.value })}
             placeholder={documentLabel(item)}
-            className="min-w-0 flex-1 border-0 border-b border-transparent bg-transparent pb-1 text-[17px] font-medium text-grey-900 placeholder:text-grey-400 focus:border-grey-300 focus:outline-none"
+            className="min-w-0 flex-1 border-0 border-b border-transparent bg-transparent pb-1 text-[17px] font-medium text-grey-900 placeholder:text-grey-500 focus:border-grey-300 focus:outline-none"
           />
         </div>
       </header>

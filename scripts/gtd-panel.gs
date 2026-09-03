@@ -121,6 +121,16 @@ function panelJobs() {
       needs: 'gtd-project-tree.gs',
     },
     {
+      id: 'walkLinkedFolders',
+      group: 'One at a time',
+      title: 'Linked folders',
+      detail:
+        'Walks the Drive folders your notes link to with a D-id and posts each ' +
+        'listing to the app. Only folders something actually links to — the app ' +
+        'says which, and a link is what puts one on the list.',
+      needs: 'gtd-project-tree.gs',
+    },
+    {
       id: 'syncDriveNames',
       group: 'One at a time',
       title: 'Sync filenames',
@@ -175,6 +185,13 @@ function syncEverything() {
     ['Reading what arrived', 'readWaitingDocuments'],
     ['The app’s own tick', 'syncDriveNames'],
     ['Project listings', 'walkProjectTrees'],
+    /*
+     * Last, with the project listings and for the same reason: a listing is a
+     * photograph of what is in a folder, so taking it before the app's own tick
+     * would photograph the folders as they were before anything moved into
+     * them.
+     */
+    ['Linked folders', 'walkLinkedFolders'],
   ];
 
   var failed = 0;

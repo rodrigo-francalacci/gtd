@@ -1,6 +1,6 @@
 import 'server-only';
 
-import type { InternalTarget } from './internal-link';
+import { tokenFor, tokensIn, type InternalTarget } from './internal-link';
 
 import { cache } from 'react';
 
@@ -24,6 +24,7 @@ import {
   inboxItems,
   listItems,
   lists,
+  folderTrees,
   projectTrees,
   projects,
   type AiSuggestion,
@@ -132,8 +133,9 @@ export async function resolveInternalLinks(
 
   const projectIds = [...new Set(targets.filter((t) => t.kind === 'project').map((t) => t.id))];
   const actionIds = [...new Set(targets.filter((t) => t.kind === 'action').map((t) => t.id))];
+  const entryIds = [...new Set(targets.filter((t) => t.kind === 'boxItem').map((t) => t.id))];
 
-  const [projectRows, actionRows] = await Promise.all([
+  const [projectRows, actionRows, entryRows] = await Promise.all([
     projectIds.length
       ? db
           .select({ id: projects.id, title: projects.title })
@@ -146,10 +148,44 @@ export async function resolveInternalLinks(
           .from(actions)
           .where(inArray(actions.id, actionIds))
       : Promise.resolve([]),
+    /*
+     * A box entry's own words, and the box it is in.
+     *
+     * The box is part of the title rather than a separate field because that is
+     * what the reader needs from a sideways link: a note in the Feed pointing at
+     * something in Work should say so on hover, or you cannot tell it from a
+     * link to the entry beside it.
+     *
+     * `coalesce` for the reason the emojify button uses it: a note has no title
+     * at all and keeps its text in `description`, and a document not yet read
+     * has neither and only a filename.
+     */
+    entryIds.length
+      ? db
+          .select({
+            id: boxItems.id,
+            title: sql<string>`coalesce(
+              nullif(${boxItems.title}, ''),
+              nullif(${boxItems.description}, ''),
+              nullif(${boxItems.name}, ''),
+              'Untitled'
+            )`,
+            boxName: boxes.name,
+          })
+          .from(boxItems)
+          .innerJoin(boxes, eq(boxes.id, boxItems.boxId))
+          .where(inArray(boxItems.id, entryIds))
+      : Promise.resolve([]),
   ]);
 
   for (const row of projectRows) found.set(`P${row.id}`, { title: row.title });
   for (const row of actionRows) found.set(`A${row.id}`, { title: row.title });
+  for (const row of entryRows) {
+    // Trimmed, because a note's own text stands in for a title and can be a
+    // paragraph — this ends up in a `title` attribute, not on the page.
+    const label = row.title.replace(/\s+/g, ' ').slice(0, 80);
+    found.set(`B${row.id}`, { title: `${label} — in ${row.boxName}` });
+  }
 
   /*
    * A Drive folder is not looked up here. The app holds `drive.file` and cannot
@@ -158,7 +194,7 @@ export async function resolveInternalLinks(
    * Google call inside a render. It resolves when opened instead.
    */
   for (const target of targets) {
-    const token = `${target.kind === 'project' ? 'P' : target.kind === 'action' ? 'A' : 'D'}${target.id}`;
+    const token = tokenFor(target);
     if (target.kind === 'drive') found.set(token, { title: 'Drive folder' });
     else if (!found.has(token)) found.set(token, null);
   }
@@ -1539,6 +1575,124 @@ export async function getBoxDayNotes(): Promise<Map<string, string>> {
  * until the Apps Script is set up and run, and a project that has never been
  * walked simply has no index yet.
  */
+/**
+ * One linked folder's tree, or nothing if it has never been walked.
+ *
+ * Keyed on Drive's own id, because there is no row of ours for a folder
+ * somebody typed into a note — which is the whole difference between this and
+ * `getProjectTree`.
+ */
+/**
+ * Box entries a note could point at, newest first.
+ *
+ * Capped, and the cap is the whole design decision. Every entry in every box is
+ * thousands of rows in a page payload for a picker you use occasionally — but a
+ * link to a box entry is nearly always a link to something you filed *recently*
+ * and are still thinking about, which is what makes a recency cap the right one
+ * rather than a compromise. Anything older is reached by "Copy id" on its own
+ * row, which is the same path a closed project takes.
+ *
+ * Across every box on purpose: the case this exists for is a note in one box
+ * pointing at something in another.
+ */
+export async function getLinkableEntries(limit = 200) {
+  return db
+    .select({
+      id: boxItems.id,
+      title: sql<string>`coalesce(
+        nullif(${boxItems.title}, ''),
+        nullif(${boxItems.description}, ''),
+        nullif(${boxItems.name}, ''),
+        'Untitled'
+      )`,
+      boxName: boxes.name,
+    })
+    .from(boxItems)
+    .innerJoin(boxes, eq(boxes.id, boxItems.boxId))
+    .orderBy(desc(boxItems.capturedAt))
+    .limit(limit);
+}
+
+/** Which box an entry lives in, for the link that has to look it up. */
+export async function boxOfEntry(entryId: string) {
+  const [row] = await db
+    .select({ boxId: boxItems.boxId })
+    .from(boxItems)
+    .where(eq(boxItems.id, entryId))
+    .limit(1);
+
+  return row?.boxId ?? null;
+}
+
+export async function getFolderTree(folderId: string) {
+  const [row] = await db
+    .select()
+    .from(folderTrees)
+    .where(eq(folderTrees.folderId, folderId))
+    .limit(1);
+
+  return row ?? null;
+}
+
+/**
+ * Every Drive folder a note points at, with what we last called it.
+ *
+ * This is the list the script is allowed to walk, and it is deliberately
+ * derived rather than configured: a folder is on it because somebody wrote a
+ * `D<id>` link, and it drops off when the last such link goes. A configured
+ * list would be a second thing to keep in step, and an endpoint that walked any
+ * id it was handed would be a way to enumerate somebody's whole Drive through a
+ * script that has permission to.
+ *
+ * **Six tables, one pass, in the database.** Every table with a `notes` column
+ * is scanned for the mark's own name and only those rows come back — a note
+ * without a link is never sent over the wire. The alternative is fetching every
+ * note in the app once a day to find the handful that mention a folder.
+ *
+ * `::text like` rather than a JSONB path query, because the mark can sit at any
+ * depth under any node and jsonb has no "anywhere below here" operator that
+ * would not itself be a recursive walk. This is a coarse filter and is allowed
+ * to be: `tokensIn` is the real parser, and it runs over what survives.
+ */
+export async function linkedDriveFolders(): Promise<{ id: string; name: string | null }[]> {
+  const rows = await db.execute(sql`
+    select notes from areas_of_focus where notes::text like '%internalLink%'
+    union all
+    select notes from goals         where notes::text like '%internalLink%'
+    union all
+    select notes from projects      where notes::text like '%internalLink%'
+    union all
+    select notes from actions       where notes::text like '%internalLink%'
+    union all
+    select notes from list_items    where notes::text like '%internalLink%'
+    union all
+    select notes from box_items     where notes::text like '%internalLink%'
+  `);
+
+  const ids = new Set<string>();
+  for (const row of rows.rows as { notes: unknown }[]) {
+    for (const target of tokensIn(row.notes)) {
+      if (target.kind === 'drive') ids.add(target.id);
+    }
+  }
+
+  if (ids.size === 0) return [];
+
+  /*
+   * The names we already hold, so a walk that fails still has something to call
+   * the folder. A folder nobody has walked yet has no name at all, which is
+   * honest — Google owns that name and there is nowhere else to read it from.
+   */
+  const known = await db
+    .select({ id: folderTrees.folderId, name: folderTrees.name })
+    .from(folderTrees)
+    .where(inArray(folderTrees.folderId, [...ids]));
+
+  const names = new Map(known.map((row) => [row.id, row.name]));
+
+  return [...ids].map((id) => ({ id, name: names.get(id) ?? null }));
+}
+
 export async function getProjectTree(projectId: string) {
   const [row] = await db
     .select()

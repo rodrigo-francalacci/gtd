@@ -136,7 +136,7 @@ export function AppsScriptPanel({ url }: { url: string | null }) {
               placeholder="https://script.google.com/…/exec"
               aria-label="Apps Script panel address"
               /* 16px, or iOS Safari zooms the page in when it takes focus. */
-              className="min-w-0 flex-1 rounded-sm border border-grey-300 bg-paper px-2 py-1.5 text-[16px] text-grey-800 placeholder:text-grey-400 focus:border-selected focus:outline-none md:text-[12px]"
+              className="min-w-0 flex-1 rounded-sm border border-grey-300 bg-paper px-2 py-1.5 text-[16px] text-grey-800 placeholder:text-grey-500 focus:border-selected focus:outline-none md:text-[12px]"
             />
             <button
               type="button"

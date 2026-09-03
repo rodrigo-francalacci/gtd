@@ -346,6 +346,33 @@ export async function resolveEmailRequest(
  * parent it files into the box the ordinary way and appears in the feed, which
  * is where you would look for it.
  */
+/**
+ * The same rows, moved rather than cleared.
+ *
+ * Clearing is right when the thing you asked on behalf of has *gone*. It is
+ * wrong when the thing has merely become something else — an action put back on
+ * a list as a candidate is the same commitment, differently classified, and the
+ * message you asked for should still be cited on it when the bridge next runs.
+ *
+ * Lives here beside its sibling because this module owns the table: two places
+ * writing `email_requests.parent_id` is how one of them ends up not knowing
+ * about a rule the other added.
+ */
+export async function moveEmailRequestParents(
+  from: { parentType: 'project' | 'action' | 'list_item'; parentId: string },
+  to: { parentType: 'project' | 'action' | 'list_item'; parentId: string },
+): Promise<void> {
+  await db
+    .update(emailRequests)
+    .set({ parentType: to.parentType, parentId: to.parentId })
+    .where(
+      and(
+        eq(emailRequests.parentType, from.parentType),
+        eq(emailRequests.parentId, from.parentId),
+      ),
+    );
+}
+
 export async function clearEmailRequestParents(
   parentType: 'project' | 'action' | 'list_item',
   parentIds: string[],

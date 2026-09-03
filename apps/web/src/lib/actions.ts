@@ -62,6 +62,7 @@ import {
   readEmailQuery,
   type RequestParent,
   clearEmailRequestParents,
+  moveEmailRequestParents,
 } from './box/email-requests';
 import {
   createBoxDocument,
@@ -2051,6 +2052,155 @@ export async function promoteListItem(itemId: string) {
     .update(listItems)
     .set({ promotedActionId: action.id })
     .where(eq(listItems.id, itemId));
+
+  revalidateShell();
+}
+
+/**
+ * The other direction: a commitment put back on a list as a candidate.
+ *
+ * The two drags never met before, and the reason was a real distinction rather
+ * than an oversight — **nothing on a list is a commitment until promoted**, so
+ * an action and a list item are not two views of one thing and moving between
+ * them is not a reclassification, it is a decision. What was missing is that
+ * the decision goes *both* ways. "Buy a new drill bit" reaching the Now list
+ * and turning out to be a want rather than a next action is ordinary, and until
+ * now the only way to say so was to delete the action and retype it on the
+ * list, losing its notes and its files on the way.
+ *
+ * So this is `promoteListItem` read backwards, and it is careful about the
+ * three things that make it lossy rather than pretending they are not:
+ *
+ * - **The title loses its verb.** Promoting from a purchases list writes
+ *   "Buy <thing>"; coming back, that prefix is stripped, or a round trip would
+ *   leave you with "Buy Buy a drill bit".
+ * - **The contexts and the waiting-on go.** A list item has neither, because a
+ *   candidate is not work yet — where it can be done and who you are chasing
+ *   are facts about a commitment. They are not silently dropped: the action is
+ *   deleted, which is what the row *becoming* something else means here.
+ * - **The evidence travels.** Attachments are re-parented and their Drive files
+ *   queued to move — an action with no project keeps its files in
+ *   `GTD/Actions/<title>` and a list item's go to its project or its list, so
+ *   the folder genuinely changes. Cited box documents are re-parented too:
+ *   unlinking them would be tidying a project's reasoning out of the archive.
+ *
+ * `promoted_action_id` is `on delete set null`, so an item that had promoted
+ * *this* action simply becomes unpromoted again — which is the truth.
+ *
+ * **It deletes the row directly rather than going through `purgeActions`, and
+ * that is deliberate in both directions.** The purge trashes every file in
+ * Drive and unlinks every cited document, which is right for "this step is
+ * gone" and exactly wrong here — the evidence has just been re-parented onto
+ * the row this one became. What the purge does that this must copy is the two
+ * things nothing else would clean up: an `email_requests` row naming the
+ * action, and the action's own Drive folder.
+ */
+export async function moveActionToList(actionId: string, listId: string) {
+  await requireSession();
+
+  const [action] = await db
+    .select({
+      id: actions.id,
+      title: actions.title,
+      emoji: actions.emoji,
+      notes: actions.notes,
+      searchText: actions.searchText,
+      projectId: actions.projectId,
+      noteHeight: actions.noteHeight,
+      noteDense: actions.noteDense,
+    })
+    .from(actions)
+    .where(eq(actions.id, actionId))
+    .limit(1);
+
+  if (!action) return;
+
+  const [list] = await db
+    .select({ type: lists.type })
+    .from(lists)
+    .where(eq(lists.id, listId))
+    .limit(1);
+
+  if (!list) return;
+
+  // The mirror of the "Buy " a purchases promotion adds. Case-insensitive
+  // because the action may have been renamed by hand in between.
+  const title =
+    list.type === 'purchases' ? action.title.replace(/^buy\s+/i, '') : action.title;
+
+  const [item] = await db
+    .insert(listItems)
+    .values({
+      listId,
+      title: title || action.title,
+      emoji: action.emoji,
+      notes: action.notes,
+      searchText: action.searchText,
+      projectId: action.projectId,
+      noteHeight: action.noteHeight,
+      noteDense: action.noteDense,
+    })
+    .returning({ id: listItems.id });
+
+  /*
+   * Re-parented before the action goes, and that order is the safeguard: there
+   * are no transactions on this driver, so a failure part-way leaves the files
+   * on an action that still exists — untidy and recoverable — where the other
+   * order would delete the action first and strand every file it owned.
+   */
+  const files = await db
+    .update(attachments)
+    .set({ parentType: 'list_item', parentId: item.id })
+    .where(and(eq(attachments.parentType, 'action'), eq(attachments.parentId, actionId)))
+    .returning({ id: attachments.id });
+
+  await db
+    .update(boxItemLinks)
+    .set({ parentType: 'list_item', parentId: item.id })
+    .where(
+      and(eq(boxItemLinks.parentType, 'action'), eq(boxItemLinks.parentId, actionId)),
+    );
+
+  /*
+   * A pending email request follows too, rather than being cleared.
+   *
+   * `purgeActions` clears these because the thing that was asked about has
+   * ceased to exist. Here it has not — it is a list item now, and the message
+   * being fetched should still be cited on it when the bridge next runs. This
+   * is the one place the two paths differ in *kind* rather than in bookkeeping.
+   */
+  await moveEmailRequestParents(
+    { parentType: 'action', parentId: actionId },
+    { parentType: 'list_item', parentId: item.id },
+  );
+
+  const [gone] = await db
+    .delete(actions)
+    .where(eq(actions.id, actionId))
+    .returning({ driveFolderId: actions.driveFolderId });
+
+  // The destination folder really does change — an action with no project has
+  // one of its own, and a list item without one goes to its list's.
+  for (const file of files) await enqueueFileMove({ attachmentId: file.id });
+
+  /*
+   * The action's own folder, once its files have left it.
+   *
+   * An action with no project keeps its uploads in `GTD/Actions/<title>`, so
+   * demoting it makes that folder a leftover — the same shape as filing an
+   * action into a project, and binned the same way: only after the moves have
+   * actually run. `trashProjectFolder` refuses nothing and swallows a failure,
+   * which is right, because the next tick's sweep will find an empty folder
+   * again; binning one with a document still in it is what must not happen.
+   */
+  if (gone?.driveFolderId) {
+    after(async () => {
+      await drainSyncQueue(files.length).catch(() => {});
+      await trashProjectFolder(gone.driveFolderId).catch(() => {});
+    });
+  } else {
+    drainMovesAfterResponse(files.length);
+  }
 
   revalidateShell();
 }

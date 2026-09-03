@@ -33,6 +33,13 @@
  * 2. It uses the same `APP_ORIGIN` and `BOX_INGEST_SECRET` script properties.
  * 3. Run `walkProjectTrees` once by hand to grant Drive and Gmail access.
  * 4. Add a daily trigger for `walkProjectTrees`, or press it in the panel.
+ *
+ * ## Two walks, one file
+ *
+ * `walkProjectTrees` indexes each project's own folder and label.
+ * `walkLinkedFolders` indexes the Drive folders that notes point at with a
+ * `D<id>` link — folders this app has no other record of. They share the
+ * walker and the settings; `syncEverything` in the panel runs both.
  */
 
 /** Bounds. A project folder can hold thousands of files; nobody navigates that. */
@@ -295,4 +302,99 @@ function walkProjectTrees() {
   }
 
   Logger.log('Walked ' + done + ' of ' + projects.length + '.');
+}
+
+/**
+ * Walk every Drive folder a note links to.
+ *
+ * The same walker, pointed at a different list. A `D<id>` link in a note names
+ * a folder the app has no other record of — you made it in Drive, you dropped
+ * things into it, and `drive.file` cannot see inside it. So the app says which
+ * folders somebody has actually linked to and this walks those and no others.
+ *
+ * **The app's list is the authorisation.** A folder is on it because a note
+ * points at it, and it drops off when the last such link goes. Nothing here
+ * asks Drive for anything the user has not already named by hand — which is
+ * also why the app checks the answer coming back rather than trusting the id.
+ *
+ * The folder's name is posted too, because the app has nowhere else to read it
+ * from: Google owns that name, exactly as it owns a Doc's.
+ */
+function walkLinkedFolders() {
+  const settings = treeSettings_();
+  const startedAt = Date.now();
+
+  const listed = UrlFetchApp.fetch(settings.origin + '/api/drive/tree', {
+    method: 'get',
+    headers: { Authorization: 'Bearer ' + settings.secret },
+    muteHttpExceptions: true,
+  });
+
+  if (listed.getResponseCode() !== 200) {
+    Logger.log(
+      'Could not ask the app which folders to walk: ' +
+        listed.getResponseCode() +
+        ' ' +
+        listed.getContentText().slice(0, 200),
+    );
+    return;
+  }
+
+  const folders = JSON.parse(listed.getContentText()).folders || [];
+  Logger.log(folders.length + ' linked folder(s) to walk.');
+
+  var done = 0;
+
+  for (var i = 0; i < folders.length; i++) {
+    if (Date.now() - startedAt > TREE_BUDGET_MS) {
+      Logger.log('Out of time after ' + done + '. The rest go on the next run.');
+      break;
+    }
+
+    const wanted = folders[i];
+    var tree = null;
+    var name = wanted.name || null;
+    var error = null;
+
+    try {
+      const folder = DriveApp.getFolderById(wanted.id);
+      name = folder.getName();
+      tree = walkFolder_(folder, 0, { left: 1500 });
+    } catch (e) {
+      /*
+       * A folder that has been deleted, or that this account can no longer
+       * open. Reported rather than thrown: the app keeps the last good tree and
+       * says why it is old, which is more use than losing it.
+       */
+      error = 'Drive: ' + e.message;
+    }
+
+    Logger.log('· ' + (name || wanted.id) + (error ? ' — ' + error : ''));
+
+    const response = UrlFetchApp.fetch(settings.origin + '/api/drive/tree', {
+      method: 'post',
+      contentType: 'application/json',
+      headers: { Authorization: 'Bearer ' + settings.secret },
+      payload: JSON.stringify({
+        folderId: wanted.id,
+        name: name,
+        tree: tree,
+        error: error,
+      }),
+      muteHttpExceptions: true,
+    });
+
+    if (response.getResponseCode() === 200) {
+      done++;
+    } else {
+      Logger.log(
+        '  the app answered ' +
+          response.getResponseCode() +
+          ': ' +
+          response.getContentText().slice(0, 200),
+      );
+    }
+  }
+
+  Logger.log('Walked ' + done + ' of ' + folders.length + '.');
 }

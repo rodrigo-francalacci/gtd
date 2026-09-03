@@ -563,6 +563,32 @@
   background-image: url('/riso-grey.png');
   background-repeat: repeat;
   background-size: 811px 395px;
+
+  /*
+   * `color`, and leaving it out was a real bug rather than an omission.
+   *
+   * `color` inherits as a *computed* value, so everything in this pane was
+   * carrying whatever `body` resolved to — the base ink, which is the indigo
+   * meant for the cream sheet. Against this charcoal that measures **1.02:1**:
+   * not low contrast, invisible. It went unnoticed because nearly every element
+   * in the app carries an explicit `text-grey-*` class, which reads the pane's
+   * own ramp and is correct. What has no class inherits, and that is exactly
+   * the set nobody styles: an `<option>`, a bare `<span>`, the text of a
+   * `<select>`. Hence "the dropdowns look wrong" — they were the visible
+   * symptom of every unstyled character in two panes.
+   *
+   * The nav sheet has always set this, which is why pane one was fine at
+   * 7.28:1. This is the same line, arriving where it was missing.
+   */
+  color: var(--color-ink);
+
+  /*
+   * And the browser's own furniture has to be told, or it draws a light
+   * scrollbar and a light dropdown popup against a charcoal sheet. This is the
+   * one place in this theme where the answer differs from the root's
+   * `color-scheme: light` — because this is the one sheet that is dark.
+   */
+  color-scheme: dark;
 }
 
 /* Pane two keeps the base tokens and wears the cream sheet. */
@@ -570,6 +596,30 @@
   background-image: url('/riso-crema.png');
   background-repeat: repeat;
   background-size: 879px 184px;
+
+  /* Stated rather than inherited, for the reason above — it happens to agree
+     with the root here, and relying on that is how the charcoal sheet got it
+     wrong. */
+  color: var(--color-ink);
+}
+
+/*
+ * A native dropdown, drawn by the operating system.
+ *
+ * Chrome paints the popup list from the `<select>`'s own colours, and an
+ * `<option>` inherits nothing useful — so without this the list came up in
+ * whatever the platform felt like against whichever sheet the select was
+ * standing on. Given explicitly, in the ramp of the surface the select is on,
+ * so the same rule holds here as everywhere: `grey-800` is prominent text and
+ * the component does not know which sheet it landed on.
+ */
+:root[data-theme='riso'] select {
+  color: var(--color-grey-800);
+}
+
+:root[data-theme='riso'] option {
+  background-color: var(--color-paper);
+  color: var(--color-grey-800);
 }
 
 /*
@@ -1106,6 +1156,36 @@ body {
   font-weight: 500;
   cursor: pointer;
 }
+
+/*
+ * A form control takes the ink of the sheet it stands on.
+ *
+ * Browsers do *not* inherit `color` into `<input>`, `<textarea>` or `<select>`
+ * — they use a `fieldtext` system colour — so a field with no explicit text
+ * class renders in the platform's default, which in a theme that repaints every
+ * surface is a coin toss. Nearly every field here does carry one, and this is
+ * for the ones that do not and for the ones nobody has written yet: a class
+ * still wins on specificity, so nothing deliberate is overridden.
+ *
+ * It matters most in the theme with three grounds, where a missed field is
+ * black on charcoal rather than merely slightly wrong.
+ */
+input,
+textarea,
+select {
+  color: inherit;
+}
+
+/*
+ * The placeholder went up a step, from `grey-400` to `grey-500`.
+ *
+ * A placeholder should be quiet — it is a prompt, not content — and `grey-400`
+ * says that correctly in the themes built for contrast. Measured in the one
+ * built for comfort it came out at **2.71:1** on the cream sheet and 3.03:1 on
+ * the indigo, which is past quiet and into unreadable. One step up holds the
+ * meaning and clears 4:1 everywhere, and the two ends of the app move together
+ * rather than riso growing a rule of its own.
+ */
 
 /* Links are the one place colour earns its keep outside the semantic set:
    without it, a link is indistinguishable from underlined text. */

@@ -529,7 +529,7 @@ export function MobileCapture({
         onChange={(e) => setText(e.target.value)}
         placeholder="What's on your mind?"
         autoFocus
-        className="min-h-[7rem] flex-1 resize-none bg-transparent py-2 text-[16px] leading-relaxed text-grey-800 placeholder:text-grey-400 focus:outline-none"
+        className="min-h-[7rem] flex-1 resize-none bg-transparent py-2 text-[16px] leading-relaxed text-grey-800 placeholder:text-grey-500 focus:outline-none"
       />
 
       {noteOpen ? (
@@ -539,7 +539,7 @@ export function MobileCapture({
           rows={4}
           autoFocus
           placeholder="A bit more…"
-          className="mb-2 shrink-0 resize-none border-l-2 border-grey-200 bg-transparent pl-2 text-[16px] leading-relaxed text-grey-700 placeholder:text-grey-400 focus:outline-none"
+          className="mb-2 shrink-0 resize-none border-l-2 border-grey-200 bg-transparent pl-2 text-[16px] leading-relaxed text-grey-700 placeholder:text-grey-500 focus:outline-none"
         />
       ) : (
         <button

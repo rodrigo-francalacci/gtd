@@ -221,21 +221,34 @@ export function GoogleTree({
   gmail,
   fetchedAt,
   error,
+  emptyNote,
 }: {
   drive: TreeNode | null;
   gmail: TreeNode | null;
   fetchedAt: Date | null;
   error: string | null;
+  /**
+   * What to say when nothing has been walked.
+   *
+   * A prop rather than a fixed sentence, because the same component now serves
+   * two walks with two different buttons behind them, and telling somebody to
+   * press the wrong one is worse than saying nothing.
+   */
+  emptyNote?: string;
 }) {
   const [side, setSide] = useState<'drive' | 'gmail'>(drive ? 'drive' : 'gmail');
 
   if (!drive && !gmail) {
     return (
       <p className="p-4 text-[12px] leading-relaxed text-grey-500">
-        Nothing has been walked yet. Run <em>Project folders</em> in the bridge
-        panel — the app cannot read a Drive folder it did not fill, or the
-        messages under a label, so an Apps Script does it and posts back what it
-        found.
+        {emptyNote ?? (
+          <>
+            Nothing has been walked yet. Run <em>Project folders</em> in the
+            bridge panel — the app cannot read a Drive folder it did not fill,
+            or the messages under a label, so an Apps Script does it and posts
+            back what it found.
+          </>
+        )}
       </p>
     );
   }

@@ -13,7 +13,6 @@
 
 import {
   hrefFor,
-  leavesApp,
   openHref,
   readToken,
   tokenFor,
@@ -34,6 +33,7 @@ function check(what, got, want) {
 
 const PROJECT = '0f1e2d3c-4b5a-4968-8776-655443322110';
 const ACTION = 'aabbccdd-1122-4334-8556-778899aabbcc';
+const ENTRY = 'deadbeef-0000-4111-8222-333344445555';
 const FOLDER = '1AbC_dEfGhIjKlMnOpQrStUvWxYz0123';
 
 // --- what a token is --------------------------------------------------------
@@ -45,6 +45,10 @@ check('a project token round-trips', readToken(tokenFor({ kind: 'project', id: P
 check('an action token round-trips', readToken(tokenFor({ kind: 'action', id: ACTION })), {
   kind: 'action',
   id: ACTION,
+});
+check('a box-entry token round-trips', readToken(tokenFor({ kind: 'boxItem', id: ENTRY })), {
+  kind: 'boxItem',
+  id: ENTRY,
 });
 check('a Drive token round-trips', readToken(tokenFor({ kind: 'drive', id: FOLDER })), {
   kind: 'drive',
@@ -75,22 +79,36 @@ check('nothing is refused', readToken(''), null);
  * Hyphens are what tell them apart.
  */
 check('a uuid is not a Drive folder', readToken(`D${PROJECT}`), null);
+check('a Drive id is not a box entry', readToken(`B${FOLDER}`), null);
 check('a Drive id is not a project', readToken(`P${FOLDER}`), null);
 
 // --- where they go ----------------------------------------------------------
 
 check('a project opens on its page', hrefFor({ kind: 'project', id: PROJECT }), `/projects/${PROJECT}`);
 check('an action opens in the Now pane', hrefFor({ kind: 'action', id: ACTION }), `/now?action=${ACTION}`);
+/*
+ * Which box an entry is in is looked up when the link is followed, never
+ * stored — an entry can be moved between boxes, and a token carrying the box
+ * would be a copy of a fact that changes.
+ */
+check('a box entry is found rather than addressed', hrefFor({ kind: 'boxItem', id: ENTRY }), `/box/find/${ENTRY}`);
 check(
   'a Drive folder opens in Drive',
   hrefFor({ kind: 'drive', id: FOLDER }),
   `https://drive.google.com/drive/folders/${FOLDER}`,
 );
-check('only Drive leaves the app', [
-  leavesApp({ kind: 'project', id: PROJECT }),
-  leavesApp({ kind: 'action', id: ACTION }),
-  leavesApp({ kind: 'drive', id: FOLDER }),
-], [false, false, true]);
+/*
+ * Whether a link leaves the app is a property of the *address*, not of the
+ * kind — the page decides, and the renderers read the answer off the href it
+ * gave them. `hrefFor` is the no-pane fallback and is the only place a Drive
+ * folder is sent outside.
+ */
+check('only the Drive fallback leaves the app', [
+  hrefFor({ kind: 'project', id: PROJECT }).startsWith('/'),
+  hrefFor({ kind: 'action', id: ACTION }).startsWith('/'),
+  hrefFor({ kind: 'boxItem', id: ENTRY }).startsWith('/'),
+  hrefFor({ kind: 'drive', id: FOLDER }).startsWith('/'),
+], [true, true, true, false]);
 
 /*
  * Following a link must not cost you the filters that found the entry — that is
@@ -106,10 +124,16 @@ check(
   openHref(`/box/abc?doc=d9&open=A${ACTION}`, { kind: 'project', id: PROJECT }),
   `/box/abc?doc=d9&open=P${PROJECT}`,
 );
+/*
+ * A Drive folder opens in the pane too, now that a script walks the linked
+ * folders and there is something to draw. It did not at first, and the reason
+ * it changed is worth keeping: the app still cannot list that folder — it is
+ * shown a snapshot, with its date on it, and every row in it links out.
+ */
 check(
-  'a Drive folder is never rewritten into a pane',
+  'a Drive folder opens in the pane as well',
   openHref('/box/abc?doc=d9', { kind: 'drive', id: FOLDER }),
-  `https://drive.google.com/drive/folders/${FOLDER}`,
+  `/box/abc?doc=d9&open=D${FOLDER}`,
 );
 
 // --- finding them in a document --------------------------------------------
@@ -153,6 +177,7 @@ const doc = {
       content: [
         // Refused on the way out rather than reported as a target that will
         // never resolve.
+        { type: 'text', text: 'the receipt in Work', marks: [mark(`B${ENTRY}`)] },
         { type: 'text', text: 'broken', marks: [mark('Pnot-a-uuid')] },
         { type: 'text', text: 'plain', marks: [{ type: 'italic' }] },
       ],
@@ -163,6 +188,7 @@ const doc = {
 check('every token is found, however deep', tokensIn(doc), [
   { kind: 'project', id: PROJECT },
   { kind: 'action', id: ACTION },
+  { kind: 'boxItem', id: ENTRY },
 ]);
 check('a document with no links yields none', tokensIn({ type: 'doc', content: [] }), []);
 check('a null document yields none', tokensIn(null), []);

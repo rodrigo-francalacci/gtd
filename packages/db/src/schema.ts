@@ -1915,6 +1915,41 @@ export const projectTrees = pgTable('project_trees', {
   error: text('error'),
 });
 
+/**
+ * What is inside a Drive folder somebody has linked to from a note.
+ *
+ * The sibling of `project_trees`, and separate from it for the reason the two
+ * are different questions: that one is keyed on a project and is part of what a
+ * project *is*, this one is keyed on a folder id the app has no other record of
+ * — a `D<id>` token typed into a note, pointing at a folder Drive owns and the
+ * app has never touched.
+ *
+ * Which is also why the key is the Drive id and not a uuid of ours: there is no
+ * row of ours for it to hang off. Nothing cascades, and nothing needs to — a
+ * folder tree whose last link has been deleted is a stale snapshot that is
+ * simply never read again, and the next walk drops it because the app stops
+ * offering that folder.
+ */
+export const folderTrees = pgTable('folder_trees', {
+  /** Drive's own id for the folder. Stable across a rename and a move. */
+  folderId: text('folder_id').primaryKey(),
+  /**
+   * What Drive calls it, taken at the walk.
+   *
+   * Held because it is the only thing the app can show *about* a linked folder
+   * — it has no row of its own, no title of ours, nothing. Google owns this
+   * name and there is nowhere else to read it from, which is the same rule
+   * `refreshGoogleNames` follows for a Doc.
+   */
+  name: text('name'),
+  /** The folder tree, as the script found it. Same shape as a project's. */
+  tree: jsonb('tree').$type<TreeNode | null>(),
+  /** When the script walked it. Shown, always. */
+  fetchedAt: timestamp('fetched_at', { withTimezone: true }).notNull().defaultNow(),
+  /** What went wrong, if anything did. A failed walk keeps the last good tree. */
+  error: text('error'),
+});
+
 export const viewPrefs = pgTable('view_prefs', {
   key: text('key').primaryKey(),
   /**
@@ -2014,4 +2049,5 @@ export type BoxItemStatus = (typeof boxItemStatus.enumValues)[number];
 export type BoxItemKind = (typeof boxItemKind.enumValues)[number];
 export type BoxEventKind = (typeof boxEventKind.enumValues)[number];
 export type ProjectTree = typeof projectTrees.$inferSelect;
+export type FolderTree = typeof folderTrees.$inferSelect;
 export type ViewPref = typeof viewPrefs.$inferSelect;

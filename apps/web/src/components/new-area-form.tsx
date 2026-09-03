@@ -19,7 +19,7 @@ export function NewAreaForm() {
         name="name"
         placeholder="Add an area of focus…"
         autoComplete="off"
-        className="w-full bg-transparent text-[13px] text-grey-800 placeholder:text-grey-400 focus:outline-none"
+        className="w-full bg-transparent text-[13px] text-grey-800 placeholder:text-grey-500 focus:outline-none"
       />
     </form>
   );

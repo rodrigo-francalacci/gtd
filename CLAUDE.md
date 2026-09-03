@@ -174,6 +174,30 @@ Turbopack is the default; `middleware` is now `proxy`.
   drops the beam and keeps the scanlines, which are most of the look.
   The preview pane is lifted above both, for the reason it is in paper mode: a
   costume over somebody's photograph is the app decorating their document.
+- **A theme with per-pane grounds must set `color` on every one of them.**
+  `color` inherits as a *computed* value, so everything in riso's charcoal panes
+  was carrying whatever `body` resolved to — the indigo meant for the cream
+  sheet, which against `#2e2e2e` measures **1.02:1**. Not low contrast:
+  invisible. It hid for weeks because nearly every element carries an explicit
+  `text-grey-*` class, which reads the pane's own ramp and is correct; what has
+  no class *inherits*, and that is exactly the set nobody styles — an `<option>`,
+  a bare `<span>`, the text of a `<select>`. The reported symptom was "the
+  dropdowns look wrong"; the cause was every unstyled character in two panes.
+  The nav sheet had always set it, which is why pane one was fine at 7.28:1.
+  **`color-scheme: dark` on the charcoal sheet only**, or the browser draws a
+  light scrollbar and a light dropdown popup on it — the one place in that theme
+  where the answer differs from the root's `light`. And `option` is given the
+  surface's colours explicitly, because Chrome paints the popup from the
+  select's own and an `<option>` inherits nothing useful.
+  **Form controls now take `color: inherit` app-wide.** Browsers do not inherit
+  `color` into `<input>`, `<textarea>` or `<select>` — they use a `fieldtext`
+  system colour — so a field with no explicit class renders in the platform's
+  default, which in a theme that repaints every surface is a coin toss. A class
+  still wins on specificity, so nothing deliberate is overridden.
+  **Placeholders went from `grey-400` to `grey-500`**, app-wide rather than in
+  one theme: a placeholder should be quiet, and `grey-400` says that correctly
+  in the themes built for contrast but measured 2.71:1 on the cream sheet. One
+  step keeps the meaning and clears 4:1 everywhere.
 - **Colour is semantic only.** Base is greyscale (`grey-50`…`grey-900`,
   `paper`, `ink`). The only colour tokens are `waiting`, `stale`, and
   `selected`, plus their `-bg` pairs. Nothing decorative. Sidebar icons are
@@ -808,6 +832,29 @@ Turbopack is the default; `middleware` is now `proxy`.
   opening anything goes to Drive or Gmail, which is the copy that cannot be
   stale. A failed walk keeps the last good tree and records why, because an older
   picture of a folder beats no picture as long as the pane says which it is.
+- **A Drive folder a note links to is indexed by the same script, into its own
+  table.** `folder_trees`, keyed on **Drive's own id** rather than a uuid of
+  ours, because there is no row of ours for it to hang off — it is a folder you
+  made in Drive and typed into a note. Separate from `project_trees` for the
+  same reason those two are different questions: one is part of what a project
+  *is*, the other is about something the app has never touched.
+  **The app decides what may be walked, and that is the whole security of it.**
+  `GET /api/drive/tree` answers with precisely the folders that appear in a
+  `D<id>` link in a note — derived, never configured, so a folder joins the list
+  because somebody wrote a link and drops off when the last one goes. A route
+  that walked any id handed to it would be a way to enumerate an entire Drive
+  through a script that has permission to; the `POST` re-checks the list rather
+  than trusting the id coming back, because otherwise the listing would be
+  advice rather than a rule.
+  **One sanitiser for both walks.** `lib/tree-clean.ts` — two copies of a
+  bounds-and-types check is the worst kind of duplication, because they drift
+  silently and the half that drifts is the half nobody is looking at.
+  **`walkLinkedFolders` is in `gtd-project-tree.gs`, beside `walkProjectTrees`,
+  and shares its walker.** A second file would be a second copy of the same
+  depth-first budget logic. `syncEverything` runs it last with the project
+  listings, for the reason those go last: a listing is a photograph, and taking
+  it before the app's own tick photographs the folders as they were before
+  anything moved into them.
 - **The tree route trusts the script with the account, not with the JSON.** It
   is a program that can be edited by hand and its output is rendered into a
   pane, so every field is taken by name and type, unknown keys are dropped, and
@@ -1879,12 +1926,88 @@ Turbopack is the default; `middleware` is now `proxy`.
   `updated_at`, so it can't date an archive. `setProjectStatus` stamps
   `completed_at` on the move to completed/dropped and clears it on reopen.
   `getProjects` excludes archived statuses; the archive has its own query.
+- **The decision goes both ways: an action can be put back on a list.** The two
+  drags never met, and the refusal was principled — nothing on a list is a
+  commitment until promoted, so a list item and an action are not two views of
+  one row. What was wrong is that only one *direction* existed. "Buy a drill
+  bit" reaching Now and turning out to be a want is ordinary, and the only way
+  to say so was to delete the action and retype it, losing its notes and files.
+  `moveActionToList` is `promoteListItem` read backwards and is honest about
+  being lossy: the title loses its `Buy ` prefix (or a round trip gives you
+  "Buy Buy a drill bit"), the contexts and waiting-on go with the action because
+  a candidate is not work yet, and the **evidence travels** — attachments
+  re-parented and queued to move in Drive, cited box documents re-parented,
+  because unlinking them would tidy a project's reasoning out of the archive.
+  **It deletes the row directly rather than through `purgeActions`**, which
+  would trash every file and unlink every document — right for "this step is
+  gone", exactly wrong for a row that has become something else. What it must
+  copy from the purge is the two things nothing else cleans up: an
+  `email_requests` row naming the action, which is **moved rather than cleared**
+  (the thing has not gone, it is a list item now), and the action's own
+  `GTD/Actions/<title>` folder, binned only after the file moves have drained.
+  **The gesture is a sidebar entry**, because the two rows live in different
+  route segments and never share a screen — the always-present column is the
+  only thing a drag can reach from either, and it is what moving a box entry
+  already uses. Nine combinations were checked: an action onto a list and a list
+  item onto Now are accepted, and action-onto-box, action-onto-Now,
+  item-onto-list, item-onto-box and box-entry-onto-list are all *refused by not
+  calling `preventDefault`*, so they go on bubbling to whatever they were aimed
+  at.
 - **Nothing on a list is a commitment until promoted.** Promoting is the only
   thing that spawns an action and sets `promoted_action_id`. The budget's
   proposed / committed / already-spent buckets come from `stage`, which is
   derived from that column plus the action's status — they are mutually
   exclusive by construction, which is what stops spend double-counting. Don't
   add a fourth source of truth for "is this ordered".
+- **A grouped list gets a board, and it is one component for both.** The
+  purchases list's four impacts and the Now list's headings are already groups
+  you move things *between*; what a pane cannot give that gesture is width.
+  Stacked in a narrow column, dragging from the bottom of one group to the top
+  of another crosses two scrolls with both ends off screen; side by side it is
+  one short movement. So `Board` takes the window — four readable lanes plus a
+  reading column do not fit in a third of a screen — and the lanes are the same
+  drop targets at a `variant="column"`, never a second implementation. A board
+  that reimplemented the drop would be a second place to get the `dragleave`
+  trap right, and it is the one that would be missed.
+  **`?board=1`, so it is a place rather than a mode**: it survives a refresh,
+  the header can link to it, and the server renders it — no moment where the
+  panes are drawn and then replaced. It renders *instead of* the panes, not on
+  top: it covers the window either way, and drawing both would mount the note
+  editor twice against the same row, two autosaves for one document.
+  **`z-50`, matching the sidebar** — anything lower is painted under the
+  navigation, which at `z-30` cut the first lane off. It must not go higher:
+  the row menus and the theme switcher portal to the body at `z-50` and are
+  later in the document, so they land above the board, which is what a
+  right-click on a lane needs.
+  **`data-surface`, not `data-pane`** — the lanes carry `list` and the reading
+  column `detail`, because that is the attribute the three-ground theme
+  addresses. Getting it wrong is silent: the board renders on the base tokens
+  with no texture and a cream reading column, looking like the one screen that
+  belongs to a different app.
+  **A click on empty space deselects**, tested by what was *pressed* rather than
+  `target === currentTarget`: the empty space inside a lane belongs to the lane,
+  so the strict test would catch only the gaps between lanes and miss the large
+  obvious place to click. On a purchases list that puts the budget back, which
+  is the thing you were consulting while you sorted.
+  **The lane count comes from the page**, as an inline `grid-template-columns`:
+  a fixed four-column grid was right for the four impacts and left a quarter of
+  the board empty the moment the Now list arrived with three headings. Capped at
+  four across, wrapping past that — a board has the height, and five lanes too
+  narrow to read a title in is worse.
+  **The densities come with it**, because "what do I need to see about each row"
+  does not change when the rows are arranged differently. **Desktop only, and
+  the way in says so**: the button is `hidden lg:inline`, because dragging is a
+  mouse gesture here and a button opening a view you can look at but not use is
+  worse than none.
+  **The Now board only exists once there are headings.** With none there is
+  nothing to move *between*, and one run of actions as a single enormous lane
+  would be the list, wider.
+- **A JSX element evaluates its props when it is created, not when it is
+  rendered.** The Now board crashed on first open because `detail` was built
+  unconditionally with `attachments={files!.rows}` — `files` is null when
+  nothing is selected, and the non-null assertion hid it from the compiler. A
+  panel that may not be shown has to be built inside the branch that shows it,
+  or behind a ternary; the assertion is the tell.
 - **A purchases list can be cut by impact, and the buckets are places rather
   than an order.** `impact` is a third `ListLayout`, offered only where the rows
   have one to cut on. All three are rendered whether or not they hold anything,
@@ -1957,12 +2080,43 @@ Turbopack is the default; `middleware` is now `proxy`.
   map means *looked up and gone*, `undefined` means *nothing was looked up* —
   and the second must render as ordinary text, or a row drawn without a
   resolution would strike out every link in the box.
+- **A note can point sideways, at an entry in another box.** `B<uuid>`, and it
+  stores the *entry* — never the box, because an entry can be moved between
+  boxes and a token carrying the box would be a copy of a fact that changes.
+  `/box/find/<id>` looks the box up when the link is followed, which is what
+  makes it survive a move, a copy, a rename and a box being deleted underneath
+  it. The other three tokens point from a box out at the work; this is the one
+  that points from one box to another — a line in the Feed saying "this is the
+  quote I mentioned" about a scan filed in Work — and before it the only way to
+  say so was to describe the thing and hope.
+  **It resolves to the entry's words *and* its box**, because that is what a
+  reader needs from a sideways link: on hover it says which box, or you cannot
+  tell it from a link to the entry beside it. `coalesce(title, description,
+  name)` for the reason the emojify button uses it — a note has no title and a
+  document not yet read has only a filename.
+  **The picker offers every box, newest first, capped at 200.** A link to an
+  entry is nearly always a link to something filed recently and still being
+  thought about, which is what makes recency the right cap rather than a
+  compromise; anything older is reached by "Copy id" on its own row, the same
+  path a closed project takes.
+  **Opening one fills pane three of the box you are already in**, even when it
+  lives elsewhere — you followed a line in *this* journal. The header says which
+  box it came from, and the pane is given the *target's* categories, not the
+  current box's: offering to tag a Work document with the Feed's vocabulary is a
+  mistake you would not notice until the facet counts stopped adding up.
 - **`readToken` refuses a near-miss, and the uuid check is the load-bearing
   half.** A Drive id has no fixed shape, so its pattern has to accept letters,
   digits, `_` and `-` — which means it accepts a uuid. Without an explicit
   `!UUID.test(id)` a project id mistyped with a `D` became a perfectly valid
   link to a Drive folder that has never existed. `scripts/check-internal-links.mjs`
-  asserts that and twenty-five other shapes; run it before touching the parser.
+  asserts that and twenty-nine other shapes; run it before touching the parser.
+- **Whether a link leaves the app is read off the *address*, never the kind.**
+  The page decides where a link goes — a box sends all four to its own pane
+  three, a page with no pane sends each to where it lives — so the only thing
+  that can honestly answer "does this leave" is the href that came back.
+  `hrefFor` is the no-pane fallback and the one place a Drive folder is sent
+  outside. Asking the kind instead needs updating every time a page changes its
+  mind, which is exactly what happened when the folder trees landed.
 - **The mark is its own mark, and carries no `href`.** Not a `link` with a funny
   address: that extension autolinks, validates protocols and renders an anchor
   the browser will navigate on its own, and all three are wrong for a token the

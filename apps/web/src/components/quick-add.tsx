@@ -37,7 +37,7 @@ export function QuickAddAction({
         name="title"
         placeholder={placeholder}
         autoComplete="off"
-        className="w-full bg-transparent text-[13px] text-grey-800 placeholder:text-grey-400 focus:outline-none"
+        className="w-full bg-transparent text-[13px] text-grey-800 placeholder:text-grey-500 focus:outline-none"
       />
     </form>
   );
@@ -60,7 +60,7 @@ export function QuickAddProject({ areaId }: { areaId?: string }) {
         name="title"
         placeholder="Add a project…"
         autoComplete="off"
-        className="w-full bg-transparent text-[13px] text-grey-800 placeholder:text-grey-400 focus:outline-none"
+        className="w-full bg-transparent text-[13px] text-grey-800 placeholder:text-grey-500 focus:outline-none"
       />
     </form>
   );

@@ -32,6 +32,7 @@ export function NowSection({
   count,
   prevId,
   children,
+  variant = 'row',
 }: {
   id: string;
   title: string;
@@ -42,6 +43,15 @@ export function NowSection({
    */
   prevId: string | null;
   children: ReactNode;
+  /**
+   * `row` stacks down the list pane; `column` is one lane of the board.
+   *
+   * The same drop target either way, which is the whole reason this is a
+   * variant rather than a second component — a board that reimplemented the
+   * drop would be a second place to get the `dragleave` trap right, and it is
+   * the one that would be missed.
+   */
+  variant?: 'row' | 'column';
 }) {
   const [over, setOver] = useState<'action' | 'section' | null>(null);
   const [pending, startTransition] = useTransition();
@@ -84,7 +94,14 @@ export function NowSection({
           }
         });
       }}
-      className={pending ? 'opacity-60' : undefined}
+      className={[
+        variant === 'column'
+          ? 'flex min-h-0 min-w-0 flex-col rounded-sm border border-grey-200'
+          : '',
+        pending ? 'opacity-60' : '',
+      ]
+        .filter(Boolean)
+        .join(' ') || undefined}
     >
       <RowMenu
         name={title}
@@ -102,6 +119,7 @@ export function NowSection({
           }}
           className={[
             'flex cursor-grab items-baseline gap-2 border-b px-4 py-1.5',
+            variant === 'column' ? 'shrink-0' : '',
             over === 'action'
               ? 'border-selected bg-selected-bg'
               : over === 'section'
@@ -116,13 +134,26 @@ export function NowSection({
         </header>
       </RowMenu>
 
-      {count === 0 ? (
-        <p className="px-4 py-2 text-[11px] text-grey-400">
-          Drag an action here.
-        </p>
-      ) : (
-        children
-      )}
+      {/*
+        A lane is a column of its own height with its own scrollbar: four lanes
+        sharing the page's scroll would mean scrolling past the ones you are not
+        looking at to reach the bottom of the one you are. `min-h-0` above the
+        scroller, or a flex column grows to its content and the board scrolls
+        instead.
+      */}
+      <div
+        className={
+          variant === 'column'
+            ? 'min-h-0 flex-1 overflow-y-auto overflow-x-clip'
+            : undefined
+        }
+      >
+        {count === 0 ? (
+          <p className="px-4 py-2 text-[11px] text-grey-400">Drag an action here.</p>
+        ) : (
+          children
+        )}
+      </div>
     </section>
   );
 }
@@ -137,7 +168,23 @@ export const DRAG_SECTION = 'application/x-gtd-now-section';
  * you cannot drop into, which is the rule the project status buckets already
  * follow. Without it there would be no way to ungroup an action at all.
  */
-export function NowLoose({ count, children }: { count: number; children: ReactNode }) {
+export function NowLoose({
+  count,
+  children,
+  variant = 'row',
+}: {
+  count: number;
+  children: ReactNode;
+  /**
+   * `row` stacks down the list pane; `column` is one lane of the board.
+   *
+   * The same drop target either way, which is the whole reason this is a
+   * variant rather than a second component — a board that reimplemented the
+   * drop would be a second place to get the `dragleave` trap right, and it is
+   * the one that would be missed.
+   */
+  variant?: 'row' | 'column';
+}) {
   const [over, setOver] = useState(false);
   const [pending, startTransition] = useTransition();
 
@@ -161,11 +208,19 @@ export function NowLoose({ count, children }: { count: number; children: ReactNo
         setOver(false);
         startTransition(async () => void moveActionToSection(actionId, null));
       }}
-      className={pending ? 'opacity-60' : undefined}
+      className={[
+        variant === 'column'
+          ? 'flex min-h-0 min-w-0 flex-col rounded-sm border border-grey-200'
+          : '',
+        pending ? 'opacity-60' : '',
+      ]
+        .filter(Boolean)
+        .join(' ') || undefined}
     >
       <header
         className={[
           'flex items-baseline gap-2 border-b px-4 py-1.5',
+          variant === 'column' ? 'shrink-0' : '',
           over ? 'border-selected bg-selected-bg' : 'border-grey-200 bg-grey-100',
         ].join(' ')}
       >
@@ -175,13 +230,21 @@ export function NowLoose({ count, children }: { count: number; children: ReactNo
         <span className="shrink-0 tabular-nums text-[10px] text-grey-400">{count}</span>
       </header>
 
-      {count === 0 ? (
-        <p className="px-4 py-2 text-[11px] text-grey-400">
-          Drag an action here to take it out of a section.
-        </p>
-      ) : (
-        children
-      )}
+      <div
+        className={
+          variant === 'column'
+            ? 'min-h-0 flex-1 overflow-y-auto overflow-x-clip'
+            : undefined
+        }
+      >
+        {count === 0 ? (
+          <p className="px-4 py-2 text-[11px] text-grey-400">
+            Drag an action here to take it out of a section.
+          </p>
+        ) : (
+          children
+        )}
+      </div>
     </section>
   );
 }
@@ -210,7 +273,7 @@ export function AddNowSection() {
         aria-label="Add a heading"
         disabled={pending}
         /* 16px, or iOS Safari zooms the page in when it takes focus. */
-        className="w-full bg-transparent text-[16px] text-grey-700 placeholder:text-grey-400 focus:outline-none md:text-[12px]"
+        className="w-full bg-transparent text-[16px] text-grey-700 placeholder:text-grey-500 focus:outline-none md:text-[12px]"
       />
     </form>
   );

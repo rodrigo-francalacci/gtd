@@ -461,7 +461,13 @@ export function EditorToolbar({
                     className="flex w-full items-center gap-2 px-2 py-1 text-left text-[12px] hover:bg-grey-150"
                   >
                     <span className="shrink-0 text-[10px] uppercase tracking-wider text-grey-400">
-                      {t.kind === 'project' ? 'Project' : 'Action'}
+                      {t.kind === 'project'
+                        ? 'Project'
+                        : t.kind === 'action'
+                          ? 'Action'
+                          : t.kind === 'boxItem'
+                            ? 'Entry'
+                            : 'Folder'}
                     </span>
                     <span className="truncate text-grey-800">{t.title}</span>
                   </button>

@@ -8,6 +8,7 @@ import {
   updateDocument,
 } from '@/lib/actions';
 import { RowMenu } from './row-menu';
+import { copyIdItem } from '@/lib/copy-token';
 
 /**
  * The row menu for the two lists whose pages are Server Components.
@@ -62,6 +63,12 @@ export function DocumentMenu({
           label: pinned ? 'Unpin' : 'Pin to the top',
           run: () => setBoxItemPinned(id, !pinned),
         },
+        /*
+         * So a note can point at this entry — including from another box, which
+         * is most of what the `B` link is for. The token, never the bare uuid:
+         * a uuid alone cannot say which table it names.
+         */
+        copyIdItem('boxItem', id),
       ]}
     >
       {children}

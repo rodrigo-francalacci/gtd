@@ -1,4 +1,6 @@
+import Link from 'next/link';
 import { ActionDetail } from '@/components/action-detail';
+import { Board } from '@/components/board';
 import { SortableActionList } from '@/components/sortable-action-list';
 import { EmojifyButton } from '@/components/emojify-button';
 import { ContextFilter } from '@/components/context-filter';
@@ -37,12 +39,24 @@ export default async function NowPage(props: PageProps<'/now'>) {
   ]);
   const viewMode = view.density ?? prefs.viewMode;
 
-  const qs = (id: string) => {
+  /**
+   * One builder for every address this page hands out.
+   *
+   * The context filter has to survive selecting a row, opening the board,
+   * clicking empty space on it and closing it again — and four separate
+   * constructions of the same query string is how one of them quietly stops
+   * carrying the filter.
+   */
+  const nowUrl = (opts: { board?: boolean; action?: string | null }) => {
     const p = new URLSearchParams();
     contextIds.forEach((c) => p.append('ctx', c));
-    p.set('action', id);
-    return `/now?${p}`;
+    if (opts.action) p.set('action', opts.action);
+    if (opts.board) p.set('board', '1');
+    const query = p.toString();
+    return query ? `/now?${query}` : '/now';
   };
+
+  const qs = (id: string) => nowUrl({ action: id });
 
   /*
    * Cut into the headings you made, in their order, with everything else last.
@@ -74,6 +88,117 @@ export default async function NowPage(props: PageProps<'/now'>) {
   const files = selected ? await attachmentsFor('action', selected.id) : null;
   const docs = selected ? await documentsFor('action', selected.id) : null;
 
+  /**
+   * The board, and it only means anything once there are headings.
+   *
+   * A section is an *arrangement* — "after sorting the money", "once the parts
+   * arrive" — and the work of keeping one is moving actions between headings as
+   * things unblock. Stacked down a pane that is a drag across two scrolls; side
+   * by side it is one short movement. With no headings there is nothing to move
+   * *between*, so there is no board and no button: one run of actions laid out
+   * as one enormous lane would be the list, wider.
+   */
+  const wantsBoard = sections.length > 0 && searchParams.board !== undefined;
+
+  const boardHref = nowUrl({ board: true, action: selectedId });
+  const closeBoardHref = nowUrl({ action: selectedId });
+
+  /*
+   * Built only when there *is* one, and that is not a tidiness point.
+   *
+   * JSX evaluates its props at the moment the element is created, so a
+   * `<ActionDetail attachments={files!.rows} …>` written unconditionally throws
+   * on `files` being null the instant nothing is selected — before any branch
+   * decides whether to render it. The non-null assertions hid it from the
+   * compiler and the board crashed on first open.
+   */
+  const detail = selected ? (
+    <ActionDetail
+      key={selected.id}
+      action={selected}
+      attachments={files!.rows}
+      fileOrder={files!.order}
+      documents={docs!.rows}
+      docOrder={docs!.order}
+      documentOptions={await getLinkableDocuments('action', selected.id, '')}
+      contextGroups={groups}
+      parties={groups.person.map((p) => p.name)}
+      projects={projectOptions}
+    />
+  ) : null;
+
+  if (wantsBoard) {
+    /*
+     * The board *instead of* the panes, not on top of them.
+     *
+     * It covers the window either way, so drawing both would be work nobody
+     * sees — and worse than wasted: the note editor in pane three would be
+     * mounted twice against the same action, two autosaves for one document.
+     */
+    return (
+      <Board
+        title="What can I do now"
+        subtitle={`${rows.length} action${rows.length === 1 ? '' : 's'} across ${
+          sections.length
+        } heading${sections.length === 1 ? '' : 's'}${
+          contextIds.length > 0 ? ' · filtered' : ''
+        }`}
+        closeHref={closeBoardHref}
+        deselectHref={nowUrl({ board: true })}
+        viewMode={viewMode}
+        viewKey={viewKey}
+        laneCount={sections.length + 1}
+        side={
+          detail ?? (
+            <p className="text-[13px] leading-relaxed text-grey-500">
+              Select an action to read it here. Drag one between headings to say
+              what has to happen first.
+            </p>
+          )
+        }
+        columns={
+          <>
+            {sections.map((section, at) => (
+              <NowSection
+                key={section.id}
+                variant="column"
+                id={section.id}
+                title={section.title}
+                count={bySection.get(section.id)?.length ?? 0}
+                prevId={sections[at - 1]?.id ?? null}
+              >
+                <SortableActionList
+                  actions={(bySection.get(section.id) ?? []).map((a) => ({
+                    ...a,
+                    href: nowUrl({ board: true, action: a.id }),
+                  }))}
+                  selectedId={selectedId}
+                  mode={viewMode}
+                />
+              </NowSection>
+            ))}
+
+            {/*
+              Always drawn, even empty — it is the only way to take an action
+              back *out* of a heading, which is the rule the project status
+              buckets and the impact lanes already follow.
+            */}
+            <NowLoose variant="column" count={loose.length}>
+              <SortableActionList
+                actions={loose.map((a) => ({
+                  ...a,
+                  href: nowUrl({ board: true, action: a.id }),
+                }))}
+                selectedId={selectedId}
+                mode={viewMode}
+              />
+            </NowLoose>
+          </>
+        }
+      />
+    );
+  }
+
   return (
     <>
       <ListPane
@@ -90,11 +215,27 @@ export default async function NowPage(props: PageProps<'/now'>) {
          * filtered out.
          */
         actions={
-          <EmojifyButton
-            target="actions"
-            ids={rows.map((a) => a.id)}
-            marked={rows.filter((a) => a.emoji).length}
-          />
+          <>
+            <EmojifyButton
+              target="actions"
+              ids={rows.map((a) => a.id)}
+              marked={rows.filter((a) => a.emoji).length}
+            />
+            {/*
+              Only once there are headings to move things between, and hidden on
+              a phone — the board is four lanes you drag across, and HTML5
+              drag-and-drop has no touch support anywhere in this app. A button
+              opening a view you could look at and not use is worse than none.
+            */}
+            {sections.length > 0 ? (
+              <Link
+                href={boardHref}
+                className="hidden text-[11px] text-grey-500 underline underline-offset-2 hover:text-grey-800 lg:inline"
+              >
+                Board
+              </Link>
+            ) : null}
+          </>
         }
       >
         {/* Arrows walk the list; Delete asks, then removes. The order is

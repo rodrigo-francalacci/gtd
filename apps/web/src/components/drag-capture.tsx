@@ -4,10 +4,13 @@ import { useTransition, type ReactNode } from 'react';
 import {
   copyDocument,
   dropCapture,
+  moveActionToList,
   moveDocument,
+  promoteListItem,
   type CaptureDrop,
 } from '@/lib/actions';
-import { DRAG_BOX_ITEM } from './sortable';
+import { DRAG_ACTION, DRAG_BOX_ITEM } from './sortable';
+import { DRAG_LIST_ITEM } from './sortable-list-items';
 
 /**
  * Its own MIME type, like every other drag in the app.
@@ -50,7 +53,26 @@ export function DragCapture({ id, children }: { id: string; children: ReactNode 
 }
 
 /**
- * A sidebar entry that a capture can be dropped on.
+ * A sidebar entry something can be dropped on.
+ *
+ * Four drags land here now, and they are four different sentences:
+ *
+ * - a **capture** on anything, which clarifies it;
+ * - a **box entry** on a box, which moves it (ctrl copies);
+ * - a **list item** on *What can I do now*, which promotes it — the candidate
+ *   becomes a commitment, the verb the list has always had as a button;
+ * - an **action** on a list, which is that read backwards.
+ *
+ * The last two are the pair that used to be refused, and the refusal was
+ * principled rather than accidental: nothing on a list is a commitment until
+ * promoted, so a list item and an action are not two views of one row. What was
+ * wrong is that the *decision* only went one way, and the way back — this is a
+ * want, not a next action — had to be done by deleting and retyping.
+ *
+ * A sidebar entry is the right target because the two rows live in different
+ * route segments and never share a screen: dragging onto the column that is
+ * always there is the only gesture that can reach from one to the other, and it
+ * is the one moving an entry between boxes already uses.
  *
  * The highlight is cleared in the *capture* phase for the reason the buckets
  * are: a drop handled inside stops the bubble, so a bubble-phase handler would
@@ -69,14 +91,24 @@ export function CaptureTarget({
     <div
       onDragOver={(e) => {
         /*
-         * A capture, or a box entry being moved to another box. Everything else
-         * — an action being filed, a file from the desktop — must go on bubbling
-         * to whatever it was aimed at.
+         * Everything this entry will not take must go on *bubbling* — a file
+         * dragged from the desktop, an action being reordered over the sidebar
+         * on its way somewhere else. Refusing means simply not calling
+         * `preventDefault`, which is the same rule `SortableList` follows for a
+         * row it does not contain.
          */
-        const entry = e.dataTransfer.types.includes(DRAG_BOX_ITEM);
-        if (!e.dataTransfer.types.includes(DRAG_CAPTURE) && !entry) return;
-        // A box entry can only go to a box.
+        const types = e.dataTransfer.types;
+        const entry = types.includes(DRAG_BOX_ITEM);
+        const action = types.includes(DRAG_ACTION);
+        const listItem = types.includes(DRAG_LIST_ITEM);
+
+        if (!types.includes(DRAG_CAPTURE) && !entry && !action && !listItem) return;
+
+        // A box entry can only go to a box; an action only onto a list; a list
+        // item only onto Now, which is the one place a commitment can begin.
         if (entry && drop.kind !== 'box') return;
+        if (action && drop.kind !== 'list') return;
+        if (listItem && drop.kind !== 'now') return;
 
         e.preventDefault();
         /*
@@ -92,6 +124,34 @@ export function CaptureTarget({
         delete e.currentTarget.dataset.over;
       }}
       onDrop={(e) => {
+        /*
+         * A commitment put back on a list, and a candidate promoted.
+         *
+         * Handled before the capture path because they are unambiguous: the
+         * MIME type says which row it is, and the entry says where it landed.
+         */
+        const actionId = e.dataTransfer.getData(DRAG_ACTION);
+        if (actionId && drop.kind === 'list') {
+          e.preventDefault();
+          e.stopPropagation();
+          delete e.currentTarget.dataset.over;
+          startTransition(async () => {
+            await moveActionToList(actionId, drop.listId);
+          });
+          return;
+        }
+
+        const listItemId = e.dataTransfer.getData(DRAG_LIST_ITEM);
+        if (listItemId && drop.kind === 'now') {
+          e.preventDefault();
+          e.stopPropagation();
+          delete e.currentTarget.dataset.over;
+          startTransition(async () => {
+            await promoteListItem(listItemId);
+          });
+          return;
+        }
+
         const entryId = e.dataTransfer.getData(DRAG_BOX_ITEM);
 
         if (entryId && drop.kind === 'box') {

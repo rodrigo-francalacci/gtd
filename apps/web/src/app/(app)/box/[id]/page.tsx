@@ -17,6 +17,7 @@ import { DocumentMenu } from '@/components/entry-menu';
 import { EmailRequests } from '@/components/email-requests';
 import { getEmailRequests } from '@/lib/box/email-requests';
 import { ActionDetail } from '@/components/action-detail';
+import { GoogleTree } from '@/components/google-tree';
 import { ProjectDetail } from '@/components/project-detail';
 import type { ResolvedLinks } from '@/components/note-text';
 import { openHref, readToken, tokenFor, tokensIn } from '@/lib/internal-link';
@@ -44,6 +45,8 @@ import {
   getAction,
   getAttachableActions,
   getContextsByDimension,
+  getFolderTree,
+  getLinkableEntries,
   getProjectOptions,
   getProjectTree,
   resolveInternalLinks,
@@ -209,10 +212,11 @@ export default async function BoxPage(props: PageProps<'/box/[id]'>) {
    */
   const targetId = selectedId ?? shown[0]?.id ?? null;
 
-  const [selected, projectOptions, linkableActions] = await Promise.all([
+  const [selected, projectOptions, linkableActions, linkableEntries] = await Promise.all([
     targetId ? getBoxItem(targetId) : Promise.resolve(null),
     getProjectOptions(),
     getAttachableActions(),
+    getLinkableEntries(),
   ]);
 
   /**
@@ -225,6 +229,17 @@ export default async function BoxPage(props: PageProps<'/box/[id]'>) {
   const linkTargets = [
     ...projectOptions.map((p) => ({ kind: 'project' as const, id: p.id, title: p.title })),
     ...linkableActions.map((a) => ({ kind: 'action' as const, id: a.id, title: a.title })),
+    /*
+     * Entries from every box, newest first and capped — the case this exists
+     * for is a note in one box pointing at something filed in another. The box
+     * is in the label because two receipts from the same shop in two boxes are
+     * otherwise the same line twice.
+     */
+    ...linkableEntries.map((e) => ({
+      kind: 'boxItem' as const,
+      id: e.id,
+      title: `${e.title.replace(/\s+/g, ' ').slice(0, 70)} · ${e.boxName}`,
+    })),
   ];
 
   /*
@@ -257,6 +272,21 @@ export default async function BoxPage(props: PageProps<'/box/[id]'>) {
 
   const openProjectId = opened?.kind === 'project' ? opened.id : null;
   const openActionId = opened?.kind === 'action' ? opened.id : null;
+  const openFolderId = opened?.kind === 'drive' ? opened.id : null;
+
+  /*
+   * An entry in *any* box, which is the point of the `B` token.
+   *
+   * It opens in this box's pane three even when it lives in another one — you
+   * followed a line in this journal and want to see what it referred to, not to
+   * be moved to a different feed and have to find your way back. The header
+   * says which box it came from, so nothing is pretending it lives here.
+   *
+   * Guarded against pointing at the entry already selected: that would draw the
+   * same pane twice over and offer a "back" to where you already are.
+   */
+  const openEntryId =
+    opened?.kind === 'boxItem' && opened.id !== targetId ? opened.id : null;
 
   /*
    * The same six queries the milestone branch runs, for the same pane.
@@ -273,6 +303,28 @@ export default async function BoxPage(props: PageProps<'/box/[id]'>) {
    * asked for. The milestone is where you were.
    */
   const paneProjectId = openProjectId ?? eventProjectId;
+
+  /*
+   * A linked Drive folder, as an Apps Script last found it.
+   *
+   * Never fetched from Google here - the app holds `drive.file` and cannot see
+   * inside a folder it did not create, which is the whole reason the script
+   * exists. What is shown is a snapshot with its date on it, and every row in
+   * it opens in Drive, which is the copy that cannot be stale.
+   */
+  const openFolder = openFolderId ? await getFolderTree(openFolderId) : null;
+
+  const openEntry = openEntryId ? await getBoxItem(openEntryId) : null;
+
+  /*
+   * The *target's* vocabulary, not this box's.
+   *
+   * The pane offers to take tags off and to add them, and a box's tags are its
+   * own rows — handing it the categories of the box you happen to be reading
+   * would offer to tag a Work document with the Feed's words, which is a
+   * mistake you would not notice until the facet counts stopped adding up.
+   */
+  const entryCategories = openEntry ? await getBoxCategories(openEntry.boxId) : []; 
 
   const openAction = openActionId ? await getAction(openActionId) : null;
 
@@ -602,8 +654,32 @@ export default async function BoxPage(props: PageProps<'/box/[id]'>) {
           {opened ? (
             <div className="mb-3 flex items-center justify-between gap-2 border-b border-grey-200 pb-2">
               <span className="shrink-0 text-[11px] uppercase tracking-wider text-grey-400">
-                {opened.kind === 'project' ? 'Project' : 'Action'}, from a note
+                {opened.kind === 'project'
+                  ? 'Project'
+                  : opened.kind === 'action'
+                    ? 'Action'
+                    : opened.kind === 'boxItem'
+                      ? `In ${openEntry?.boxName ?? 'another box'}`
+                      : (openFolder?.name ?? 'Drive folder')}
+                , from a note
               </span>
+
+              {/*
+                A folder is the one thing here the app does not own, so it
+                always offers the way out - the same rule every row inside a
+                tree follows, and the reason a tree is a snapshot rather than a
+                copy.
+              */}
+              {opened.kind === 'drive' ? (
+                <a
+                  href={`https://drive.google.com/drive/folders/${opened.id}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="shrink-0 text-[11px] text-selected underline underline-offset-2"
+                >
+                  Open in Drive
+                </a>
+              ) : null}
               {selected ? (
                 /*
                  * Truncated, because a note has no title - `documentLabel`
@@ -626,7 +702,35 @@ export default async function BoxPage(props: PageProps<'/box/[id]'>) {
               and `useState` initialisers only run on mount. Without it,
               clicking a second document would save the first one's title
               onto it. */}
-          {openAction && actionPane ? (
+          {opened?.kind === 'drive' ? (
+            /*
+             * One component draws all three trees.
+             *
+             * A project's folder, a project's label and a linked folder are the
+             * same thing to somebody reading down them, so this is the project
+             * tree with its Gmail side empty rather than a second renderer to
+             * keep in agreement.
+             */
+            <div className="-mx-4 h-full min-h-0">
+              <GoogleTree
+                drive={openFolder?.tree ?? null}
+                gmail={null}
+                fetchedAt={openFolder?.fetchedAt ?? null}
+                error={openFolder?.error ?? null}
+                emptyNote="Nothing has been walked yet. Run Linked folders in the bridge panel — the app cannot read a Drive folder it did not fill, so an Apps Script does it and posts back what it found."
+              />
+            </div>
+          ) : openEntry ? (
+            <DocumentDetail
+              key={openEntry.id}
+              item={openEntry}
+              categories={entryCategories}
+              boxes={boxList}
+              projects={projectOptions}
+              linkTargets={linkTargets}
+              openBase={openBase}
+            />
+          ) : openAction && actionPane ? (
             <ActionDetail
               key={openAction.id}
               action={openAction}
@@ -678,7 +782,11 @@ export default async function BoxPage(props: PageProps<'/box/[id]'>) {
              * that the somewhere has gone.
              */
             <p className="text-[13px] text-grey-500">
-              That {opened.kind} no longer exists.
+              That{' '}
+              {opened.kind === 'boxItem'
+                ? 'entry has been thrown away'
+                : `${opened.kind} no longer exists`}
+              .
             </p>
           ) : selected ? (
             <DocumentDetail

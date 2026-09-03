@@ -113,7 +113,7 @@ export function TagBrowser({
           aria-label="Search tags"
           /* 16px, or iOS Safari zooms the page in when it takes focus — and on
              a phone this panel *is* the page. */
-          className="w-full rounded-sm border border-grey-300 bg-paper px-2 py-1 text-[16px] text-grey-800 placeholder:text-grey-400 focus:border-selected focus:outline-none md:text-[12px]"
+          className="w-full rounded-sm border border-grey-300 bg-paper px-2 py-1 text-[16px] text-grey-800 placeholder:text-grey-500 focus:border-selected focus:outline-none md:text-[12px]"
         />
 
         <p className="mt-1.5 flex items-baseline justify-between gap-2 text-[11px] text-grey-500">

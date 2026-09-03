@@ -34,6 +34,7 @@ export function ImpactBucket({
   count,
   total,
   children,
+  variant = 'row',
 }: {
   /** Null is the bucket for purchases nobody has decided about yet. */
   impact: PurchaseImpact | null;
@@ -43,6 +44,15 @@ export function ImpactBucket({
   /** What this bucket comes to, already formatted, or null when nothing has a price. */
   total: string | null;
   children: ReactNode;
+  /**
+   * `row` stacks down the list pane; `column` is one lane of the board.
+   *
+   * The same drop target either way — which is the whole reason this is a
+   * variant rather than a second component. A board that reimplemented the drop
+   * would be two places to fix the `dragleave` trap the comment below describes,
+   * and one of them would be missed.
+   */
+  variant?: 'row' | 'column';
 }) {
   const [over, setOver] = useState(false);
   const [pending, startTransition] = useTransition();
@@ -82,12 +92,18 @@ export function ImpactBucket({
         });
       }}
       className={[
-        'mt-2 rounded-sm border',
+        'rounded-sm border',
+        variant === 'column'
+          // A lane is a column of its own height with its own scrollbar: four
+          // lanes sharing the page's scroll would mean scrolling past the ones
+          // you are not looking at to reach the bottom of the one you are.
+          ? 'flex min-h-0 min-w-0 flex-col'
+          : 'mt-2',
         over ? 'border-selected ring-1 ring-inset ring-selected' : 'border-grey-200',
         pending ? 'opacity-60' : '',
       ].join(' ')}
     >
-      <header className="flex items-baseline justify-between gap-2 border-b border-grey-200 bg-grey-50 px-3 py-1.5">
+      <header className="flex shrink-0 items-baseline justify-between gap-2 border-b border-grey-200 bg-grey-50 px-3 py-1.5">
         <h3 className="text-[10px] font-semibold uppercase tracking-wider text-grey-600">
           {title}
           <span className="ml-1.5 tabular-nums text-grey-400">{count}</span>
@@ -104,7 +120,13 @@ export function ImpactBucket({
         </span>
       </header>
 
-      {children}
+      {variant === 'column' ? (
+        // `overflow-y-auto` needs `min-h-0` above it in a flex column, or the
+        // lane grows to its content and the whole board scrolls instead.
+        <div className="min-h-0 flex-1 overflow-y-auto overflow-x-clip">{children}</div>
+      ) : (
+        children
+      )}
     </section>
   );
 }

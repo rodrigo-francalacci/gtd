@@ -145,7 +145,7 @@ export function EmojiPicker({
               }}
               placeholder={group ?? 'Search groups…'}
               aria-label="Search emoji groups"
-              className="min-w-0 flex-1 rounded-sm border border-grey-300 bg-paper px-1.5 py-0.5 text-[16px] text-grey-800 placeholder:text-[11px] placeholder:text-grey-400 focus:border-selected focus:outline-none md:text-[12px]"
+              className="min-w-0 flex-1 rounded-sm border border-grey-300 bg-paper px-1.5 py-0.5 text-[16px] text-grey-800 placeholder:text-[11px] placeholder:text-grey-500 focus:border-selected focus:outline-none md:text-[12px]"
             />
           </div>
 
@@ -214,7 +214,7 @@ export function EmojiPicker({
               placeholder="or any emoji"
               aria-label="Type or paste an emoji"
               /* 16px, or iOS Safari zooms the page in when it takes focus. */
-              className="min-w-0 flex-1 rounded-sm border border-grey-300 bg-paper px-1.5 py-1 text-[16px] text-grey-800 placeholder:text-[12px] placeholder:text-grey-400 focus:border-selected focus:outline-none md:text-[13px]"
+              className="min-w-0 flex-1 rounded-sm border border-grey-300 bg-paper px-1.5 py-1 text-[16px] text-grey-800 placeholder:text-[12px] placeholder:text-grey-500 focus:border-selected focus:outline-none md:text-[13px]"
             />
             <button
               type="submit"

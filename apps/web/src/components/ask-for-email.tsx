@@ -91,7 +91,7 @@ export function AskForEmail({
           placeholder="Gmail link, message id, or from:sam worktop"
           aria-label="Find an email"
           /* 16px, or iOS Safari zooms the pane in when this takes focus. */
-          className="min-w-0 flex-1 rounded-sm border border-grey-300 bg-paper px-2 py-1 text-[16px] text-grey-800 placeholder:text-grey-400 focus:border-selected focus:outline-none md:text-[12px]"
+          className="min-w-0 flex-1 rounded-sm border border-grey-300 bg-paper px-2 py-1 text-[16px] text-grey-800 placeholder:text-grey-500 focus:border-selected focus:outline-none md:text-[12px]"
         />
 
         <button

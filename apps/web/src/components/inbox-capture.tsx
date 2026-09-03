@@ -240,7 +240,7 @@ export function InboxCapture() {
             formRef.current?.requestSubmit();
           }
         }}
-        className="w-full resize-none bg-transparent text-[13px] leading-relaxed text-grey-800 placeholder:text-grey-400 focus:outline-none"
+        className="w-full resize-none bg-transparent text-[13px] leading-relaxed text-grey-800 placeholder:text-grey-500 focus:outline-none"
       />
 
       {noteOpen ? (
@@ -254,7 +254,7 @@ export function InboxCapture() {
             // Enter would fight every paragraph you try to write.
             if (e.key === 'Escape') setNoteOpen(false);
           }}
-          className="mt-1 w-full resize-none border-l-2 border-grey-200 bg-transparent pl-2 text-[12px] leading-relaxed text-grey-700 placeholder:text-grey-400 focus:outline-none"
+          className="mt-1 w-full resize-none border-l-2 border-grey-200 bg-transparent pl-2 text-[12px] leading-relaxed text-grey-700 placeholder:text-grey-500 focus:outline-none"
         />
       ) : null}
 

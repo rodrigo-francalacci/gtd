@@ -251,9 +251,10 @@ export function NoteEditor({
           const modified =
             event.metaKey || event.ctrlKey || event.shiftKey || event.button === 1;
 
-          // Drive is not ours to render, so it always leaves - the honest
-          // answer for a folder this app holds no scope to look inside.
-          if (modified || target.kind === 'drive') {
+          // A new tab for a modified click, and for anything the page has sent
+          // outside the app - read off the address, because only the page
+          // knows whether it has a pane that can show this.
+          if (modified || !href.startsWith('/')) {
             window.open(href, '_blank', 'noopener,noreferrer');
             return;
           }
