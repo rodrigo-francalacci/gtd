@@ -7,7 +7,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { emptyDoc } from '@/lib/tiptap';
 import { EditorToolbar } from './editor-toolbar';
 import { RememberedHeight } from './remembered-height';
-import type { NoteSurface } from '@/lib/actions';
+import { setNoteDense, type NoteSurface } from '@/lib/actions';
 
 type SaveState = 'idle' | 'dirty' | 'saving' | 'saved';
 
@@ -41,6 +41,7 @@ export function NoteEditor({
   surface,
   id,
   height,
+  dense,
 }: {
   initialContent: unknown;
   onSave: (doc: unknown) => Promise<void>;
@@ -52,6 +53,8 @@ export function NoteEditor({
    * default — the last height used anywhere — applies instead.
    */
   height: number | null;
+  /** Whether this note is set compact. Null and false both mean the default. */
+  dense: boolean | null;
   placeholder?: string;
 }) {
   const [state, setState] = useState<SaveState>('idle');
@@ -135,6 +138,13 @@ export function NoteEditor({
   /** The resizable box around the editor, watched so its height is kept. */
   const box = useRef<HTMLDivElement>(null);
 
+  /*
+   * Local, so the spacing changes as you press it rather than after a round
+   * trip. Seeded from the row and never resynced: the call sites key this
+   * component on the row's id, so a different note remounts with its own value.
+   */
+  const [tight, setTight] = useState(dense === true);
+
   // NOTE: there is deliberately no effect resyncing `initialContent`.
   //
   // Saving revalidates the route, so the server sends a fresh `notes` object
@@ -150,7 +160,14 @@ export function NoteEditor({
           {state === 'saving' ? 'Saving…' : state === 'saved' ? 'Saved' : ''}
         </span>
       </div>
-      <EditorToolbar editor={editor} />
+      <EditorToolbar
+        editor={editor}
+        tight={tight}
+        onTight={(next) => {
+          setTight(next);
+          void setNoteDense(surface, id, next);
+        }}
+      />
 
       {/*
         Resizable, and it remembers.
@@ -171,7 +188,12 @@ export function NoteEditor({
       <div
         ref={box}
         style={height ? { height: `${height}px` } : undefined}
-        className="h-[var(--note-height,16rem)] min-h-24 resize-y overflow-auto rounded-sm"
+        className={[
+          'h-[var(--note-height,16rem)] min-h-24 resize-y overflow-auto rounded-sm',
+          // The wrapper carries it, so the leading reaches the headings and
+          // lists inside as well as the paragraphs.
+          tight ? 'note-tight' : '',
+        ].join(' ')}
       >
         <EditorContent editor={editor} />
       </div>

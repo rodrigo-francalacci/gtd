@@ -377,8 +377,17 @@
  * theme, and swapping it for something calligraphic would be a costume rather
  * than a reading surface.
  */
-:root[data-theme='paper'] .ProseMirror p {
-  line-height: 1.7;
+/*
+ * Paper reads at a longer measure, so it sets the *variable* rather than the
+ * property. Written as `line-height` directly it beat the compact wrapper on
+ * specificity — `:root[data-theme='paper'] .ProseMirror p` outranks
+ * `.note-tight .ProseMirror p` however the rules are ordered — and a note could
+ * be set compact in every theme except the one people read longest in.
+ * Inheritance does not work that way: the nearest ancestor that sets a custom
+ * property wins, whatever the selectors look like.
+ */
+:root[data-theme='paper'] {
+  --note-leading: 1.7;
 }
 
 /*
@@ -740,6 +749,24 @@ body {
   overflow: hidden; /* the three panes scroll, the page never does */
 }
 
+/*
+ * A note set compact.
+ *
+ * Two numbers, not one: the gap between paragraphs matters as much as the
+ * leading inside them, and tightening only the line height leaves a list of
+ * dates as airy as it was. Set on a wrapper around the editor so it reaches the
+ * headings and lists too, and as variables so it beats the per-theme values by
+ * inheritance rather than by out-specifying them.
+ */
+.note-tight {
+  --note-leading: 1.3;
+  --note-gap: 0.22em;
+  /* The run-up to a heading closes too, or the paragraphs pull together and
+     the space above every heading stays where it was, which reads as a
+     mistake rather than as a setting. */
+  --note-heading-top: 0.7em;
+}
+
 /* TipTap / ProseMirror ---------------------------------------------------- */
 
 .ProseMirror {
@@ -748,8 +775,8 @@ body {
 }
 
 .ProseMirror p {
-  margin: 0 0 0.6em;
-  line-height: 1.6;
+  margin: 0 0 var(--note-gap, 0.6em);
+  line-height: var(--note-leading, 1.6);
 }
 
 .ProseMirror h1,
@@ -757,7 +784,7 @@ body {
 .ProseMirror h3 {
   font-weight: 600;
   line-height: 1.3;
-  margin: 1.2em 0 0.4em;
+  margin: var(--note-heading-top, 1.2em) 0 0.4em;
 }
 
 .ProseMirror h1 {
@@ -773,7 +800,11 @@ body {
 .ProseMirror ul,
 .ProseMirror ol {
   padding-left: 1.4em;
-  margin: 0 0 0.6em;
+  margin: 0 0 var(--note-gap, 0.6em);
+}
+
+.ProseMirror li {
+  line-height: var(--note-leading, 1.6);
 }
 
 .ProseMirror ul {

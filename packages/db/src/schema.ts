@@ -296,6 +296,15 @@ export const projects = pgTable(
      * polymorphic key walks straight into.
      */
     noteHeight: integer('note_height'),
+    /**
+     * Set the note tighter than the default leading.
+     *
+     * Per note, like the height beside it and for the same reason: how much air
+     * a note wants is a fact about that note. A list of dates and part numbers
+     * reads better closed up; a paragraph of prose does not.
+     */
+    noteDense: boolean('note_dense'),
+
     notes: jsonb('notes'),
     /** Plaintext flattened from `notes`, kept in sync by the app for search. */
     searchText: text('search_text'),
@@ -394,6 +403,15 @@ export const actions = pgTable(
      * orphan — the trap a polymorphic key would walk straight into.
      */
     noteHeight: integer('note_height'),
+    /**
+     * Set the note tighter than the default leading.
+     *
+     * Per note, like the height beside it and for the same reason: how much air
+     * a note wants is a fact about that note. A list of dates and part numbers
+     * reads better closed up; a paragraph of prose does not.
+     */
+    noteDense: boolean('note_dense'),
+
     notes: jsonb('notes'),
     searchText: text('search_text'),
     searchVector: searchVector('title', 'search_text'),
@@ -554,6 +572,15 @@ export const listItems = pgTable(
      * polymorphic key walks straight into.
      */
     noteHeight: integer('note_height'),
+    /**
+     * Set the note tighter than the default leading.
+     *
+     * Per note, like the height beside it and for the same reason: how much air
+     * a note wants is a fact about that note. A list of dates and part numbers
+     * reads better closed up; a paragraph of prose does not.
+     */
+    noteDense: boolean('note_dense'),
+
     notes: jsonb('notes'),
     /** Plaintext flattened from `notes`, kept in sync by the app for search. */
     searchText: text('search_text'),
@@ -1369,6 +1396,15 @@ export const boxItems = pgTable(
      * every visit.
      */
     noteHeight: integer('note_height'),
+    /**
+     * Set the note tighter than the default leading.
+     *
+     * Per note, like the height beside it and for the same reason: how much air
+     * a note wants is a fact about that note. A list of dates and part numbers
+     * reads better closed up; a paragraph of prose does not.
+     */
+    noteDense: boolean('note_dense'),
+
     /**
      * Where you were, for a `location` entry. Two columns rather than a blob
      * because a coordinate is two numbers and will one day be worth querying

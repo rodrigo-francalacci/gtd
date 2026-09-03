@@ -131,6 +131,8 @@ export const WHERE_LABELS: Record<PurchaseWhere, string> = {
 export type ItemStage = 'candidate' | 'committed' | 'settled';
 
 export type ListItemRow = {
+  /** Whether this note is set compact. Null means the default spacing. */
+  noteDense: boolean | null;
   /** How tall this note was last dragged, in pixels. Null means never. */
   noteHeight: number | null;
   id: string;
@@ -340,6 +342,8 @@ export type BoxLinkRow = {
 };
 
 export type BoxItemDetail = BoxItemRow & {
+  /** Whether this note is set compact. Null means the default spacing. */
+  noteDense: boolean | null;
   /** The note as a rich document, or null when only the plain text exists. */
   notes: unknown;
   /** How tall this note was last dragged, in pixels. Null means never. */

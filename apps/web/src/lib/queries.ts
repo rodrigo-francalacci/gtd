@@ -444,6 +444,7 @@ export async function getProject(id: string) {
       standbyReason: projects.standbyReason,
       notes: projects.notes,
       noteHeight: projects.noteHeight,
+      noteDense: projects.noteDense,
       areaId: projects.areaId,
       goalId: projects.goalId,
       areaName: areasOfFocus.name,
@@ -483,6 +484,7 @@ export async function getAction(id: string) {
       waitingOn: waitingParty.name,
       notes: actions.notes,
       noteHeight: actions.noteHeight,
+      noteDense: actions.noteDense,
       projectId: actions.projectId,
       projectTitle: projects.title,
       createdAt: actions.createdAt,
@@ -815,6 +817,7 @@ export async function getListItems(listId: string): Promise<ListItemRow[]> {
     // height that goes with it is part of that body, not of the line.
     notes: null,
     noteHeight: null,
+    noteDense: null,
   }));
 }
 
@@ -833,6 +836,7 @@ export async function getListItem(id: string): Promise<ListItemRow | null> {
       position: listItems.position,
       notes: listItems.notes,
       noteHeight: listItems.noteHeight,
+      noteDense: listItems.noteDense,
       createdAt: listItems.createdAt,
     })
     .from(listItems)
@@ -1245,6 +1249,7 @@ export async function getBoxItem(id: string): Promise<BoxItemDetail | null> {
       description: boxItems.description,
       notes: boxItems.notes,
       noteHeight: boxItems.noteHeight,
+      noteDense: boxItems.noteDense,
       docDate: boxItems.docDate,
       /*
        * The two an event needs, and the reason this query has to know about

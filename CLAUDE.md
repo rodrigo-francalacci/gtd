@@ -1591,6 +1591,24 @@ Turbopack is the default; `middleware` is now `proxy`.
   The note saves itself, as notes do everywhere else here, which is why Save and
   Discard on that pane now belong to the title alone: a rich editor owns its
   content, and a manual save over the top is two sources of truth for one field.
+- **A note can be set compact, per note, and the spacing runs through
+  variables.** How much air a note wants is a fact about *that* note — a list of
+  dates and part numbers reads better closed up and the paragraph under it does
+  not — so `note_dense` sits beside `note_height` on the same four tables.
+  **Two numbers, not one.** The gap between paragraphs matters as much as the
+  leading inside them, and tightening only `line-height` leaves a list of dates
+  as airy as it was. Headings close their run-up too, or the paragraphs pull
+  together and the space above every heading stays put, which reads as a
+  mistake rather than a setting.
+  **`--note-leading` and `--note-gap`, not the properties themselves**, and that
+  is what makes it work at all: paper sets a longer measure through
+  `:root[data-theme='paper'] .ProseMirror p`, which outranks
+  `.note-tight .ProseMirror p` on specificity however the rules are ordered — so
+  written directly, a note could be set compact in every theme except the one
+  people read longest in. A custom property is resolved by inheritance instead:
+  the nearest ancestor that sets it wins, whatever the selectors look like.
+  Verified under all three: compact holds at the same leading everywhere, and
+  paper keeps its longer default when the note is airy.
 - **Note colour is the one decorative colour, and it is stored as a *name*.**
   Four inks — blue, green, amber, red — against the semantic three plus the
   journal violet, and the rule above still stands for those: this is the

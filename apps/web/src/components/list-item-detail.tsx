@@ -195,6 +195,7 @@ export function ListItemDetail({
           surface="list_item"
           id={item.id}
           height={item.noteHeight ?? null}
+          dense={item.noteDense ?? null}
           initialContent={item.notes}
           placeholder="Why this is here, what it depends on…"
           onSave={async (doc) => {

@@ -396,6 +396,7 @@ export function DocumentDetail({
           surface="box_item"
           id={item.id}
           height={item.noteHeight ?? null}
+          dense={item.noteDense ?? null}
           initialContent={item.notes ?? docFromText(item.description ?? '')}
           onSave={async (doc) => {
             await updateBoxItemNotes(item.id, doc);

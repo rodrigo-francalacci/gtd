@@ -31,6 +31,8 @@ import { LinkedDocuments } from './linked-documents';
 import { NoteEditor } from './note-editor';
 
 type ProjectDetailData = {
+  /** Whether this note is set compact. Null means the default spacing. */
+  noteDense: boolean | null;
   /** How tall this note was last dragged, in pixels. Null means never. */
   noteHeight: number | null;
   /** Its emoji, or null. Editable here whatever the model chose. */
@@ -278,6 +280,7 @@ export function ProjectDetail({
           surface="project"
           id={project.id}
           height={project.noteHeight ?? null}
+          dense={project.noteDense ?? null}
           initialContent={project.notes}
           placeholder="Project notes, outcome, reference…"
           onSave={async (doc) => {

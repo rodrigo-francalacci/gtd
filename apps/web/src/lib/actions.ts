@@ -1857,6 +1857,30 @@ export async function setNoteHeight(
   // the caret and the scroll position of the note being written.
 }
 
+/**
+ * Set a note tighter, or let it breathe again.
+ *
+ * Per note, beside the height and for the same reason: how much air a note
+ * wants is a fact about that note. A list of dates and part numbers reads
+ * better closed up, and the paragraph underneath it does not.
+ *
+ * No `revalidateShell()`. The class is already applied in the browser, and
+ * re-rendering the shell would throw away the caret and the scroll position of
+ * the note being written — the same reason the height does not revalidate.
+ */
+export async function setNoteDense(
+  surface: NoteSurface,
+  id: string,
+  dense: boolean,
+) {
+  await requireSession();
+
+  const table = NOTE_TABLE[surface];
+  if (!table) return;
+
+  await db.update(table).set({ noteDense: dense }).where(eq(table.id, id));
+}
+
 export async function setListPaneWidth(width: number) {
   await requireSession();
   const clamped = Math.round(

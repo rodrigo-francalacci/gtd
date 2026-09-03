@@ -29,6 +29,8 @@ import { TurnIntoNextAction } from './turn-into-next';
 import { WaitingOnField } from './waiting-on-field';
 
 type ActionDetailData = {
+  /** Whether this note is set compact. Null means the default spacing. */
+  noteDense: boolean | null;
   /** How tall this note was last dragged, in pixels. Null means never. */
   noteHeight: number | null;
   /** Its emoji, or null. Editable here whatever the model chose. */
@@ -269,6 +271,7 @@ export function ActionDetail({
           surface="action"
           id={action.id}
           height={action.noteHeight ?? null}
+          dense={action.noteDense ?? null}
           initialContent={action.notes}
           placeholder="Notes on this action…"
           onSave={async (doc) => {

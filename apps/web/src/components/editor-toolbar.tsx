@@ -36,7 +36,16 @@ type ButtonSpec = {
   className?: string;
 };
 
-export function EditorToolbar({ editor }: { editor: Editor | null }) {
+export function EditorToolbar({
+  editor,
+  tight,
+  onTight,
+}: {
+  editor: Editor | null;
+  /** Whether this note is set compact. */
+  tight: boolean;
+  onTight: (next: boolean) => void;
+}) {
   const [linkOpen, setLinkOpen] = useState(false);
   const [linkValue, setLinkValue] = useState('');
   const [linkError, setLinkError] = useState(false);
@@ -223,6 +232,22 @@ export function EditorToolbar({ editor }: { editor: Editor | null }) {
               />
             );
           })}
+        </div>
+
+        {/*
+          Spacing, not formatting — a property of the note rather than of the
+          words in it, which is why it sits apart from the marks and stays
+          pressed rather than following the cursor.
+        */}
+        <div className="flex items-center gap-0.5">
+          <ToolButton
+            spec={{
+              label: tight ? 'Airy' : 'Tight',
+              title: tight ? 'Give the note more room' : 'Close the note up',
+              isActive: () => tight,
+              run: () => onTight(!tight),
+            }}
+          />
         </div>
 
         <div className="flex items-center gap-0.5">
