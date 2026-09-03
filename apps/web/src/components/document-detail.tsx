@@ -4,19 +4,21 @@ import Link from 'next/link';
 import { TagEditor, TagEditorButton } from './tag-editor';
 import { useSidebarSlot } from './sidebar-slot';
 import { EmojiPicker } from './emoji-picker';
-import { RememberedHeight } from './remembered-height';
+import { NoteEditor } from './note-editor';
+import { docFromText } from '@/lib/tiptap';
 import { useRouter } from 'next/navigation';
-import { useEffect, useRef, useState, useTransition } from 'react';
+import { useEffect, useState, useTransition } from 'react';
 import {
   deleteDocument,
-  setBoxItemListed,
   linkDocument,
+  moveDocument,
+  setBoxItemListed,
   setDocumentArrivedAt,
   setDocumentExpiry,
-  moveDocument,
   startFromDocument,
   toggleDocumentTag,
   unlinkDocument,
+  updateBoxItemNotes,
   updateDocument,
 } from '@/lib/actions';
 import { readDocument } from '@/lib/read-document';
@@ -86,8 +88,6 @@ export function DocumentDetail({
 }) {
   const router = useRouter();
   const slot = useSidebarSlot();
-  /** The description field, watched so the height you drag it to is kept. */
-  const field = useRef<HTMLTextAreaElement>(null);
   const preview = useFilePreview();
   const [pending, startTransition] = useTransition();
 
@@ -146,7 +146,7 @@ export function DocumentDetail({
 
   const dirty =
     draft !== null &&
-    (title !== (item.title ?? '') || description !== (item.description ?? ''));
+    title !== (item.title ?? '');
 
   const applied = new Set(item.tags.map((t) => t.id));
 
@@ -378,10 +378,28 @@ export function DocumentDetail({
           because a height and a row count are two answers to one question and
           the row count would win on first paint before the variable applied.
         */}
-        <textarea
-          ref={field}
-          value={description}
-          onChange={(e) => edit({ description: e.target.value })}
+        {/*
+          The same editor every other note in the app uses.
+
+          It seeds from `description` when there is no rich document yet, which
+          is every entry filed before this and every summary a model wrote — so
+          nothing had to be migrated, and an AI summary is simply the first
+          draft of a note you can then format.
+
+          It saves itself, like notes everywhere else here, which is why the
+          Save and Discard below now belong to the title alone. A rich editor
+          owns its content; a manual save over the top is two sources of truth
+          for one field.
+        */}
+        <NoteEditor
+          key={item.id}
+          surface="box_item"
+          id={item.id}
+          height={item.noteHeight ?? null}
+          initialContent={item.notes ?? docFromText(item.description ?? '')}
+          onSave={async (doc) => {
+            await updateBoxItemNotes(item.id, doc);
+          }}
           placeholder={
             isAudio
               ? 'Not transcribed — nothing here reads speech yet. Write what it was about and search will find it.'
@@ -389,11 +407,7 @@ export function DocumentDetail({
                 ? 'Not summarised yet.'
                 : 'Write something.'
           }
-          style={item.noteHeight ? { height: `${item.noteHeight}px` } : undefined}
-          className="h-[var(--box-note-height,7rem)] min-h-16 w-full resize-y rounded-sm border border-grey-200 bg-paper px-2 py-1.5 text-[13px] leading-relaxed text-grey-800 placeholder:text-grey-400 focus:border-grey-400 focus:outline-none"
         />
-
-        <RememberedHeight surface="box_item" id={item.id} target={field} />
 
         {dirty ? (
           <div className="flex items-center gap-3">
@@ -402,7 +416,7 @@ export function DocumentDetail({
               disabled={pending}
               onClick={() =>
                 startTransition(async () => {
-                  await updateDocument(item.id, title, description);
+                  await updateDocument(item.id, title, item.description ?? '');
                   // Back to showing the row itself, which is now what we sent.
                   setDraft(null);
                   router.refresh();

@@ -1243,6 +1243,7 @@ export async function getBoxItem(id: string): Promise<BoxItemDetail | null> {
       title: boxItems.title,
       emoji: boxItems.emoji,
       description: boxItems.description,
+      notes: boxItems.notes,
       noteHeight: boxItems.noteHeight,
       docDate: boxItems.docDate,
       /*

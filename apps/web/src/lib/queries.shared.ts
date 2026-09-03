@@ -340,6 +340,8 @@ export type BoxLinkRow = {
 };
 
 export type BoxItemDetail = BoxItemRow & {
+  /** The note as a rich document, or null when only the plain text exists. */
+  notes: unknown;
   /** How tall this note was last dragged, in pixels. Null means never. */
   noteHeight: number | null;
   boxName: string;

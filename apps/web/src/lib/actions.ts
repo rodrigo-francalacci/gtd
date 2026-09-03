@@ -2937,6 +2937,45 @@ export async function toggleDocumentTag(itemId: string, tagId: string) {
  * not what we think of it. Only the title and summary are editable, and
  * `search_text` is rewritten alongside because the vector is generated from it.
  */
+/**
+ * A box entry's note, as a rich document.
+ *
+ * `description` stays the plain-text truth and is written from the same save:
+ * the feed renders it, the classifier writes it, and `search_text` is built
+ * from it — so a note formatted here is still one line in a list and still
+ * findable by its words. Writing only the JSON would have made every richly
+ * edited note invisible to search, which is the trap `notes` has on every
+ * other table and the reason `extractText` exists.
+ */
+export async function updateBoxItemNotes(itemId: string, notes: unknown) {
+  await requireSession();
+
+  const plain = extractText(notes);
+
+  const [row] = await db
+    .select({ text: boxItems.text })
+    .from(boxItems)
+    .where(eq(boxItems.id, itemId))
+    .limit(1);
+
+  await db
+    .update(boxItems)
+    .set({
+      notes,
+      description: plain.trim() || null,
+      // The vector is generated from this column, so anything that writes one
+      // writes the other. The read-out text goes in too, as it always has.
+      searchText: [plain.trim(), row?.text ?? '']
+        .filter(Boolean)
+        .join('\n')
+        .slice(0, 100_000),
+      updatedAt: new Date(),
+    })
+    .where(eq(boxItems.id, itemId));
+
+  revalidateShell();
+}
+
 export async function updateDocument(
   itemId: string,
   title: string,

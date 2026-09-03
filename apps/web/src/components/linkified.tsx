@@ -35,8 +35,23 @@ export function Linkified({ text }: { text: string }) {
         href={raw}
         target="_blank"
         rel="noopener noreferrer nofollow"
+        /*
+         * `relative` is what makes this clickable at all, and it has to be on
+         * the anchor rather than on the text around it.
+         *
+         * A row navigates through a `<Link>` stretched over it with
+         * `absolute inset-0`, so a link in the text is simply *underneath* that
+         * overlay and never receives the click — `stopPropagation` cannot help,
+         * because nothing is propagating: the overlay is a sibling, not an
+         * ancestor. Positioning the anchor puts it in the same painting group,
+         * where it wins on DOM order.
+         *
+         * Only the anchor, never the span holding it. Lift the whole line and
+         * clicking any word of the note would stop opening the note, which is
+         * the behaviour the stretched link exists to give.
+         */
         onClick={(e) => e.stopPropagation()}
-        className="text-selected underline underline-offset-2"
+        className="relative text-selected underline underline-offset-2"
       >
         {raw}
       </a>,

@@ -2,6 +2,7 @@
 
 import type { Editor } from '@tiptap/react';
 import { useEffect, useRef, useState } from 'react';
+import { NOTE_COLOURS, colourVar } from '@/lib/note-colour';
 
 /**
  * Only http/https/mailto are accepted. TipTap validates too, but a
@@ -186,6 +187,43 @@ export function EditorToolbar({ editor }: { editor: Editor | null }) {
             ))}
           </div>
         ))}
+
+        {/*
+          Colour, as swatches rather than a menu.
+          
+          Four of them, so they fit on one row beside everything else and can be
+          hit without opening anything. The swatch paints itself in the token it
+          sets, which is also the only honest preview: what blue *is* depends on
+          the theme, so a fixed dot in the toolbar would be lying in five of the
+          six.
+        */}
+        <div className="flex items-center gap-1">
+          {NOTE_COLOURS.map((colour) => {
+            const active = editor.isActive('noteColour', { colour });
+            return (
+              <button
+                key={colour}
+                type="button"
+                // A button takes focus, which collapses the selection — the
+                // same reason every other control here prevents it.
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={() =>
+                  active
+                    ? editor.chain().focus().unsetNoteColour().run()
+                    : editor.chain().focus().setNoteColour(colour).run()
+                }
+                title={active ? `Remove ${colour}` : `Write in ${colour}`}
+                aria-label={active ? `Remove ${colour}` : `Write in ${colour}`}
+                aria-pressed={active}
+                className={[
+                  'h-4 w-4 rounded-full border transition',
+                  active ? 'border-grey-800 ring-1 ring-grey-400' : 'border-grey-300',
+                ].join(' ')}
+                style={{ backgroundColor: colourVar(colour) }}
+              />
+            );
+          })}
+        </div>
 
         <div className="flex items-center gap-0.5">
           <ToolButton

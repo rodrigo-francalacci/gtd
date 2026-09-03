@@ -2,6 +2,7 @@
 
 import { EditorContent, useEditor } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
+import { NoteColourMark } from '@/lib/note-colour';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { emptyDoc } from '@/lib/tiptap';
 import { EditorToolbar } from './editor-toolbar';
@@ -102,6 +103,7 @@ export function NoteEditor({
           },
         },
       }),
+      NoteColourMark,
     ],
     content: (initialContent as object) ?? emptyDoc,
     // Editors render on the client only; rendering on the server first causes

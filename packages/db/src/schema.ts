@@ -1350,6 +1350,19 @@ export const boxItems = pgTable(
     emoji: text('emoji'),
     description: text('description'),
     /**
+     * The same field, as a rich document.
+     *
+     * `description` stays the plain-text truth: the classifier writes it, the
+     * feed renders it, and `search_text` is built from it. This is the layer
+     * over it — formatting, links and a little colour — written whenever a
+     * person edits the note by hand, and null for everything a model wrote or
+     * that nobody has touched. Reading falls back to `description`, so nothing
+     * filed before this existed has to be migrated.
+     *
+     * ProseMirror JSON, like `actions.notes` and for the same reasons.
+     */
+    notes: jsonb('notes'),
+    /**
      * How tall this entry's field was last dragged, in pixels. Per entry, for
      * the reason the note tables carry one: a two-word note and a page of
      * transcript want different heights, and sharing one means resizing on

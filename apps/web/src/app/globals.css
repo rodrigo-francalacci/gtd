@@ -55,6 +55,38 @@
   /* Source Sans — Evernote's UI typeface of the era this layout copies. */
   --font-sans: var(--font-source-sans), ui-sans-serif, system-ui, -apple-system,
     "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  /*
+   * Ink colours for a note, and the *only* decorative colour in the app.
+   *
+   * Everything else here is semantic — `waiting`, `stale`, `selected` and the
+   * journal violet each mean one thing. These mean whatever you meant, which
+   * is why there are four of them and not twelve: a palette you have to choose
+   * carefully from is one you stop using, and a note in eleven colours is
+   * harder to read than one in none.
+   *
+   * The mark stores the *name*, never a hex, so the value is resolved per
+   * theme. That is the whole reason this works on a phosphor screen and on
+   * parchment: blue on white and blue on black cannot be the same blue and
+   * still be legible, and no note has to know which it is on.
+   */
+}
+
+/*
+ * The note inks, light mode.
+ *
+ * In a plain `:root` rather than inside `@theme`, which is where these first
+ * went and where they silently did nothing: Tailwind v4 only emits the
+ * namespaces it knows — `--color-*`, `--font-*` and the rest — so a custom
+ * `--note-blue` declared there generates no variable at all. Every other theme
+ * worked, because every other theme is an ordinary selector; light was the one
+ * that fell back to grey text and looked like a missing token rather than a
+ * misplaced one.
+ */
+:root {
+  --note-blue: #1d4ed8;
+  --note-green: #15803d;
+  --note-amber: #b45309;
+  --note-red: #b91c1c;
 }
 
 
@@ -102,6 +134,10 @@
   /* Same hue, dark-ground contrast — the rule the other three follow. */
   --color-journal: #b3a4dd;
   --color-journal-bg: #242036;
+  --note-blue: #8ab4f8;
+  --note-green: #6ee7a0;
+  --note-amber: #e6b800;
+  --note-red: #f28b82;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -147,7 +183,11 @@
   /* Same hue, dark-ground contrast — the rule the other three follow. */
   --color-journal: #b3a4dd;
   --color-journal-bg: #242036;
-  }
+   --note-blue: #8ab4f8;
+  --note-green: #6ee7a0;
+  --note-amber: #e6b800;
+  --note-red: #f28b82;
+ }
 }
 
 /* Paper mode ------------------------------------------------------------- */
@@ -225,6 +265,10 @@
   --color-selected-bg: #b6c6d2;
   --color-journal: #4f3d72;
   --color-journal-bg: #c7bbc9;
+  --note-blue: #1f4c7a;
+  --note-green: #2f5d34;
+  --note-amber: #8a5a10;
+  --note-red: #8f2f22;
 }
 
 :root[data-theme='paper'] {
@@ -406,6 +450,20 @@
   --code-string: #86efac;
   --code-comment: #16a34a;
   --code-accent: #ef4444;
+  /*
+   * On a phosphor screen the colours stay inside the tube.
+   *
+   * Four separate hues would break the one thing this theme is: a monitor that
+   * emits a single colour. So they are distinguished by brightness, the way a
+   * terminal has always done it, with red the exception — a P1 screen showing
+   * an alert in red is the one departure that reads as period-correct rather
+   * than as a mistake.
+   */
+  --note-blue: #86efac;
+  --note-green: #22c55e;
+  --note-amber: #fde047;
+  --note-red: #f87171;
+
 }
 
 /*
@@ -454,6 +512,14 @@
   --code-string: #ffd479;
   --code-comment: #b06f00;
   --code-accent: #ff5c5c;
+  /* The same reasoning as the green tube, in the other phosphor. Amber cannot
+     use yellow for emphasis — yellow *is* the text here — so the range runs
+     from dim to bright and red carries the alert. */
+  --note-blue: #ffd591;
+  --note-green: #ffc247;
+  --note-amber: #fff0c2;
+  --note-red: #ff6b5e;
+
 }
 
 /*

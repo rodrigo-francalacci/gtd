@@ -1579,6 +1579,44 @@ Turbopack is the default; `middleware` is now `proxy`.
   so the resumable three-step dance would be ceremony); a Google format has no
   bytes and stays `createGoogleFile`. **The extension is part of the name**, or
   `formatOf` cannot recognise the file the app has just created.
+- **A box entry's note is rich text, and `description` stays the plain truth.**
+  `box_items.notes` is the ProseMirror document; `description` is written from
+  it on every save, so the feed still renders one scannable line, the classifier
+  still writes summaries the same way, and `search_text` — which the vector is
+  generated from — is still filled. Storing only the JSON would have made every
+  formatted note unfindable, which is the trap `notes` carries on every table.
+  Reading falls back to `description`, so nothing filed before this needed
+  migrating and a model's summary is simply the first draft of a note you can
+  then format.
+  The note saves itself, as notes do everywhere else here, which is why Save and
+  Discard on that pane now belong to the title alone: a rich editor owns its
+  content, and a manual save over the top is two sources of truth for one field.
+- **Note colour is the one decorative colour, and it is stored as a *name*.**
+  Four inks — blue, green, amber, red — against the semantic three plus the
+  journal violet, and the rule above still stands for those: this is the
+  exception that means whatever *you* meant, which is exactly why it is four
+  and not twelve.
+  The mark records `blue`, never `#1d4ed8`, and the stylesheet decides what blue
+  is. That is what makes it survive the theme switch: blue on white and blue on
+  a black phosphor screen cannot be the same blue and stay legible, and a stored
+  hex is one theme's decision imposed on the other five for ever. Six blocks
+  define the four tokens; no note knows which it is being read in. Verified by
+  reading the computed colour under every theme.
+  **The light values must live in a plain `:root`, not in `@theme`.** Tailwind
+  v4 only emits the namespaces it recognises, so a custom `--note-blue` declared
+  there generates nothing at all — every themed selector worked and light alone
+  fell back to grey text, which reads as a missing token rather than a misplaced
+  one.
+- **A link inside a row needs `relative` on the anchor, and only the anchor.**
+  A row navigates through a `<Link>` stretched over it with `absolute inset-0`,
+  so a link in the text sits *underneath* that overlay and never receives the
+  click — `stopPropagation` cannot help, because nothing is propagating: the
+  overlay is a sibling, not an ancestor. Positioning the anchor puts it in the
+  same painting group, where it wins on DOM order. Lifting the whole line
+  instead would stop clicking the text from opening the entry, which is the
+  behaviour the stretched link exists to provide. Confirmed with
+  `elementFromPoint`: the link's centre hits the link, the rest of the row hits
+  the row.
 - **A day's journal line carries the app's fourth semantic colour.** It is the
   only line in a box you *wrote* — everything around it was filed, sent,
   scanned or pasted — and greyscale can only make it louder or quieter than the
