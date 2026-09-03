@@ -1,5 +1,7 @@
 import 'server-only';
 
+import type { InternalTarget } from './internal-link';
+
 import { cache } from 'react';
 
 import {
@@ -107,6 +109,61 @@ export async function getContextsWithUsage() {
     .orderBy(asc(contexts.dimension), asc(contexts.name));
 
   return rows;
+}
+
+/**
+ * What the internal links in a set of notes point at, if anything.
+ *
+ * Resolved rather than stored, which is the whole reason the mark keeps only an
+ * id: rename a project and every note pointing at it is still right, because
+ * nothing copied the name. The cost is this lookup, and it is one statement per
+ * kind however many links there are.
+ *
+ * A target that is *gone* comes back missing rather than absent, so the row can
+ * say so. A link to a deleted project is worth showing as a broken link — the
+ * note is a record of what you were thinking, and silently rendering it as
+ * ordinary text would lose the fact that it once pointed somewhere.
+ */
+export async function resolveInternalLinks(
+  targets: InternalTarget[],
+): Promise<Map<string, { title: string } | null>> {
+  const found = new Map<string, { title: string } | null>();
+  if (targets.length === 0) return found;
+
+  const projectIds = [...new Set(targets.filter((t) => t.kind === 'project').map((t) => t.id))];
+  const actionIds = [...new Set(targets.filter((t) => t.kind === 'action').map((t) => t.id))];
+
+  const [projectRows, actionRows] = await Promise.all([
+    projectIds.length
+      ? db
+          .select({ id: projects.id, title: projects.title })
+          .from(projects)
+          .where(inArray(projects.id, projectIds))
+      : Promise.resolve([]),
+    actionIds.length
+      ? db
+          .select({ id: actions.id, title: actions.title })
+          .from(actions)
+          .where(inArray(actions.id, actionIds))
+      : Promise.resolve([]),
+  ]);
+
+  for (const row of projectRows) found.set(`P${row.id}`, { title: row.title });
+  for (const row of actionRows) found.set(`A${row.id}`, { title: row.title });
+
+  /*
+   * A Drive folder is not looked up here. The app holds `drive.file` and cannot
+   * see inside a folder it did not create, so whether one still exists is a
+   * question only the bridge can answer — and answering it per row would be a
+   * Google call inside a render. It resolves when opened instead.
+   */
+  for (const target of targets) {
+    const token = `${target.kind === 'project' ? 'P' : target.kind === 'action' ? 'A' : 'D'}${target.id}`;
+    if (target.kind === 'drive') found.set(token, { title: 'Drive folder' });
+    else if (!found.has(token)) found.set(token, null);
+  }
+
+  return found;
 }
 
 /** Contexts grouped by dimension, for the filter bar. */

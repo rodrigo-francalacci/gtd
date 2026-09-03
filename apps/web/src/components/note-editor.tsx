@@ -5,7 +5,10 @@ import StarterKit from '@tiptap/starter-kit';
 import { NoteColourMark } from '@/lib/note-colour';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { emptyDoc } from '@/lib/tiptap';
-import { EditorToolbar } from './editor-toolbar';
+import { useRouter } from 'next/navigation';
+import { EditorToolbar, type LinkTarget } from './editor-toolbar';
+import { InternalLinkMark } from '@/lib/internal-link-mark';
+import { hrefFor as internalHref, openHref, readToken } from '@/lib/internal-link';
 import { RememberedHeight } from './remembered-height';
 import { setNoteDense, type NoteSurface } from '@/lib/actions';
 
@@ -42,6 +45,8 @@ export function NoteEditor({
   id,
   height,
   dense,
+  targets,
+  openBase,
 }: {
   initialContent: unknown;
   onSave: (doc: unknown) => Promise<void>;
@@ -64,7 +69,23 @@ export function NoteEditor({
    */
   dense: boolean | null;
   placeholder?: string;
+  /**
+   * Projects and actions this note can point at, by name. Absent leaves the
+   * paste-an-id path, which is what "Copy id" on a row exists for.
+   */
+  targets?: LinkTarget[];
+  /**
+   * The address an internal link should open *on*, if there is a pane here that
+   * can show one.
+   *
+   * A string rather than a function, and that is forced rather than chosen: a
+   * Server Component cannot hand a function to a client one, so the page passes
+   * its own URL and the resolving happens on this side. Absent, a link falls
+   * back to the target's own page.
+   */
+  openBase?: string;
 }) {
+  const router = useRouter();
   const [state, setState] = useState<SaveState>('idle');
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   // Held in a ref so the debounce callback always sees the latest doc without
@@ -115,6 +136,7 @@ export function NoteEditor({
         },
       }),
       NoteColourMark,
+      InternalLinkMark,
     ],
     content: (initialContent as object) ?? emptyDoc,
     // Editors render on the client only; rendering on the server first causes
@@ -170,6 +192,7 @@ export function NoteEditor({
       </div>
       <EditorToolbar
         editor={editor}
+        targets={targets}
         tight={tight}
         onTight={(next) => {
           setTight(next);
@@ -193,8 +216,50 @@ export function NoteEditor({
         has never been dragged, and carries the last height used anywhere so a
         fresh note is not short again.
       */}
+      {/*
+        A click on an internal link follows it, the same courtesy a URL link
+        gets - and for the same reason, since these notes are read far more
+        often than they are edited.
+
+        Delegated from the wrapper rather than added as a ProseMirror plugin,
+        because what happens next is a *navigation* and the router lives out
+        here. `closest` is what makes it work over a link that has been split by
+        another mark: the span carrying the token is the nearest ancestor of
+        whatever was actually clicked.
+
+        A plain click only. A modified one falls through to the browser, which
+        is the rule every other link in this app follows - except that these
+        spans have no href, so `open` is used to honour it explicitly rather
+        than leaving ctrl-click doing nothing at all.
+      */}
       <div
         ref={box}
+        onClickCapture={(event) => {
+          const span = (event.target as HTMLElement | null)?.closest?.(
+            'span[data-internal]',
+          );
+          if (!span) return;
+
+          const target = readToken(span.getAttribute('data-internal') ?? '');
+          if (!target) return;
+
+          const href = openBase ? openHref(openBase, target) : internalHref(target);
+
+          event.preventDefault();
+          event.stopPropagation();
+
+          const modified =
+            event.metaKey || event.ctrlKey || event.shiftKey || event.button === 1;
+
+          // Drive is not ours to render, so it always leaves - the honest
+          // answer for a folder this app holds no scope to look inside.
+          if (modified || target.kind === 'drive') {
+            window.open(href, '_blank', 'noopener,noreferrer');
+            return;
+          }
+
+          router.push(href);
+        }}
         style={height ? { height: `${height}px` } : undefined}
         className={[
           'h-[var(--note-height,16rem)] min-h-24 resize-y overflow-auto rounded-sm',

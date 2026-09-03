@@ -3,6 +3,10 @@
 import type { Editor } from '@tiptap/react';
 import { useEffect, useRef, useState } from 'react';
 import { NOTE_COLOURS, colourVar } from '@/lib/note-colour';
+import { readToken, tokenFor, type InternalTarget } from '@/lib/internal-link';
+
+/** Something a note can point at, offered by name. */
+export type LinkTarget = InternalTarget & { title: string };
 
 /**
  * Only http/https/mailto are accepted. TipTap validates too, but a
@@ -40,20 +44,39 @@ export function EditorToolbar({
   editor,
   tight,
   onTight,
+  targets,
 }: {
   editor: Editor | null;
   /** Whether this note is set compact. */
   tight: boolean;
   onTight: (next: boolean) => void;
+  /**
+   * Projects and actions this note could point at, by name.
+   *
+   * Optional, and that is deliberate: the paste-an-id path works with nothing
+   * loaded at all, so a pane with no list to hand still offers the feature
+   * rather than hiding it. Where a list is passed, choosing by name is the path
+   * anybody actually takes.
+   */
+  targets?: LinkTarget[];
 }) {
   const [linkOpen, setLinkOpen] = useState(false);
   const [linkValue, setLinkValue] = useState('');
   const [linkError, setLinkError] = useState(false);
   const linkRef = useRef<HTMLInputElement>(null);
 
+  const [insideOpen, setInsideOpen] = useState(false);
+  const [insideValue, setInsideValue] = useState('');
+  const [insideError, setInsideError] = useState(false);
+  const insideRef = useRef<HTMLInputElement>(null);
+
   useEffect(() => {
     if (linkOpen) linkRef.current?.focus();
   }, [linkOpen]);
+
+  useEffect(() => {
+    if (insideOpen) insideRef.current?.focus();
+  }, [insideOpen]);
 
   if (!editor) return null;
 
@@ -186,6 +209,89 @@ export function EditorToolbar({
     setLinkOpen(false);
   };
 
+  /*
+   * What the typed text matches, by name or by id.
+   *
+   * Capped at eight, because this list sits under a toolbar inside a pane and a
+   * scrolling result set there would cover the note being written. Eight is
+   * enough to recognise the one you meant; past that the answer is to type
+   * another word.
+   */
+  const typed = insideValue.trim().toLowerCase();
+  const matches = (targets ?? [])
+    .filter(
+      (t) =>
+        typed.length > 0 &&
+        (t.title.toLowerCase().includes(typed) || t.id.toLowerCase().startsWith(typed)),
+    )
+    .slice(0, 8);
+
+  const openInside = () => {
+    // Seeded with whatever is already there, so pressing this inside an
+    // existing internal link shows its token rather than an empty box - the
+    // same courtesy the URL field does.
+    setInsideValue(String(editor.getAttributes('internalLink').target ?? ''));
+    setInsideError(false);
+    setInsideOpen(true);
+  };
+
+  /**
+   * Mark the selection, or write the target's name and mark that.
+   *
+   * The empty-selection case is the URL field's problem again, with the same
+   * two traps: a mark set on a collapsed cursor is invisible and silently
+   * swallows whatever is typed next, and marks passed inline to `insertContent`
+   * lose their attributes on the way through. So text is inserted, re-selected,
+   * and marked over a real range.
+   *
+   * What gets written is the title, and only as a starting point - the mark
+   * stores the id, so renaming the project later leaves this note saying the
+   * old name while still pointing at the right thing. That is the right trade:
+   * the words in a note are yours, and having the app rewrite them because
+   * something was renamed elsewhere would be worse than a name going stale.
+   */
+  const applyInside = (target: InternalTarget, label?: string) => {
+    if (editor.state.selection.empty) {
+      const text = label ?? tokenFor(target);
+      const from = editor.state.selection.from;
+      editor
+        .chain()
+        .focus()
+        .insertContent(`${text} `)
+        .setTextSelection({ from, to: from + text.length })
+        .setInternalLink(target)
+        .setTextSelection(from + text.length + 1)
+        .run();
+    } else {
+      editor.chain().focus().extendMarkRange('internalLink').setInternalLink(target).run();
+    }
+
+    setInsideOpen(false);
+    setInsideValue('');
+  };
+
+  /** Enter, having typed or pasted something rather than picked a row. */
+  const applyTyped = () => {
+    // A name matching exactly one thing is what you meant; anything else has to
+    // be a token, which is what "Copy id" puts on the clipboard.
+    if (matches.length === 1) {
+      applyInside(matches[0], matches[0].title);
+      return;
+    }
+
+    const target = readToken(insideValue);
+    if (!target) {
+      setInsideError(true);
+      return;
+    }
+    applyInside(target);
+  };
+
+  const removeInside = () => {
+    editor.chain().focus().extendMarkRange('internalLink').unsetInternalLink().run();
+    setInsideOpen(false);
+  };
+
   return (
     <div className="sticky top-0 z-10 -mx-1 mb-2 bg-paper/95 px-1 pb-1.5 backdrop-blur">
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
@@ -259,6 +365,19 @@ export function EditorToolbar({
               run: openLink,
             }}
           />
+          {/*
+            Beside the URL link, because they are one verb pointed at two
+            different worlds - and sitting together is what makes it discoverable
+            that a note can point at a project at all.
+          */}
+          <ToolButton
+            spec={{
+              label: 'Inside',
+              title: 'Link to a project, an action or a Drive folder',
+              isActive: () => editor.isActive('internalLink'),
+              run: openInside,
+            }}
+          />
           <ToolButton
             spec={{
               label: 'Clear',
@@ -268,6 +387,90 @@ export function EditorToolbar({
           />
         </div>
       </div>
+
+      {insideOpen ? (
+        <div className="mt-1.5">
+          <div className="flex flex-wrap items-center gap-1.5">
+            <input
+              ref={insideRef}
+              value={insideValue}
+              onChange={(e) => {
+                setInsideValue(e.target.value);
+                setInsideError(false);
+              }}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault();
+                  applyTyped();
+                }
+                if (e.key === 'Escape') setInsideOpen(false);
+              }}
+              placeholder={
+                targets?.length ? 'Name, or a pasted id...' : 'Paste an id - P..., A... or D...'
+              }
+              className={[
+                'w-72 rounded-sm border bg-paper px-2 py-1 text-[12px] focus:outline-none',
+                insideError ? 'border-stale' : 'border-grey-300 focus:border-grey-500',
+              ].join(' ')}
+            />
+            <button
+              type="button"
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={applyTyped}
+              className="rounded-sm bg-grey-800 px-2 py-1 text-[11px] text-paper"
+            >
+              Apply
+            </button>
+            {editor.isActive('internalLink') ? (
+              <button
+                type="button"
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={removeInside}
+                className="rounded-sm border border-grey-300 px-2 py-1 text-[11px] text-grey-600"
+              >
+                Remove
+              </button>
+            ) : null}
+            <button
+              type="button"
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={() => setInsideOpen(false)}
+              className="text-[11px] text-grey-500 underline underline-offset-2"
+            >
+              Cancel
+            </button>
+          </div>
+
+          {insideError ? (
+            <p className="mt-1 text-[11px] text-stale">
+              Not a project, an action or a Drive folder. Use &ldquo;Copy id&rdquo; on the
+              row you want, or type its name.
+            </p>
+          ) : null}
+
+          {matches.length > 0 ? (
+            <ul className="mt-1 max-h-40 overflow-y-auto rounded-sm border border-grey-200">
+              {matches.map((t) => (
+                <li key={`${t.kind}:${t.id}`}>
+                  <button
+                    type="button"
+                    // A button takes focus and collapses the selection, which is
+                    // the very thing the link is being applied to.
+                    onMouseDown={(e) => e.preventDefault()}
+                    onClick={() => applyInside(t, t.title)}
+                    className="flex w-full items-center gap-2 px-2 py-1 text-left text-[12px] hover:bg-grey-150"
+                  >
+                    <span className="shrink-0 text-[10px] uppercase tracking-wider text-grey-400">
+                      {t.kind === 'project' ? 'Project' : 'Action'}
+                    </span>
+                    <span className="truncate text-grey-800">{t.title}</span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          ) : null}
+        </div>
+      ) : null}
 
       {linkOpen ? (
         <div className="mt-1.5 flex flex-wrap items-center gap-1.5">

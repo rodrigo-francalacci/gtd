@@ -8,7 +8,7 @@ import { AudioClip } from './audio-clip';
 import { EntryTypeIcon } from './entry-type-icon';
 import { IconLink, IconPlace } from './icons';
 import { Linkified } from './linkified';
-import { NoteText } from './note-text';
+import { NoteText, type ResolvedLinks } from './note-text';
 import { SimpleRow } from './simple-row';
 
 const printed = new Intl.DateTimeFormat('en-GB', {
@@ -29,11 +29,17 @@ export function DocumentRow({
   href,
   selected,
   mode = 'comfortable',
+  links,
 }: {
   item: BoxItemRow;
   href: string;
   selected: boolean;
   mode?: ViewMode;
+  /**
+   * What the internal links in this note point at. Resolved by the page, once
+   * for the whole list - two hundred rows must not ask two hundred questions.
+   */
+  links?: ResolvedLinks;
 }) {
   const label = documentLabel(item);
   const unread = item.kind === 'document' && item.status !== 'ready';
@@ -162,7 +168,7 @@ export function DocumentRow({
            * recognisable at a glance, which is the job of a list.
            */
           item.notes ? (
-            <NoteText doc={item.notes} />
+            <NoteText doc={item.notes} links={links} />
           ) : (
             <Linkified text={item.description ?? ''} />
           )

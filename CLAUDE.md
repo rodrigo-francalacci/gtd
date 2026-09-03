@@ -1934,6 +1934,64 @@ Turbopack is the default; `middleware` is now `proxy`.
   from anywhere inside it. The `protocols` list is what makes this safe: a
   `javascript:` href in a note would otherwise be a script that runs when
   clicked, and notes hold whatever gets pasted into them.
+- **A note can point at a project, an action or a Drive folder, and it stores
+  an id.** `P<uuid>`, `A<uuid>`, `D<driveId>` — the same promise the rest of
+  this app makes about names, applied to the one place a journal most wants to
+  point: not at a web page but at the project a line was about, or the step it
+  became. Which is also what answers *every* rename, move and re-status at
+  once. **Nothing readable is copied in.** Rename the project and the note is
+  still right, because the note never held the name; archive it, complete it,
+  move it between areas and the link still resolves, because none of that
+  changes an id. `resolveInternalLinks` looks a project up by id with no status
+  clause for exactly this reason — a link into the archive is a link, not a
+  dead one.
+  **The visible words are yours and are never rewritten.** Picking from the
+  list writes the title as a *starting point* and nothing rewrites it
+  afterwards, so a note reading "the quote I got in March" keeps saying that.
+  The alternative — the app editing your sentence because something was renamed
+  elsewhere — is worse than a name going slightly stale, and it is the same
+  rule raw capture follows.
+  **A deleted target renders struck through, not as plain text.** The note is a
+  record of what you were thinking, and that it once pointed somewhere is part
+  of what it said; silently degrading to text loses that. `null` in the resolved
+  map means *looked up and gone*, `undefined` means *nothing was looked up* —
+  and the second must render as ordinary text, or a row drawn without a
+  resolution would strike out every link in the box.
+- **`readToken` refuses a near-miss, and the uuid check is the load-bearing
+  half.** A Drive id has no fixed shape, so its pattern has to accept letters,
+  digits, `_` and `-` — which means it accepts a uuid. Without an explicit
+  `!UUID.test(id)` a project id mistyped with a `D` became a perfectly valid
+  link to a Drive folder that has never existed. `scripts/check-internal-links.mjs`
+  asserts that and twenty-five other shapes; run it before touching the parser.
+- **The mark is its own mark, and carries no `href`.** Not a `link` with a funny
+  address: that extension autolinks, validates protocols and renders an anchor
+  the browser will navigate on its own, and all three are wrong for a token the
+  app resolves itself. It renders `<span data-internal>` with no href precisely
+  so nothing navigates until the app has decided *where* — which is why the
+  span needs `cursor: pointer` to look pressable at all, and why the editor
+  delegates a click from its wrapper rather than adding a ProseMirror plugin:
+  what happens next is a navigation, and the router lives outside the editor.
+- **A link opens in pane three of the page you are already on.** `?open=<token>`
+  on the box itself, so following one keeps the feed, its filters, the day you
+  had scrolled to and the entry you had selected. That is the whole point of
+  linking from a journal — you want to see what a line refers to, not to be
+  moved somewhere and have to find your way back — and it is the shape the
+  milestone rows already had, so `paneProjectId` is one fetch reached two ways
+  rather than a second copy of it. A link wins over a selected milestone: it is
+  the thing just clicked. **A Drive folder is the exception and always leaves**,
+  because the app holds `drive.file` and cannot see inside a folder it did not
+  create; the same answer, for the same reason, as the project tree's rows.
+- **The page resolves the links; the component never asks.** One statement per
+  kind for the whole feed, because a list of two hundred rows must not ask two
+  hundred questions — which is why `tokensIn` lives in `lib/internal-link.ts`
+  and not beside the renderer. It is also why the box passes `openBase` as a
+  *string* rather than a function: a Server Component cannot hand a function to
+  a Client one, and finding that out costs a 500 that reads as a broken page.
+- **"Copy id" copies the token, never the bare uuid.** A uuid alone cannot say
+  which table it names, and both use them — so a project id pasted into an `A`
+  link would open a pane on an id no action has, which reads as a bug in the
+  app rather than a mistyped letter. It sits in `RowMenu`'s `extra`, the
+  right-click and press-and-hold that already means "what can I do with this".
 - **Notes are ProseMirror JSON**, not HTML. Writing notes must also write
   `search_text` (via `extractText`) — the `search_vector` generated column
   builds from it, so skipping it silently removes the row from search.

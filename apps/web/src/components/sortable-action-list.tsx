@@ -6,6 +6,7 @@ import type { ViewMode } from '@/lib/pane';
 import type { ActionRow } from '@/lib/queries.shared';
 import { ActionItem } from './action-item';
 import { RowMenu } from './row-menu';
+import { copyIdItem } from '@/lib/copy-token';
 import { DRAG_ACTION, SortableList } from './sortable';
 
 /**
@@ -62,6 +63,9 @@ export function SortableActionList({
            */
           deleteLabel="Done and delete"
           deleteNote="Its files go to the Drive bin with it."
+          /* So a note in a box can point at this step. The token, not the bare
+             uuid: a uuid cannot say which table it names. */
+          extra={[copyIdItem('action', action.id)]}
         >
         <ActionItem
           emojified={emojified}

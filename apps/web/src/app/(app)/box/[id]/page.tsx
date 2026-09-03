@@ -1,3 +1,4 @@
+import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { DayHeading } from '@/components/day-heading';
 import { documentLabel } from '@/lib/queries.shared';
@@ -15,7 +16,10 @@ import { DocumentRow } from '@/components/document-row';
 import { DocumentMenu } from '@/components/entry-menu';
 import { EmailRequests } from '@/components/email-requests';
 import { getEmailRequests } from '@/lib/box/email-requests';
+import { ActionDetail } from '@/components/action-detail';
 import { ProjectDetail } from '@/components/project-detail';
+import type { ResolvedLinks } from '@/components/note-text';
+import { openHref, readToken, tokenFor, tokensIn } from '@/lib/internal-link';
 import { TagBrowser } from '@/components/tag-browser';
 import { TagFilter } from '@/components/tag-filter';
 import { TypeFilter } from '@/components/type-filter';
@@ -37,8 +41,12 @@ import {
   getLinkableDocuments,
   getProject,
   getProjectActions,
+  getAction,
+  getAttachableActions,
+  getContextsByDimension,
   getProjectOptions,
   getProjectTree,
+  resolveInternalLinks,
 } from '@/lib/queries';
 import { ENTRY_TYPE_ORDER, entryTypeOf, type EntryType } from '@/lib/queries.shared';
 import { getPreferences, paneWidth } from '@/lib/view-mode';
@@ -201,10 +209,23 @@ export default async function BoxPage(props: PageProps<'/box/[id]'>) {
    */
   const targetId = selectedId ?? shown[0]?.id ?? null;
 
-  const [selected, projectOptions] = await Promise.all([
+  const [selected, projectOptions, linkableActions] = await Promise.all([
     targetId ? getBoxItem(targetId) : Promise.resolve(null),
     getProjectOptions(),
+    getAttachableActions(),
   ]);
+
+  /**
+   * What a note in this box can be pointed at, by name.
+   *
+   * Open work only, which is what both of those queries already answer - a
+   * picker offering a year of finished steps is a picker nobody scrolls, and
+   * the paste-an-id path is still there for the rare link to something closed.
+   */
+  const linkTargets = [
+    ...projectOptions.map((p) => ({ kind: 'project' as const, id: p.id, title: p.title })),
+    ...linkableActions.map((a) => ({ kind: 'action' as const, id: a.id, title: a.title })),
+  ];
 
   /*
    * A milestone opens the project itself, in the pane a document would have
@@ -220,16 +241,61 @@ export default async function BoxPage(props: PageProps<'/box/[id]'>) {
    */
   const eventProjectId = selected?.kind === 'event' ? (selected.projectId ?? null) : null;
 
-  const timeline = eventProjectId
+  /**
+   * A project or an action asked for by a link in a note.
+   *
+   * Read from the URL rather than held in client state, for the same reason the
+   * selected row is: it should survive a refresh, it should be shareable, and
+   * the pane that renders it is a Server Component either way.
+   *
+   * A Drive folder never gets here. `openHref` leaves that one alone - the app
+   * holds `drive.file` and cannot see inside a folder it did not create, so
+   * there is nothing of it to draw and the honest place to send you is Drive.
+   */
+  const opened =
+    typeof searchParams.open === 'string' ? readToken(searchParams.open) : null;
+
+  const openProjectId = opened?.kind === 'project' ? opened.id : null;
+  const openActionId = opened?.kind === 'action' ? opened.id : null;
+
+  /*
+   * The same six queries the milestone branch runs, for the same pane.
+   *
+   * Selecting a milestone already opens a project in pane three, so a link
+   * doing it is not a new shape - it is the existing one reached another way,
+   * which is why this shares the fetch rather than growing a second copy of it.
+   */
+  /*
+   * A link wins over the milestone.
+   *
+   * Both can be true at once - a milestone row selected and a note's link
+   * followed - and the link is the thing just clicked, so it is the thing being
+   * asked for. The milestone is where you were.
+   */
+  const paneProjectId = openProjectId ?? eventProjectId;
+
+  const openAction = openActionId ? await getAction(openActionId) : null;
+
+  const actionPane =
+    openAction
+      ? await Promise.all([
+          attachmentsFor('action', openAction.id),
+          documentsFor('action', openAction.id),
+          getLinkableDocuments('action', openAction.id, ''),
+          getContextsByDimension(),
+        ])
+      : null;
+
+  const timeline = paneProjectId
     ? await Promise.all([
-        getProject(eventProjectId),
-        getProjectActions(eventProjectId),
+        getProject(paneProjectId),
+        getProjectActions(paneProjectId),
         getAreasAndGoals(),
-        attachmentsFor('project', eventProjectId),
-        documentsFor('project', eventProjectId),
-        getLinkableDocuments('project', eventProjectId, ''),
+        attachmentsFor('project', paneProjectId),
+        documentsFor('project', paneProjectId),
+        getLinkableDocuments('project', paneProjectId, ''),
         getBoxes(),
-        timelinesFor(eventProjectId),
+        timelinesFor(paneProjectId),
         /*
          * The Drive and Gmail listing, which this pane was missing.
          *
@@ -240,7 +306,7 @@ export default async function BoxPage(props: PageProps<'/box/[id]'>) {
          * arrives somewhere less capable than the long way round is a shortcut
          * you stop trusting.
          */
-        getProjectTree(eventProjectId),
+        getProjectTree(paneProjectId),
       ])
     : null;
 
@@ -272,6 +338,46 @@ export default async function BoxPage(props: PageProps<'/box/[id]'>) {
     params.set('doc', docId);
     return `/box/${id}?${params}`;
   };
+
+  /**
+   * A link inside a note, followed without leaving the box.
+   *
+   * That is the whole point of linking from a journal: you are reading down a
+   * feed and want to see what a line refers to, not to be moved to another
+   * page and have to find your way back. So the address is this box's own, with
+   * `open` set - the filters, the day you had scrolled to and the entry you had
+   * selected all stay exactly where they were.
+   */
+  const openBase = href(targetId ?? '');
+
+  const openInPane = (token: string) => {
+    const target = readToken(token);
+    return target ? openHref(openBase, target) : '#';
+  };
+
+  /*
+   * One lookup for every link in the feed.
+   *
+   * Resolved rather than stored, which is what makes a rename a non-event: the
+   * mark holds an id and nothing else, so a project renamed this morning is
+   * still pointed at correctly by a note written last year. The cost is this,
+   * and it is two statements however many links there are - and none at all in
+   * a box whose notes contain no links, which is nearly all of them.
+   */
+  const tokens = shown.flatMap((item) => tokensIn(item.notes));
+  const resolved = await resolveInternalLinks(tokens);
+
+  const links: ResolvedLinks = new Map();
+  for (const target of tokens) {
+    const token = tokenFor(target);
+    const known = resolved.get(token);
+    links.set(
+      token,
+      known ? { title: known.title, href: openInPane(token) } : null,
+    );
+  }
+
+
 
   return (
     <>
@@ -393,9 +499,20 @@ export default async function BoxPage(props: PageProps<'/box/[id]'>) {
                 <TagDrop key={item.id} itemId={item.id} label={documentLabel(item)} accepts={item.kind !== 'event'}>
                   <DocumentMenu id={item.id} name={documentLabel(item)} description={item.description} pinned={item.pinned}>
                     {boxView === 'gallery' ? (
-                      <DocumentGalleryRow item={item} href={href(item.id)} selected={item.id === targetId} />
+                      <DocumentGalleryRow
+                        item={item}
+                        href={href(item.id)}
+                        selected={item.id === targetId}
+                        links={links}
+                      />
                     ) : (
-                      <DocumentRow item={item} href={href(item.id)} selected={item.id === targetId} mode={viewMode} />
+                      <DocumentRow
+                        item={item}
+                        href={href(item.id)}
+                        selected={item.id === targetId}
+                        mode={viewMode}
+                        links={links}
+                      />
                     )}
                   </DocumentMenu>
                 </TagDrop>
@@ -432,6 +549,7 @@ export default async function BoxPage(props: PageProps<'/box/[id]'>) {
                       item={item}
                       href={href(item.id)}
                       selected={item.id === targetId}
+                      links={links}
                     />
                   </DocumentMenu>
                   </TagDrop>
@@ -455,6 +573,7 @@ export default async function BoxPage(props: PageProps<'/box/[id]'>) {
                       href={href(item.id)}
                       selected={item.id === targetId}
                       mode={viewMode}
+                      links={links}
                     />
                   </DocumentMenu>
                   </TagDrop>
@@ -466,13 +585,61 @@ export default async function BoxPage(props: PageProps<'/box/[id]'>) {
         )}
       </ListPane>
 
-      {selected ? (
+      {selected || opened ? (
         <DetailPane>
+          {/*
+            What is open, and the way back.
+
+            A link followed from a note replaces the entry in pane three, which
+            is exactly what was wanted - you stay in the feed and the third
+            column answers the question. But a pane that has quietly become
+            something else with nothing saying so is a pane you get lost in, so
+            the swap announces itself and offers the entry back by name.
+
+            Rendered above both branches rather than inside either: what it says
+            is true of the pane, not of the thing in it.
+          */}
+          {opened ? (
+            <div className="mb-3 flex items-center justify-between gap-2 border-b border-grey-200 pb-2">
+              <span className="shrink-0 text-[11px] uppercase tracking-wider text-grey-400">
+                {opened.kind === 'project' ? 'Project' : 'Action'}, from a note
+              </span>
+              {selected ? (
+                /*
+                 * Truncated, because a note has no title - `documentLabel`
+                 * falls back to its whole first line, and the entry you came
+                 * from is very often a note. Left ragged it pushed the label
+                 * beside it off the pane and read as a sentence rather than as
+                 * a way back.
+                 */
+                <Link
+                  href={href(selected.id)}
+                  className="min-w-0 truncate text-[11px] text-selected underline underline-offset-2"
+                >
+                  Back to {documentLabel(selected)}
+                </Link>
+              ) : null}
+            </div>
+          ) : null}
+
           {/* key: the panel seeds its title and summary drafts from the row,
               and `useState` initialisers only run on mount. Without it,
               clicking a second document would save the first one's title
               onto it. */}
-          {timeline && timeline[0] ? (
+          {openAction && actionPane ? (
+            <ActionDetail
+              key={openAction.id}
+              action={openAction}
+              attachments={actionPane[0].rows}
+              fileOrder={actionPane[0].order}
+              documents={actionPane[1].rows}
+              docOrder={actionPane[1].order}
+              documentOptions={actionPane[2]}
+              contextGroups={actionPane[3]}
+              parties={actionPane[3].person.map((party) => party.name)}
+              projects={projectOptions}
+            />
+          ) : timeline && timeline[0] ? (
             <ProjectDetail
               /* Keyed on the project, not the row: two milestones for the same
                  project are two rows and one thing to look at. */
@@ -501,15 +668,29 @@ export default async function BoxPage(props: PageProps<'/box/[id]'>) {
                   : null
               }
             />
-          ) : (
+          ) : opened ? (
+            /*
+             * A token that names nothing.
+             *
+             * The project was deleted, or the id was mistyped into the editor by
+             * hand. Saying so beats an empty pane: the note is still right about
+             * having pointed somewhere, and the only useful thing left to say is
+             * that the somewhere has gone.
+             */
+            <p className="text-[13px] text-grey-500">
+              That {opened.kind} no longer exists.
+            </p>
+          ) : selected ? (
             <DocumentDetail
               key={selected.id}
               item={selected}
               categories={categories}
               boxes={boxList}
               projects={projectOptions}
+              linkTargets={linkTargets}
+              openBase={openBase}
             />
-          )}
+          ) : null}
         </DetailPane>
       ) : (
         <EmptyDetail message="Select a document" />

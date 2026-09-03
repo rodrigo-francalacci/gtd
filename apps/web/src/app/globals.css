@@ -475,7 +475,16 @@
    */
   --font-sans: 'Cascadia Mono', 'Segoe UI Mono', ui-monospace, 'SF Mono', Menlo,
     Consolas, monospace;
-  letter-spacing: -0.01em;
+  /*
+   * Tighter than a console sets itself, on both axes.
+   *
+   * A bitmap face carries its spacing in the glyph — the gap is part of the
+   * cell — so a modern mono rendered at its natural tracking reads loose beside
+   * it, and the *word* gaps give it away first: a monospace space is a full
+   * cell wide and the reference's is visibly narrower than that.
+   */
+  letter-spacing: -0.035em;
+  word-spacing: -0.12em;
 }
 
 /*
@@ -1072,6 +1081,30 @@ body {
   border: none;
   border-top: 1px solid var(--color-grey-200);
   margin: 1.2em 0;
+}
+
+/*
+ * A link to something inside the app.
+ *
+ * The same colour as a URL link, because it is the same promise — this word
+ * takes you somewhere — and a second hue would be inventing a meaning where
+ * there is only one. What separates them is the *dotted* underline: a solid
+ * rule means the web, a dotted one means here. That distinction matters at the
+ * moment of clicking, since one of them leaves the app and the other fills the
+ * pane beside you.
+ *
+ * `cursor: pointer` is load-bearing rather than decorative. It carries no href
+ * — deliberately, so nothing navigates on its own and the app decides where
+ * pane three goes — and a browser gives a plain span no hint at all that it can
+ * be pressed.
+ */
+.ProseMirror .internal-link,
+.note-text .internal-link {
+  color: var(--color-selected);
+  text-decoration: underline dotted;
+  text-underline-offset: 2px;
+  font-weight: 500;
+  cursor: pointer;
 }
 
 /* Links are the one place colour earns its keep outside the semantic set:

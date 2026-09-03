@@ -1,5 +1,6 @@
 import { Fragment, type ReactNode } from 'react';
 import { isNoteColour, colourVar } from '@/lib/note-colour';
+import { leavesApp, readToken } from '@/lib/internal-link';
 
 /**
  * A note's rich text, rendered small enough for a list row.
@@ -20,6 +21,8 @@ import { isNoteColour, colourVar } from '@/lib/note-colour';
  * would make the list lie about what the note says.
  */
 
+const EMPTY: ResolvedLinks = new Map();
+
 type Node = {
   type?: string;
   text?: string;
@@ -31,7 +34,15 @@ type Node = {
 /** Only these; a note holds whatever was pasted into it. */
 const SAFE_PROTOCOL = /^(https?:|mailto:)/i;
 
-function withMarks(text: string, marks: Node['marks'], key: string): ReactNode {
+/** What each token resolves to, or null where the thing has gone. */
+export type ResolvedLinks = Map<string, { title: string; href: string } | null>;
+
+function withMarks(
+  text: string,
+  marks: Node['marks'],
+  key: string,
+  links: ResolvedLinks,
+): ReactNode {
   let out: ReactNode = text;
 
   for (const mark of marks ?? []) {
@@ -60,6 +71,67 @@ function withMarks(text: string, marks: Node['marks'], key: string): ReactNode {
         }
         break;
       }
+      case 'internalLink': {
+        const raw = String(mark.attrs?.target ?? '');
+        const target = readToken(raw);
+        if (!target) break;
+
+        const known = links.get(raw);
+
+        /*
+         * A target that has been deleted still shows, struck through and dead.
+         *
+         * Rendering it as ordinary text was the alternative and it loses
+         * something: the note is a record of what you were thinking, and that
+         * it once pointed at a project is part of what it said. A link that has
+         * gone dead is information. What it pointed *at* is unrecoverable; that
+         * it pointed is not.
+         *
+         * `undefined` — nothing was looked up — is left alone rather than
+         * called dead, so a row rendered without a resolution shows plain text
+         * instead of striking out every link in the box.
+         */
+        if (known === null) {
+          out = (
+            <span
+              className="relative text-grey-500 line-through decoration-grey-400"
+              title="That no longer exists"
+            >
+              {out}
+            </span>
+          );
+          break;
+        }
+
+        if (!known) break;
+
+        /*
+         * A Drive folder opens where it lives, in a tab of its own.
+         *
+         * The same answer the project tree gives, for the same reason: these
+         * are precisely the files this app has no scope to read, so no version
+         * of them belongs in our pane — and on a phone a `drive.google.com`
+         * navigation is handed to the installed app, which is better than
+         * anything we could show.
+         */
+        const away = leavesApp(target);
+
+        out = (
+          <a
+            href={known.href}
+            target={away ? '_blank' : undefined}
+            rel={away ? 'noopener noreferrer' : undefined}
+            // `relative` for the reason the anchor below needs it: the row
+            // navigates through a stretched overlay this has to sit above.
+            className="relative font-medium text-selected underline decoration-dotted underline-offset-2"
+            title={known.title}
+          >
+            {out}
+          </a>
+        );
+        break;
+      }
+
       case 'link': {
         const href = String(mark.attrs?.href ?? '');
         if (!SAFE_PROTOCOL.test(href)) break;
@@ -90,11 +162,13 @@ function withMarks(text: string, marks: Node['marks'], key: string): ReactNode {
   return <Fragment key={key}>{out}</Fragment>;
 }
 
-function render(node: Node, key: string): ReactNode {
-  if (node.type === 'text') return withMarks(node.text ?? '', node.marks, key);
+function render(node: Node, key: string, links: ResolvedLinks): ReactNode {
+  if (node.type === 'text') return withMarks(node.text ?? '', node.marks, key, links);
   if (node.type === 'hardBreak') return <br key={key} />;
 
-  const children = (node.content ?? []).map((child, i) => render(child, `${key}.${i}`));
+  const children = (node.content ?? []).map((child, i) =>
+    render(child, `${key}.${i}`, links),
+  );
 
   switch (node.type) {
     case 'paragraph':
@@ -179,7 +253,17 @@ function render(node: Node, key: string): ReactNode {
   }
 }
 
-export function NoteText({ doc }: { doc: unknown }) {
+export function NoteText({
+  doc,
+  links,
+}: {
+  doc: unknown;
+  /**
+   * What each internal token resolves to. Absent means nothing was looked up,
+   * and the links render as plain text rather than as dead ones.
+   */
+  links?: ResolvedLinks;
+}) {
   if (!doc || typeof doc !== 'object') return null;
 
   /*
@@ -191,5 +275,7 @@ export function NoteText({ doc }: { doc: unknown }) {
    * `globals.css` beside the editor's own and read the same `--note-gap`, so a
    * note set compact is compact in both places.
    */
-  return <span className="note-text">{render(doc as Node, 'n')}</span>;
+  return (
+    <span className="note-text">{render(doc as Node, 'n', links ?? EMPTY)}</span>
+  );
 }

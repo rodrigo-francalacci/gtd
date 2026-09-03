@@ -2,6 +2,7 @@
 
 import { useState, useTransition, type ReactNode } from 'react';
 import { RowMenu } from './row-menu';
+import { copyIdItem } from '@/lib/copy-token';
 import type { ProjectStatus } from '@gtd/db';
 import { deleteProject, moveProjectBetween, setProjectStatus, updateProjectTitle } from '@/lib/actions';
 import type { ViewMode } from '@/lib/pane';
@@ -160,6 +161,7 @@ export function SortableProjectList({
                 onRename={(next) => updateProjectTitle(project.id, next)}
                 onDelete={() => deleteProject(project.id)}
                 deleteNote="Its actions and files go with it. Cited documents are only unlinked."
+                extra={[copyIdItem('project', project.id)]}
               >
               <ProjectRow
                 emojified={emojified}

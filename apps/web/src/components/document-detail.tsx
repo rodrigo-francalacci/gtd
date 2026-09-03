@@ -5,6 +5,7 @@ import { TagEditor, TagEditorButton } from './tag-editor';
 import { useSidebarSlot } from './sidebar-slot';
 import { EmojiPicker } from './emoji-picker';
 import { NoteEditor } from './note-editor';
+import type { LinkTarget } from './editor-toolbar';
 import { docFromText } from '@/lib/tiptap';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState, useTransition } from 'react';
@@ -80,11 +81,20 @@ export function DocumentDetail({
   categories,
   boxes,
   projects,
+  linkTargets,
+  openBase,
 }: {
   item: BoxItemDetail;
   categories: BoxCategoryRow[];
   boxes: BoxRow[];
   projects: { id: string; title: string }[];
+  /** Projects and actions this note can point at, offered by name. */
+  linkTargets?: LinkTarget[];
+  /**
+   * The address an internal link opens on. The box passes its own, so following
+   * one fills pane three without leaving the feed or dropping its filters.
+   */
+  openBase?: string;
 }) {
   const router = useRouter();
   const slot = useSidebarSlot();
@@ -395,6 +405,8 @@ export function DocumentDetail({
           key={item.id}
           surface="box_item"
           id={item.id}
+          targets={linkTargets}
+          openBase={openBase}
           height={item.noteHeight ?? null}
           dense={item.noteDense ?? null}
           initialContent={item.notes ?? docFromText(item.description ?? '')}

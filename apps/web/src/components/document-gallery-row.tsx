@@ -7,7 +7,7 @@ import { AudioClip } from './audio-clip';
 import { EntryTypeIcon } from './entry-type-icon';
 import { IconAudio, IconDocument, IconLink, IconPlace } from './icons';
 import { Linkified } from './linkified';
-import { NoteText } from './note-text';
+import { NoteText, type ResolvedLinks } from './note-text';
 import { IconPin } from './icons';
 
 const printed = new Intl.DateTimeFormat('en-GB', {
@@ -31,10 +31,16 @@ export function DocumentGalleryRow({
   item,
   href,
   selected,
+  links,
 }: {
   item: BoxItemRow;
   href: string;
   selected: boolean;
+  /**
+   * What the internal links in this note point at. Resolved by the page, once
+   * for the whole list - two hundred rows must not ask two hundred questions.
+   */
+  links?: ResolvedLinks;
 }) {
   const [failed, setFailed] = useState(false);
   const label = documentLabel(item);
@@ -155,7 +161,7 @@ export function DocumentGalleryRow({
             // the same rule the list row follows, because a box in pictures
             // view is still pane two.
             item.notes ? (
-              <NoteText doc={item.notes} />
+              <NoteText doc={item.notes} links={links} />
             ) : (
               <Linkified text={item.description ?? ''} />
             )
