@@ -2110,6 +2110,17 @@ Turbopack is the default; `middleware` is now `proxy`.
   `!UUID.test(id)` a project id mistyped with a `D` became a perfectly valid
   link to a Drive folder that has never existed. `scripts/check-internal-links.mjs`
   asserts that and twenty-nine other shapes; run it before touching the parser.
+- **The link field is generous; the token is strict.** `readToken` reads *data*
+  — the mark's attribute and `?open=` — and refusing a near-miss there is what
+  stops a mistyped id opening a pane on something else. `readInternalInput` is
+  the other end, where a person is pasting, and being strict there is only
+  unhelpful: a real Drive folder id was refused for having no `D` in front of
+  it, which is not something anybody would think to add. It takes a token, a
+  Drive URL in any of its four shapes (`/drive/folders/`, `/drive/u/0/folders/`,
+  `/file/d/`, `open?id=`), or a **bare Drive id** — unambiguous precisely
+  because it is not a uuid, which is the distinction the `D` prefix already
+  had to make. A bare uuid stays refused, and that one must never soften: it
+  cannot say whether it names a project or an action.
 - **Whether a link leaves the app is read off the *address*, never the kind.**
   The page decides where a link goes — a box sends all four to its own pane
   three, a page with no pane sends each to where it lives — so the only thing

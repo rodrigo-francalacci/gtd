@@ -14,6 +14,7 @@
 import {
   hrefFor,
   openHref,
+  readInternalInput,
   readToken,
   tokenFor,
   tokensIn,
@@ -81,6 +82,53 @@ check('nothing is refused', readToken(''), null);
 check('a uuid is not a Drive folder', readToken(`D${PROJECT}`), null);
 check('a Drive id is not a box entry', readToken(`B${FOLDER}`), null);
 check('a Drive id is not a project', readToken(`P${FOLDER}`), null);
+
+// --- what a person is allowed to paste --------------------------------------
+
+/*
+ * `readToken` is strict because it reads *data* — the mark's attribute and the
+ * `?open=` parameter. `readInternalInput` is the other end, where somebody is
+ * pasting whatever they have to hand, and being strict there is just being
+ * unhelpful: a real Drive folder id was refused because it had no `D` in front
+ * of it, which is not something anybody would think to add.
+ */
+check('a token still reads', readInternalInput(`P${PROJECT}`), { kind: 'project', id: PROJECT });
+check('a bare Drive id is taken as one', readInternalInput(FOLDER), { kind: 'drive', id: FOLDER });
+check(
+  'a Drive folder link',
+  readInternalInput(`https://drive.google.com/drive/folders/${FOLDER}`),
+  { kind: 'drive', id: FOLDER },
+);
+check(
+  'a Drive link with an account in the path',
+  readInternalInput(`https://drive.google.com/drive/u/0/folders/${FOLDER}?usp=sharing`),
+  { kind: 'drive', id: FOLDER },
+);
+check(
+  'a Drive file link',
+  readInternalInput(`https://drive.google.com/file/d/${FOLDER}/view`),
+  { kind: 'drive', id: FOLDER },
+);
+check(
+  'the older open?id= form',
+  readInternalInput(`https://drive.google.com/open?id=${FOLDER}`),
+  { kind: 'drive', id: FOLDER },
+);
+check('surrounding space is forgiven here too', readInternalInput(`  ${FOLDER}  `), {
+  kind: 'drive',
+  id: FOLDER,
+});
+
+/*
+ * A bare uuid stays refused, and this is the one that must never soften: it
+ * cannot say whether it names a project or an action, and guessing would open a
+ * pane on an id the other table has never heard of.
+ */
+check('a bare uuid is still refused', readInternalInput(PROJECT), null);
+check('an unrelated URL is refused', readInternalInput('https://example.com/x/folders/abcdefghij'), null);
+check('a sentence is refused', readInternalInput('the quote I got in March'), null);
+check('something too short to be a Drive id', readInternalInput('abc'), null);
+check('nothing is refused', readInternalInput(''), null);
 
 // --- where they go ----------------------------------------------------------
 

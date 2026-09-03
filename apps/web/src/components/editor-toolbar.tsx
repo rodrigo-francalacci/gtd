@@ -3,7 +3,7 @@
 import type { Editor } from '@tiptap/react';
 import { useEffect, useRef, useState } from 'react';
 import { NOTE_COLOURS, colourVar } from '@/lib/note-colour';
-import { readToken, tokenFor, type InternalTarget } from '@/lib/internal-link';
+import { readInternalInput, tokenFor, type InternalTarget } from '@/lib/internal-link';
 
 /** Something a note can point at, offered by name. */
 export type LinkTarget = InternalTarget & { title: string };
@@ -279,7 +279,9 @@ export function EditorToolbar({
       return;
     }
 
-    const target = readToken(insideValue);
+    // Generous here, strict everywhere else: a person is pasting, and what
+    // they have to hand is a Drive link or a copied id, not a token.
+    const target = readInternalInput(insideValue);
     if (!target) {
       setInsideError(true);
       return;
@@ -406,7 +408,9 @@ export function EditorToolbar({
                 if (e.key === 'Escape') setInsideOpen(false);
               }}
               placeholder={
-                targets?.length ? 'Name, or a pasted id...' : 'Paste an id - P..., A... or D...'
+                targets?.length
+                  ? 'Name, copied id, or a Drive link'
+                  : 'A copied id, or a Drive link'
               }
               className={[
                 'w-72 rounded-sm border bg-paper px-2 py-1 text-[12px] focus:outline-none',
@@ -443,8 +447,10 @@ export function EditorToolbar({
 
           {insideError ? (
             <p className="mt-1 text-[11px] text-stale">
-              Not a project, an action or a Drive folder. Use &ldquo;Copy id&rdquo; on the
-              row you want, or type its name.
+              Not something this can point at. A Drive folder takes its link or
+              its id; a project or an action needs &ldquo;Copy id&rdquo; from its
+              row menu, because an id on its own cannot say which of the two it
+              is.
             </p>
           ) : null}
 

@@ -110,6 +110,65 @@ export function hrefFor(target: InternalTarget): string {
 }
 
 /**
+ * What somebody typed or pasted into the link field, read generously.
+ *
+ * Deliberately *not* `readToken`, and the split is the point: a token is data —
+ * it is what the mark stores and what `?open=` carries, and being strict there
+ * is what stops a near-miss becoming a link to somewhere unexpected. This is
+ * the other end, where a person is pasting something, and being strict there is
+ * just being unhelpful.
+ *
+ * Three shapes, because three are what you actually have to hand:
+ *
+ * - a token, from "Copy id" — the only one that can name a project or an
+ *   action, because a bare uuid cannot say which of the two tables it is from;
+ * - a **Drive URL**, which is what the address bar and Drive's own "Copy link"
+ *   give you, and which nobody should have to edit down by hand;
+ * - a **bare Drive id**, which is what is left after you have edited it down
+ *   anyway. Unambiguous precisely because it is *not* a uuid — that is the one
+ *   distinction `readToken` already has to make for the `D` prefix, used here
+ *   to save the prefix entirely.
+ *
+ * A bare uuid stays refused. It is genuinely ambiguous, and guessing would put
+ * a pane on an id the other table has never heard of.
+ */
+export function readInternalInput(raw: string): InternalTarget | null {
+  const text = raw.trim();
+  if (!text) return null;
+
+  const token = readToken(text);
+  if (token) return token;
+
+  /*
+   * Every Drive address that carries an id, which is more than one shape:
+   * `/drive/folders/<id>`, `/drive/u/0/folders/<id>`, `/file/d/<id>/view`, and
+   * the older `?id=<id>`. Matched on the *path segment* rather than by pulling
+   * the longest word out of the URL, so a query string cannot be mistaken for
+   * an id.
+   */
+  if (/^https?:\/\//i.test(text)) {
+    try {
+      const url = new URL(text);
+      if (!/(^|\.)google\.com$/i.test(url.hostname)) return null;
+
+      const fromPath = url.pathname.match(
+        /\/(?:folders|d)\/([A-Za-z0-9_-]{10,80})/,
+      );
+      const id = fromPath?.[1] ?? url.searchParams.get('id');
+
+      if (id && DRIVE_ID.test(id) && !UUID.test(id)) return { kind: 'drive', id };
+    } catch {
+      // Not a URL after all; fall through to the bare-id case.
+    }
+    return null;
+  }
+
+  if (DRIVE_ID.test(text) && !UUID.test(text)) return { kind: 'drive', id: text };
+
+  return null;
+}
+
+/**
  * The same target, opened in the pane of a page you are already on.
  *
  * `base` is the current URL with its filters intact, because clicking a link
