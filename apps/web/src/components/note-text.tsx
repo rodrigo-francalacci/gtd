@@ -98,7 +98,16 @@ function render(node: Node, key: string): ReactNode {
 
   switch (node.type) {
     case 'paragraph':
-      return <p key={key}>{children}</p>;
+      /*
+       * An empty paragraph is a blank line somebody typed, and it has to keep
+       * a line's height.
+       *
+       * Pressing Enter twice is how a note is given air, and `<p></p>` collapses
+       * to nothing — so the break you put in vanished and the paragraphs either
+       * side ran together. A `<br>` gives the box a line to be, which is what
+       * ProseMirror itself puts in an empty block for the same reason.
+       */
+      return <p key={key}>{children.length > 0 ? children : <br />}</p>;
     case 'heading':
       // One weight for every level. A list row is three lines tall; an <h1>
       // drawn at its real size would be the row.
@@ -141,5 +150,15 @@ function render(node: Node, key: string): ReactNode {
 
 export function NoteText({ doc }: { doc: unknown }) {
   if (!doc || typeof doc !== 'object') return null;
-  return <>{render(doc as Node, 'n')}</>;
+
+  /*
+   * The class is what gives the blocks their spacing.
+   *
+   * `.ProseMirror` rules only apply inside the editor, and Tailwind's reset
+   * zeroes every margin — so in a row the paragraphs had none at all and a
+   * note written as three paragraphs arrived as one. The rules live in
+   * `globals.css` beside the editor's own and read the same `--note-gap`, so a
+   * note set compact is compact in both places.
+   */
+  return <span className="note-text">{render(doc as Node, 'n')}</span>;
 }

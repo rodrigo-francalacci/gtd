@@ -1591,6 +1591,17 @@ Turbopack is the default; `middleware` is now `proxy`.
   The note saves itself, as notes do everywhere else here, which is why Save and
   Discard on that pane now belong to the title alone: a rich editor owns its
   content, and a manual save over the top is two sources of truth for one field.
+- **A note rendered outside the editor needs its own block spacing.** The
+  editor's rules are scoped to `.ProseMirror` and Tailwind's reset zeroes every
+  block margin, so in a row the paragraphs had none: a note written as three
+  paragraphs arrived as one run of text, and the Enter presses that shaped it
+  were simply gone. `.note-text` restates the margins from the *same*
+  `--note-gap`, so a note set compact is compact in the list too.
+  **An empty paragraph has to keep a line's height.** Pressing Enter twice is
+  how a note is given air, and `<p></p>` collapses to nothing — so the break
+  disappeared and the paragraphs either side ran together. A `<br>` inside gives
+  the box a line to be, which is what ProseMirror puts in an empty block for
+  exactly this reason.
 - **Pane two shows the formatting, and there are two row components to change.**
   A note written with bold, colour and bullets arrived in the feed as a wall of
   grey, because the row rendered `description` — the plain mirror. What you

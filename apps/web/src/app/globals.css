@@ -767,6 +767,43 @@ body {
   --note-heading-top: 0.7em;
 }
 
+/*
+ * A note rendered outside the editor — in a list row.
+ *
+ * The editor's own rules are scoped to `.ProseMirror`, and Tailwind's reset
+ * zeroes block margins, so without these a note written as three paragraphs
+ * arrived in pane two as one run of text. Same variables as the editor, so a
+ * note set compact reads compact in the list as well.
+ */
+.note-text {
+  display: block;
+}
+
+.note-text p {
+  margin: 0 0 var(--note-gap, 0.6em);
+}
+
+/* Nothing hangs off the bottom of a row. */
+.note-text > p:last-child,
+.note-text > ul:last-child,
+.note-text > ol:last-child {
+  margin-bottom: 0;
+}
+
+.note-text ul,
+.note-text ol {
+  margin: 0 0 var(--note-gap, 0.6em);
+  padding-left: 1.4em;
+}
+
+.note-text ul {
+  list-style: disc;
+}
+
+.note-text ol {
+  list-style: decimal;
+}
+
 /* TipTap / ProseMirror ---------------------------------------------------- */
 
 .ProseMirror {
