@@ -1591,6 +1591,16 @@ Turbopack is the default; `middleware` is now `proxy`.
   The note saves itself, as notes do everywhere else here, which is why Save and
   Discard on that pane now belong to the title alone: a rich editor owns its
   content, and a manual save over the top is two sources of truth for one field.
+- **The three heading levels stay three levels, and a divider is a node with
+  no children.** Headings were flattened to one weight in the row on the
+  argument that an `<h1>` at full size would *be* the row — right about the size
+  and wrong about the structure, because a heading is how a long note is
+  navigated and three rendered identically say the note has no shape. Scaled
+  down to suit a row instead: 1.15/1.06/1 against the editor's 1.4/1.2/1.05.
+  A horizontal rule was worse than wrong, it was silent: an unrecognised node
+  renders its children, and a rule has none, so "degrade to the contents"
+  degraded to nothing at all. It is the one node in that renderer where the
+  fallback needed an exception.
 - **A note rendered outside the editor needs its own block spacing.** The
   editor's rules are scoped to `.ProseMirror` and Tailwind's reset zeroes every
   block margin, so in a row the paragraphs had none: a note written as three
@@ -1622,10 +1632,12 @@ Turbopack is the default; `middleware` is now `proxy`.
   **Only the rows that draw a note carry one.** The feed shows a filename for a
   document and the body only for a `note`, so the query nulls `notes` for every
   other kind rather than shipping a document per scanned receipt.
-- **A note can be set compact, per note, and the spacing runs through
-  variables.** How much air a note wants is a fact about *that* note — a list of
-  dates and part numbers reads better closed up and the paragraph under it does
-  not — so `note_dense` sits beside `note_height` on the same four tables.
+- **Tight is the default, and the column records the departure from it.** How
+  much air a note wants is a fact about *that* note, so `note_dense` sits beside
+  `note_height` on the same four tables — but **null means tight**, and only a
+  note somebody has deliberately opened out stores `false`. That is what let the
+  default change with nothing to migrate: writing `true` across four tables
+  would have been saying what the absence of a value already says.
   **Two numbers, not one.** The gap between paragraphs matters as much as the
   leading inside them, and tightening only `line-height` leaves a list of dates
   as airy as it was. Headings close their run-up too, or the paragraphs pull

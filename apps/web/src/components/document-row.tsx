@@ -141,7 +141,7 @@ export function DocumentRow({
           written ? 'line-clamp-4 whitespace-pre-wrap' : 'truncate',
           // A note set compact in pane three reads compact here too, or the
           // list and the pane would disagree about the same note.
-          written && item.noteDense ? 'note-tight' : '',
+          written && item.noteDense !== false ? 'note-tight' : '',
           unread
             ? 'italic text-grey-500'
             : selected

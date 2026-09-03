@@ -141,7 +141,7 @@ export function DocumentGalleryRow({
           className={[
             'text-[13px] leading-snug',
             item.kind === 'note' ? 'whitespace-pre-wrap' : 'truncate',
-            item.kind === 'note' && item.noteDense ? 'note-tight' : '',
+            item.kind === 'note' && item.noteDense !== false ? 'note-tight' : '',
             unread
               ? 'italic text-grey-500'
               : selected

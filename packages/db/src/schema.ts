@@ -297,11 +297,19 @@ export const projects = pgTable(
      */
     noteHeight: integer('note_height'),
     /**
-     * Set the note tighter than the default leading.
+     * Whether this note is compact. **Null means yes** — tight is the default.
+     *
+     * So the column records a *departure* from the default rather than the
+     * setting itself: only a note somebody has deliberately opened out stores
+     * `false`. That is what lets every note written before this existed read
+     * the way a new one does, with nothing to migrate — the alternative was
+     * writing `true` across four tables to say what the absence of a value
+     * already says.
      *
      * Per note, like the height beside it and for the same reason: how much air
      * a note wants is a fact about that note. A list of dates and part numbers
-     * reads better closed up; a paragraph of prose does not.
+     * reads better closed up; a long paragraph of prose is the case for opening
+     * one back out.
      */
     noteDense: boolean('note_dense'),
 
@@ -404,11 +412,19 @@ export const actions = pgTable(
      */
     noteHeight: integer('note_height'),
     /**
-     * Set the note tighter than the default leading.
+     * Whether this note is compact. **Null means yes** — tight is the default.
+     *
+     * So the column records a *departure* from the default rather than the
+     * setting itself: only a note somebody has deliberately opened out stores
+     * `false`. That is what lets every note written before this existed read
+     * the way a new one does, with nothing to migrate — the alternative was
+     * writing `true` across four tables to say what the absence of a value
+     * already says.
      *
      * Per note, like the height beside it and for the same reason: how much air
      * a note wants is a fact about that note. A list of dates and part numbers
-     * reads better closed up; a paragraph of prose does not.
+     * reads better closed up; a long paragraph of prose is the case for opening
+     * one back out.
      */
     noteDense: boolean('note_dense'),
 
@@ -573,11 +589,19 @@ export const listItems = pgTable(
      */
     noteHeight: integer('note_height'),
     /**
-     * Set the note tighter than the default leading.
+     * Whether this note is compact. **Null means yes** — tight is the default.
+     *
+     * So the column records a *departure* from the default rather than the
+     * setting itself: only a note somebody has deliberately opened out stores
+     * `false`. That is what lets every note written before this existed read
+     * the way a new one does, with nothing to migrate — the alternative was
+     * writing `true` across four tables to say what the absence of a value
+     * already says.
      *
      * Per note, like the height beside it and for the same reason: how much air
      * a note wants is a fact about that note. A list of dates and part numbers
-     * reads better closed up; a paragraph of prose does not.
+     * reads better closed up; a long paragraph of prose is the case for opening
+     * one back out.
      */
     noteDense: boolean('note_dense'),
 
@@ -1397,11 +1421,19 @@ export const boxItems = pgTable(
      */
     noteHeight: integer('note_height'),
     /**
-     * Set the note tighter than the default leading.
+     * Whether this note is compact. **Null means yes** — tight is the default.
+     *
+     * So the column records a *departure* from the default rather than the
+     * setting itself: only a note somebody has deliberately opened out stores
+     * `false`. That is what lets every note written before this existed read
+     * the way a new one does, with nothing to migrate — the alternative was
+     * writing `true` across four tables to say what the absence of a value
+     * already says.
      *
      * Per note, like the height beside it and for the same reason: how much air
      * a note wants is a fact about that note. A list of dates and part numbers
-     * reads better closed up; a paragraph of prose does not.
+     * reads better closed up; a long paragraph of prose is the case for opening
+     * one back out.
      */
     noteDense: boolean('note_dense'),
 

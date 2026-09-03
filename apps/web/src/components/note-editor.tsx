@@ -53,7 +53,15 @@ export function NoteEditor({
    * default — the last height used anywhere — applies instead.
    */
   height: number | null;
-  /** Whether this note is set compact. Null and false both mean the default. */
+  /**
+   * Whether this note is compact. **Null means yes.**
+   *
+   * Tight is the default, so the column records a *departure* from it: only a
+   * note somebody has deliberately opened out stores `false`. That way every
+   * note written before this existed reads the way a new one does, with nothing
+   * to migrate — the alternative was writing `true` across four tables to say
+   * what the absence of a value already says.
+   */
   dense: boolean | null;
   placeholder?: string;
 }) {
@@ -143,7 +151,7 @@ export function NoteEditor({
    * trip. Seeded from the row and never resynced: the call sites key this
    * component on the row's id, so a different note remounts with its own value.
    */
-  const [tight, setTight] = useState(dense === true);
+  const [tight, setTight] = useState(dense !== false);
 
   // NOTE: there is deliberately no effect resyncing `initialContent`.
   //

@@ -108,14 +108,37 @@ function render(node: Node, key: string): ReactNode {
        * ProseMirror itself puts in an empty block for the same reason.
        */
       return <p key={key}>{children.length > 0 ? children : <br />}</p>;
-    case 'heading':
-      // One weight for every level. A list row is three lines tall; an <h1>
-      // drawn at its real size would be the row.
+    case 'heading': {
+      /*
+       * The three levels stay three levels.
+       *
+       * They were flattened to one weight at first, on the argument that a list
+       * row is only a few lines tall and an `<h1>` at full size would be the
+       * whole row. True of the size, and wrong about the structure: a heading
+       * is how a long note is navigated, and three of them rendered
+       * identically say the note has no shape. So the sizes are scaled down to
+       * suit a row rather than collapsed into each other — smaller than the
+       * editor's 1.4/1.2/1.05, still ranked.
+       */
+      const level = Number(node.attrs?.level ?? 1);
+      const size =
+        level === 1 ? 'text-[1.15em]' : level === 2 ? 'text-[1.06em]' : 'text-[1em]';
+
       return (
-        <p key={key} className="font-semibold">
+        <p key={key} className={`font-semibold ${size}`}>
           {children}
         </p>
       );
+    }
+
+    case 'horizontalRule':
+      /*
+       * A divider is a real break in a note and it was being dropped: an
+       * unrecognised node renders its children, and a rule has none, so it came
+       * out as nothing at all. The one node here where "degrade to the
+       * contents" degrades to silence.
+       */
+      return <hr key={key} className="my-[0.5em] border-t border-grey-300" />;
     case 'bulletList':
       return (
         <ul key={key} className="list-disc pl-4">
