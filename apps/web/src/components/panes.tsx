@@ -140,7 +140,10 @@ export function ListPane({
         `ScrollFade` in the shell hears the scroll; the class is the whole
         opt-in.
       */}
-      <div className="scrollbar-fade relative z-0 min-h-0 flex-1 overflow-y-auto">
+      <div
+        data-surface="list"
+        className="scrollbar-fade relative z-0 min-h-0 flex-1 overflow-y-auto"
+      >
         {children}
       </div>
     </>
@@ -211,6 +214,7 @@ function ColumnHeader({ columns }: { columns: ColumnSet }) {
 export function DetailPane({ children }: { children: ReactNode }) {
   return (
     <div
+      data-surface="detail"
       className={[
         'scrollbar-fade min-w-0 flex-1 overflow-y-auto bg-paper',
         CAPPED_BY_PREVIEW,
@@ -235,6 +239,7 @@ export function DetailPane({ children }: { children: ReactNode }) {
 export function EmptyDetail({ message }: { message: string }) {
   return (
     <div
+      data-surface="detail"
       className={[
         'flex h-full flex-1 items-center justify-center bg-paper',
         CAPPED_BY_PREVIEW,

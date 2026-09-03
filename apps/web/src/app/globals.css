@@ -404,158 +404,186 @@
 /* Riso ---------------------------------------------------------------------- */
 
 /*
- * A screen-printed zine.
+ * A screen-printed zine, and the only theme in the app with three grounds.
  *
- * The sixth theme, and the second one whose argument is fatigue rather than
- * taste — paper mode's argument, reached from the other end. Nothing here is
- * pure black or pure white either: warm bone ink on a grained charcoal board,
- * which is what a riso print on heavy stock actually looks like and why it is
- * easy to sit with.
+ * Every other theme is one ramp: one paper, one ink, and no component knows
+ * where it is. This one is three sheets pressed in different inks — indigo for
+ * the navigation, cream for the list, charcoal for what you are reading — which
+ * is how the reference actually works, and it is the whole look. So the ramp is
+ * declared again on each surface, and it still holds that no component knows:
+ * `grey-800` is prominent text on all three, `grey-200` is a hairline on all
+ * three, and a row does not care which sheet it landed on.
  *
- * The palette is taken from the reference rather than invented. Riso inks are a
- * short list and a print uses two or three of them, so the accents are the ones
- * that recur across the sheets: vermilion, mustard, sage, and an indigo for the
- * one line you wrote yourself. They are *ink* colours — flat, slightly chalky,
- * never the saturated screen versions — which is what stops four hues on one
- * dark ground looking like a dashboard.
+ * **The grounds are the supplied photographs**, not colours mixed to resemble
+ * them. Their means are #3e3c92, #e6ddbe and #2e2e2e, sampled off the files,
+ * and the tokens below are built around those so the flat colour under a
+ * texture never disagrees with it.
  *
- * The same ramp again, walked from the dark end like dark mode and the console
- * themes: `grey-800` is still prominent text and `grey-200` is still a
- * hairline, so no component knows it is in here. One selector only — nothing
- * asks an operating system for a zine.
+ * The ink follows the sheet, which is the other cue the reference gives:
+ * indigo on cream, cream on everything dark. Green is the highlight — the one
+ * ink in the set that is neither ground nor body text — so it carries
+ * selection.
  */
 :root[data-theme='riso'] {
-  color-scheme: dark;
+  color-scheme: light;
 
   /*
-   * Charcoal board, not black. The grain has to have something to sit in: over
-   * pure black a light fleck is the only thing visible and the sheet reads as
-   * dust on a screen rather than as paper.
+   * The base is the *list* sheet, because that is the surface most of the app
+   * renders on and the one a component gets when nothing overrides.
    */
-  --color-paper: #2b2926;
-  /*
-   * Bone. Measured off the reference rather than remembered — the temptation is
-   * a cream that is far too yellow, where the real thing is barely warm and
-   * quite grey, which is what keeps a page of it comfortable.
-   */
-  --color-ink: #e4ded0;
+  --color-paper: #e6ddbe;
+  --color-ink: #2a2461;
 
-  --color-grey-50: #322f2b;
-  --color-grey-100: #383530;
-  --color-grey-150: #3f3b36;
-  --color-grey-200: #4a4640;
-  --color-grey-300: #5d584f;
-  --color-grey-400: #7b746a;
-  --color-grey-500: #968e82;
-  --color-grey-600: #b0a89a;
-  --color-grey-700: #c6bdad;
-  --color-grey-800: #d9d1c1;
-  --color-grey-900: #efe9dc;
+  --color-grey-50: #e0d6b4;
+  --color-grey-100: #d9ceaa;
+  --color-grey-150: #d2c6a0;
+  --color-grey-200: #c7ba92;
+  --color-grey-300: #b2a37c;
+  --color-grey-400: #8d7f5f;
+  --color-grey-500: #6d6152;
+  --color-grey-600: #514a6b;
+  --color-grey-700: #413a72;
+  --color-grey-800: #33307a;
+  --color-grey-900: #231c5c;
 
-  /* The semantic four, as riso inks. */
-  --color-waiting: #e0a63c;
-  --color-waiting-bg: #3a3226;
-  --color-stale: #e2593a;
-  --color-stale-bg: #3b2a24;
-  /*
-   * Sage for selection rather than a blue. On this ground the vermilion and the
-   * mustard are the loud pair and a third warm accent would fight them; the
-   * green is the one ink in the reference that sits quietly under everything
-   * else, which is what a selected row wants to do.
-   */
-  --color-selected: #a9bd8b;
-  --color-selected-bg: #33382c;
+  --color-waiting: #9a6a12;
+  --color-waiting-bg: #ded0a4;
+  --color-stale: #a8321f;
+  --color-stale-bg: #e3cdb4;
+  /* The green from the reference, dropped to hold cream text at a legible
+     contrast — the bright screen version is a highlighter, not a surface. */
+  --color-selected: #1f7a44;
+  --color-selected-bg: #c9dcb4;
 
-  --color-journal: #9b96d8;
-  --color-journal-bg: #302f42;
+  --color-journal: #4a3f8f;
+  --color-journal-bg: #d8cfc0;
 
-  /* Note inks, from the same short list. */
-  --note-blue: #8fa9d6;
-  --note-green: #a9bd8b;
-  --note-amber: #e0a63c;
-  --note-red: #e2593a;
+  --note-blue: #33307a;
+  --note-green: #1f7a44;
+  --note-amber: #9a6a12;
+  --note-red: #a8321f;
 
   /*
-   * Monospace, and only the second theme that touches the typeface.
+   * Pixel-set monospace, tracked tight.
    *
-   * The console themes do it because a terminal is monospaced; this does it
-   * because every line of body copy in the reference is set that way — the
-   * display type is the loud part and everything you actually read is a
-   * typewriter. The cost is the one the console theme documents and it is real:
-   * mono is wider, and this layout is built around a narrow list column.
+   * The reference is a bitmap face — you can count the pixels in the letters —
+   * and nothing that ships with an operating system is one. What a system stack
+   * *can* do is the rest of it: fixed pitch, flat terminals, and the tight
+   * tracking the reference has, which is most of what separates it from an
+   * ordinary console. An exact match needs the font file; see the note in
+   * CLAUDE.md.
    */
   --font-sans: 'Cascadia Mono', 'Segoe UI Mono', ui-monospace, 'SF Mono', Menlo,
     Consolas, monospace;
+  letter-spacing: -0.01em;
+}
+
+/*
+ * Pane one: the indigo sheet.
+ *
+ * The ramp is walked from the dark end here, exactly as dark mode walks it, so
+ * the same class names keep the same meanings against a ground three shades
+ * deeper than the one next to it.
+ */
+:root[data-theme='riso'] [data-pane='nav'] {
+  --color-paper: #3e3c92;
+  --color-ink: #ece4c8;
+
+  --color-grey-50: #454393;
+  --color-grey-100: #4a4897;
+  --color-grey-150: #51509d;
+  --color-grey-200: #5b5aa6;
+  --color-grey-300: #6f6eb4;
+  --color-grey-400: #8f8ec8;
+  --color-grey-500: #a9a8d6;
+  --color-grey-600: #c2c0e2;
+  --color-grey-700: #d6d2dd;
+  --color-grey-800: #ece4c8;
+  --color-grey-900: #f6f0d8;
+
+  --color-selected: #6fe0a0;
+  --color-selected-bg: #34467a;
+  --color-waiting: #e8c15f;
+  --color-stale: #f08a72;
+  --color-journal: #bdb6ee;
+
+  background-color: var(--color-paper);
+  background-image: url('/riso-purple.png');
+  background-repeat: repeat;
+  background-size: 218px 554px;
+  color: var(--color-ink);
+}
+
+/*
+ * Panes three and four: the charcoal sheet.
+ *
+ * The reading surface and the window onto a file share it, which is what the
+ * reference does — the long text sits on the dark board and the bright sheets
+ * are the furniture around it.
+ */
+:root[data-theme='riso'] [data-surface='detail'],
+:root[data-theme='riso'] [data-pane='preview'] {
+  --color-paper: #2e2e2e;
+  --color-ink: #e8e0c6;
+
+  --color-grey-50: #333333;
+  --color-grey-100: #383838;
+  --color-grey-150: #3f3f3f;
+  --color-grey-200: #4a4a4a;
+  --color-grey-300: #5d5d5d;
+  --color-grey-400: #7b7b7b;
+  --color-grey-500: #969696;
+  --color-grey-600: #b0aca0;
+  --color-grey-700: #cdc7b4;
+  --color-grey-800: #e8e0c6;
+  --color-grey-900: #f4eeda;
+
+  --color-selected: #58cf86;
+  --color-selected-bg: #2c3a30;
+  --color-waiting: #e0a63c;
+  --color-stale: #e2593a;
+  --color-journal: #a9a2e4;
+  --color-journal-bg: #34324a;
+
+  --note-blue: #8fa9d6;
+  --note-green: #6fe0a0;
+  --note-amber: #e0a63c;
+  --note-red: #e2593a;
+
+  background-color: var(--color-paper);
+  background-image: url('/riso-grey.png');
+  background-repeat: repeat;
+  background-size: 811px 395px;
+}
+
+/* Pane two keeps the base tokens and wears the cream sheet. */
+:root[data-theme='riso'] [data-surface='list'] {
+  background-image: url('/riso-crema.png');
+  background-repeat: repeat;
+  background-size: 879px 184px;
 }
 
 /*
  * The labels are the display type, and this is where the look lives.
  *
- * Every small-caps label in the app becomes a pressed heading: heavier, opened
- * out, and in the bone rather than the grey it wears elsewhere. It costs one
- * rule because the app already sets every one of them in uppercase — the same
- * hook the console themes use for their phosphor bloom.
+ * Every small-caps label in the app becomes a pressed heading — heavier and
+ * opened out, the way the reference sets a header band. Letter-spacing goes
+ * *positive* here against the tight body, which is the one place the reference
+ * opens up: a header is spaced, a paragraph is not.
  */
 :root[data-theme='riso'] .uppercase {
   font-weight: 700;
-  letter-spacing: 0.14em;
-  color: var(--color-grey-800);
+  letter-spacing: 0.1em;
 }
 
 /*
- * The sheet itself.
+ * No grain overlay.
  *
- * The same machinery paper mode uses and for the same reasons: a PNG tiled and
- * composited normally, never a filter and never a blend mode, because a
- * blending layer over the whole viewport forces the page to be composited and
- * blended again on every paint. Drawn by `scripts/make-paper-grain.mjs` under
- * its own profile — coarser than writing paper and much more present, with the
- * tones inverted so the fleck is the *light* one, which is what an eye picks up
- * on a dark board.
- */
-:root[data-theme='riso'] body::after {
-  content: '';
-  position: fixed;
-  inset: 0;
-  z-index: 9999;
-  pointer-events: none;
-  background-image:
-    url('/riso-grain.png'),
-    radial-gradient(
-      130% 95% at 50% 40%,
-      rgba(0, 0, 0, 0) 58%,
-      rgba(0, 0, 0, 0.16) 100%
-    );
-  background-repeat: repeat, no-repeat;
-  background-size: 256px 256px, cover;
-}
-
-/*
- * A second, heavier sheet on the one column that holds nothing you read at
- * length — the trick paper mode uses to stop the window looking like one flat
- * surface with lines ruled on it. Two pieces of board meeting, rather than a
- * brightness step in one.
- */
-:root[data-theme='riso'] [data-pane='nav'] {
-  background-image: url('/paper-grain-strong.png');
-  background-repeat: repeat;
-  background-size: 256px 256px;
-}
-
-/*
- * And it stops at the preview pane, exactly as paper mode does: that pane is a
- * window onto somebody's file, and ageing their PDF would be the app
- * decorating their document rather than its own furniture.
- */
-:root[data-theme='riso'] [data-pane='preview'] {
-  position: relative;
-  z-index: 10000;
-}
-
-/*
- * Reduced motion keeps the palette and the grain — neither moves. Nothing to
- * turn off here, which is worth saying because the console themes do have
- * something.
+ * Paper mode paints one because its ground is a flat colour that needs a
+ * texture over it. Here the grounds *are* photographs of pressed sheets, so a
+ * second layer of manufactured grain on top would be texture over texture —
+ * and the fixed overlay would carry one sheet's tooth across all three, which
+ * is exactly the flatness having three sheets is meant to avoid.
  */
 
 /* Console mode ------------------------------------------------------------ */

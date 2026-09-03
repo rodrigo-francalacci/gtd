@@ -62,18 +62,6 @@ const SIZE = 256;
 const DARK = [92, 68, 38];
 const LIGHT = [255, 246, 228];
 
-/*
- * The riso sheet inverts which way the fibres read.
- *
- * On a cream ground the mottling is darker than the paper and the highlights
- * barely register; on a charcoal one it is the other way round — what an eye
- * picks up is the *light* fleck, the fibre catching the press. Painting the
- * warm pair over a near-black ground gives a sheet that looks merely dirty, so
- * this profile carries its own two tones: a bone highlight and a shadow barely
- * off the ground.
- */
-const RISO_LIGHT = [232, 224, 204];
-const RISO_DARK = [14, 13, 12];
 
 /**
  * Two sheets, from one generator.
@@ -118,44 +106,6 @@ const PROFILES = [
     ],
     grain: 0.16,
     laid: 0.12,
-  },
-  /*
-   * Last in the list, and that is load-bearing.
-   *
-   * The generator draws every profile from one sequence, so adding a sheet
-   * *before* another changes the numbers the later one gets — and the two paper
-   * tiles are supposed to re-render byte for byte. Inserted in the middle, this
-   * silently rewrote `paper-grain-strong.png`. Anything new goes on the end.
-   */
-  {
-    /*
-     * The riso sheet: coarser than writing paper and much more present, because
-     * a screen-printed zine is pressed onto board and the texture is half the
-     * look rather than a whisper under it. Weighted low-and-mid so it reads as
-     * fibre and press mottle rather than as noise.
-     */
-    file: 'riso-grain.png',
-    amplitude: 40,
-    /*
-     * Weighted to the fine end, unlike the coarse board.
-     *
-     * A first attempt put the energy at 32 and 64 pixels and the result was
-     * cloud — large soft blotches that read as smoke behind the page rather
-     * than as stock. What the reference actually shows is dense, small fibre:
-     * the press texture of heavy paper, which lives at four and eight pixels
-     * with only enough above that to stop it looking mechanical.
-     */
-    layers: [
-      [64, 0.04],
-      [32, 0.1],
-      [16, 0.2],
-      [8, 0.32],
-      [4, 0.34],
-    ],
-    grain: 0.46,
-    laid: 0.0,
-    dark: RISO_DARK,
-    light: RISO_LIGHT,
   },
 ];
 

@@ -77,35 +77,38 @@ Turbopack is the default; `middleware` is now `proxy`.
   which is lifted above it. That pane is a window onto a file, and ageing a PDF
   or a photograph would be the app colouring somebody's document rather than
   decorating its own furniture.
-- **Riso is a screen-printed zine, and the second theme whose argument is
-  fatigue.** Paper mode's argument reached from the other end: warm bone ink on
-  a grained charcoal board, nothing pure black and nothing pure white, which is
-  what a riso print on heavy stock looks like and why it is easy to sit with.
-  The same ramp again, walked from the dark end like dark mode and the consoles,
-  so `grey-800` is still prominent text and no component knows where it is. One
-  selector — nothing asks an operating system for a zine.
-  **The palette is taken from the reference, not invented**: riso inks are a
-  short list and a print uses two or three, so the accents are the ones that
-  recur — vermilion, mustard, sage, indigo. Flat and slightly chalky, never the
-  saturated screen versions, which is what stops four hues on one dark ground
-  reading as a dashboard. Sage carries *selected*, because the two warm inks are
-  the loud pair and a selected row wants to sit under everything else.
-  **It is the second theme to override `--font-sans`**, and the console theme's
-  warning applies unchanged: mono is wider and this layout is built around a
-  narrow list column. It earns it here because every line of body copy in the
-  reference is set that way — the display type is the loud part and everything
-  you actually read is a typewriter. The uppercase labels do the display work
-  through the one hook the consoles already use.
-  **The grain is fine, and a first attempt got that wrong.** Weighted to 32 and
-  64 pixels it came out as cloud — soft blotches reading as smoke behind the
-  page. The reference is dense small fibre, which lives at four and eight, with
-  just enough above to stop it looking mechanical. Its tones are inverted from
-  the paper sheets too: on a dark board the eye picks up the *light* fleck, and
-  painting the warm pair over near-black gives a sheet that merely looks dirty.
-  **A new grain profile goes on the end of the list.** Every profile draws from
-  one sequence, so inserting one in the middle changes the numbers the later
-  ones get — which silently rewrote `paper-grain-strong.png`, a file that is
-  supposed to re-render byte for byte.
+- **Riso is the only theme with three grounds, and they are photographs.**
+  Every other theme is one ramp — one paper, one ink, and no component knows
+  where it is. This one is three sheets pressed in different inks: indigo for
+  the navigation, cream for the list, charcoal for what you are reading. The
+  ramp is therefore declared again on each surface, and the rule still holds —
+  `grey-800` is prominent text on all three and `grey-200` is a hairline on all
+  three, so a row does not care which sheet it landed on.
+  **The grounds are the supplied files, not colours mixed to resemble them.**
+  Sampled rather than eyeballed: #3e3c92, #e6ddbe, #2e2e2e are the means of the
+  three photographs, and the flat colour under each texture is built from its
+  own mean so the two can never disagree.
+  **The ink follows the sheet**, which is the cue the reference gives: indigo on
+  cream, cream on anything dark. Green is neither ground nor body text in the
+  set, which is exactly why it carries selection.
+  Measured after building it, because comfort was the whole request: 8.4:1,
+  7.3:1 and 10.3:1 for body text on the three sheets, with hairlines at about
+  1.5:1.
+  **`data-surface` marks the panes.** `data-pane='nav'` and `'preview'` already
+  existed for paper mode; the list and detail panes needed their own markers,
+  because a theme cannot give a pane its own ground without something to
+  address it by.
+  **No grain overlay here.** Paper mode paints one because its ground is a flat
+  colour needing texture. These grounds *are* pressed sheets, so a manufactured
+  layer on top would be texture over texture — and one fixed overlay would carry
+  a single sheet's tooth across all three, which is the flatness that having
+  three sheets exists to avoid.
+  **The typeface is the part that is not exact.** The reference is a bitmap face
+  — you can count the pixels — and nothing shipping with an operating system is
+  one. A system mono stack with tight tracking gets the pitch, the flat
+  terminals and the spacing; it does not get the pixels. An exact match needs
+  the font file, and then this is one `@font-face` scoped to the theme so only
+  people using it ever download anything.
 - **Six themes, so the switcher is a menu.** The cycle's own comment said a
   sixth was the point to stop arguing, and it was right: five presses to reach
   the last one is more than anybody should count. Portalled to the body like
