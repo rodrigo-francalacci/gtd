@@ -435,6 +435,13 @@
       "when": 1788426708075,
       "tag": "0061_old_professor_monster",
       "breakpoints": true
+    },
+    {
+      "idx": 62,
+      "version": "7",
+      "when": 1788451325470,
+      "tag": "0062_magenta_eternals",
+      "breakpoints": true
     }
   ]
 }

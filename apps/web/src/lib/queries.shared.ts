@@ -299,6 +299,8 @@ export type AppliedTag = { id: string; name: string; category: string };
 
 export type BoxItemRow = {
   id: string;
+  /** Lifted above the days. See the column for why it leaves the timeline. */
+  pinned: boolean;
   /**
    * The note as a rich document, for the rows that render one.
    *

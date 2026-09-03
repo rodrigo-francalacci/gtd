@@ -4,6 +4,7 @@ import {
   clarifyInboxItem,
   deleteDocument,
   renameCapture,
+  setBoxItemPinned,
   updateDocument,
 } from '@/lib/actions';
 import { RowMenu } from './row-menu';
@@ -33,11 +34,14 @@ export function DocumentMenu({
   id,
   name,
   description,
+  pinned,
   children,
 }: {
   id: string;
   name: string;
   description: string | null;
+  /** Whether it is currently lifted above the days. */
+  pinned?: boolean;
   children: React.ReactNode;
 }) {
   return (
@@ -47,6 +51,18 @@ export function DocumentMenu({
       onDelete={() => deleteDocument(id)}
       deleteLabel="Throw away"
       deleteNote="The file goes to the Drive bin, where you can still get it back."
+      /*
+       * In the menu rather than on the row: pinning is something you do to an
+       * entry a handful of times, and a control on every row would take width
+       * from the thing the row exists to show. The same reasoning that put
+       * rename and remove here.
+       */
+      extra={[
+        {
+          label: pinned ? 'Unpin' : 'Pin to the top',
+          run: () => setBoxItemPinned(id, !pinned),
+        },
+      ]}
     >
       {children}
     </RowMenu>

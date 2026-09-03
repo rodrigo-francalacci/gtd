@@ -3459,6 +3459,25 @@ async function defaultBox(): Promise<string | null> {
  * Reversible in both directions, because the judgement can go either way and
  * a one-way door would make people hesitate before using it.
  */
+/**
+ * Lift an entry to the top of its box, or put it back in the timeline.
+ *
+ * Pinned entries are pulled out of the day grouping rather than sorted within
+ * it: a box is ordered by arrival and that ordering is the filing system, so
+ * moving one row up the middle of it would make every heading a little bit of
+ * a lie. Out of the timeline and above it is the honest place.
+ */
+export async function setBoxItemPinned(itemId: string, pinned: boolean) {
+  await requireSession();
+
+  await db
+    .update(boxItems)
+    .set({ pinned, updatedAt: new Date() })
+    .where(eq(boxItems.id, itemId));
+
+  revalidateShell();
+}
+
 export async function setBoxItemListed(id: string, listed: boolean) {
   await requireSession();
 

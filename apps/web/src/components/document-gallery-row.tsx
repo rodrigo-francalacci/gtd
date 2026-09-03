@@ -8,6 +8,7 @@ import { EntryTypeIcon } from './entry-type-icon';
 import { IconAudio, IconDocument, IconLink, IconPlace } from './icons';
 import { Linkified } from './linkified';
 import { NoteText } from './note-text';
+import { IconPin } from './icons';
 
 const printed = new Intl.DateTimeFormat('en-GB', {
   day: 'numeric',
@@ -224,7 +225,15 @@ export function DocumentGalleryRow({
             </span>
           ))}
 
-          {item.linkCount > 0 ? (
+          {/* On the right with the other flags: a mark in front of the title
+            indents the rows that have one and leaves the left edge ragged. */}
+        {item.pinned ? (
+          <span className="shrink-0 text-grey-400" title="Pinned to the top">
+            <IconPin />
+          </span>
+        ) : null}
+
+        {item.linkCount > 0 ? (
             <span className="text-grey-400">
               <IconLink />
             </span>

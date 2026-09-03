@@ -1401,6 +1401,20 @@ export const boxItems = pgTable(
     emoji: text('emoji'),
     description: text('description'),
     /**
+     * Lifted to the top of the box, whatever it arrived.
+     *
+     * A box is ordered and grouped by arrival, which is what makes it findable
+     * — and occasionally exactly wrong: the job sheet you are working from this
+     * week was filed in March and is forty rows down. Pinning takes an entry
+     * out of the timeline rather than reordering it, because the timeline is
+     * the filing system and must not start meaning something else.
+     *
+     * A plain flag, not a `pinned_at`. Pinned entries sit together in arrival
+     * order like everything else here, so a second date would be a column
+     * nothing reads.
+     */
+    pinned: boolean('pinned').notNull().default(false),
+    /**
      * The same field, as a rich document.
      *
      * `description` stays the plain-text truth: the classifier writes it, the

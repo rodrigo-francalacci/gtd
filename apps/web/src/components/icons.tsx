@@ -245,6 +245,20 @@ export const IconLink = (p: IconProps) => (
   </Glyph>
 );
 
+/**
+ * Held at the top of a box.
+ *
+ * A drawing pin seen from the side rather than head-on: the head-on version is
+ * a circle, and a circle at 14px beside a paperclip and a type glyph is another
+ * dot in a row that already has enough of them.
+ */
+export const IconPin = (p: IconProps) => (
+  <Glyph {...p}>
+    <path d="M6 2.5h4M8 2.5v5" />
+    <path d="M4.8 7.5h6.4L8 13.5 4.8 7.5Z" />
+  </Glyph>
+);
+
 /** Simple view — titles and nothing else, so: lines. */
 export const IconViewSimple = (p: IconProps) => (
   <Glyph {...p}>

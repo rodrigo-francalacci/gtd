@@ -244,6 +244,21 @@ export default async function BoxPage(props: PageProps<'/box/[id]'>) {
       ])
     : null;
 
+  /*
+   * Split once, walked once, drawn once.
+   *
+   * `ListKeys` is handed the order the eye sees, and the arrows have already
+   * been wrong here twice by being given the fetched order while the page drew
+   * a grouped one. Pinning adds a third grouping, so the order is computed here
+   * and the same value feeds both.
+   */
+  const pinned = shown.filter((item) => item.pinned);
+  const unpinned = shown.filter((item) => !item.pinned);
+  const walked = [
+    ...pinned,
+    ...groupByDay(unpinned, (i) => i.capturedAt).flatMap((day) => day.items),
+  ];
+
   const href = (docId: string) => {
     const params = new URLSearchParams();
     tagIds.forEach((t) => params.append('tag', t));
@@ -340,9 +355,7 @@ export default async function BoxPage(props: PageProps<'/box/[id]'>) {
           entry rather than the position because it lives in the URL.
         */}
         <ListKeys
-          rows={groupByDay(shown, (i) => i.capturedAt).flatMap((day) =>
-            day.items.map((item) => ({ id: item.id, href: href(item.id) })),
-          )}
+          rows={walked.map((item) => ({ id: item.id, href: href(item.id) }))}
           selectedId={targetId}
           onDelete={deleteDocument}
           deleteLabel="Throw it away"
@@ -363,7 +376,34 @@ export default async function BoxPage(props: PageProps<'/box/[id]'>) {
             }
           />
         ) : (
-          groupByDay(shown, (i) => i.capturedAt).map((day) => (
+          <>
+          {/*
+            Pinned entries, above the timeline rather than inside it.
+            
+            A box is ordered and grouped by arrival, and that is the filing
+            system — so lifting a pinned entry out is honest where sliding it up
+            the middle of the days would make every heading slightly untrue.
+            Within the block, arrival still decides, which is what a box does
+            everywhere else.
+          */}
+          {pinned.length > 0 ? (
+            <section>
+              <DayHeading label={pinned.length === 1 ? 'Pinned' : `Pinned · ${pinned.length}`} />
+              {pinned.map((item) => (
+                <TagDrop key={item.id} itemId={item.id} label={documentLabel(item)} accepts={item.kind !== 'event'}>
+                  <DocumentMenu id={item.id} name={documentLabel(item)} description={item.description} pinned={item.pinned}>
+                    {boxView === 'gallery' ? (
+                      <DocumentGalleryRow item={item} href={href(item.id)} selected={item.id === targetId} />
+                    ) : (
+                      <DocumentRow item={item} href={href(item.id)} selected={item.id === targetId} mode={viewMode} />
+                    )}
+                  </DocumentMenu>
+                </TagDrop>
+              ))}
+            </section>
+          ) : null}
+
+          {groupByDay(unpinned, (i) => i.capturedAt).map((day) => (
             <section key={day.key}>
               <DayHeading label={day.label} />
 
@@ -386,6 +426,7 @@ export default async function BoxPage(props: PageProps<'/box/[id]'>) {
                     id={item.id}
                     name={documentLabel(item)}
                     description={item.description}
+                    pinned={item.pinned}
                   >
                     <DocumentGalleryRow
                       item={item}
@@ -407,6 +448,7 @@ export default async function BoxPage(props: PageProps<'/box/[id]'>) {
                     id={item.id}
                     name={documentLabel(item)}
                     description={item.description}
+                    pinned={item.pinned}
                   >
                     <DocumentRow
                       item={item}
@@ -419,7 +461,8 @@ export default async function BoxPage(props: PageProps<'/box/[id]'>) {
                 ))
               )}
             </section>
-          ))
+          ))}
+          </>
         )}
       </ListPane>
 

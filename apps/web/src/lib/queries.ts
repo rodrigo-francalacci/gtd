@@ -1175,6 +1175,7 @@ export async function getBoxItems(
       title: boxItems.title,
       emoji: boxItems.emoji,
       description: boxItems.description,
+      pinned: boxItems.pinned,
       /*
        * The rich note, but only for the rows that draw one.
        *
@@ -1234,7 +1235,15 @@ export async function getBoxItems(
         range?.to ? sql`${boxItems.capturedAt} < ${endOfDay(range.to)}` : undefined,
       ),
     )
-    .orderBy(desc(boxItems.capturedAt));
+    /*
+     * Pinned first, then arrival.
+     *
+     * The page lifts pinned entries into their own block above the days, but
+     * the ordering belongs here too: anything else reading this query gets
+     * them on top without having to know about pinning, and within the pinned
+     * set arrival still decides, which is what was asked for.
+     */
+    .orderBy(desc(boxItems.pinned), desc(boxItems.capturedAt));
 
   return rows as BoxItemRow[];
 }
@@ -1257,6 +1266,7 @@ export async function getBoxItem(id: string): Promise<BoxItemDetail | null> {
       title: boxItems.title,
       emoji: boxItems.emoji,
       description: boxItems.description,
+      pinned: boxItems.pinned,
       notes: boxItems.notes,
       noteHeight: boxItems.noteHeight,
       noteDense: boxItems.noteDense,
@@ -1365,6 +1375,7 @@ export async function getLinkedDocuments(
       title: boxItems.title,
       emoji: boxItems.emoji,
       description: boxItems.description,
+      pinned: boxItems.pinned,
       mimeType: boxItems.mimeType,
       sizeBytes: boxItems.sizeBytes,
       driveFileId: boxItems.driveFileId,
@@ -1421,6 +1432,7 @@ export async function getLinkableDocuments(
       title: boxItems.title,
       emoji: boxItems.emoji,
       description: boxItems.description,
+      pinned: boxItems.pinned,
       mimeType: boxItems.mimeType,
       sizeBytes: boxItems.sizeBytes,
       driveFileId: boxItems.driveFileId,

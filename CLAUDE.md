@@ -2064,6 +2064,25 @@ to be kept. They meet at `box_item_links` and nowhere else.
   August is dated July. The feed orders and groups by arrival; the printed date
   is shown beside it. The ingest endpoint accepts the original file's date so a
   backlog files under the days it actually arrived.
+- **A pinned entry leaves the timeline rather than moving up it.** A box is
+  ordered and grouped by arrival, and that ordering *is* the filing system — so
+  sliding a pinned row up the middle of the days would make every heading
+  slightly untrue. Pinned entries get their own block above the days instead,
+  and inside it arrival still decides, which is what a box does everywhere.
+  A plain `pinned` flag, not a `pinned_at`: they sit together in arrival order
+  like everything else, so a second date would be a column nothing reads.
+  **The query orders pinned first as well as the page grouping them**, so
+  anything else reading `getBoxItems` gets them on top without having to know
+  that pinning exists.
+  **And the order is split once, above the JSX.** `ListKeys` is handed the order
+  the eye sees, and the arrows have been wrong here twice already by being
+  given the fetched order while the page drew a grouped one. Pinning is a third
+  grouping; one array feeds both.
+  The verb lives in the row menu rather than on the row: pinning happens a
+  handful of times per box, and a control on every row takes width from the
+  thing the row exists to show. The mark that says a row *is* pinned goes on
+  the right with the other flags, because anything in front of the title
+  indents the rows that have one and leaves the left edge ragged.
 - **A box's feed always groups by day**, in every density — unlike the inbox,
   where grouping is the simple view's answer to having no timestamps. Here the
   arrival date *is* the filing system, so it can't be a preference. Both use
