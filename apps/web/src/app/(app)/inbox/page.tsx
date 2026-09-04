@@ -12,13 +12,16 @@ import {
   getInboxItems,
   getBoxes,
   getListOptions,
+  getLists,
   getAttachableActions,
   getProjectOptions,
+  getProjects,
 } from '@/lib/queries';
 import { IconNote, IconPaperclip } from '@/components/icons';
 import { DayHeading } from '@/components/day-heading';
 import { SimpleRow } from '@/components/simple-row';
 import { DragCapture } from '@/components/drag-capture';
+import { InboxDesk } from '@/components/inbox-desk';
 import { INBOX_COLUMNS } from '@/lib/columns';
 import { groupByDay } from '@/lib/days';
 import { captureHasNote, captureLabel } from '@/lib/queries.shared';
@@ -38,9 +41,34 @@ const stamp = new Intl.DateTimeFormat('en-GB', {
  * Capture and clarify — the front of the GTD loop. Everything else in the app
  * assumes an item has already been decided about; this is where that happens.
  */
+/**
+ * The note under a capture: first line the title, blank line, the rest.
+ *
+ * The same rule the clarify panel seeds its fields with, and the same one
+ * `captureHasNote` tests — one capture is one `raw_text`, and splitting it
+ * across columns would be the app editing what you typed.
+ */
+function noteOf(rawText: string | null): string {
+  return (rawText ?? '')
+    .split('\n')
+    .slice(1)
+    .join('\n')
+    .trim();
+}
+
 export default async function InboxPage(props: PageProps<'/inbox'>) {
   const searchParams = await props.searchParams;
   const selectedId = typeof searchParams.item === 'string' ? searchParams.item : null;
+
+  /**
+   * The desk: the queue with everywhere it could go beside it.
+   *
+   * Its own view rather than a wider pane, because what it needs is *both* ends
+   * of the drag on screen at once — and the destinations are real rows here,
+   * so a capture can be dropped on the project it belongs to rather than only
+   * on "make this a project", which is all a sidebar entry can ever mean.
+   */
+  const wantsDesk = searchParams.focus !== undefined;
 
   const viewKey = densityKeys.path('/inbox');
   const [items, prefs, view] = await Promise.all([
@@ -96,6 +124,62 @@ export default async function InboxPage(props: PageProps<'/inbox'>) {
     getContextsByDimension(),
   ]);
 
+  if (wantsDesk) {
+    /*
+     * Everything a capture can be dropped on, fetched only for this view.
+     *
+     * The actions come from `getAttachableActions`, which already answers "the
+     * open steps, by project" for the capture screen's picker — so the tree is
+     * one extra query rather than one per project, which at forty projects
+     * would be forty round trips on this driver.
+     */
+    const [projects, actions, lists, boxes] = await Promise.all([
+      getProjects(),
+      getAttachableActions(),
+      getLists(),
+      getBoxes(),
+    ]);
+
+    const byProject = new Map<string, { id: string; title: string }[]>();
+    for (const action of actions) {
+      if (!action.projectId) continue;
+      byProject.set(action.projectId, [
+        ...(byProject.get(action.projectId) ?? []),
+        { id: action.id, title: action.title },
+      ]);
+    }
+
+    return (
+      <InboxDesk
+        closeHref="/inbox"
+        rows={ordered.map((item) => ({
+          id: item.id,
+          title: captureLabel(item),
+          // The same rule the clarify panel reads a capture by: first line the
+          // title, blank line, then the note.
+          note: captureHasNote(item)
+            ? noteOf(item.rawText)
+            : null,
+          when: stamp.format(new Date(item.createdAt)),
+        }))}
+        projects={projects.map((project: { id: string; title: string; status: string }) => ({
+          id: project.id,
+          title: project.title,
+          status: project.status,
+          actions: byProject.get(project.id) ?? [],
+        }))}
+        lists={lists.map((list: { id: string; name: string }) => ({
+          id: list.id,
+          name: list.name,
+        }))}
+        boxes={boxes.map((box: { id: string; name: string }) => ({
+          id: box.id,
+          name: box.name,
+        }))}
+      />
+    );
+  }
+
   return (
     <>
       <ListPane
@@ -136,7 +220,12 @@ export default async function InboxPage(props: PageProps<'/inbox'>) {
             <section key={day.key}>
               <DayHeading label={day.label} />
               {day.items.map((item) => (
-                <CaptureMenu key={item.id} id={item.id} name={captureLabel(item)}>
+                <CaptureMenu
+                  key={item.id}
+                  id={item.id}
+                  name={captureLabel(item)}
+                  focusHref="/inbox?focus=1"
+                >
                   <DragCapture id={item.id}>
                   <SimpleRow
                     key={item.id}
@@ -171,7 +260,12 @@ export default async function InboxPage(props: PageProps<'/inbox'>) {
           ))
         ) : (
           ordered.map((item) => (
-            <CaptureMenu key={item.id} id={item.id} name={captureLabel(item)}>
+            <CaptureMenu
+                  key={item.id}
+                  id={item.id}
+                  name={captureLabel(item)}
+                  focusHref="/inbox?focus=1"
+                >
               <DragCapture id={item.id}>
               {viewMode === 'compact' ? (
                 <Link

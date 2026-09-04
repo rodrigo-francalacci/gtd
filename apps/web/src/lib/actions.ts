@@ -4091,7 +4091,25 @@ export type CaptureDrop =
   | { kind: 'waiting' }
   | { kind: 'project' }
   | { kind: 'list'; listId: string }
-  | { kind: 'box'; boxId: string };
+  | { kind: 'box'; boxId: string }
+  /**
+   * A step *of* that project, rather than a project of its own.
+   *
+   * The sidebar could only ever say "make this a project", because a sidebar
+   * entry names a page and not a row. The desk names actual projects, so this
+   * is the answer that becomes available the moment you can point at one.
+   */
+  | { kind: 'in_project'; projectId: string }
+  /**
+   * Evidence for something that already exists — the `attached` clarify
+   * decision, reached by pointing instead of by filling in a form.
+   *
+   * Only the file crosses, which is the whole of that decision: the words you
+   * typed to get a photograph into the inbox were a label for the photograph,
+   * and writing them onto the project as a note would be filing your shorthand
+   * as a thought.
+   */
+  | { kind: 'attached'; parentType: AttachTarget; parentId: string };
 
 /**
  * Clarify a capture by dropping it somewhere.
@@ -4151,13 +4169,21 @@ export async function dropCapture(itemId: string, target: CaptureDrop) {
         ? { kind: 'filed', title, boxId: target.boxId, note }
         : target.kind === 'project'
           ? { kind: 'project', title, areaId: null, note }
-          : {
-              kind: target.kind === 'waiting' ? 'waiting' : 'next_action',
-              title,
-              projectId: null,
-              contextIds: [],
-              note,
-            };
+          : target.kind === 'attached'
+            ? {
+                kind: 'attached',
+                parentType: target.parentType,
+                parentId: target.parentId,
+              }
+            : {
+                kind: target.kind === 'waiting' ? 'waiting' : 'next_action',
+                title,
+                // The one difference between dropping on Now and dropping on a
+                // project: the step knows what it belongs to.
+                projectId: target.kind === 'in_project' ? target.projectId : null,
+                contextIds: [],
+                note,
+              };
 
   await clarifyInboxItem(itemId, decision);
 }

@@ -1959,6 +1959,73 @@ Turbopack is the default; `middleware` is now `proxy`.
   derived from that column plus the action's status — they are mutually
   exclusive by construction, which is what stops spend double-counting. Don't
   add a fourth source of truth for "is this ordered".
+- **Double-click opens; the window is the third size a pane comes in.** A pane
+  is right for choosing what to look at and wrong for working on it once
+  chosen, which is the same argument the boards make about the impact lanes.
+  Three views want it now, so `FullScreen` holds the chrome — title, a way out
+  that is both Escape and a link, the surface markers — and each view brings
+  only its contents.
+  **The gesture is borrowed, not invented.** Everywhere else on the machine
+  single-click selects and double-click opens, and a list here already did the
+  first half — so the second was sitting unused and costs no space at all. It
+  lives in `RowMenu` because that already wraps every list row; a wrapper of its
+  own would have been a fourth element around each row carrying one handler.
+  The single click still fires first, which is wanted: the view opens on what
+  you pointed at and closing it leaves that row selected behind you.
+  `select-none` is not decoration — a double-click selects a word, and without
+  it every row you opened left a highlighted fragment of its own title behind to
+  fight the next drag.
+- **In the focus view the note is rendered by the *page*, not by the detail
+  pane.** Each pane takes `hideNotes` and drops its own block. One boolean
+  rather than teaching four components a second layout — and it is what lets the
+  two columns scroll independently, which is the whole point: writing must not
+  mean scrolling past the facts, and checking a fact must not mean scrolling
+  away from the sentence you were in.
+  **`NoteEditor` grew `fill` with it.** A remembered height is the right answer
+  in a pane, where the note is one section among several; in a column of its own
+  it left the editor in the top third with dead space under it. The drag handle
+  goes with it, and so does remembering: there is nothing to choose when the
+  answer is "all of it", and writing a window-sized height back to the row would
+  follow the note into every pane it appears in.
+- **The preview expands, and is the one full-screen view that is not a URL.**
+  The pane has never been one — it belongs to the *window* rather than to the
+  row it was opened from, and survives clicking through to another project — so
+  expanding it must not change what it belongs to. Double-click toggles on the
+  pane's **header**, never the body: the body is somebody's document, and a
+  double-click inside a PDF or a text editor already means something there.
+  Asking for a different file while expanded keeps you expanded, since you are
+  reading documents and dropping back to a column between two of them would be
+  the view arguing with you.
+- **The inbox desk is the queue with everywhere it could go beside it, and the
+  destinations are real rows.** The sidebar can only name pages, so dragging a
+  capture there could mean "make this a project" and never "a step of *that*
+  project". Pointing at the project itself is what makes the second answer
+  expressible, which is why `CaptureDrop` gained `in_project` and `attached`.
+  **Ctrl means "this is evidence", not "this is work".** Every other drop
+  clarifies — the capture becomes an action, a project, a list item, a document.
+  Holding Ctrl attaches its file to the thing under the cursor and creates
+  nothing, which is the `attached` decision reached by pointing rather than by
+  form. Offered only where a file can actually hang: a box is a place you file a
+  document, which is what the plain drop already does, and a list item is a
+  candidate rather than somewhere evidence is kept.
+  **`dropEffect` is set during `dragover`**, so which of the two it will be is
+  visible before you let go — the same courtesy copying a box entry gets — and
+  the modifier is read off the event *before* the transition starts, because a
+  pooled event's keys are unreadable once the handler has returned.
+  **`DeskTarget` is at module scope, and that is not tidiness.** A component
+  declared inside a render is a new *type* on every render, so React unmounts
+  and remounts its subtree — which during a drag destroys the element under the
+  cursor the moment the highlight changes, and the drop never lands. Everything
+  it needs is a prop for that reason, and the shared half is a spread object
+  rather than a wrapper component, which would have reintroduced the same bug.
+  **The tree arrives collapsed**, because the branch you want is usually the one
+  you were already thinking about: opening it costs one click and reading past
+  forty rows you did not want costs more. Its actions come from
+  `getAttachableActions` — one query for every project's open steps, where a
+  fetch per project would be forty round trips on this driver.
+  Verified against real rows: a plain drop on a project made a step *of* it and
+  the capture's file followed onto that step; Ctrl on the project attached the
+  file to the project and created nothing; Ctrl on a step attached it there.
 - **A grouped list gets a board, and it is one component for both.** The
   purchases list's four impacts and the Now list's headings are already groups
   you move things *between*; what a pane cannot give that gesture is width.

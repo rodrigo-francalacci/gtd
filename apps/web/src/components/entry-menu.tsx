@@ -101,15 +101,19 @@ export function DocumentMenu({
 export function CaptureMenu({
   id,
   name,
+  focusHref,
   children,
 }: {
   id: string;
   name: string;
+  /** Where a double-click opens the desk — this queue, with everywhere it goes. */
+  focusHref?: string;
   children: React.ReactNode;
 }) {
   return (
     <RowMenu
       name={name}
+      focusHref={focusHref}
       onRename={(next) => renameCapture(id, next)}
       onDelete={() => clarifyInboxItem(id, { kind: 'trashed' })}
       deleteLabel="Trash it"
