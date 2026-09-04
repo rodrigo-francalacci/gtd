@@ -52,7 +52,20 @@ export function FocusView({
       closeHref={closeHref}
       actions={actions}
     >
-      <div className="grid min-h-0 flex-1 grid-cols-1 gap-4 overflow-y-auto p-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,26rem)] lg:overflow-hidden">
+      {/*
+        Both columns are capped, and the pair is centred.
+        
+        The writing column has a measure — see `NoteEditor`'s `fill` — so
+        letting its panel take every spare pixel left the text floating in the
+        middle of an enormous empty sheet, which looks like a mistake rather
+        than like margin. Capped at 44rem the panel is the column of text plus a
+        little air, which is what a page is.
+        
+        `justify-center` puts the leftover width outside both panels rather than
+        inside one of them. On a very wide screen that reads as a document on a
+        desk; on a laptop the cap barely binds and nothing moves.
+      */}
+      <div className="grid min-h-0 flex-1 grid-cols-1 gap-4 overflow-y-auto p-4 lg:grid-cols-[minmax(0,44rem)_minmax(0,26rem)] lg:justify-center lg:overflow-hidden">
         {/*
           The writing side. `data-surface="detail"` because it *is* the reading
           surface — the theme with three grounds should put a note on the same

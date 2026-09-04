@@ -243,6 +243,41 @@ export function useOpenPreview(): PreviewFile | null {
   return useContext(Context)?.file ?? null;
 }
 
+/**
+ * Whether a full-screen view is covering the panes.
+ *
+ * A plain constant context, deliberately: the alternative is the full-screen
+ * view *setting* a piece of provider state on mount, which is a setState inside
+ * an effect — the pattern the compiler refuses — for something that is not
+ * really state at all. It is a fact about where in the tree you are, and a
+ * context is exactly that.
+ */
+const Covering = createContext(false);
+
+export function CoveringPanes({ children }: { children: ReactNode }) {
+  return <Covering.Provider value={true}>{children}</Covering.Provider>;
+}
+
+/**
+ * Open a file the right way for wherever you are standing.
+ *
+ * In the panes, a preview opens in the fourth column. Inside a full-screen view
+ * that column is *behind* the overlay — the file loads, the pane renders, and
+ * nothing appears, which is a control that silently does nothing. Measured
+ * before it was fixed: `elementFromPoint` in the middle of the screen came back
+ * as the focus view, never the preview.
+ *
+ * So the same click opens it expanded instead, which is the only size that can
+ * be seen from there. Every caller uses this rather than `open` for that
+ * reason; `open` stays for the one case that really does mean the column.
+ */
+export function useOpenFile(): (file: PreviewFile) => void {
+  const { open, openExpanded } = useFilePreview();
+  const covered = useContext(Covering);
+
+  return covered ? openExpanded : open;
+}
+
 export function useFilePreview(): PreviewApi {
   const api = useContext(Context);
   if (!api) throw new Error('useFilePreview outside FilePreviewProvider');
@@ -299,6 +334,41 @@ export function PreviewPane({
    * files.
    */
   const textFormat = formatOf(file.mimeType, file.name);
+
+  /**
+   * Whether this file is *text*, and therefore wants a measure full screen.
+   *
+   * Filling the width is right for a photograph, a video, a PDF and an embedded
+   * editor: each lays out its own page, or is a picture whose shape is the
+   * point. It is wrong for everything that is words — a transcript pinned to
+   * the left edge of a wide screen with the whole right side empty reads as a
+   * broken layout, and even when it does not, a line past about 80 characters
+   * loses the reader on the return sweep.
+   *
+   * So the split is by *what is being shown*, not by how it is fetched, and the
+   * list is exhaustive on purpose: a renderer added later gets no measure until
+   * somebody decides which half it is in, which is the right way round.
+   */
+  const isText =
+    Boolean(file.node) ||
+    Boolean(textFormat) ||
+    type.startsWith('audio/') ||
+    isJson(type);
+
+  /**
+   * 66 characters in a monospace face, about 79 in the body one.
+   *
+   * `ch` is the width of a zero, which *is* one character in mono and is wider
+   * than the average letter in a proportional face — so one number lands
+   * differently in the two, and that is wanted here: the mono cases are the
+   * transcripts and the source views, where lines of code and tables are worse
+   * for being wrapped early.
+   *
+   * Wider than the note editor's 60, deliberately. That is prose you write and
+   * reread; this is documents you are reading through, and several of them hold
+   * things a book measure would break.
+   */
+  const measure = expanded && isText ? 'mx-auto w-full max-w-[66ch]' : '';
 
   return (
     /*
@@ -382,7 +452,7 @@ export function PreviewPane({
         </button>
       </header>
 
-      <div className="min-h-0 flex-1 overflow-auto bg-grey-100">
+      <div className={['min-h-0 flex-1 overflow-auto bg-grey-100', measure].join(' ')}>
         {failed ? (
           <Unsupported file={file} src={src} reason={failed} />
         ) : file.node ? (

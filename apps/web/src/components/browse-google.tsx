@@ -3,7 +3,7 @@
 import { useEffect } from 'react';
 import type { TreeNode } from '@gtd/db';
 import { GoogleTree } from './google-tree';
-import { useFilePreview } from './file-preview';
+import { useFilePreview, useOpenFile } from './file-preview';
 
 /**
  * Open a project's Drive folder and Gmail label in the preview pane.
@@ -35,6 +35,7 @@ export function BrowseGoogle({
   error: string | null;
 }) {
   const preview = useFilePreview();
+  const openFile = useOpenFile();
 
   const has = Boolean(drive || gmail);
 
@@ -95,7 +96,7 @@ export function BrowseGoogle({
     <button
       type="button"
       onClick={() =>
-        preview.open({
+        openFile({
           id: `tree:${projectId}`,
           name: projectTitle,
           mimeType: null,

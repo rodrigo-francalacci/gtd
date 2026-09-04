@@ -17,6 +17,7 @@ import { boxOfEntry } from '@/lib/queries';
  */
 export default async function FindBoxEntryPage(props: PageProps<'/box/find/[id]'>) {
   const { id } = await props.params;
+  const searchParams = await props.searchParams;
 
   const boxId = await boxOfEntry(id);
 
@@ -24,5 +25,12 @@ export default async function FindBoxEntryPage(props: PageProps<'/box/find/[id]'
   // link is genuinely dead and saying so is more use than an empty box.
   if (!boxId) notFound();
 
-  redirect(`/box/${boxId}?doc=${id}`);
+  /*
+   * The flag rides through the lookup. Without it, following a link to a box
+   * entry from the focus view would resolve correctly and then land you in the
+   * panes — the one destination of the four that changed shape on the way.
+   */
+  const focused = searchParams.focus !== undefined ? '&focus=1' : '';
+
+  redirect(`/box/${boxId}?doc=${id}${focused}`);
 }

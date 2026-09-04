@@ -8,7 +8,12 @@ import { emptyDoc } from '@/lib/tiptap';
 import { useRouter } from 'next/navigation';
 import { EditorToolbar, type LinkTarget } from './editor-toolbar';
 import { InternalLinkMark } from '@/lib/internal-link-mark';
-import { hrefFor as internalHref, openHref, readToken } from '@/lib/internal-link';
+import {
+  hrefFor as internalHref,
+  focusedHref,
+  openHref,
+  readToken,
+} from '@/lib/internal-link';
 import { RememberedHeight } from './remembered-height';
 import { setNoteDense, type NoteSurface } from '@/lib/actions';
 
@@ -198,13 +203,39 @@ export function NoteEditor({
   // Switching to a different project or action is handled by `key={id}` at
   // the call sites, which remounts the editor with the right content.
 
+  /**
+   * The measure, when the note has a whole window to itself.
+   *
+   * Filling the width was wrong and the number says how wrong: on this screen
+   * the editor was running to **152 characters a line**, against the 45–75 that
+   * every source on the question agrees about — Bringhurst calls 66 ideal for a
+   * single column, Butterick asks for two to three alphabets, and WCAG's AAA
+   * ceiling is 80. Past that the eye loses the start of the next line on the
+   * return sweep, which is exactly the "this gets in the way of focus" feeling:
+   * you are not reading slower, you are re-finding your place.
+   *
+   * **`ch` rather than `rem`, and 60 rather than 66.** `1ch` is the width of a
+   * zero, which in a monospace face is one character and in a proportional one
+   * is wider than the average letter — measured here, Source Sans averages
+   * 6.53px a character against a 7.83px zero. So `66ch` would give 66 characters
+   * in the console and riso themes and **79** in the others, which is over the
+   * line. 60 lands at 72 and 60 respectively: both inside the range, in a unit
+   * that follows whatever face and size the theme is using rather than freezing
+   * one theme's arithmetic for all six.
+   *
+   * The toolbar is inside the measure too. Controls running the full width above
+   * a column of text half that wide reads as a mistake rather than as a margin.
+   */
+  const column = fill ? 'mx-auto w-full max-w-[60ch] text-[14px]' : undefined;
+
   return (
     <div className={fill ? 'flex h-full min-h-0 flex-col' : undefined}>
-      <div className="mb-1 flex h-4 shrink-0 items-center justify-end">
+      <div className={['mb-1 flex h-4 shrink-0 items-center justify-end', column ?? ''].join(' ')}>
         <span className="text-[11px] text-grey-400">
           {state === 'saving' ? 'Saving…' : state === 'saved' ? 'Saved' : ''}
         </span>
       </div>
+      <div className={column}>
       <EditorToolbar
         editor={editor}
         targets={targets}
@@ -214,6 +245,7 @@ export function NoteEditor({
           void setNoteDense(surface, id, next);
         }}
       />
+      </div>
 
       {/*
         Resizable, and it remembers.
@@ -258,7 +290,20 @@ export function NoteEditor({
           const target = readToken(span.getAttribute('data-internal') ?? '');
           if (!target) return;
 
-          const href = openBase ? openHref(openBase, target) : internalHref(target);
+          /*
+           * Following a link should not drop you back into the panes.
+           *
+           * `fill` means this editor *is* the full-screen view, so the link goes
+           * to the target's own focus view rather than to pane three of a page
+           * you can no longer see. Reading a note, following what it points at,
+           * and reading that one is a single activity; changing the shape of the
+           * window half way through it is the app interrupting.
+           */
+          const href = fill
+            ? focusedHref(target)
+            : openBase
+              ? openHref(openBase, target)
+              : internalHref(target);
 
           event.preventDefault();
           event.stopPropagation();
@@ -281,7 +326,11 @@ export function NoteEditor({
           fill
             // `min-h-0` above a scroller in a flex column, or it grows to its
             // content and the whole modal scrolls instead of the note.
-            ? 'min-h-0 flex-1 overflow-auto rounded-sm'
+            //
+            // The measure goes on the *scroller*, so the scrollbar sits at the
+            // edge of the column of text rather than out at the panel's edge
+            // with a stripe of nothing between them.
+            ? `min-h-0 flex-1 overflow-auto rounded-sm ${column}`
             : 'h-[var(--note-height,16rem)] min-h-24 resize-y overflow-auto rounded-sm',
           // The wrapper carries it, so the leading reaches the headings and
           // lists inside as well as the paragraphs.

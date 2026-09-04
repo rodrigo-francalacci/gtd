@@ -181,6 +181,27 @@ export function readInternalInput(raw: string): InternalTarget | null {
  * "what is in there" the way it does for a project. What it still cannot do is
  * *open* any of it, which is why every row in a tree is a real link out.
  */
+/**
+ * The target's own focus view — where a link goes when you are already in one.
+ *
+ * `openHref` fills *pane three* of the page you are on, which is the right
+ * answer while you are in the panes: you are reading a feed and want to see
+ * what a line refers to without leaving it. In the focus view there is no pane
+ * three — the window is one thing — so the equivalent courtesy is to open the
+ * thing you clicked the same way you are already reading: full screen, notes
+ * left, everything else right.
+ *
+ * A Drive folder still leaves, because the app has nothing of it to show at any
+ * size — and it is recognised the way everything else here recognises it, by
+ * the address not being one of ours rather than by asking the kind. A box entry
+ * goes through `/box/find`, which carries the flag on.
+ */
+export function focusedHref(target: InternalTarget): string {
+  const href = hrefFor(target);
+  if (!href.startsWith('/')) return href;
+  return `${href}${href.includes('?') ? '&' : '?'}focus=1`;
+}
+
 export function openHref(base: string, target: InternalTarget): string {
   const [path, query = ''] = base.split('?');
   const params = new URLSearchParams(query);

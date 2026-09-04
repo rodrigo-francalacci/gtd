@@ -20,7 +20,7 @@ import { mediaFacts } from '@/lib/media-facts';
 import { driveFileUrl } from '@/lib/google/sync';
 import { soleUrl } from '@/lib/sole-url';
 import { AudioRecorder } from './audio-recorder';
-import { useFilePreview } from './file-preview';
+import { useFilePreview, useOpenFile } from './file-preview';
 import { GalleryView } from './gallery-view';
 import { IconAudio, IconCamera, IconPaperclip, IconPlace } from './icons';
 import { NewDocumentMenu } from './new-document-menu';
@@ -53,6 +53,7 @@ export function BoxComposer({ boxId }: { boxId: string }) {
   const input = useRef<HTMLInputElement>(null);
   const camera = useRef<HTMLInputElement>(null);
   const preview = useFilePreview();
+  const openFile = useOpenFile();
 
   const [text, setText] = useState('');
   const [busy, setBusy] = useState<string | null>(null);
@@ -103,7 +104,7 @@ export function BoxComposer({ boxId }: { boxId: string }) {
         `${label} — ${new Date().toLocaleDateString('en-GB')}`,
       );
 
-      preview.open({
+      openFile({
         id: row.id,
         name: row.name,
         src: `/api/box/${row.id}/file`,
@@ -312,7 +313,7 @@ export function BoxComposer({ boxId }: { boxId: string }) {
      * timing — a pane opened while the uploads were still going would have
      * counted the pictures that had arrived by then and stopped there.
      */
-    preview.open({
+    openFile({
       id: made.id,
       name: title,
       src: `/api/box/${made.id}/file`,

@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { useEffect, type ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
+import { CoveringPanes } from './file-preview';
 
 /**
  * The window, given over to one thing.
@@ -121,7 +122,14 @@ export function FullScreen({
         </div>
       </header>
 
-      {children}
+      {/*
+        Everything inside is standing on top of the panes, and the file preview
+        needs to know: its fourth column is *behind* this overlay, so a click
+        that opens one there loads a file, renders a pane and shows nothing.
+        Inside here the same click opens it full screen instead, which is the
+        only size that can be seen from here.
+      */}
+      <CoveringPanes>{children}</CoveringPanes>
     </div>
   );
 }

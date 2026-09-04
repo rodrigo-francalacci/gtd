@@ -12,6 +12,7 @@
  */
 
 import {
+  focusedHref,
   hrefFor,
   openHref,
   readInternalInput,
@@ -182,6 +183,20 @@ check(
   'a Drive folder opens in the pane as well',
   openHref('/box/abc?doc=d9', { kind: 'drive', id: FOLDER }),
   `/box/abc?doc=d9&open=D${FOLDER}`,
+);
+
+/*
+ * Following a link from the focus view must not drop you back into the panes.
+ * There is no pane three there — the window is one thing — so the equivalent is
+ * the target's own focus view.
+ */
+check('a project keeps you full screen', focusedHref({ kind: 'project', id: PROJECT }), `/projects/${PROJECT}?focus=1`);
+check('an action keeps you full screen', focusedHref({ kind: 'action', id: ACTION }), `/now?action=${ACTION}&focus=1`);
+check('a box entry carries the flag through the lookup', focusedHref({ kind: 'boxItem', id: ENTRY }), `/box/find/${ENTRY}?focus=1`);
+check(
+  'a Drive folder still leaves, at any size',
+  focusedHref({ kind: 'drive', id: FOLDER }),
+  `https://drive.google.com/drive/folders/${FOLDER}`,
 );
 
 // --- finding them in a document --------------------------------------------

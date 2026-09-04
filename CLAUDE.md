@@ -1987,6 +1987,50 @@ Turbopack is the default; `middleware` is now `proxy`.
   goes with it, and so does remembering: there is nothing to choose when the
   answer is "all of it", and writing a window-sized height back to the row would
   follow the note into every pane it appears in.
+- **A full-screen text column gets a measure, and the number came from
+  measuring.** Filling the width ran the note editor to **152 characters a
+  line** against the 45–75 every source agrees on — Bringhurst calls 66 ideal
+  for a single column, Butterick asks for two to three alphabets, WCAG's AAA
+  ceiling is 80. Past that the eye loses the start of the next line on the
+  return sweep, which is what "it gets in the way of focus" actually is: not
+  reading slower, re-finding your place.
+  **`ch`, not `rem`, and calibrated per use.** `1ch` is the width of a zero —
+  one character in a monospace face, wider than the average letter in a
+  proportional one. Measured here: Source Sans averages 6.53px a character
+  against a 7.83px zero, so `66ch` gives 66 characters in the console and riso
+  themes and **79** in the others. The note editor uses `60ch` (72 / 60) because
+  it is prose you write and reread; the preview uses `66ch` (79 / 66) because it
+  holds transcripts, source views and tables that a book measure would wrap.
+  The unit follows whatever face and size the theme is using, which is the point
+  — a `rem` would freeze one theme's arithmetic for all six.
+  **The measure goes on the scroller**, so the scrollbar sits at the edge of the
+  column rather than out at the panel's edge with a stripe of nothing between.
+  And the toolbar is inside it: controls running the full width above a column
+  of text half that wide read as a mistake rather than as a margin.
+  **In the preview it applies to text and not to media**, split by what is being
+  shown rather than how it is fetched. A photograph, a video, a PDF and an
+  embedded editor each lay out their own page or *are* the shape; a transcript
+  pinned to the left edge of a wide screen with the right half empty simply
+  looks broken. The list is exhaustive on purpose, so a renderer added later
+  gets no measure until somebody decides which half it is in.
+- **A link followed from the focus view stays in the focus view.** `openHref`
+  fills pane three, which is right in the panes and meaningless full screen —
+  there is no pane three, the window is one thing. `focusedHref` opens the
+  target the same way you are already reading. Reading a note, following what it
+  points at and reading that one is a single activity, and changing the shape of
+  the window half way through is the app interrupting. `/box/find` carries the
+  flag through its redirect, or a `B` link would be the one destination of four
+  that changed shape on the way.
+- **Inside a full-screen view, opening a file must expand it.** The preview's
+  fourth column is *behind* the overlay, so a click there loaded the file,
+  rendered the pane and showed nothing — a control that silently does nothing.
+  Measured before it was fixed: `elementFromPoint` in the middle of the screen
+  came back as the focus view, never the preview.
+  `CoveringPanes` is a **constant context**, not provider state set on mount:
+  that would be a setState inside an effect, which the compiler refuses, for
+  something that is not state at all but a fact about where in the tree you are.
+  Every caller opens files through `useOpenFile`, which reads it; `open` stays
+  for the one case that really does mean the column.
 - **The preview expands, and is the one full-screen view that is not a URL.**
   The pane has never been one — it belongs to the *window* rather than to the
   row it was opened from, and survives clicking through to another project — so

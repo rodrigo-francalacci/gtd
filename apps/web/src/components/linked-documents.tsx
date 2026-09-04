@@ -9,7 +9,7 @@ import { driveFileUrl } from '@/lib/google/sync';
 import { documentLabel, type LinkedDocumentRow } from '@/lib/queries.shared';
 import type { SortChoice } from '@/lib/sort';
 import { AskForEmail } from './ask-for-email';
-import { useFilePreview } from './file-preview';
+import { useFilePreview, useOpenFile } from './file-preview';
 import { FileMeta } from './file-meta';
 import { GroupHeading } from './group-heading';
 import { IconBox, IconEnvelope } from './icons';
@@ -75,6 +75,7 @@ export function LinkedDocuments({
 }) {
   const router = useRouter();
   const preview = useFilePreview();
+  const openFile = useOpenFile();
   const [pending, startTransition] = useTransition();
   const [adding, setAdding] = useState(false);
 
@@ -171,7 +172,7 @@ export function LinkedDocuments({
                   onClick={(e) => {
                     if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
                     e.preventDefault();
-                    preview.open({
+                    openFile({
                       id: row.id,
                       name: documentLabel(row),
                       src: `/api/box/${row.id}/file`,

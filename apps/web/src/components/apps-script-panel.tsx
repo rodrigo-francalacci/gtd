@@ -3,7 +3,7 @@
 import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { setAppsScriptUrl } from '@/lib/actions';
-import { useFilePreview } from './file-preview';
+import { useFilePreview, useOpenFile } from './file-preview';
 
 /**
  * A way to the bridges, from the app they feed.
@@ -36,6 +36,7 @@ import { useFilePreview } from './file-preview';
 export function AppsScriptPanel({ url }: { url: string | null }) {
   const router = useRouter();
   const preview = useFilePreview();
+  const openFile = useOpenFile();
   const [editing, setEditing] = useState(false);
   const [text, setText] = useState(url ?? '');
   const [error, setError] = useState<string | null>(null);
@@ -90,7 +91,7 @@ export function AppsScriptPanel({ url }: { url: string | null }) {
             onClick={(event) => {
               if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
               event.preventDefault();
-              preview.open({
+              openFile({
                 /*
                  * A fixed id: there is one panel and opening it twice is
                  * opening the same thing, which is what stops the pane

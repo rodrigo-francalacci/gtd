@@ -37,7 +37,7 @@ function galleryName(files: File[]): string {
   const today = new Date().toISOString().slice(0, 10);
   return `${today} ${files.length} pictures`;
 }
-import { useFilePreview } from './file-preview';
+import { useFilePreview, useOpenFile } from './file-preview';
 import { GalleryView } from './gallery-view';
 import { FileMeta } from './file-meta';
 import { GroupHeading } from './group-heading';
@@ -95,6 +95,7 @@ export function Attachments({
 }) {
   const router = useRouter();
   const preview = useFilePreview();
+  const openFile = useOpenFile();
   const input = useRef<HTMLInputElement>(null);
 
   const [over, setOver] = useState(false);
@@ -134,7 +135,7 @@ export function Attachments({
         mimeType,
         `${label} — ${new Date().toLocaleDateString('en-GB')}`,
       );
-      preview.open({
+      openFile({
         id: row.id,
         name: row.name,
         src: `/api/attachments/${row.id}/file`,
@@ -587,7 +588,7 @@ export function Attachments({
                   onClick={(e) => {
                     if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
                     e.preventDefault();
-                    preview.open({
+                    openFile({
                       id: row.id,
                       name: row.name,
                       src: `/api/attachments/${row.id}/file`,
