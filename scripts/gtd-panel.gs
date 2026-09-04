@@ -54,19 +54,39 @@ function panelJobs() {
       needs: 'this file',
     },
     {
-      id: 'installDailyTrigger',
-      group: 'Once, to set up',
-      title: 'Run this daily',
+      id: 'syncOften',
+      group: 'Everything',
+      title: 'Sync the fast half',
       detail:
-        'Installs a time trigger that runs “Sync everything” once a day, so none ' +
-        'of this needs pressing. Safe to press twice — it replaces the old one.',
+        'Scans in, then email, then reading, then the app’s own tick — everything ' +
+        'except the two folder listings, which are slow and no better for being ' +
+        'four hours fresh instead of a day.',
       needs: 'this file',
     },
     {
-      id: 'removeDailyTrigger',
+      id: 'installFrequentTrigger',
       group: 'Once, to set up',
-      title: 'Stop running daily',
-      detail: 'Removes that trigger. Nothing else changes.',
+      title: 'Run the fast half every 4 hours',
+      detail:
+        'A scan or a labelled email should not wait until tomorrow morning. ' +
+        'Installs a trigger for “Sync the fast half”; safe to press twice.',
+      needs: 'this file',
+    },
+    {
+      id: 'installDailyTrigger',
+      group: 'Once, to set up',
+      title: 'Run everything daily',
+      detail:
+        'Installs a time trigger that runs “Sync everything” once a day — the ' +
+        'folder listings included. Have both: this is the backstop. Safe to ' +
+        'press twice, it replaces the old one.',
+      needs: 'this file',
+    },
+    {
+      id: 'removeAllTriggers',
+      group: 'Once, to set up',
+      title: 'Stop running on its own',
+      detail: 'Removes both triggers. Nothing else changes.',
       needs: 'this file',
     },
     {
@@ -179,7 +199,7 @@ function panelJobs() {
  * whole thing says at the end whether anything went wrong.
  */
 function syncEverything() {
-  const steps = [
+  return runSteps_([
     ['Scans', 'processFeedFolders'],
     ['Email', 'syncEmails'],
     ['Reading what arrived', 'readWaitingDocuments'],
@@ -192,8 +212,82 @@ function syncEverything() {
      * them.
      */
     ['Linked folders', 'walkLinkedFolders'],
-  ];
+  ]);
+}
 
+/**
+ * The half worth running often.
+ *
+ * `syncEverything` is two kinds of work bolted together, and they want
+ * different cadences. Scans and email are the steps where a delay is felt as
+ * the app being *wrong*: you photograph a receipt at the till or label a
+ * message in Gmail, and until the bridge runs it is simply not there. Reading
+ * belongs with them, because it is what turns a filed scan into something
+ * search can find.
+ *
+ * The two folder listings are deliberately left out. They are snapshots, and
+ * they are the slow expensive steps — many Drive and Gmail calls, four minutes
+ * of budget each. A listing four hours old is no more use than one a day old,
+ * because the pane states its own date and opening anything goes to Drive,
+ * which is the copy that cannot be stale. Running them six times a day would be
+ * real work for nothing.
+ *
+ * **The quota is why four hours rather than one.** Apps Script gives a consumer
+ * account about ninety minutes of runtime a day and kills any single execution
+ * at six, which is why the tree budget is four. Six runs a day is comfortably
+ * inside that; twenty-four would not be, and the failure would be silent — the
+ * later runs of the day simply stop happening.
+ */
+function syncOften() {
+  return runSteps_([
+    ['Scans', 'processFeedFolders'],
+    ['Email', 'syncEmails'],
+    ['Reading what arrived', 'readWaitingDocuments'],
+    ['The app’s own tick', 'syncDriveNames'],
+  ]);
+}
+
+/**
+ * Run a list of steps, reporting each and stopping for none of them.
+ *
+ * Shared by both passes rather than written twice: the two differ only in which
+ * steps they name, and a second copy of the try/catch is a second place for the
+ * "a step that fails must not stop the rest" rule to be forgotten.
+ */
+function runSteps_(steps) {
+  /*
+   * One pass at a time, and this became necessary the moment there were two
+   * triggers.
+   *
+   * The daily run and the four-hourly one can fire together — Google drifts the
+   * minute, and `everyHours` gives no way to choose the phase — and the first
+   * two steps are the ones that would suffer: two `processFeedFolders` racing
+   * would file a scan twice, and two `syncEmails` would both ask "have you got
+   * this one" before either had answered, and both file it. A duplicate in a
+   * box is visible and can be thrown away, but it is exactly the kind of thing
+   * you find in six months rather than today.
+   *
+   * A minute of waiting rather than an immediate skip: a fast pass with nothing
+   * to do finishes in seconds, so the one that arrives second usually just
+   * waits its turn. If it does give up, nothing is lost — the next run does the
+   * same work, and a folder listing a day older is honest because the pane says
+   * when it was taken.
+   */
+  const lock = LockService.getScriptLock();
+
+  if (!lock.tryLock(60000)) {
+    Logger.log('Another sync is already running. Leaving it to finish.');
+    return 0;
+  }
+
+  try {
+    return runStepsLocked_(steps);
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+function runStepsLocked_(steps) {
   var failed = 0;
 
   for (var i = 0; i < steps.length; i++) {
@@ -202,15 +296,25 @@ function syncEverything() {
 
     Logger.log('— ' + label + ' —');
 
-    // A project with only some of the files pasted in should say which is
-    // missing rather than dying on a reference error.
-    if (typeof this[name] !== 'function') {
+    /*
+     * `globalThis`, not `this`.
+     *
+     * At the top of a `.gs` file `this` is the global object, which is why the
+     * original worked — but inside a function called plainly it is only the
+     * global object because these files are not strict. That is a real thing to
+     * be relying on for the lookup that finds every step, so it is said
+     * outright instead.
+     *
+     * A project with only some of the files pasted in should say which is
+     * missing rather than dying on a reference error.
+     */
+    if (typeof globalThis[name] !== 'function') {
       Logger.log('  skipped: ' + name + ' is not in this project');
       continue;
     }
 
     try {
-      this[name]();
+      globalThis[name]();
     } catch (e) {
       failed++;
       Logger.log('  FAILED: ' + e);
@@ -218,6 +322,7 @@ function syncEverything() {
   }
 
   Logger.log(failed === 0 ? 'All steps finished.' : failed + ' step(s) failed — see above.');
+  return failed;
 }
 
 /**
@@ -278,8 +383,18 @@ function readWaitingDocuments() {
   Logger.log('  read ' + read + ' document(s)');
 }
 
-/** How often the trigger runs, and at what hour. Google picks the minute. */
+/** How often the triggers run. Google picks the minute, and drifts it a little. */
 const DAILY_HOUR = 4;
+
+/**
+ * Four, and the number is a quota decision rather than a taste one.
+ *
+ * `everyHours` accepts 1, 2, 4, 6, 8 or 12. Anything more frequent than four
+ * risks the daily runtime allowance on a consumer account, and the way that
+ * fails is the worst kind: the later runs of the day quietly stop happening,
+ * with nothing on any screen saying so.
+ */
+const FREQUENT_HOURS = 4;
 
 /**
  * Run `syncEverything` once a day, without anybody pressing anything.
@@ -302,30 +417,80 @@ function installDailyTrigger() {
   Logger.log('Installed. “Sync everything” will run daily at about ' + DAILY_HOUR + ':00.');
 }
 
+/**
+ * Run the fast half every few hours.
+ *
+ * Meant to be held *alongside* the daily one rather than instead of it: this
+ * one keeps the boxes current, and the daily one is the backstop that also
+ * takes the folder listings. They cannot collide over the same work — every
+ * queue behind them is claimed with `for update skip locked`, and a job already
+ * running is left alone.
+ */
+function installFrequentTrigger() {
+  removeTriggersFor_('syncOften');
+
+  ScriptApp.newTrigger('syncOften').timeBased().everyHours(FREQUENT_HOURS).create();
+
+  Logger.log(
+    'Installed. “Sync the fast half” will run about every ' +
+      FREQUENT_HOURS +
+      ' hours.',
+  );
+}
+
+function removeFrequentTrigger() {
+  const removed = removeTriggersFor_('syncOften');
+  Logger.log(removed === 0 ? 'There was no 4-hourly trigger.' : 'Removed ' + removed + '.');
+  return removed;
+}
+
 function removeDailyTrigger() {
+  const removed = removeTriggersFor_('syncEverything');
+  Logger.log(removed === 0 ? 'There was no daily trigger.' : 'Removed ' + removed + '.');
+  return removed;
+}
+
+/** Both, for the one button that means "stop doing anything on your own". */
+function removeAllTriggers() {
+  const removed = removeTriggersFor_('syncEverything') + removeTriggersFor_('syncOften');
+
+  Logger.log(
+    removed === 0 ? 'Nothing was scheduled.' : 'Removed ' + removed + ' trigger(s).',
+  );
+  return removed;
+}
+
+function removeTriggersFor_(handler) {
   const all = ScriptApp.getProjectTriggers();
   var removed = 0;
 
   for (var i = 0; i < all.length; i++) {
-    if (all[i].getHandlerFunction() === 'syncEverything') {
+    if (all[i].getHandlerFunction() === handler) {
       ScriptApp.deleteTrigger(all[i]);
       removed++;
     }
   }
 
-  Logger.log(removed === 0 ? 'There was no daily trigger.' : 'Removed ' + removed + '.');
   return removed;
+}
+
+function triggerInstalled_(handler) {
+  const all = ScriptApp.getProjectTriggers();
+
+  for (var i = 0; i < all.length; i++) {
+    if (all[i].getHandlerFunction() === handler) return true;
+  }
+
+  return false;
 }
 
 /** Whether a daily run is set up, for the page to say so without guessing. */
 function dailyTriggerInstalled() {
-  const all = ScriptApp.getProjectTriggers();
+  return triggerInstalled_('syncEverything');
+}
 
-  for (var i = 0; i < all.length; i++) {
-    if (all[i].getHandlerFunction() === 'syncEverything') return true;
-  }
-
-  return false;
+function frequentTriggerInstalled() {
+  return triggerInstalled_('syncOften');
 }
 
 function doGet(e) {
@@ -344,6 +509,8 @@ function doGet(e) {
   template.jobs = panelJobs();
   // Said on the page rather than left to be remembered.
   template.daily = dailyTriggerInstalled();
+  template.often = frequentTriggerInstalled();
+  template.everyHours = FREQUENT_HOURS;
 
   return template
     .evaluate()
@@ -442,7 +609,9 @@ function panelRun(id) {
 
   if (!job) return { ok: false, log: 'No such job: ' + id };
 
-  const fn = this[job.id];
+  // `globalThis` for the reason `runSteps_` uses it: relying on a plain call's
+  // `this` being the global object is relying on these files never being strict.
+  const fn = globalThis[job.id];
 
   if (typeof fn !== 'function') {
     return {
@@ -581,10 +750,14 @@ var PANEL_HTML =
 '<main>' +
 '  <h1>GTD bridges</h1>' +
 '  <p class="sub">' +
-'    <? if (daily) { ?>' +
-'      Running on its own once a day. Press something here to make it happen now.' +
+'    <? if (often && daily) { ?>' +
+'      Running on its own: the fast half about every <?= everyHours ?> hours, everything once a day. Press anything here to make it happen now.' +
+'    <? } else if (often) { ?>' +
+'      Running the fast half about every <?= everyHours ?> hours. The folder listings are not scheduled \u2014 add the daily run as a backstop.' +
+'    <? } else if (daily) { ?>' +
+'      Running everything once a day. A scan or a labelled email waits until then \u2014 add the 4-hourly run and it will not.' +
 '    <? } else { ?>' +
-'      <strong>Nothing here runs on its own yet.</strong> Press &#8220;Run this daily&#8221; below once, and it will.' +
+'      <strong>Nothing here runs on its own yet.</strong> Press the two buttons under &#8220;Once, to set up&#8221; and it will.' +
 '    <? } ?>' +
 '  </p>' +
 /*

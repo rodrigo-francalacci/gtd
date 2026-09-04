@@ -3239,6 +3239,28 @@ button was pressed, which is a thing to remember rather than a thing that
 happens. `installDailyTrigger` is one press and fixes that; the panel says
 outright whether a daily run exists rather than leaving it to be recalled.
 
+**Two triggers, because it is two kinds of work.** Scans and email are the
+steps where a delay is felt as the app being *wrong* — you photograph a receipt
+at the till or label a message, and until the bridge runs it is not there. The
+two folder listings are snapshots, and the slow expensive ones: many Drive and
+Gmail calls under a four-minute budget each, and a listing four hours old is no
+more use than one a day old, because the pane states its own date and opening
+anything goes to Drive. So `syncOften` (scans, email, reading, the app's tick)
+runs every four hours and `syncEverything` runs daily as the backstop that also
+walks the folders.
+**Four hours is a quota decision, not a taste one.** Apps Script gives a
+consumer account roughly ninety minutes of runtime a day and kills any single
+execution at six — which is where `TREE_BUDGET_MS` came from. Six runs a day
+sits comfortably inside; twenty-four would not, and the way that fails is the
+worst kind: the later runs of the day quietly stop happening with nothing on any
+screen saying so.
+**And two triggers means a lock.** They can fire together — Google drifts the
+minute and `everyHours` gives no way to choose the phase — and the first two
+steps are the ones that would suffer: two `processFeedFolders` would file a scan
+twice, and two `syncEmails` would both ask "have you got this one" before either
+had answered. `runSteps_` takes a script lock and waits a minute before giving
+up; a skipped run loses nothing, because the next one does the same work.
+
 **`syncEverything` is the one button.** Scans, then email, then the project
 listings, then the app's own tick — in that order, because each step feeds the
 next and the app's tick is what drains the queues the first three fill. A step
