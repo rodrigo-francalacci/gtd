@@ -30,6 +30,7 @@ import { FullScreen } from './full-screen';
  */
 export function FocusView({
   title,
+  parent,
   subtitle,
   closeHref,
   actions,
@@ -37,6 +38,8 @@ export function FocusView({
   rest,
 }: {
   title: ReactNode;
+  /** What this sits under, when that is something you can open too. */
+  parent?: { label: string; href: string };
   subtitle?: ReactNode;
   closeHref: string;
   actions?: ReactNode;
@@ -48,6 +51,7 @@ export function FocusView({
   return (
     <FullScreen
       title={title}
+      parent={parent}
       subtitle={subtitle}
       closeHref={closeHref}
       actions={actions}

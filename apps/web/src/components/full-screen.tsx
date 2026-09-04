@@ -32,6 +32,7 @@ import { CoveringPanes } from './file-preview';
  */
 export function FullScreen({
   title,
+  parent,
   subtitle,
   closeHref,
   onClose,
@@ -40,6 +41,17 @@ export function FullScreen({
   children,
 }: {
   title: ReactNode;
+  /**
+   * What this sits under, when that is something you can also open.
+   *
+   * Full screen there is no list beside you to show where you are, so a step
+   * opened from its project had only "Close" — which puts you back in the
+   * panes rather than back where you were. Named from the *data* rather than
+   * from history: an action's parent is its project whether you arrived from
+   * the project, from the Now list or from a link, so it is right in all three
+   * and survives a refresh, which `history.back()` does not.
+   */
+  parent?: { label: string; href: string };
   subtitle?: ReactNode;
   /** Where the way out goes. Omit when the caller closes it itself. */
   closeHref?: string;
@@ -95,7 +107,27 @@ export function FullScreen({
     >
       <header className="flex shrink-0 flex-wrap items-baseline justify-between gap-x-4 gap-y-1 border-b border-grey-200 px-4 py-2">
         <div className="min-w-0">
-          <h1 className="truncate text-[13px] font-semibold text-grey-900">{title}</h1>
+          <h1 className="flex min-w-0 items-baseline gap-1.5 text-[13px] font-semibold text-grey-900">
+            {parent ? (
+              <>
+                <Link
+                  href={parent.href}
+                  /*
+                   * `max-w-[14rem]` so a long project title cannot push the
+                   * thing you are actually looking at off the header. The trail
+                   * is context; the title is the subject.
+                   */
+                  className="max-w-[14rem] shrink truncate font-normal text-grey-500 underline underline-offset-2 hover:text-grey-800"
+                >
+                  {parent.label}
+                </Link>
+                <span className="shrink-0 text-grey-400" aria-hidden>
+                  ›
+                </span>
+              </>
+            ) : null}
+            <span className="min-w-0 truncate">{title}</span>
+          </h1>
           {subtitle ? (
             <p className="truncate text-[11px] text-grey-500">{subtitle}</p>
           ) : null}

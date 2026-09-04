@@ -1566,6 +1566,36 @@ Turbopack is the default; `middleware` is now `proxy`.
   sitting in the attribute the whole time. The frame is therefore keyed on a
   sequence number that changes per rendering, so a fresh element mounts and
   always loads. Anything else that writes `srcdoc` from React needs the same.
+- **`SOURCE_TEXT` has to state every property that can move a line break, not
+  just the obvious ones.** Two got through and both showed as the same symptom
+  — the highlighted layer and the layer you type into drifting apart down the
+  page, the text doubled and offset.
+  **`word-spacing` is inherited by a `<pre>` and not by a `<textarea>`.** Riso
+  sets `-0.12em` on the root for its bitmap-face look, so the layer behind
+  wrapped a word earlier than the layer in front. Both are pinned to `normal`
+  now rather than matched to the theme, because this is *code*: a monospace grid
+  with the spaces squeezed is wrong on its own terms, and pinning makes the view
+  immune to whatever any future theme does typographically.
+  **The scrollbar was the other fifteen pixels, and that one was wrong in every
+  theme all along.** The textarea scrolls and the layer behind it does not, so
+  one lost content width to the scrollbar and the other did not — measured, 526
+  against 541. `scrollbar-gutter: stable` on both makes the content boxes equal
+  whether a scrollbar is showing or not.
+- **A document gets a page; everything else gets a measure.** Markdown, LaTeX
+  and HTML already lay out a page *inside* their frame — `210mm` with the
+  document's own margins for LaTeX, a `42rem` text block for markdown — so
+  capping the frame at a character count squeezed those pages below the width
+  they had chosen, and a full-screen recipe came out narrower than the pane it
+  was opened from. A4 plus a little surround (`240mm`) lets each render at its
+  own size with the wash around it that makes it read as paper. `mm` is not a
+  flourish: this is the one place in the app measuring something with a physical
+  width rather than a number of characters.
+- **The focus view names its parent, from the data rather than from history.**
+  Full screen there is no list beside you to say where you are, so a step opened
+  from its project had only "Close" — which returns to the panes rather than to
+  where you were. An action's parent is its project whether you arrived from the
+  project, from the Now list or from a link, so naming it is right in all three
+  and survives a refresh, which `history.back()` does not.
 - **The source view is two layers, and they must lay out identically.** There is
   no way to colour text inside a `textarea` — it renders one uniform run and
   always has — so a highlighted copy sits behind a transparent one, and the

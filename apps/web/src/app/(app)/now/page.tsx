@@ -149,7 +149,15 @@ export default async function NowPage(props: PageProps<'/now'>) {
     return (
       <FocusView
         title={selected.title}
-        subtitle={selected.projectTitle ?? 'No project'}
+        parent={
+          selected.projectId && selected.projectTitle
+            ? {
+                label: selected.projectTitle,
+                href: `/projects/${selected.projectId}?focus=1`,
+              }
+            : undefined
+        }
+        subtitle={selected.projectTitle ? 'Action' : 'No project'}
         closeHref={qs(selected.id)}
         notes={
           <NoteEditor

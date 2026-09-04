@@ -356,19 +356,35 @@ export function PreviewPane({
     isJson(type);
 
   /**
-   * 66 characters in a monospace face, about 79 in the body one.
+   * Two measures, because these are two different kinds of thing.
    *
-   * `ch` is the width of a zero, which *is* one character in mono and is wider
-   * than the average letter in a proportional face — so one number lands
-   * differently in the two, and that is wanted here: the mono cases are the
-   * transcripts and the source views, where lines of code and tables are worse
-   * for being wrapped early.
+   * **A document gets a page.** Markdown, LaTeX and HTML already lay out a page
+   * *inside* their frame — the LaTeX view is `210mm` with the margins the
+   * document asked for, the markdown one a `42rem` text block — so capping the
+   * frame at a character count squeezed those pages below the width they had
+   * chosen for themselves, which is how a full-screen recipe ended up narrower
+   * than the pane it came from. A4 plus a little surround lets each render at
+   * its own size, with the wash around it that makes it read as paper.
    *
-   * Wider than the note editor's 60, deliberately. That is prose you write and
-   * reread; this is documents you are reading through, and several of them hold
-   * things a book measure would break.
+   * `mm` is not a flourish: this is the one place in the app measuring
+   * something that has a physical width rather than a number of characters, and
+   * saying `210mm` is both exactly right and self-explaining.
+   *
+   * **Everything else gets a measure.** A transcript, a JSON dump and a folder
+   * tree are text with no page of their own, so they take the reading measure —
+   * 66 characters in a monospace face, about 79 in the body one, since `ch` is
+   * the width of a zero and that is one character in mono and wider than the
+   * average letter in a proportional face.
    */
-  const measure = expanded && isText ? 'mx-auto w-full max-w-[66ch]' : '';
+  const isPaged = expanded && Boolean(textFormat);
+
+  const measure = !expanded
+    ? ''
+    : isPaged
+      ? 'mx-auto w-full max-w-[240mm]'
+      : isText
+        ? 'mx-auto w-full max-w-[66ch]'
+        : '';
 
   return (
     /*

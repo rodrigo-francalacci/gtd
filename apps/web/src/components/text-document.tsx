@@ -25,8 +25,33 @@ import {
  * focus, and the editor is one of the few places in this app you type at length
  * on one.
  */
+/*
+ * One class string for both layers, and every property that can move a line
+ * break has to be *stated* here rather than inherited.
+ *
+ * That is the trap this list exists to avoid, and it caught one: riso sets
+ * `word-spacing: -0.12em` on the root for its bitmap-face look, the `<pre>`
+ * inherits it and the `<textarea>` does not — browsers do not pass word
+ * spacing into a form control. So the highlighted layer wrapped a word or two
+ * earlier than the layer you type into, and the source view came out doubled
+ * and offset, the two copies drifting further apart down the page.
+ *
+ * `normal` for both rather than matching the theme, because this is *code*: a
+ * monospace grid with the spaces squeezed is wrong on its own terms, and
+ * pinning it here makes the view immune to whatever typographic tuning any
+ * future theme decides to do.
+ *
+ * `scrollbar-gutter: stable` is the second half of the same bug, and it was
+ * there in every theme all along. The textarea scrolls and the layer behind it
+ * does not, so the scrollbar took **fifteen pixels** of content width from one
+ * and not the other — measured: 526 against 541 — and every line long enough to
+ * reach that far wrapped a word earlier in front than behind. Reserving the
+ * gutter on both makes the two content boxes the same width whether a scrollbar
+ * is showing or not.
+ */
 const SOURCE_TEXT =
-  'whitespace-pre-wrap break-words p-3 font-mono text-[16px] leading-relaxed md:text-[12.5px]';
+  'whitespace-pre-wrap break-words p-3 font-mono text-[16px] leading-relaxed md:text-[12.5px] ' +
+  '[word-spacing:normal] [letter-spacing:normal] [scrollbar-gutter:stable]';
 
 /**
  * Markdown, LaTeX and HTML, read and written in the preview pane.
