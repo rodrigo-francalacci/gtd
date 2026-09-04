@@ -28,7 +28,21 @@ import { recordSpend } from './spend';
 export type EmojiRequest = { id: string; title: string };
 
 /** How many rows to ask about at once. */
-const BATCH = 40;
+/**
+ * Twenty-five, down from forty.
+ *
+ * Not because forty was too many to ask about — because the *answer* has to fit
+ * in `max_output_tokens`, and a reply keyed by uuid spends about eighteen
+ * tokens per row on the id alone before the emoji. Add the reasoning tokens a
+ * current model spends before it writes anything, which count against the same
+ * budget, and forty rows was running the reply out of room: the JSON came back
+ * cut off mid-string and `JSON.parse` threw "Unterminated string in JSON at
+ * position 524" at somebody who had pressed a button.
+ *
+ * Smaller batches cost nothing extra — this is billed per token, not per call —
+ * and the instructions are cached across them.
+ */
+const BATCH = 25;
 
 /** The longest title worth sending: past this it is a note, not a label. */
 const TITLE_LIMIT = 200;
@@ -170,8 +184,17 @@ async function askForBatch(
     headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
     body: JSON.stringify({
       model: modelName(),
-      // Three characters and an id per row, plus room for the structure.
-      max_output_tokens: 120 + batch.length * 40,
+      /*
+       * Room for the answer *and* for the thinking.
+       *
+       * Reasoning tokens are counted in `output_tokens` and come out of this
+       * budget before a single visible character is written, so a figure sized
+       * to the JSON alone leaves the reply truncated. A uuid is a dozen-odd
+       * tokens by itself; 60 a row plus a fixed 600 covers both with room to
+       * spare, and an unused allowance costs nothing — you are billed for what
+       * is generated, not for what was permitted.
+       */
+      max_output_tokens: 600 + batch.length * 60,
       input: [
         {
           role: 'user',
@@ -219,6 +242,8 @@ async function askForBatch(
    */
   const body = (await response.json()) as {
     model?: string;
+    status?: string;
+    incomplete_details?: { reason?: string };
     usage?: {
       input_tokens?: number;
       output_tokens?: number;
@@ -241,9 +266,43 @@ async function askForBatch(
     .map((c) => c.text ?? '')
     .join('');
 
+  /*
+   * A reply that ran out of room, recognised before it is parsed.
+   *
+   * The classifier has checked this since the day it was written; this did not,
+   * and the difference showed as a raw `JSON.parse` error reaching the person
+   * who pressed the button — "Unterminated string in JSON at position 524",
+   * which says nothing about what to do. The reply *was* cut short, and saying
+   * so names the fix.
+   */
+  if (body.status === 'incomplete') {
+    throw new EmojiError(
+      `${modelName()} ran out of room before finishing its answer ` +
+        `(${body.incomplete_details?.reason ?? 'no reason given'}). ` +
+        'Fewer rows at a time would fit; this is a bug rather than something ' +
+        'you did.',
+    );
+  }
+
   if (!text) return found;
 
-  const parsed = JSON.parse(text) as { items?: { id?: string; emoji?: string }[] };
+  /*
+   * And a guard for everything else that can make a reply unreadable — a model
+   * that ignored the schema, a proxy that injected a banner. The raw exception
+   * would surface as a parser's complaint about a character position, which is
+   * a true statement about the wrong subject.
+   */
+  let parsed: { items?: { id?: string; emoji?: string }[] };
+
+  try {
+    parsed = JSON.parse(text) as { items?: { id?: string; emoji?: string }[] };
+  } catch {
+    throw new EmojiError(
+      `${modelName()} answered with something that is not the JSON it was ` +
+        `asked for. It began: ${text.slice(0, 120)}`,
+    );
+  }
+
   const wanted = new Set(batch.map((item) => item.id));
 
   for (const item of parsed.items ?? []) {

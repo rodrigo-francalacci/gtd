@@ -7,6 +7,7 @@ import { EmojifyButton } from '@/components/emojify-button';
 import { DetailPane, EmptyDetail, EmptyList, ListPane } from '@/components/panes';
 import { WAITING_COLUMNS } from '@/lib/columns';
 import {
+  getActionQueue,
   WAITING_STALE_DAYS,
   getAction,
   getLinkableDocuments,
@@ -40,6 +41,9 @@ export default async function WaitingPage(props: PageProps<'/waiting'>) {
   const projectOptions = await getProjectOptions();
   const files = selected ? await attachmentsFor('action', selected.id) : null;
   const docs = selected ? await documentsFor('action', selected.id) : null;
+
+  /* What the selected step becomes when it is ticked off. */
+  const actionQueue = selected ? await getActionQueue(selected.id) : undefined;
 
   return (
     <>
@@ -88,6 +92,7 @@ export default async function WaitingPage(props: PageProps<'/waiting'>) {
         <DetailPane>
           {/* key: `useState(action.title)` only runs on mount. */}
           <ActionDetail
+            queue={actionQueue}
             key={selected.id}
             action={selected}
             attachments={files!.rows}

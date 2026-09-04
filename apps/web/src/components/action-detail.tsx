@@ -25,6 +25,7 @@ import { Attachments } from './attachments';
 import { MoveTo } from './move-to';
 import { LinkedDocuments } from './linked-documents';
 import { NoteEditor } from './note-editor';
+import { ActionQueue } from './action-queue';
 import { TurnIntoNextAction } from './turn-into-next';
 import { WaitingOnField } from './waiting-on-field';
 
@@ -57,6 +58,7 @@ export function ActionDetail({
   parties,
   projects = [],
   hideNotes,
+  queue,
 }: {
   /**
    * Leave the note out, because something else is showing it.
@@ -68,6 +70,15 @@ export function ActionDetail({
    * when nobody passes it.
    */
   hideNotes?: boolean;
+  /**
+   * What this action becomes when it is ticked off, and what it has already
+   * been. Optional: a pane that has not fetched it does not offer the queue,
+   * rather than showing an empty one it cannot fill.
+   */
+  queue?: {
+    upcoming: { id: string; title: string }[];
+    done: { id: string; title: string; doneAt: string }[];
+  };
   action: ActionDetailData;
   /** Projects it could be filed under. Empty hides the control. */
   projects?: { id: string; title: string }[];
@@ -274,7 +285,11 @@ export function ActionDetail({
         </div>
       </section>
 
-{hideNotes ? null : (
+{queue ? (
+        <ActionQueue actionId={action.id} upcoming={queue.upcoming} done={queue.done} />
+      ) : null}
+
+      {hideNotes ? null : (
         <section className="mt-7 border-t border-grey-150 pt-5">
           <NoteEditor
             key={action.id}

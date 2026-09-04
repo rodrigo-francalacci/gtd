@@ -34,6 +34,7 @@ import { groupByDay } from '@/lib/days';
 import { timelinesFor } from '@/lib/actions';
 import { attachmentsFor, documentsFor } from '@/lib/file-lists';
 import {
+  getActionQueue,
   getAreasAndGoals,
   getBox,
   getBoxCategories,
@@ -331,6 +332,9 @@ export default async function BoxPage(props: PageProps<'/box/[id]'>) {
   const entryCategories = openEntry ? await getBoxCategories(openEntry.boxId) : []; 
 
   const openAction = openActionId ? await getAction(openActionId) : null;
+
+  /* What the selected step becomes when it is ticked off. */
+  const actionQueue = openAction ? await getActionQueue(openAction.id) : undefined;
 
   const actionPane =
     openAction
@@ -802,6 +806,7 @@ export default async function BoxPage(props: PageProps<'/box/[id]'>) {
             />
           ) : openAction && actionPane ? (
             <ActionDetail
+            queue={actionQueue}
               key={openAction.id}
               action={openAction}
               attachments={actionPane[0].rows}

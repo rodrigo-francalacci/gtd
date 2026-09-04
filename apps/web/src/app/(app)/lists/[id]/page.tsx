@@ -466,10 +466,16 @@ export default async function ListPage(props: PageProps<'/lists/[id]'>) {
             return impactBuckets.map((bucket) => {
               const { mine, total } = bucketFacts(bucket);
 
-              // The undecided bucket is a backlog, not a category: it appears
-              // while something is unplaced and goes when the last one lands.
-              if (bucket.impact === null && mine.length === 0) return null;
-
+              /*
+               * All four, always — including the undecided one.
+               *
+               * It used to disappear once the last item was placed, on the
+               * argument that it was a backlog rather than a category. That
+               * held while it was read-only; it stopped holding the moment you
+               * could drag something *back* into it, because then it is a
+               * place, and an empty group you cannot see is an empty group you
+               * cannot drop into. Same rule as the project statuses.
+               */
               return (
                 <ImpactBucket
                   key={bucket.impact ?? 'unsaid'}

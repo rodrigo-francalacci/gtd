@@ -1930,6 +1930,51 @@ export const projectTrees = pgTable('project_trees', {
  * simply never read again, and the next walk drops it because the app stops
  * offering that folder.
  */
+/**
+ * What an action becomes next, and what it has already been.
+ *
+ * The case is a step that recurs *in place*: "chase the council", "send this
+ * week's invoice", the next verse of a song. Finishing it does not finish the
+ * thing — it moves it on — and the evidence you have gathered against it should
+ * move on too. `turnIntoNextAction` answers the opposite need and makes a new
+ * row on purpose, so the finished step stays in the record; this keeps the row,
+ * which is the only way its files, its notes, its contexts and its place in the
+ * list survive the transition.
+ *
+ * **One table for both directions.** `done_at` null means "still to come",
+ * stamped means "this action has already been through it". Two tables would be
+ * one shape written twice, and the pane wants to show them together anyway:
+ * where this action has got to is exactly what has been ticked off and what is
+ * queued behind it.
+ *
+ * Cascades, unlike almost everything else here — a queue entry is not a thing
+ * in its own right and has no meaning apart from the action it belongs to,
+ * which is the difference between this and an attachment.
+ */
+export const actionQueue = pgTable(
+  'action_queue',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    actionId: uuid('action_id')
+      .notNull()
+      .references(() => actions.id, { onDelete: 'cascade' }),
+    /** The title the action takes when it reaches this entry. */
+    title: text('title').notNull(),
+    /** Manual order, a float like every other position in this app. */
+    position: doublePrecision('position'),
+    /**
+     * When the action moved *past* this entry, or null while it is still ahead.
+     *
+     * The row that records a finished title is written at the moment of moving
+     * on, so the history is what the action actually said rather than what was
+     * queued — the two differ whenever a title is edited by hand in between.
+     */
+    doneAt: timestamp('done_at', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [index('action_queue_action_idx').on(table.actionId, table.position)],
+);
+
 export const folderTrees = pgTable('folder_trees', {
   /** Drive's own id for the folder. Stable across a rename and a move. */
   folderId: text('folder_id').primaryKey(),
@@ -2050,4 +2095,5 @@ export type BoxItemKind = (typeof boxItemKind.enumValues)[number];
 export type BoxEventKind = (typeof boxEventKind.enumValues)[number];
 export type ProjectTree = typeof projectTrees.$inferSelect;
 export type FolderTree = typeof folderTrees.$inferSelect;
+export type ActionQueueEntry = typeof actionQueue.$inferSelect;
 export type ViewPref = typeof viewPrefs.$inferSelect;

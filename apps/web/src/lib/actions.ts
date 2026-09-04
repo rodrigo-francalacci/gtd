@@ -4,6 +4,7 @@ import {
   SINGLETON,
   actionContexts,
   actions,
+  actionQueue,
   areasOfFocus,
   attachments,
   boxCategories,
@@ -33,7 +34,7 @@ import {
   aiTopups,
 } from '@gtd/db';
 import type { PurchaseFields } from './queries.shared';
-import { and, desc, eq, inArray, isNull, ne, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, inArray, isNull, ne, sql } from 'drizzle-orm';
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import {
@@ -363,8 +364,140 @@ export async function updateActionTitle(actionId: string, title: string) {
  * `waiting_since` is stamped on entry to waiting and cleared on the way out,
  * so the staleness surface can never show a date from a previous stint.
  */
+/**
+ * Move an action on to the next thing it is called, instead of finishing it.
+ *
+ * The case is a step that recurs *in place* — "chase the council", this week's
+ * invoice, the next verse — where finishing it does not finish the thing, it
+ * moves it on. `turnIntoNextAction` answers the opposite need and makes a new
+ * row so the finished step stays in the record; this keeps the row, which is
+ * the only way its files, its notes, its contexts, its waiting-on and its place
+ * in the list survive the transition. Keeping the evidence is the whole point.
+ *
+ * **Nothing is lost, it just stops being the title.** The line being left
+ * behind is written into the queue with `done_at` stamped, so the pane can show
+ * where this action has already got to — and it records what the action
+ * *actually said*, not what was queued, which differ the moment a title is
+ * edited by hand in between.
+ *
+ * **The emoji is asked for, and its failure is not the caller's problem.** A
+ * row you have learned to recognise by shape becoming a different task should
+ * not keep the old glyph — but a model being unreachable must not stop you
+ * ticking something off, so the ask is guarded and the old emoji stays if it
+ * fails. The same trade the filename rename makes.
+ *
+ * Returns whether it advanced, so the caller can fall through to finishing.
+ */
+async function advanceQueue(actionId: string): Promise<boolean> {
+  const [next] = await db
+    .select({ id: actionQueue.id, title: actionQueue.title })
+    .from(actionQueue)
+    .where(and(eq(actionQueue.actionId, actionId), isNull(actionQueue.doneAt)))
+    .orderBy(asc(actionQueue.position), asc(actionQueue.createdAt))
+    .limit(1);
+
+  if (!next) return false;
+
+  const [current] = await db
+    .select({ title: actions.title, status: actions.status })
+    .from(actions)
+    .where(eq(actions.id, actionId))
+    .limit(1);
+
+  if (!current) return false;
+
+  /*
+   * The finished line first, then the move. There are no transactions on this
+   * driver, so the order is the safeguard: a failure between the two leaves a
+   * history entry and an unchanged action — visible and harmless — where the
+   * reverse would advance the title with no record of what it had been.
+   *
+   * Its position is the one being vacated, so the history reads in the order it
+   * happened rather than in the order it was queued.
+   */
+  await db.insert(actionQueue).values({
+    actionId,
+    title: current.title,
+    doneAt: new Date(),
+  });
+
+  await db
+    .update(actions)
+    .set({
+      title: next.title,
+      status: 'next',
+      completedAt: null,
+      waitingSince: null,
+      updatedAt: new Date(),
+    })
+    .where(eq(actions.id, actionId));
+
+  await db.delete(actionQueue).where(eq(actionQueue.id, next.id));
+
+  try {
+    const { found } = await pickEmoji([{ id: actionId, title: next.title }], 'task');
+    const emoji = found.get(actionId);
+    if (emoji) {
+      await db.update(actions).set({ emoji }).where(eq(actions.id, actionId));
+    }
+  } catch {
+    // A glyph must never cost you the tick. The old one stays, which is wrong
+    // in a small way rather than the whole thing failing in a large one.
+  }
+
+  /*
+   * The folder follows the title, because an action with no project keeps its
+   * files in `GTD/Actions/<title>` and that name has just changed.
+   */
+  drainMovesAfterResponse((await enqueueActionFolder(actionId)) ? 1 : 0);
+
+  revalidateShell();
+  return true;
+}
+
+/** What is queued behind an action, and what it has already been. */
+export async function addToActionQueue(actionId: string, title: string) {
+  await requireSession();
+
+  const wanted = title.trim();
+  if (!wanted) return;
+
+  /*
+   * On the end, using the same float convention every other order here does —
+   * the last position plus one, so inserting between two later costs one row.
+   */
+  const [last] = await db
+    .select({ position: actionQueue.position })
+    .from(actionQueue)
+    .where(and(eq(actionQueue.actionId, actionId), isNull(actionQueue.doneAt)))
+    .orderBy(desc(actionQueue.position))
+    .limit(1);
+
+  await db.insert(actionQueue).values({
+    actionId,
+    title: wanted,
+    position: (last?.position ?? 0) + 1,
+  });
+
+  revalidateShell();
+}
+
+export async function removeFromActionQueue(entryId: string) {
+  await requireSession();
+  await db.delete(actionQueue).where(eq(actionQueue.id, entryId));
+  revalidateShell();
+}
+
 export async function setActionStatus(actionId: string, status: ActionStatus) {
   await requireSession();
+
+  /*
+   * Done, on an action with something queued behind it, means *next* rather
+   * than finished. Only `done` — parking it as future or waiting is a statement
+   * about this line, not about having got past it.
+   */
+  if (status === 'done' && (await advanceQueue(actionId))) return;
+
   await db
     .update(actions)
     .set({

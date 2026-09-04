@@ -264,6 +264,34 @@ Turbopack is the default; `middleware` is now `proxy`.
   appear on `/projects` even when empty, because an empty group you can't see
   is an empty group you can't drop into. Dropping on Standby opens the return
   condition prompt rather than parking the project with no way back.
+- **An action can hold a queue of what it becomes next, and ticking it off
+  renames it rather than closing it.** The case is a step that recurs *in
+  place* — chasing the council, this week's invoice, the next verse — where
+  finishing it does not finish the thing, it moves it on. Keeping the row is the
+  only way its files, notes, contexts, waiting-on and list position survive the
+  transition, and keeping the evidence is the whole point.
+  **Deliberately the opposite trade to `turnIntoNextAction`**, which makes a new
+  row precisely so the finished step stays in the record with its own creation
+  date. Both are right for their case, and the queue buys back what it gives up:
+  the line being left behind is written into `action_queue` with `done_at`
+  stamped, recording what the action *actually said* rather than what was queued
+  — the two differ the moment a title is edited by hand in between.
+  **One table for both directions**, `done_at` null meaning "still ahead". Two
+  would be one shape written twice, and the pane shows them together anyway,
+  because where this action has got to is exactly what it has been through and
+  what is queued behind it. It cascades, unlike almost everything else here: a
+  queue entry has no meaning apart from its action, which is the difference
+  between it and an attachment.
+  **The history row is written before the title moves.** There are no
+  transactions on this driver, so the order is the safeguard: a failure between
+  the two leaves a history entry and an unchanged action, where the reverse
+  would advance the title with no record of what it had been.
+  **Only `done` advances.** Parking something as future or waiting is a
+  statement about *this* line, not about having got past it.
+  **The emoji is re-asked on advance and its failure is not the caller's
+  problem.** A row you recognise by shape becoming a different task should not
+  keep the old glyph, but a model being unreachable must never stop you ticking
+  something off — so the ask is guarded and the old emoji stays if it fails.
 - **Finishing an action can name its successor.** `turnIntoNextAction` marks
   the current one done and inserts a new row carrying the project, contexts and
   list position. A new row rather than a rename: the finished step stays in the
@@ -2119,6 +2147,25 @@ Turbopack is the default; `middleware` is now `proxy`.
   nothing is selected, and the non-null assertion hid it from the compiler. A
   panel that may not be shown has to be built inside the branch that shows it,
   or behind a ternary; the assertion is the tell.
+- **The undecided bucket takes drops, and refusing them was wrong.** It was
+  read-only on the argument that it is a backlog rather than a category —
+  somewhere things start, not somewhere you put them. Changing your mind is the
+  ordinary case though: you called something "nice to have" in October and by
+  January the honest answer is *undecided*, not a third guess. It follows that
+  it is rendered even when empty, like the project statuses: it became a place
+  the moment you could drag something back into it. `updateListItemFields`
+  already cleared the field when handed `undefined`, so only the target had to
+  stop saying no.
+- **A truncated model reply must be recognised before it is parsed.** The
+  classifier has checked `status === 'incomplete'` since it was written; the
+  emoji path did not, and the difference reached the user as *"Unterminated
+  string in JSON at position 524"* — a true statement about the wrong subject.
+  **Reasoning tokens come out of `max_output_tokens` before a single visible
+  character is written**, so a budget sized to the JSON alone leaves the answer
+  cut off: eight rows overflowed an allowance of 440. It is `600 + 60` a row
+  now, and the batch is 25 rather than 40 — a reply keyed by uuid spends about
+  eighteen tokens a row on the id before the emoji, and smaller batches cost
+  nothing because this is billed per token, not per call.
 - **A purchases list can be cut by impact, and the buckets are places rather
   than an order.** `impact` is a third `ListLayout`, offered only where the rows
   have one to cut on. All three are rendered whether or not they hold anything,

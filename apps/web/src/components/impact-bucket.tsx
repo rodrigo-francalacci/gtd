@@ -19,7 +19,8 @@ import { reallyLeft } from './sortable';
  * these are places, not an order. **Rendered even when empty**, for the reason
  * the project statuses are — an empty group you cannot see is an empty group
  * you cannot drop into, and the first thing you do with a new list is put
- * things in it.
+ * things in it. That now includes the undecided bucket, which became a real
+ * place the moment you could drag something back into it.
  *
  * The drag is the existing list-item drag, so reordering within a bucket and
  * moving between buckets are one gesture. `SortableList` ignores drops of rows
@@ -57,8 +58,23 @@ export function ImpactBucket({
   const [over, setOver] = useState(false);
   const [pending, startTransition] = useTransition();
 
+  /*
+   * The undecided bucket takes drops too, and refusing them was wrong.
+   *
+   * It was read-only on the argument that it is a backlog rather than a
+   * category — somewhere things start, not somewhere you put them. But changing
+   * your mind is the ordinary case here: you called something "nice to have" in
+   * October and by January you are not sure any more, and the honest answer is
+   * *undecided*, not a third guess. Refusing the drop meant the only way back
+   * was the pane's own control, which is the long way round in the one view
+   * built for exactly this gesture.
+   *
+   * `updateListItemFields` already cleared the field when handed `undefined`,
+   * so nothing about the write had to change — only the target had to stop
+   * saying no.
+   */
   const accepts = (event: React.DragEvent) =>
-    impact !== null && event.dataTransfer.types.includes(DRAG_LIST_ITEM);
+    event.dataTransfer.types.includes(DRAG_LIST_ITEM);
 
   return (
     <section

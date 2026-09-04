@@ -7,6 +7,7 @@ import { cache } from 'react';
 import {
   actionContexts,
   actions,
+  actionQueue,
   nowSections,
   areasOfFocus,
   attachments,
@@ -1622,6 +1623,34 @@ export async function boxOfEntry(entryId: string) {
     .limit(1);
 
   return row?.boxId ?? null;
+}
+
+/**
+ * What an action becomes next, and what it has already been.
+ *
+ * One query for both halves — `done_at` is the only thing that separates them,
+ * and the pane shows them together because "where has this got to" is the
+ * question they answer jointly. Upcoming reads in the order it will happen;
+ * history reads newest last, so the two run continuously down the pane.
+ */
+export async function getActionQueue(actionId: string) {
+  const rows = await db
+    .select({
+      id: actionQueue.id,
+      title: actionQueue.title,
+      doneAt: actionQueue.doneAt,
+    })
+    .from(actionQueue)
+    .where(eq(actionQueue.actionId, actionId))
+    .orderBy(asc(actionQueue.position), asc(actionQueue.createdAt));
+
+  return {
+    upcoming: rows.filter((row) => row.doneAt === null),
+    done: rows
+      .filter((row) => row.doneAt !== null)
+      .sort((a, b) => (a.doneAt as Date).getTime() - (b.doneAt as Date).getTime())
+      .map((row) => ({ ...row, doneAt: (row.doneAt as Date).toISOString() })),
+  };
 }
 
 export async function getFolderTree(folderId: string) {

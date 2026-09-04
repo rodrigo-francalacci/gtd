@@ -16,6 +16,7 @@ import { attachmentsFor, documentsFor } from '@/lib/file-lists';
 import { deleteAction } from '@/lib/actions';
 import { getNowSections, getProjectOptions } from '@/lib/queries';
 import {
+  getActionQueue,
   getAction,
   getContextsByDimension,
   getNowActions,
@@ -94,6 +95,9 @@ export default async function NowPage(props: PageProps<'/now'>) {
   const files = selected ? await attachmentsFor('action', selected.id) : null;
   const docs = selected ? await documentsFor('action', selected.id) : null;
 
+  /* What the selected step becomes when it is ticked off. */
+  const actionQueue = selected ? await getActionQueue(selected.id) : undefined;
+
   /**
    * The board, and it only means anything once there are headings.
    *
@@ -120,6 +124,7 @@ export default async function NowPage(props: PageProps<'/now'>) {
    */
   const detail = selected ? (
     <ActionDetail
+            queue={actionQueue}
       key={selected.id}
       action={selected}
       attachments={files!.rows}
@@ -161,6 +166,7 @@ export default async function NowPage(props: PageProps<'/now'>) {
         }
         rest={
           <ActionDetail
+            queue={actionQueue}
             key={selected.id}
             action={selected}
             attachments={files!.rows}
@@ -376,6 +382,7 @@ export default async function NowPage(props: PageProps<'/now'>) {
         <DetailPane>
           {/* key: `useState(action.title)` only runs on mount. */}
           <ActionDetail
+            queue={actionQueue}
             key={selected.id}
             action={selected}
             attachments={files!.rows}
