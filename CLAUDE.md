@@ -2554,6 +2554,42 @@ to be kept. They meet at `box_item_links` and nowhere else.
   thing the row exists to show. The mark that says a row *is* pinned goes on
   the right with the other flags, because anything in front of the title
   indents the rows that have one and leaves the left edge ragged.
+- **A box can be read as a month, and the month is the same filing system laid
+  out differently.** The feed already reads as a timeline — arrival *is* the
+  filing system here — but a list can only say "these came one after another".
+  A month says *when*: the fortnight nothing arrived, the Tuesday four receipts
+  did, the week the correspondence clustered.
+  **Placed by arrival, never by the printed date.** Every entry has an arrival
+  date, so nothing is ever missing from the grid, and the month cannot disagree
+  with the feed. A July bill that arrived in August sits in August, which is
+  where you would go looking for it; the pane still says what the paper says.
+  **Every entry, not the filtered ones.** The filters belong to the feed, where
+  they are visible; a month you have to *remember* you are filtering is a month
+  that lies about a quiet fortnight.
+  **Six rows always, and each cell scrolls on its own.** A grid that changes
+  height between months is one you lose your place in, and a day with nine
+  receipts must not make its week taller than the others.
+- **A box chooses its own Google calendars, and chooses from nothing.** What was
+  happening that week is often exactly what explains the pile of receipts — but
+  the calendars that belong beside work correspondence are not the ones that
+  belong beside a songwriting journal, so the choice is the box's. Stored in
+  `view_prefs.calendars` beside that box's density, as a list of what is
+  *shown*: the opposite of the app-wide `hidden_calendars`, and for the opposite
+  reason. There the question is which of my calendars am I ignoring, so it
+  starts from all and subtracts; here it is which of them belong beside this
+  subject, so it starts from none and adds. Most boxes want none, and a month
+  that arrived full of birthdays would be noise nobody asked for.
+  **`only` is sent even when empty**, or "none chosen" would be indistinguishable
+  from "not asked" and every box would open showing every calendar you own.
+  **`readEvents` is one function for both callers.** "From now, for a fortnight,
+  everything not hidden" and "this calendar month, these calendars" differ only
+  in the window and the filter; `singleEvents`, dropping cancelled instances,
+  one request per calendar in parallel and a failing calendar costing you that
+  calendar rather than the view are all shared and none of them is about which
+  window you asked for.
+  **Nothing is stored**, the same rule the calendar page follows: a stored copy
+  is a second version that can disagree with the real one, and the whole value
+  of showing them is that they agree.
 - **A box's feed always groups by day**, in every density — unlike the inbox,
   where grouping is the simple view's answer to having no timestamps. Here the
   arrival date *is* the filing system, so it can't be a preference. Both use

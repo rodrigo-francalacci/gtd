@@ -14,6 +14,7 @@ import { DateRange } from '@/components/date-range';
 import { DocumentGalleryRow } from '@/components/document-gallery-row';
 import { DocumentRow } from '@/components/document-row';
 import { DocumentMenu } from '@/components/entry-menu';
+import { BoxCalendar } from '@/components/box-calendar';
 import { FocusView } from '@/components/focus-view';
 import { NoteEditor } from '@/components/note-editor';
 import { updateBoxItemNotes } from '@/lib/actions';
@@ -58,7 +59,7 @@ import {
 } from '@/lib/queries';
 import { ENTRY_TYPE_ORDER, entryTypeOf, type EntryType } from '@/lib/queries.shared';
 import { getPreferences, paneWidth } from '@/lib/view-mode';
-import { densityKeys, getView } from '@/lib/view-prefs';
+import { densityKeys, getCalendarsFor, getView } from '@/lib/view-prefs';
 
 /**
  * One box, read from the top.
@@ -449,6 +450,36 @@ export default async function BoxPage(props: PageProps<'/box/[id]'>) {
 
 
   /**
+   * The box as a month.
+   *
+   * Every entry in the box, not just the ones the filters left: a month you
+   * have to remember you are filtering is a month that lies about a quiet
+   * fortnight. The filters belong to the feed, which is where they are shown.
+   */
+  if (searchParams.month !== undefined) {
+    const chosen = await getCalendarsFor(viewKey);
+
+    return (
+      <BoxCalendar
+        boxName={box.name}
+        closeHref={`/box/${id}`}
+        viewKey={viewKey}
+        chosen={chosen}
+        entries={items.map((item) => ({
+          id: item.id,
+          title: documentLabel(item),
+          emoji: item.emoji ?? null,
+          capturedAt:
+            item.capturedAt instanceof Date
+              ? item.capturedAt.toISOString()
+              : String(item.capturedAt),
+          href: href(item.id),
+        }))}
+      />
+    );
+  }
+
+  /**
    * One entry, opened to work on: what you wrote on the left, everything the
    * entry *is* on the right.
    *
@@ -522,6 +553,17 @@ export default async function BoxPage(props: PageProps<'/box/[id]'>) {
         actions={
           <>
             <TagPanelButton total={categories.reduce((n, c) => n + c.tags.length, 0)} />
+            {/*
+              Hidden on a phone: a month grid is seven columns, and seven
+              columns on a 390-pixel screen is a column you scroll sideways to.
+              The feed is what a phone reads a box with.
+            */}
+            <Link
+              href={`/box/${id}?month=1`}
+              className="hidden text-[11px] text-grey-500 underline underline-offset-2 hover:text-grey-800 lg:inline"
+            >
+              Month
+            </Link>
             <BoxLayoutToggle view={boxView} mode={viewMode} viewKey={viewKey} />
           </>
         }

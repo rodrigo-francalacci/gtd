@@ -201,8 +201,49 @@ export async function getUpcomingEvents(
   const now = new Date();
   const until = new Date(now.getTime() + days * 24 * 60 * 60 * 1000);
 
+  return readEvents({ from: now, to: until, hidden });
+}
+
+/**
+ * The same read, over any window and any set of calendars.
+ *
+ * `getUpcomingEvents` is now one caller of this — "from now, for a fortnight,
+ * everything not hidden" — and a box's month view is the other: a calendar
+ * month, and only the calendars that box has chosen. Written once because the
+ * hard parts are shared and none of them is about which window you asked for:
+ * `singleEvents`, dropping cancelled instances, one request per calendar in
+ * parallel, and a failing calendar costing you that calendar rather than the
+ * view.
+ *
+ * `only` is the opposite question to `hidden` and both are supported because
+ * both are asked. App-wide, the question is which of my calendars am I
+ * ignoring; per box, it is which of them belong beside this subject — so one
+ * starts from all and subtracts, the other starts from none and adds.
+ */
+export async function readEvents({
+  from,
+  to,
+  hidden = null,
+  only = null,
+}: {
+  from: Date;
+  to: Date;
+  hidden?: string[] | null;
+  only?: string[] | null;
+}): Promise<{ calendars: CalendarSource[]; events: CalendarEvent[] }> {
+  const now = from;
+  const until = to;
+
   const list = await calendars();
-  const skip = hiddenIds(list, hidden);
+
+  /*
+   * An explicit list wins outright. An empty one means *none* — which is the
+   * default for a box and has to be distinguishable from "not asked", or every
+   * box would open showing every calendar you own.
+   */
+  const skip = only
+    ? new Set(list.filter((c) => !only.includes(c.id)).map((c) => c.id))
+    : hiddenIds(list, hidden);
 
   /**
    * Every calendar is reported, only the shown ones are read.

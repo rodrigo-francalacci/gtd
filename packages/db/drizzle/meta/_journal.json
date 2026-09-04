@@ -456,6 +456,13 @@
       "when": 1788526678200,
       "tag": "0064_material_excalibur",
       "breakpoints": true
+    },
+    {
+      "idx": 65,
+      "version": "7",
+      "when": 1788528134873,
+      "tag": "0065_boring_loners",
+      "breakpoints": true
     }
   ]
 }

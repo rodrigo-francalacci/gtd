@@ -82,6 +82,7 @@ import { canGroup, type SortChoice } from './sort';
 import { setUsage, type UsableType } from './usage';
 import {
   getView,
+  setCalendarsFor,
   setBoxLayout,
   setBoxViewFor,
   setDensity,
@@ -4319,6 +4320,20 @@ export async function dropCapture(itemId: string, target: CaptureDrop) {
               };
 
   await clarifyInboxItem(itemId, decision);
+}
+
+/**
+ * Which Google calendars this box's month shows.
+ *
+ * A Server Action rather than a route because it is a preference like any
+ * other here, and it revalidates so the month re-reads with the new choice —
+ * the events themselves are never stored, so the only thing that has to change
+ * is which ones are asked for.
+ */
+export async function setBoxCalendars(viewKey: string, ids: string[]) {
+  await requireSession();
+  await setCalendarsFor(viewKey, ids.filter((id) => id.trim().length > 0));
+  revalidateShell();
 }
 
 /** Read a list in your order, or in the order things arrived. */

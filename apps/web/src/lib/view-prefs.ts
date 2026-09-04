@@ -85,6 +85,33 @@ export async function setViewPref(key: string, choice: SortChoice): Promise<void
  * wants the columns. Making one choice serve both is what turned a preference
  * into a chore.
  */
+/**
+ * Which Google calendars a box's month view shows.
+ *
+ * Upserted against the same row the density and the layout live in, so a box
+ * that has been looked at three ways is still one row. Stored as *shown* rather
+ * than hidden, which is the opposite of the app-wide preference and right for
+ * the opposite reason: there you subtract from everything you own, here you add
+ * to nothing, because most boxes want no calendar at all.
+ */
+export async function setCalendarsFor(key: string, ids: string[]): Promise<void> {
+  await db
+    .insert(viewPrefs)
+    .values({ key, calendars: ids })
+    .onConflictDoUpdate({ target: viewPrefs.key, set: { calendars: ids } });
+}
+
+/** What this box has chosen, or nothing. */
+export async function getCalendarsFor(key: string): Promise<string[]> {
+  const [row] = await db
+    .select({ calendars: viewPrefs.calendars })
+    .from(viewPrefs)
+    .where(eq(viewPrefs.key, key))
+    .limit(1);
+
+  return Array.isArray(row?.calendars) ? row.calendars : [];
+}
+
 export const densityKeys = {
   path: (pathname: string) => `density:${pathname}`,
   list: (listId: string) => `density:list:${listId}`,

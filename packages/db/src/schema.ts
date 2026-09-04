@@ -2014,6 +2014,23 @@ export const viewPrefs = pgTable('view_prefs', {
    */
   density: text('density'),
   /**
+   * Which Google calendars a box's month view shows, by id.
+   *
+   * Kept per box rather than app-wide because a box is a *subject*: the
+   * calendars that matter beside a folder of work correspondence are not the
+   * ones that matter beside a songwriting journal, which is the whole reason to
+   * choose at all. Null means none, which is the right default — most boxes
+   * want no calendar, and a month view that arrived full of birthdays would be
+   * noise you had not asked for.
+   *
+   * A *shown* list rather than a hidden one, which is the opposite of the
+   * app-wide `hidden_calendars`. That preference starts from "all of them" and
+   * takes some away; this starts from nothing and adds, because the question is
+   * different — there, which of my calendars am I ignoring; here, which of them
+   * belong beside this subject.
+   */
+  calendars: jsonb('calendars').$type<string[]>(),
+  /**
    * `'list' | 'timeline'` — whether this list is read in the order you put it
    * in, or in the order it arrived.
    *

@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { apiSession } from '@/lib/auth/session';
 import { hasCalendarScope } from '@/lib/auth/google';
 import { GoogleAuthError, getGrant } from '@/lib/auth/token';
-import { CalendarApiDisabled, getUpcomingEvents } from '@/lib/google/calendar';
+import { CalendarApiDisabled, getUpcomingEvents, readEvents } from '@/lib/google/calendar';
 import { getPreferences } from '@/lib/view-mode';
 
 export const dynamic = 'force-dynamic';
@@ -21,7 +21,7 @@ export const maxDuration = 30;
  * Nothing is cached and nothing is stored. The whole value of this view is
  * that it agrees with Google Calendar right now.
  */
-export async function GET() {
+export async function GET(request: Request) {
   const unauthorised = await apiSession();
   if (unauthorised) return unauthorised;
 
@@ -37,6 +37,37 @@ export async function GET() {
   }
 
   try {
+    /*
+     * Two callers, two questions.
+     *
+     * The calendar page asks "what is coming up" and takes the app-wide hidden
+     * list. A box's month view asks for a *window* and names the calendars it
+     * wants — `only`, repeated — because a box chooses from nothing rather than
+     * subtracting from everything. An empty `only` with the parameter present
+     * means none, which is a box's default and must not read as "not asked".
+     */
+    const url = new URL(request.url);
+    const from = url.searchParams.get('from');
+    const to = url.searchParams.get('to');
+
+    if (from && to) {
+      const start = new Date(from);
+      const end = new Date(to);
+
+      if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
+        return NextResponse.json({ error: 'Bad dates' }, { status: 400 });
+      }
+
+      const only = url.searchParams.has('only') ? url.searchParams.getAll('only') : null;
+      const window = await readEvents({ from: start, to: end, only });
+
+      return NextResponse.json({
+        connected: true,
+        calendars: window.calendars,
+        events: window.events,
+      });
+    }
+
     const { hiddenCalendars } = await getPreferences();
     const { calendars, events } = await getUpcomingEvents(hiddenCalendars);
     return NextResponse.json({ connected: true, calendars, events });
