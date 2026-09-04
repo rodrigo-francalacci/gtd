@@ -315,13 +315,23 @@ export function NoteEditor({
            * `history.back()` survives neither and lands somewhere else entirely
            * once anything has navigated in between.
            */
-          const from = fill ? tokenForRow(surface, id) : null;
+          const from = tokenForRow(surface, id);
+          const trail = from ? `&back=${from}` : '';
 
+          /*
+           * Carried at both sizes, because it is the same journey.
+           *
+           * Following a note's link into another action and then wanting the
+           * note back is the same wish whichever shape the window is, and
+           * answering it only full screen makes the panes feel like the broken
+           * one. The panes have no header to put it in, so it goes above the
+           * row's title there — see `BackTrail`.
+           */
           const href = fill
-            ? `${focusedHref(target)}${from ? `&back=${from}` : ''}`
+            ? `${focusedHref(target)}${trail}`
             : openBase
-              ? openHref(openBase, target)
-              : internalHref(target);
+              ? `${openHref(openBase, target)}${trail}`
+              : `${internalHref(target)}${trail}`;
 
           event.preventDefault();
           event.stopPropagation();

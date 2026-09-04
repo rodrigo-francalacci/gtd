@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { ActionDetail } from '@/components/action-detail';
+import { BackTrail } from '@/components/back-trail';
 import { Board } from '@/components/board';
 import { FocusView } from '@/components/focus-view';
 import { NoteEditor } from '@/components/note-editor';
@@ -123,6 +124,14 @@ export default async function NowPage(props: PageProps<'/now'>) {
    * decides whether to render it. The non-null assertions hid it from the
    * compiler and the board crashed on first open.
    */
+  /*
+   * Where a link was followed from. Read once, above the branches, because both
+   * the pane and the focus view want it and it is one query either way.
+   */
+  const followed = await getBackTrail(
+    typeof searchParams.back === 'string' ? searchParams.back : undefined,
+  );
+
   const detail = selected ? (
     <ActionDetail
             queue={actionQueue}
@@ -156,15 +165,11 @@ export default async function NowPage(props: PageProps<'/now'>) {
      * another action and being offered its project instead would be answering a
      * question you did not ask.
      */
-    const followed = await getBackTrail(
-      typeof searchParams.back === 'string' ? searchParams.back : undefined,
-    );
-
     return (
       <FocusView
         title={selected.title}
         parent={
-          followed ??
+          (followed ? { label: followed.label, href: followed.focusHref } : undefined) ??
           (selected.projectId && selected.projectTitle
             ? {
                 label: selected.projectTitle,
@@ -403,6 +408,9 @@ export default async function NowPage(props: PageProps<'/now'>) {
 
       {selected ? (
         <DetailPane>
+          {/* Where you followed a link from, when you followed one. */}
+          {followed ? <BackTrail label={followed.label} href={followed.href} /> : null}
+
           {/* key: `useState(action.title)` only runs on mount. */}
           <ActionDetail
             queue={actionQueue}

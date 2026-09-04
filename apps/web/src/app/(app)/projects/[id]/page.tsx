@@ -1,3 +1,4 @@
+import { BackTrail } from '@/components/back-trail';
 import { FocusView } from '@/components/focus-view';
 import { getBackTrail } from '@/lib/queries';
 import { NoteEditor } from '@/components/note-editor';
@@ -50,6 +51,14 @@ export default async function ProjectPage(props: PageProps<'/projects/[id]'>) {
   const stalled =
     project.status === 'active' && !projectActions.some((a) => a.status === 'next');
 
+  /*
+   * Where a link was followed from. Above both branches, because the pane and
+   * the focus view both want it and it is one query either way.
+   */
+  const followed = await getBackTrail(
+    typeof searchParams.back === 'string' ? searchParams.back : undefined,
+  );
+
   const detail = (
     <ProjectDetail
       key={project.id}
@@ -86,15 +95,12 @@ export default async function ProjectPage(props: PageProps<'/projects/[id]'>) {
    * see would make the note harder to write, not easier.
    */
   if (searchParams.focus !== undefined) {
-    /* Where a link was followed from, when one was. */
-    const followed = await getBackTrail(
-      typeof searchParams.back === 'string' ? searchParams.back : undefined,
-    );
-
     return (
       <FocusView
         title={project.title}
-        parent={followed}
+        parent={
+          followed ? { label: followed.label, href: followed.focusHref } : undefined
+        }
         subtitle={stalled ? 'Active, and stalled' : project.status}
         closeHref={`/projects/${id}${filter ? '?filter=' + filter : ''}`}
         notes={
@@ -125,6 +131,9 @@ export default async function ProjectPage(props: PageProps<'/projects/[id]'>) {
       <ProjectListPane selectedId={id} filter={filter} />
 
       <DetailPane>
+        {/* Where you followed a link from, when you followed one. */}
+        {followed ? <BackTrail label={followed.label} href={followed.href} /> : null}
+
         {/* key: even across a route param, React reconciles the same component
             in the same position and keeps its state — so /projects/a →
             /projects/b would hold a's title in the field. */}

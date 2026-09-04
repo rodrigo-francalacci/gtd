@@ -14,6 +14,7 @@ import { DateRange } from '@/components/date-range';
 import { DocumentGalleryRow } from '@/components/document-gallery-row';
 import { DocumentRow } from '@/components/document-row';
 import { DocumentMenu } from '@/components/entry-menu';
+import { BackTrail } from '@/components/back-trail';
 import { BoxCalendar } from '@/components/box-calendar';
 import { FocusView } from '@/components/focus-view';
 import { NoteEditor } from '@/components/note-editor';
@@ -569,6 +570,8 @@ export default async function BoxPage(props: PageProps<'/box/[id]'>) {
           searchParams.back === 'month'
             ? { label: `${box.name}, by month`, href: `${href(selected.id)}&month=1` }
             : followedHere
+              ? { label: followedHere.label, href: followedHere.focusHref }
+              : undefined
         }
         subtitle={box.name}
         closeHref={
@@ -832,6 +835,15 @@ export default async function BoxPage(props: PageProps<'/box/[id]'>) {
 
       {selected || opened ? (
         <DetailPane>
+          {/*
+            Where you followed a link from. Above the swap notice as well as the
+            row, because it is about the journey rather than about which of the
+            two things pane three is currently showing.
+          */}
+          {followedHere ? (
+            <BackTrail label={followedHere.label} href={followedHere.href} />
+          ) : null}
+
           {/*
             What is open, and the way back.
 

@@ -2,6 +2,7 @@ import 'server-only';
 
 import {
   focusedHref,
+  hrefFor,
   readToken,
   tokenFor,
   tokensIn,
@@ -1670,10 +1671,16 @@ export async function getActionQueue(actionId: string) {
  *
  * Anything else in `back` is left alone, which is what lets the box's month
  * view keep using the same parameter for a view rather than a row.
+ *
+ * **Two addresses, because you should come back the size you left.** Following
+ * a link in the panes and being returned full screen is the app changing the
+ * shape of the window on the way back from a journey you made in one shape —
+ * so the caller picks, and both are handed over rather than the branch being
+ * asked to reconstruct one from the other.
  */
 export async function getBackTrail(
   back: string | undefined,
-): Promise<{ label: string; href: string } | undefined> {
+): Promise<{ label: string; href: string; focusHref: string } | undefined> {
   if (typeof back !== 'string') return undefined;
 
   const target = readToken(back);
@@ -1686,7 +1693,7 @@ export async function getBackTrail(
   // trail is better than one that goes nowhere.
   if (!found) return undefined;
 
-  return { label: found.title, href: focusedHref(target) };
+  return { label: found.title, href: hrefFor(target), focusHref: focusedHref(target) };
 }
 
 export async function getFolderTree(folderId: string) {

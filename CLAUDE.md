@@ -229,6 +229,20 @@ Turbopack is the default; `middleware` is now `proxy`.
   reach the Now view, and deliberately don't satisfy the stalled check — a
   project whose only remaining steps are future still needs a real next action.
   Dragging between the Active and Future buckets sets the status.
+- **The insertion line belongs to the list you drop *into*, and only a window
+  listener can clear it.** `onDragEnd` fires on the element the drag *started*
+  from and nowhere else, so it resets the list the row came out of and never the
+  one it landed in. Drag a purchase from "Nice to have" to "Not said yet" and
+  the second list has an insertion index nothing it can hear will clear: its own
+  `onDrop` returns early because the row is not one of its own, and `dragleave`
+  never fires because the pointer finished *inside* it. The line stayed until
+  something re-rendered.
+  `dragend` bubbles to the window, so listening there catches every ending
+  whichever list owns the row — including the ones with no drop at all, an
+  abandoned drag or one let go over nothing, which no handler on a drop target
+  can see. Plus an unconditional `onDropCapture`, because a drop this list
+  handles stops propagating and a drop it declines is stopped by the bucket
+  around it, so a bubble-phase handler would never run either way.
 - **`dragleave` fires per descendant, so `currentTarget === target` is the
   wrong test.** It bubbles out of every child, and a handler on the container
   sees one leave per child with `target` set to the child — so that guard only
@@ -1618,6 +1632,12 @@ Turbopack is the default; `middleware` is now `proxy`.
   **One step, deliberately.** It answers "take me back to what I was reading",
   not "unwind everything I have opened", and a breadcrumb claiming the second
   would be lying about a chain nothing recorded.
+  **Both sizes carry it, and you come back the size you left.** Following a
+  link in the panes and being returned full screen is the app changing the shape
+  of the window on the way back from a journey you made in one shape, so
+  `getBackTrail` hands over both addresses and the branch picks. The panes have
+  no header to put a trail in, so `BackTrail` sits above the row's own title —
+  answering it only full screen would make the panes feel like the broken one.
   **The same parameter carries the box's month**, and the two cannot be
   confused: a token names a row, `month` names a view, and `readToken` refuses
   anything that is not a token.

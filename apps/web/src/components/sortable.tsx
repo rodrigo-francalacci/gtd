@@ -150,6 +150,32 @@ export function SortableList<T extends Identified>({
   };
 
   /**
+   * Any drag ending anywhere clears this list's insertion line.
+   *
+   * `onDragEnd` fires on the element the drag *started* from, and only there —
+   * so it resets the list the row came out of and never the one it was dropped
+   * into. Drag a purchase from "Nice to have" onto "Not said yet" and the
+   * second list has set an insertion index that nothing it can hear will ever
+   * clear: its own `onDrop` returns early because the row is not one of its
+   * own, and `dragleave` never fires because the pointer finished *inside* it.
+   * The line stayed until something re-rendered.
+   *
+   * `dragend` bubbles to the window, so listening there catches every ending
+   * whichever list owns the row — including the ones with no drop at all, a
+   * drag abandoned with Escape or let go over nothing, which is the case a
+   * handler on the drop target cannot see either.
+   *
+   * Only while there is a line to clear, so an idle list has no listener.
+   */
+  useEffect(() => {
+    if (insertAt === null) return;
+
+    const ended = () => setInsertAt(null);
+    window.addEventListener('dragend', ended);
+    return () => window.removeEventListener('dragend', ended);
+  }, [insertAt]);
+
+  /**
    * `id` and the insertion point both come from the drop event itself rather
    * than from state set during dragstart/dragover. State would work for a real
    * mouse drag — there are frames between the events — but reading the
@@ -277,6 +303,15 @@ export function SortableList<T extends Identified>({
     <div
       ref={container}
       onDragLeave={(e) => reallyLeft(e) && setInsertAt(null)}
+      /*
+       * Capture, and unconditional. A drop this list *handles* stops
+       * propagating, and a drop it declines is caught by the bucket around it
+       * — which also stops it. Either way a bubble-phase handler here would
+       * never run, which is the same trap `ImpactBucket` documents for its own
+       * highlight. Nothing about clearing a line needs to know whose drop it
+       * was.
+       */
+      onDropCapture={() => setInsertAt(null)}
     >
       {order.map((item, index) => (
         <div
