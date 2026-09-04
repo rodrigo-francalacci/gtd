@@ -74,17 +74,38 @@ export function TextDocument({
   src,
   format,
   name,
+  roomy = false,
+  onFullWidth,
 }: {
   /** Where the bytes are — and, on `PUT`, where they go back to. */
   src: string;
   format: TextFormat;
   name: string;
+  /**
+   * Whether there is room for two columns — true only when the pane has been
+   * given the whole window.
+   *
+   * Side by side is the point of the split view and it needs the width: in the
+   * fourth column each half would be about a hundred and fifty pixels, which is
+   * neither an editor nor a preview. So the button appears where the room is,
+   * rather than everywhere with a media query doing the apologising.
+   */
+  roomy?: boolean;
+  /**
+   * Told when the split opens, so the pane can drop the reading measure.
+   *
+   * A paged format is capped at A4 plus a surround, which is right for reading
+   * one page and far too narrow to hold a page *and* an editor. Called from the
+   * click rather than from an effect — the button already knows the answer, and
+   * a setState inside an effect is the pattern the compiler refuses.
+   */
+  onFullWidth?: (wide: boolean) => void;
 }) {
   const [loaded, setLoaded] = useState<string | null>(null);
   const [draft, setDraft] = useState('');
   const [failed, setFailed] = useState<string | null>(null);
 
-  const [view, setView] = useState<'read' | 'source' | 'typeset'>(
+  const [view, setView] = useState<'read' | 'source' | 'split' | 'typeset'>(
     // Plain text has no rendered view worth the name, so it opens where it will
     // stay. Everything else opens rendered: you look at a document far more
     // often than you edit one.
@@ -157,11 +178,21 @@ export function TextDocument({
    * authoritative.
    */
   useEffect(() => {
-    if (view !== 'read' || loaded === null) return;
+    if ((view !== 'read' && view !== 'split') || loaded === null) return;
 
     let live = true;
 
-    void (async () => {
+    /*
+     * Immediate when you have just switched to the reading view, debounced
+     * while you are typing beside it.
+     *
+     * Rendering *remounts the frame* — that is what makes a new `srcdoc` load
+     * at all — so doing it per keystroke would throw away the preview's scroll
+     * position on every letter, which in a split view is the one thing that has
+     * to stay still. A third of a second is about the gap between words.
+     */
+    const timer = setTimeout(() => {
+      void (async () => {
       /*
        * The theme is read from the document rather than passed in. The pane
        * has no server component above it and no access to the preferences row,
@@ -190,10 +221,12 @@ export function TextDocument({
           );
         }
       }
-    })();
+      })();
+    }, view === 'split' ? 350 : 0);
 
     return () => {
       live = false;
+      clearTimeout(timer);
     };
   }, [view, draft, format, loaded]);
 
@@ -308,6 +341,108 @@ export function TextDocument({
     }));
   };
 
+  /**
+   * The two halves, as elements rather than branches.
+   *
+   * Pulled out so the split view can hold both without a second copy of
+   * either — and each has a hard-won detail in it (the frame's key, so a new
+   * `srcdoc` actually loads; the two layers that must lay out identically),
+   * which is exactly the sort of thing that gets fixed in one copy and not the
+   * other.
+   */
+  const reading = (
+    <iframe
+      /*
+       * Named, not just numbered.
+       *
+       * This frame and the printing frame below it are siblings with a
+       * sequence counter each, and the counters know nothing about one
+       * another — so the first rendering and the first print both asked for
+       * key `1` and React reported two children with the same key. The
+       * consequence is worse than the warning sounds: keys are how React
+       * tells siblings apart, so it is entitled to reuse one frame's
+       * element for the other, and this one exists precisely *because* a
+       * fresh element is the only reliable way to make an iframe take a new
+       * `srcdoc`.
+       *
+       * A prefix costs nothing and makes the two namespaces separate for
+       * good, rather than only while the two counters happen to differ.
+       */
+      key={`read-${page?.seq ?? 0}`}
+      // `sandbox=""` — no permissions at all. Scripts, forms, popups and
+      // top-level navigation are all denied and the frame gets an opaque
+      // origin, which is what makes showing an arbitrary HTML file safe
+      // without editing it first.
+      sandbox=""
+      srcDoc={page?.html ?? ''}
+      title={name}
+      className="min-h-0 w-full flex-1 border-0 bg-paper"
+    />
+  );
+
+  const editor = (
+    <>
+
+      <SourceToolbar format={format} area={area} value={draft} onChange={setDraft} />
+
+      {/*
+        The editor is two layers: colour underneath, the real textarea on
+        top with transparent text and a visible caret.
+
+        There is no way to colour text *inside* a textarea — it renders one
+        uniform run and always has. Every editor that does this in a browser
+        stacks a highlighted copy behind a see-through input, and the whole
+        trick is that the two must lay out identically: same font, same
+        size, same line height, same padding, same wrapping. Anything that
+        differs on either side and the colours slide out from under the
+        words. Hence `SOURCE_TEXT`, which is one string used by both rather
+        than two lists that agree today.
+      */}
+      <div className="relative min-h-0 w-full flex-1 overflow-hidden bg-paper">
+        {coloured ? (
+          <pre
+            ref={colour}
+            aria-hidden
+            className={`pointer-events-none absolute inset-0 overflow-hidden ${SOURCE_TEXT}`}
+            dangerouslySetInnerHTML={{ __html: highlight(draft, format) }}
+          />
+        ) : null}
+
+        <textarea
+          ref={area}
+          value={draft}
+          onChange={(event) => setDraft(event.target.value)}
+          onScroll={(event) => {
+            /*
+             * The layer under it has to move with it, and this is the one
+             * place the illusion can break: a textarea scrolls itself and
+             * the `pre` behind it does not know. Set directly rather than
+             * through state — a scroll handler that re-renders on every
+             * pixel is how a smooth scroll becomes a stuttering one.
+             */
+            const layer = colour.current;
+            if (!layer) return;
+            layer.scrollTop = event.currentTarget.scrollTop;
+            layer.scrollLeft = event.currentTarget.scrollLeft;
+          }}
+          spellCheck={format === 'markdown'}
+          // Neither: source is code, and a machine guessing at the shape of
+          // a LaTeX command or an HTML attribute gets it wrong every time.
+          autoCorrect="off"
+          autoCapitalize="off"
+          className={[
+            'absolute inset-0 resize-none bg-transparent focus:outline-none',
+            SOURCE_TEXT,
+            // Transparent text over the coloured copy, but a caret you can
+            // still see — `caret-color` is what makes that possible at all.
+            coloured ? 'text-transparent caret-grey-800' : 'text-grey-800',
+          ].join(' ')}
+        />
+      </div>
+        
+    </>
+  );
+
   if (failed) {
     return <p className="p-6 text-center text-[12px] text-stale">{failed}</p>;
   }
@@ -328,17 +463,29 @@ export function TextDocument({
               the browser renders *is* the document.
             */}
             {(
-              (format === 'latex'
-                ? (['read', 'source', 'typeset'] as const)
-                : (['read', 'source'] as const)) as readonly (
-                'read' | 'source' | 'typeset'
-              )[]
+              [
+                'read',
+                'source',
+                /*
+                 * Only where there is room. Two columns is the whole idea, and
+                 * in the fourth column each half would be neither an editor nor
+                 * a preview — offering it there and apologising with a media
+                 * query would be worse than not offering it.
+                 */
+                ...(roomy ? (['split'] as const) : []),
+                ...(format === 'latex' ? (['typeset'] as const) : []),
+              ] as readonly ('read' | 'source' | 'split' | 'typeset')[]
             ).map((which) => (
               <button
                 key={which}
                 type="button"
                 aria-pressed={view === which}
-                onClick={() => setView(which)}
+                onClick={() => {
+                  setView(which);
+                  // The pane caps a paged format at A4 plus a surround, which
+                  // holds a page and cannot hold a page *and* an editor.
+                  onFullWidth?.(which === 'split');
+                }}
                 className={[
                   'px-2 py-0.5 text-[11px]',
                   view === which
@@ -350,7 +497,9 @@ export function TextDocument({
                   ? 'Reading'
                   : which === 'source'
                     ? 'Source'
-                    : 'Typeset'}
+                    : which === 'split'
+                      ? 'Both'
+                      : 'Typeset'}
               </button>
             ))}
           </div>
@@ -422,92 +571,24 @@ export function TextDocument({
          */
         <LatexPdf source={draft} src={src} />
       ) : view === 'read' ? (
-        <iframe
-          /*
-           * Named, not just numbered.
-           *
-           * This frame and the printing frame below it are siblings with a
-           * sequence counter each, and the counters know nothing about one
-           * another — so the first rendering and the first print both asked for
-           * key `1` and React reported two children with the same key. The
-           * consequence is worse than the warning sounds: keys are how React
-           * tells siblings apart, so it is entitled to reuse one frame's
-           * element for the other, and this one exists precisely *because* a
-           * fresh element is the only reliable way to make an iframe take a new
-           * `srcdoc`.
-           *
-           * A prefix costs nothing and makes the two namespaces separate for
-           * good, rather than only while the two counters happen to differ.
-           */
-          key={`read-${page?.seq ?? 0}`}
-          // `sandbox=""` — no permissions at all. Scripts, forms, popups and
-          // top-level navigation are all denied and the frame gets an opaque
-          // origin, which is what makes showing an arbitrary HTML file safe
-          // without editing it first.
-          sandbox=""
-          srcDoc={page?.html ?? ''}
-          title={name}
-          className="min-h-0 w-full flex-1 border-0 bg-paper"
-        />
+        reading
+      ) : view === 'split' ? (
+        /*
+         * Source on the left, the document on the right, each scrolling on its
+         * own.
+         *
+         * The editor leads because that is the side you are working in and the
+         * eye starts at the left — the preview is the answer, and an answer
+         * belongs after the question. `min-w-0` on both, or one long unbroken
+         * line in the source pushes its half wider and the two stop being
+         * halves.
+         */
+        <div className="flex min-h-0 flex-1 divide-x divide-grey-200">
+          <div className="flex min-h-0 w-1/2 min-w-0 flex-col">{editor}</div>
+          <div className="flex min-h-0 w-1/2 min-w-0 flex-col">{reading}</div>
+        </div>
       ) : (
-        <>
-          <SourceToolbar format={format} area={area} value={draft} onChange={setDraft} />
-
-          {/*
-            The editor is two layers: colour underneath, the real textarea on
-            top with transparent text and a visible caret.
-
-            There is no way to colour text *inside* a textarea — it renders one
-            uniform run and always has. Every editor that does this in a browser
-            stacks a highlighted copy behind a see-through input, and the whole
-            trick is that the two must lay out identically: same font, same
-            size, same line height, same padding, same wrapping. Anything that
-            differs on either side and the colours slide out from under the
-            words. Hence `SOURCE_TEXT`, which is one string used by both rather
-            than two lists that agree today.
-          */}
-          <div className="relative min-h-0 w-full flex-1 overflow-hidden bg-paper">
-            {coloured ? (
-              <pre
-                ref={colour}
-                aria-hidden
-                className={`pointer-events-none absolute inset-0 overflow-hidden ${SOURCE_TEXT}`}
-                dangerouslySetInnerHTML={{ __html: highlight(draft, format) }}
-              />
-            ) : null}
-
-            <textarea
-              ref={area}
-              value={draft}
-              onChange={(event) => setDraft(event.target.value)}
-              onScroll={(event) => {
-                /*
-                 * The layer under it has to move with it, and this is the one
-                 * place the illusion can break: a textarea scrolls itself and
-                 * the `pre` behind it does not know. Set directly rather than
-                 * through state — a scroll handler that re-renders on every
-                 * pixel is how a smooth scroll becomes a stuttering one.
-                 */
-                const layer = colour.current;
-                if (!layer) return;
-                layer.scrollTop = event.currentTarget.scrollTop;
-                layer.scrollLeft = event.currentTarget.scrollLeft;
-              }}
-              spellCheck={format === 'markdown'}
-              // Neither: source is code, and a machine guessing at the shape of
-              // a LaTeX command or an HTML attribute gets it wrong every time.
-              autoCorrect="off"
-              autoCapitalize="off"
-              className={[
-                'absolute inset-0 resize-none bg-transparent focus:outline-none',
-                SOURCE_TEXT,
-                // Transparent text over the coloured copy, but a caret you can
-                // still see — `caret-color` is what makes that possible at all.
-                coloured ? 'text-transparent caret-grey-800' : 'text-grey-800',
-              ].join(' ')}
-            />
-          </div>
-        </>
+        editor
       )}
 
       {printing ? (

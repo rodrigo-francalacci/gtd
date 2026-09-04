@@ -459,13 +459,59 @@ export default async function BoxPage(props: PageProps<'/box/[id]'>) {
   if (searchParams.month !== undefined) {
     const chosen = await getCalendarsFor(viewKey);
 
+    /*
+     * The tags and the types apply here exactly as they do in the feed — "show
+     * me only the receipts, by month" is a real question, and a view that
+     * silently ignored the filters you had set would be answering a different
+     * one. They are rendered on the month too, so what is being left out is
+     * visible rather than remembered.
+     *
+     * **The date range is the exception, and it is dropped rather than
+     * ignored.** A month view's own navigation *is* a date filter, so keeping a
+     * second one would be two of them disagreeing: page to a month outside the
+     * range and it comes back empty for a reason nothing on screen explains.
+     * That means one more read, without the range, which happens only on this
+     * view.
+     */
+    const unranged = await getBoxItems(id, tagIds, {});
+
+    const monthRows = unranged
+      .filter((item) => !item.tags.some((t) => excludedTags.includes(t.id)))
+      .filter((item) => {
+        const type = entryTypeOf(item);
+        if (requestedTypes.length > 0 && !requestedTypes.includes(type)) return false;
+        return !excludedTypes.includes(type);
+      });
+
+    /* Counted over the same rows the grid draws, so the chips agree with it. */
+    const monthTypeCounts: Record<string, number> = {};
+    for (const item of unranged) {
+      const type = entryTypeOf(item);
+      monthTypeCounts[type] = (monthTypeCounts[type] ?? 0) + 1;
+    }
+
+    const monthTagCounts: Record<string, number> = {};
+    for (const item of monthRows) {
+      for (const tag of item.tags) {
+        monthTagCounts[tag.id] = (monthTagCounts[tag.id] ?? 0) + 1;
+      }
+    }
+
     return (
       <BoxCalendar
+        boxId={id}
         boxName={box.name}
         closeHref={`/box/${id}`}
         viewKey={viewKey}
         chosen={chosen}
-        entries={items.map((item) => ({
+        categories={categories}
+        tagIds={tagIds}
+        excludedTags={excludedTags}
+        tagCounts={monthTagCounts}
+        typeCounts={monthTypeCounts}
+        requestedTypes={requestedTypes}
+        excludedTypes={excludedTypes}
+        entries={monthRows.map((item) => ({
           id: item.id,
           title: documentLabel(item),
           emoji: item.emoji ?? null,
@@ -473,7 +519,11 @@ export default async function BoxPage(props: PageProps<'/box/[id]'>) {
             item.capturedAt instanceof Date
               ? item.capturedAt.toISOString()
               : String(item.capturedAt),
-          href: href(item.id),
+          /*
+           * Opened *on* the calendar rather than away from it: the entry's own
+           * full-screen view, with a trail back to the month you were reading.
+           */
+          href: `${href(item.id)}&focus=1&back=month`,
         }))}
       />
     );
@@ -495,8 +545,21 @@ export default async function BoxPage(props: PageProps<'/box/[id]'>) {
     return (
       <FocusView
         title={documentLabel(selected)}
+        /*
+         * Where you came from, when you came from the month. Read off the URL
+         * rather than from history, so it survives a refresh and a shared link
+         * — and it is the only case here where the parent is a *view* rather
+         * than a row, which is why it says so.
+         */
+        parent={
+          searchParams.back === 'month'
+            ? { label: `${box.name}, by month`, href: `${href(selected.id)}&month=1` }
+            : undefined
+        }
         subtitle={box.name}
-        closeHref={href(selected.id)}
+        closeHref={
+          searchParams.back === 'month' ? `${href(selected.id)}&month=1` : href(selected.id)
+        }
         notes={
           <NoteEditor
             key={selected.id}

@@ -324,6 +324,16 @@ export function PreviewPane({
   onToggleExpand?: () => void;
 }) {
   const [failed, setFailed] = useState<string | null>(null);
+
+  /**
+   * The file whose split view is open, rather than a bare boolean.
+   *
+   * Storing *which* file makes it reset itself: opening a different document
+   * leaves `wideFor` naming the old one, so `fullWidth` is false again with no
+   * effect to synchronise and nothing to remember to clear.
+   */
+  const [wideFor, setWideFor] = useState<string | null>(null);
+  const fullWidth = wideFor === file.id;
   const src = file.src;
   const type = file.mimeType ?? '';
 
@@ -378,7 +388,7 @@ export function PreviewPane({
    */
   const isPaged = expanded && Boolean(textFormat);
 
-  const measure = !expanded
+  const measure = !expanded || fullWidth
     ? ''
     : isPaged
       ? 'mx-auto w-full max-w-[240mm]'
@@ -510,6 +520,8 @@ export function PreviewPane({
             src={src}
             format={textFormat}
             name={file.name}
+            roomy={expanded}
+            onFullWidth={(wide) => setWideFor(wide ? file.id : null)}
           />
         ) : type.startsWith('image/') ? (
           <ImageViewer src={src} alt={file.name} onFail={() => void reasonFor(src).then(setFailed)} />

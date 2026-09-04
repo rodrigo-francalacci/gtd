@@ -3,7 +3,11 @@
 import Link from 'next/link';
 import { useEffect, useRef, useState, useTransition } from 'react';
 import { setBoxCalendars } from '@/lib/actions';
+import type { BoxCategoryRow } from '@/lib/queries.shared';
+import type { EntryType } from '@/lib/queries.shared';
 import { FullScreen } from './full-screen';
+import { TagFilter } from './tag-filter';
+import { TypeFilter } from './type-filter';
 
 /**
  * A box as a month.
@@ -94,12 +98,21 @@ function gridFor(year: number, month: number): Date[] {
 }
 
 export function BoxCalendar({
+  boxId,
   boxName,
   entries,
   closeHref,
   viewKey,
   chosen,
+  categories,
+  tagIds,
+  excludedTags,
+  tagCounts,
+  typeCounts,
+  requestedTypes,
+  excludedTypes,
 }: {
+  boxId: string;
   boxName: string;
   /** Every entry in the box, with the address that opens it. */
   entries: Entry[];
@@ -107,6 +120,19 @@ export function BoxCalendar({
   /** The `view_prefs` row this box's choice is stored against. */
   viewKey: string;
   chosen: string[];
+  /**
+   * The same filters the feed carries, because they answer the same question
+   * about the same rows — "only the receipts" is as reasonable a thing to ask
+   * of a month as of a list. Shown rather than merely applied: a filter you
+   * have to remember is a month that lies about a quiet fortnight.
+   */
+  categories: BoxCategoryRow[];
+  tagIds: string[];
+  excludedTags: string[];
+  tagCounts: Record<string, number>;
+  typeCounts: Record<string, number>;
+  requestedTypes: EntryType[];
+  excludedTypes: EntryType[];
 }) {
   const today = new Date();
   const [at, setAt] = useState({ year: today.getFullYear(), month: today.getMonth() });
@@ -208,7 +234,11 @@ export function BoxCalendar({
   return (
     <FullScreen
       title={boxName}
-      subtitle={`${entries.length} entr${entries.length === 1 ? 'y' : 'ies'}, by the day each arrived`}
+      subtitle={`${entries.length} entr${entries.length === 1 ? 'y' : 'ies'}, by the day each arrived${
+        tagIds.length || excludedTags.length || requestedTypes.length || excludedTypes.length
+          ? ' · filtered'
+          : ''
+      }`}
       closeHref={closeHref}
       actions={
         <>
@@ -282,6 +312,29 @@ export function BoxCalendar({
       }
     >
       <div className="flex min-h-0 flex-1 flex-col p-3">
+        {/*
+          The filters, above the grid rather than in the header: the header
+          already holds the month, the way to today, the calendars and the way
+          out, and these are two wrapping rows of chips. `filterHref` rebuilds
+          from the whole current query, so `month=1` comes along and the chips
+          keep you here.
+        */}
+        <div className="mb-2 flex shrink-0 flex-col gap-1.5">
+          <TypeFilter
+            boxId={boxId}
+            counts={typeCounts}
+            selected={requestedTypes}
+            excluded={excludedTypes}
+          />
+          <TagFilter
+            boxId={boxId}
+            categories={categories}
+            selected={tagIds}
+            excluded={excludedTags}
+            counts={tagCounts}
+          />
+        </div>
+
         <div className="grid shrink-0 grid-cols-7 gap-px">
           {DAY_NAMES.map((name) => (
             <div

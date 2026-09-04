@@ -1540,6 +1540,24 @@ Turbopack is the default; `middleware` is now `proxy`.
   a file that is known to be fine. Diagnosing a playback failure that way
   produces confident nonsense. `decodeAudioData` is unaffected and is the tool
   for automated checks; a media element needs a real, focused window.
+- **Source and preview side by side is a third view, offered only full
+  screen.** Writing in these formats is a loop of type, look, type, and the two
+  views made you switch for each turn of it. Two columns is the whole idea and
+  it needs the width: in the fourth column each half would be about a hundred
+  and fifty pixels, which is neither an editor nor a preview — so the button
+  appears where the room is rather than everywhere with a media query
+  apologising.
+  **The preview is debounced at 350ms, and that is not a nicety.** Rendering
+  *remounts the frame* — which is what makes a new `srcdoc` load at all — so
+  doing it per keystroke would throw the preview's scroll position away on every
+  letter, which in a split view is the one thing that has to stay still.
+  **Both halves are one element each, not two copies of a branch.** Each holds a
+  hard-won detail — the frame's key, the two layers that must lay out
+  identically — and those are exactly what gets fixed in one copy and not the
+  other.
+  **The pane drops its measure while split is open**, told from the click rather
+  than from an effect, and remembers *which file* is split so opening another
+  resets it with nothing to synchronise.
 - **Markdown, LaTeX and HTML are read *and written* in the preview pane.**
   These are the files where the text *is* the document — nothing is lost by
   showing the source, because the source is all there is — which is what makes
@@ -2563,9 +2581,22 @@ to be kept. They meet at `box_item_links` and nowhere else.
   date, so nothing is ever missing from the grid, and the month cannot disagree
   with the feed. A July bill that arrived in August sits in August, which is
   where you would go looking for it; the pane still says what the paper says.
-  **Every entry, not the filtered ones.** The filters belong to the feed, where
-  they are visible; a month you have to *remember* you are filtering is a month
-  that lies about a quiet fortnight.
+  **The tags and the types apply, and are shown.** "Only the receipts, by
+  month" is as reasonable a question as it is of a list, so the filters come
+  with you — rendered above the grid rather than merely applied, because a
+  filter you have to *remember* is a month that lies about a quiet fortnight.
+  `filterHref` rebuilds from the whole current query, so the chips keep
+  `month=1` without being told about it.
+  **The date range is the exception and is dropped rather than ignored.** A
+  month's own navigation *is* a date filter, so keeping a second one would be
+  two of them disagreeing: page outside the range and the month comes back
+  empty for a reason nothing on screen explains. That costs one extra read
+  without the range, on this view only.
+  **An entry opens on the calendar rather than away from it** — its own focus
+  view, with `back=month` in the URL putting a trail in the header and sending
+  Close there too. Read off the URL rather than from history, so it survives a
+  refresh and a shared link, and it is the one place the parent is a *view*
+  rather than a row.
   **Six rows always, and each cell scrolls on its own.** A grid that changes
   height between months is one you lose your place in, and a day with nine
   receipts must not make its week taller than the others.
