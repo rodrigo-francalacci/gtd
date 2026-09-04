@@ -569,6 +569,21 @@ export function Attachments({
                      button beside it doesn't register as having opened the
                      thing it is about to throw away. */
                   data-use={`attachment:${row.id}`}
+                  /*
+                   * Double-click reads it full screen, the same gesture that
+                   * opens a row. A single click still shows it in the pane, so
+                   * the quick glance costs nothing and the long read is one
+                   * more click rather than a different control.
+                   *
+                   * The anchor's own default is suppressed either way: this is
+                   * a real Drive link so a modified click still opens Drive,
+                   * which is the rule every attachment follows.
+                   */
+                  onDoubleClick={(e) => {
+                    if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+                    e.preventDefault();
+                    preview.expand();
+                  }}
                   onClick={(e) => {
                     if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
                     e.preventDefault();

@@ -88,6 +88,23 @@ type PreviewApi = {
    */
   preload: (file: PreviewFile | null) => void;
   close: () => void;
+  /**
+   * The same file, given the whole window.
+   *
+   * A preview pane is a column beside three others, which is right for glancing
+   * at a scan while you read the row it belongs to and wrong for actually
+   * reading the document — a two-page letter in a third of a screen is a
+   * document you scroll rather than read.
+   *
+   * Not a search param, unlike the other full-screen views. The pane has never
+   * been one: it belongs to the *window* rather than to the row it was opened
+   * from, and survives clicking through to another project. Expanding it should
+   * not change that.
+   */
+  expand: () => void;
+  collapse: () => void;
+  /** Open it and go straight to full screen — a double-click on a file. */
+  openExpanded: (file: PreviewFile) => void;
   /** So a pane can close itself when the file it's showing is detached. */
   closeIf: (id: string) => void;
   openId: string | null;
@@ -95,6 +112,8 @@ type PreviewApi = {
   file: PreviewFile | null;
   /** Whether the pane was asked for, as against loaded ahead of time. */
   focused: boolean;
+  /** Whether it has been given the whole window. */
+  expanded: boolean;
 };
 
 const Context = createContext<PreviewApi | null>(null);
@@ -126,18 +145,34 @@ export function FilePreviewProvider({ children }: { children: ReactNode }) {
      * you want the pane back.
      */
     dismissed: string | null;
+    /** Whether the pane has been given the whole window. */
+    expanded: boolean;
   }>({
     file: null,
     focused: false,
     dismissed: null,
+    expanded: false,
   });
-  const { file, focused } = state;
+  const { file, focused, expanded } = state;
 
   const api = useMemo<PreviewApi>(
     () => ({
       // Asking for a file outright clears any dismissal: you have just said you
       // want to see this one.
-      open: (next) => setState({ file: next, focused: true, dismissed: null }),
+      open: (next) =>
+        setState((s) => ({
+          file: next,
+          focused: true,
+          dismissed: null,
+          // Asking for a different file while full screen keeps you there: you
+          // are reading documents, and dropping back to a column between two of
+          // them is the view arguing with you.
+          expanded: s.expanded,
+        })),
+      openExpanded: (next) =>
+        setState({ file: next, focused: true, dismissed: null, expanded: true }),
+      expand: () => setState((s) => (s.file ? { ...s, expanded: true } : s)),
+      collapse: () => setState((s) => ({ ...s, expanded: false })),
       /*
        * Always unfocused, never inheriting. If it kept a focus already set,
        * then once you had opened one document every later selection would drag
@@ -158,7 +193,7 @@ export function FilePreviewProvider({ children }: { children: ReactNode }) {
              */
             return s.focused || s.file === null
               ? s
-              : { file: null, focused: false, dismissed: s.dismissed };
+              : { file: null, focused: false, dismissed: s.dismissed, expanded: false };
           }
 
           // The one you closed, offered again by a re-render rather than by a
@@ -167,19 +202,27 @@ export function FilePreviewProvider({ children }: { children: ReactNode }) {
 
           return s.file?.id === next.id
             ? s
-            : { file: next, focused: false, dismissed: null };
+            : { file: next, focused: false, dismissed: null, expanded: s.expanded };
         }),
       close: () =>
-        setState((s) => ({ file: null, focused: false, dismissed: s.file?.id ?? null })),
+        setState((s) => ({
+          file: null,
+          focused: false,
+          dismissed: s.file?.id ?? null,
+          expanded: false,
+        })),
       closeIf: (id) =>
         setState((s) =>
-          s.file?.id === id ? { file: null, focused: false, dismissed: null } : s,
+          s.file?.id === id
+            ? { file: null, focused: false, dismissed: null, expanded: false }
+            : s,
         ),
       openId: file?.id ?? null,
       file,
       focused,
+      expanded,
     }),
-    [file, focused],
+    [file, focused, expanded],
   );
 
   /**
@@ -233,7 +276,18 @@ function canRenderPdf(): boolean {
   return navigator.pdfViewerEnabled !== false;
 }
 
-export function PreviewPane({ file, onClose }: { file: PreviewFile; onClose: () => void }) {
+export function PreviewPane({
+  file,
+  onClose,
+  expanded = false,
+  onToggleExpand,
+}: {
+  file: PreviewFile;
+  onClose: () => void;
+  /** Given the whole window rather than the fourth column. */
+  expanded?: boolean;
+  onToggleExpand?: () => void;
+}) {
   const [failed, setFailed] = useState<string | null>(null);
   const src = file.src;
   const type = file.mimeType ?? '';
@@ -255,9 +309,25 @@ export function PreviewPane({ file, onClose }: { file: PreviewFile; onClose: () 
      */
     <div
       data-pane="preview"
-      className="flex min-w-0 flex-1 flex-col border-l border-grey-200 bg-grey-50"
+      /*
+       * The same pane, at two sizes. Full screen it is `fixed inset-0 z-50` —
+       * matching the sidebar, and no higher, so the portalled menus still land
+       * above it.
+       *
+       * A double-click toggles, which is the gesture that opens a row: on the
+       * *header*, not the body, because the body is somebody's document and a
+       * double-click in a PDF or a text editor already means something there.
+       */
+      className={
+        expanded
+          ? 'fixed inset-0 z-50 flex flex-col bg-grey-50'
+          : 'flex min-w-0 flex-1 flex-col border-l border-grey-200 bg-grey-50'
+      }
     >
-      <header className="flex items-center gap-2 border-b border-grey-200 px-3 py-2">
+      <header
+        onDoubleClick={onToggleExpand}
+        className="flex select-none items-center gap-2 border-b border-grey-200 px-3 py-2"
+      >
         <h2 className="min-w-0 flex-1 truncate text-[12px] font-medium text-grey-800">
           {file.name}
         </h2>
@@ -288,6 +358,18 @@ export function PreviewPane({ file, onClose }: { file: PreviewFile; onClose: () 
           >
             Drive ↗
           </a>
+        ) : null}
+
+        {onToggleExpand ? (
+          <button
+            type="button"
+            onClick={onToggleExpand}
+            title={expanded ? 'Back to the pane' : 'Read it full screen'}
+            aria-label={expanded ? 'Back to the pane' : 'Read it full screen'}
+            className="shrink-0 px-1 text-[12px] leading-none text-grey-400 hover:text-grey-800"
+          >
+            {expanded ? '\u2921' : '\u2922'}
+          </button>
         ) : null}
 
         <button

@@ -35,7 +35,7 @@ export function AppShell({
   children: ReactNode;
 }) {
   const preview = useOpenPreview();
-  const { close, focused } = useFilePreview();
+  const { close, focused, expanded, expand, collapse } = useFilePreview();
   const [drawerOpen, setDrawerOpen] = useState(false);
   const { open: tagsOpen, claim: claimSidebar } = useSidebarSlot();
   const pathname = usePathname();
@@ -299,7 +299,14 @@ export function AppShell({
 
       <main ref={track} className="pane-track min-h-0 flex-1">
         {children}
-        {preview ? <PreviewPane file={preview} onClose={closePreview} /> : null}
+        {preview ? (
+          <PreviewPane
+            file={preview}
+            onClose={closePreview}
+            expanded={expanded}
+            onToggleExpand={expanded ? collapse : expand}
+          />
+        ) : null}
       </main>
 
       <MobileBar onOpenMenu={() => setDrawerOpen(true)} menuIcon={<IconMenu />} />
