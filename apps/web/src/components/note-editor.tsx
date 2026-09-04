@@ -13,6 +13,7 @@ import {
   focusedHref,
   openHref,
   readToken,
+  tokenForRow,
 } from '@/lib/internal-link';
 import { RememberedHeight } from './remembered-height';
 import { setNoteDense, type NoteSurface } from '@/lib/actions';
@@ -299,8 +300,25 @@ export function NoteEditor({
            * and reading that one is a single activity; changing the shape of the
            * window half way through it is the app interrupting.
            */
+          /*
+           * Full screen the link carries *where it was followed from*, so the
+           * page it lands on can offer a way back.
+           *
+           * There is no list beside you there and no pane to return to, and the
+           * parent trail cannot help: an action's parent is its project, which
+           * is a fact about the row rather than about how you got to it.
+           * Following a link is arbitrary by nature, so the only thing that can
+           * answer it is the link itself.
+           *
+           * In the URL rather than in history, for the reason everything else
+           * here is: it survives a refresh and a shared link, where
+           * `history.back()` survives neither and lands somewhere else entirely
+           * once anything has navigated in between.
+           */
+          const from = fill ? tokenForRow(surface, id) : null;
+
           const href = fill
-            ? focusedHref(target)
+            ? `${focusedHref(target)}${from ? `&back=${from}` : ''}`
             : openBase
               ? openHref(openBase, target)
               : internalHref(target);

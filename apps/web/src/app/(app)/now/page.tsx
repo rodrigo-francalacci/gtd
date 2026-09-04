@@ -18,6 +18,7 @@ import { getNowSections, getProjectOptions } from '@/lib/queries';
 import {
   getActionQueue,
   getAction,
+  getBackTrail,
   getContextsByDimension,
   getNowActions,
   getLinkableDocuments,
@@ -146,16 +147,30 @@ export default async function NowPage(props: PageProps<'/now'>) {
    * autosaves for one document.
    */
   if (searchParams.focus !== undefined && selected && detail) {
+    /*
+     * Where you came from wins over what this belongs to.
+     *
+     * The project is a fact about the *row* and is the right trail when you
+     * arrived from a list. A link is a fact about the *journey*, and when there
+     * is one it is what you actually want back — following a note's link into
+     * another action and being offered its project instead would be answering a
+     * question you did not ask.
+     */
+    const followed = await getBackTrail(
+      typeof searchParams.back === 'string' ? searchParams.back : undefined,
+    );
+
     return (
       <FocusView
         title={selected.title}
         parent={
-          selected.projectId && selected.projectTitle
+          followed ??
+          (selected.projectId && selected.projectTitle
             ? {
                 label: selected.projectTitle,
                 href: `/projects/${selected.projectId}?focus=1`,
               }
-            : undefined
+            : undefined)
         }
         subtitle={selected.projectTitle ? 'Action' : 'No project'}
         closeHref={qs(selected.id)}

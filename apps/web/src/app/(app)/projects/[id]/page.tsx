@@ -1,4 +1,5 @@
 import { FocusView } from '@/components/focus-view';
+import { getBackTrail } from '@/lib/queries';
 import { NoteEditor } from '@/components/note-editor';
 import { updateProjectNotes } from '@/lib/actions';
 import { notFound } from 'next/navigation';
@@ -85,9 +86,15 @@ export default async function ProjectPage(props: PageProps<'/projects/[id]'>) {
    * see would make the note harder to write, not easier.
    */
   if (searchParams.focus !== undefined) {
+    /* Where a link was followed from, when one was. */
+    const followed = await getBackTrail(
+      typeof searchParams.back === 'string' ? searchParams.back : undefined,
+    );
+
     return (
       <FocusView
         title={project.title}
+        parent={followed}
         subtitle={stalled ? 'Active, and stalled' : project.status}
         closeHref={`/projects/${id}${filter ? '?filter=' + filter : ''}`}
         notes={

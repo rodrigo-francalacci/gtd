@@ -100,6 +100,29 @@ export type PurchaseFields = {
   where?: PurchaseWhere;
 };
 
+/**
+ * What a caller may *ask for*, which is not the same as what is stored.
+ *
+ * `null` means clear this field, and it has to be `null` rather than
+ * `undefined`: a Server Action's arguments go through React's serialiser, and a
+ * property whose value is `undefined` does not survive the crossing — `{
+ * impact: undefined }` arrives as `{}`. So the "an explicit undefined means
+ * clear it" rule was unreachable from any client, and both the drag back to
+ * "Not said yet" and un-picking an impact in the pane were accepted, ran, and
+ * changed nothing. The worst shape of bug: every visible part of it worked.
+ *
+ * The same family as the `Object.create(null)` trap that cost every note link
+ * its `href`. When a value has to cross, say it in something that survives.
+ *
+ * A separate type from `PurchaseFields` because they are separate things: null
+ * is an instruction, never a stored value — the nulls are deleted on the way
+ * in, so what lands in the column has none of them.
+ */
+export type PurchaseFieldsPatch = {
+  cost?: number | null;
+  impact?: PurchaseImpact | null;
+  where?: PurchaseWhere | null;
+};
 export const IMPACT_LABELS: Record<PurchaseImpact, string> = {
   blocks: 'Blocks a project',
   improves: 'Improves things',

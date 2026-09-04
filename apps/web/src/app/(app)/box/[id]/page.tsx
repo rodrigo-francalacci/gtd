@@ -51,6 +51,7 @@ import {
   getAction,
   getAttachableActions,
   getContextsByDimension,
+  getBackTrail,
   getFolderTree,
   getLinkableEntries,
   getProjectOptions,
@@ -330,7 +331,15 @@ export default async function BoxPage(props: PageProps<'/box/[id]'>) {
    * would offer to tag a Work document with the Feed's words, which is a
    * mistake you would not notice until the facet counts stopped adding up.
    */
-  const entryCategories = openEntry ? await getBoxCategories(openEntry.boxId) : []; 
+  const entryCategories = openEntry ? await getBoxCategories(openEntry.boxId) : [];
+
+  /* Where a link was followed from, when the trail is a row rather than a view. */
+  const followedHere =
+    searchParams.back === 'month'
+      ? undefined
+      : await getBackTrail(
+          typeof searchParams.back === 'string' ? searchParams.back : undefined,
+        ); 
 
   const openAction = openActionId ? await getAction(openActionId) : null;
 
@@ -551,10 +560,15 @@ export default async function BoxPage(props: PageProps<'/box/[id]'>) {
          * — and it is the only case here where the parent is a *view* rather
          * than a row, which is why it says so.
          */
+        /*
+         * Two shapes of the same parameter, and they cannot be confused: a
+         * token names a row and `month` names a view, and `readToken` refuses
+         * anything that is not a token.
+         */
         parent={
           searchParams.back === 'month'
             ? { label: `${box.name}, by month`, href: `${href(selected.id)}&month=1` }
-            : undefined
+            : followedHere
         }
         subtitle={box.name}
         closeHref={

@@ -104,7 +104,10 @@ export function ImpactBucket({
         setOver(false);
 
         startTransition(async () => {
-          await updateListItemFields(id, { impact: impact ?? undefined });
+          // `null`, not `undefined`: the second does not survive the crossing
+          // to a Server Action, so the patch arrived empty and the drop did
+          // nothing at all.
+          await updateListItemFields(id, { impact });
         });
       }}
       className={[

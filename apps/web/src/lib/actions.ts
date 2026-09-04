@@ -33,7 +33,7 @@ import {
   aiPrices,
   aiTopups,
 } from '@gtd/db';
-import type { PurchaseFields } from './queries.shared';
+import type { PurchaseFields, PurchaseFieldsPatch } from './queries.shared';
 import { and, asc, desc, eq, inArray, isNull, ne, sql } from 'drizzle-orm';
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
@@ -2101,7 +2101,10 @@ export async function updateListItemTitle(itemId: string, title: string) {
 }
 
 /** Merges into `fields` rather than replacing, so one control can't wipe another. */
-export async function updateListItemFields(itemId: string, patch: PurchaseFields) {
+export async function updateListItemFields(
+  itemId: string,
+  patch: PurchaseFieldsPatch,
+) {
   await requireSession();
   const [existing] = await db
     .select({ fields: listItems.fields })
@@ -2111,12 +2114,27 @@ export async function updateListItemFields(itemId: string, patch: PurchaseFields
 
   const merged = { ...((existing?.fields as PurchaseFields) ?? {}), ...patch };
 
-  // An explicit undefined means "clear this field".
-  for (const key of Object.keys(patch) as (keyof PurchaseFields)[]) {
-    if (patch[key] === undefined) delete merged[key];
+  /*
+   * `null` clears, and so does `undefined` for anything calling from the
+   * server.
+   *
+   * `undefined` alone was the rule and was unreachable from a client: React's
+   * Server Action serialiser drops a property whose value is `undefined`, so
+   * `{ impact: undefined }` arrived as `{}` and the loop had nothing to do.
+   * Dragging a purchase back to "Not said yet" was accepted, ran, and changed
+   * nothing — which is the worst shape of bug, because every part of it looked
+   * like it had worked.
+   */
+  for (const key of Object.keys(patch) as (keyof PurchaseFieldsPatch)[]) {
+    if (patch[key] === undefined || patch[key] === null) delete merged[key];
   }
 
-  await db.update(listItems).set({ fields: merged }).where(eq(listItems.id, itemId));
+  // Every null has just been deleted, so what goes in the column is the stored
+  // shape — which is the whole reason the patch type is a separate one.
+  await db
+    .update(listItems)
+    .set({ fields: merged as PurchaseFields })
+    .where(eq(listItems.id, itemId));
   revalidateShell();
 }
 

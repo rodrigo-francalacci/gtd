@@ -210,6 +210,23 @@ export function openHref(base: string, target: InternalTarget): string {
 }
 
 /**
+ * The token that names one of this app's own rows, if it has one.
+ *
+ * A list item does not: there is no `L` prefix, because a list item is a
+ * candidate rather than a thing worth linking at, and inventing a kind so that
+ * one caller could name it would be adding a token nothing reads.
+ */
+export function tokenForRow(
+  surface: 'action' | 'project' | 'list_item' | 'box_item',
+  id: string,
+): string | null {
+  if (surface === 'action') return tokenFor({ kind: 'action', id });
+  if (surface === 'project') return tokenFor({ kind: 'project', id });
+  if (surface === 'box_item') return tokenFor({ kind: 'boxItem', id });
+  return null;
+}
+
+/**
  * Every internal token a document mentions.
  *
  * Lives here rather than beside the renderer because it is not rendering: a

@@ -1,6 +1,12 @@
 import 'server-only';
 
-import { tokenFor, tokensIn, type InternalTarget } from './internal-link';
+import {
+  focusedHref,
+  readToken,
+  tokenFor,
+  tokensIn,
+  type InternalTarget,
+} from './internal-link';
 
 import { cache } from 'react';
 
@@ -1651,6 +1657,36 @@ export async function getActionQueue(actionId: string) {
       .sort((a, b) => (a.doneAt as Date).getTime() - (b.doneAt as Date).getTime())
       .map((row) => ({ ...row, doneAt: (row.doneAt as Date).toISOString() })),
   };
+}
+
+/**
+ * Where a link was followed from, ready to render as a trail.
+ *
+ * `back` carries a token — the row you were reading when you clicked — and this
+ * turns it into a name and an address. One step only, which is the honest
+ * limit: it answers "take me back to what I was reading", not "unwind
+ * everything I have opened", and a breadcrumb that claimed the second would be
+ * lying about a chain it never recorded.
+ *
+ * Anything else in `back` is left alone, which is what lets the box's month
+ * view keep using the same parameter for a view rather than a row.
+ */
+export async function getBackTrail(
+  back: string | undefined,
+): Promise<{ label: string; href: string } | undefined> {
+  if (typeof back !== 'string') return undefined;
+
+  const target = readToken(back);
+  if (!target) return undefined;
+
+  const resolved = await resolveInternalLinks([target]);
+  const found = resolved.get(tokenFor(target));
+
+  // Gone since you clicked, which is rare and not worth a broken link: no
+  // trail is better than one that goes nowhere.
+  if (!found) return undefined;
+
+  return { label: found.title, href: focusedHref(target) };
 }
 
 export async function getFolderTree(folderId: string) {

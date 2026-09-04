@@ -266,9 +266,14 @@ function Choice<T extends string>({
   onPick,
 }: {
   label: string;
-  value: T | undefined;
+  /*
+   * `null` alongside `undefined` because that is what a cleared field now is:
+   * `undefined` does not survive the crossing to a Server Action, so clearing
+   * has to be said in something that does.
+   */
+  value: T | null | undefined;
   options: [T, string][];
-  onPick: (value: T | undefined) => void;
+  onPick: (value: T | null) => void;
 }) {
   return (
     <div>
@@ -282,8 +287,14 @@ function Choice<T extends string>({
             <button
               key={key}
               type="button"
-              // Clicking the active choice clears it.
-              onClick={() => onPick(on ? undefined : key)}
+              /*
+               * Clicking the active choice clears it — with `null`, never
+               * `undefined`. This control was quietly broken in exactly the way
+               * the drop was: React's Server Action serialiser drops a property
+               * whose value is `undefined`, so the patch arrived empty, and
+               * un-picking an impact did nothing at all.
+               */
+              onClick={() => onPick(on ? null : key)}
               className={[
                 'rounded-sm border px-2 py-1 text-[11px]',
                 on
