@@ -26,6 +26,9 @@ import { EmojifyButton } from '@/components/emojify-button';
 import { ListItemRow } from '@/components/list-item-row';
 import { ImpactBucket } from '@/components/impact-bucket';
 import { Board } from '@/components/board';
+import { FocusView } from '@/components/focus-view';
+import { NoteEditor } from '@/components/note-editor';
+import { updateListItemNotes } from '@/lib/actions';
 import { IMPACT_LABELS, type PurchaseImpact } from '@/lib/queries.shared';
 import { groupByDay } from '@/lib/days';
 
@@ -106,6 +109,16 @@ export default async function ListPage(props: PageProps<'/lists/[id]'>) {
 
   /** Selecting a row on the board keeps you on the board. */
   const boardItemHref = (itemId: string) => listUrl({ board: true, item: itemId });
+
+  /**
+   * Opened to work on, from wherever you were.
+   *
+   * `board` is carried through, so closing the focus view from a lane puts
+   * you back on the board rather than dropping you into the panes — the
+   * gesture should not quietly change which view you are in.
+   */
+  const focusOf = (itemId: string, fromBoard = false) =>
+    `${listUrl({ board: fromBoard, item: itemId })}&focus=1`;
 
   const qs = (itemId: string) => {
     const p = new URLSearchParams();
@@ -203,6 +216,49 @@ export default async function ListPage(props: PageProps<'/lists/[id]'>) {
     };
   };
 
+  /**
+   * One item, opened to work on. Before the board, because a row opened *from*
+   * a lane should show the item rather than the lanes again.
+   */
+  if (searchParams.focus !== undefined && selected) {
+    return (
+      <Frame>
+        <FocusView
+          title={selected.title}
+          subtitle={list.name}
+          closeHref={wantsBoard ? boardItemHref(selected.id) : qs(selected.id)}
+          notes={
+            <NoteEditor
+              key={selected.id}
+              surface="list_item"
+              id={selected.id}
+              height={selected.noteHeight ?? null}
+              dense={selected.noteDense ?? null}
+              initialContent={selected.notes}
+              onSave={updateListItemNotes.bind(null, selected.id)}
+              placeholder="Why this is here, what it depends on…"
+              fill
+            />
+          }
+          rest={
+            <ListItemDetail
+              key={selected.id}
+              item={selected}
+              attachments={files!.rows}
+              fileOrder={files!.order}
+              documents={docs!.rows}
+              docOrder={docs!.order}
+              documentOptions={await getLinkableDocuments('list_item', selected.id, '')}
+              isPurchases={isPurchases}
+              projectOptions={projectOptions}
+              hideNotes
+            />
+          }
+        />
+      </Frame>
+    );
+  }
+
   if (wantsBoard) {
     /*
      * The board *instead of* the panes, not on top of them.
@@ -273,7 +329,11 @@ export default async function ListPage(props: PageProps<'/lists/[id]'>) {
                 total={total}
               >
                 <SortableListItems
-                  items={mine.map((i) => ({ ...i, href: boardItemHref(i.id) }))}
+                  items={mine.map((i) => ({
+                    ...i,
+                    href: boardItemHref(i.id),
+                    focusHref: focusOf(i.id, true),
+                  }))}
                   selectedId={selectedId}
                   isPurchases={isPurchases}
                   mode={viewMode}
@@ -421,7 +481,7 @@ export default async function ListPage(props: PageProps<'/lists/[id]'>) {
                 >
 
                   <SortableListItems
-                    items={mine.map((i) => ({ ...i, href: qs(i.id) }))}
+                    items={mine.map((i) => ({ ...i, href: qs(i.id), focusHref: focusOf(i.id) }))}
                     selectedId={selectedId}
                     isPurchases={isPurchases}
                     mode={viewMode}
@@ -473,7 +533,7 @@ export default async function ListPage(props: PageProps<'/lists/[id]'>) {
           )
         ) : (
           <SortableListItems
-            items={items.map((i) => ({ ...i, href: qs(i.id) }))}
+            items={items.map((i) => ({ ...i, href: qs(i.id), focusHref: focusOf(i.id) }))}
             selectedId={selectedId}
             isPurchases={isPurchases}
             mode={viewMode}

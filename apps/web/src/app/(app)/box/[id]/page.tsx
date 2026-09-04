@@ -14,6 +14,10 @@ import { DateRange } from '@/components/date-range';
 import { DocumentGalleryRow } from '@/components/document-gallery-row';
 import { DocumentRow } from '@/components/document-row';
 import { DocumentMenu } from '@/components/entry-menu';
+import { FocusView } from '@/components/focus-view';
+import { NoteEditor } from '@/components/note-editor';
+import { updateBoxItemNotes } from '@/lib/actions';
+import { docFromText } from '@/lib/tiptap';
 import { EmailRequests } from '@/components/email-requests';
 import { getEmailRequests } from '@/lib/box/email-requests';
 import { ActionDetail } from '@/components/action-detail';
@@ -392,6 +396,15 @@ export default async function BoxPage(props: PageProps<'/box/[id]'>) {
   };
 
   /**
+   * The same row, with the window given over to it.
+   *
+   * Built from `href` rather than beside it, so every filter the feed is under
+   * survives being opened and closed again — the same reason the board's
+   * addresses are one builder.
+   */
+  const focusHref = (docId: string) => `${href(docId)}&focus=1`;
+
+  /**
    * A link inside a note, followed without leaving the box.
    *
    * That is the whole point of linking from a journal: you are reading down a
@@ -430,6 +443,55 @@ export default async function BoxPage(props: PageProps<'/box/[id]'>) {
   }
 
 
+
+  /**
+   * One entry, opened to work on: what you wrote on the left, everything the
+   * entry *is* on the right.
+   *
+   * Rendered instead of the panes rather than over them, for the reason the
+   * boards are: it covers the window either way, and drawing both would mount
+   * this note's editor twice — two autosaves for one document.
+   *
+   * Only for a real entry. A milestone opens the project and has no note of its
+   * own, and there is nothing to focus on a pane that is already showing
+   * somebody else's row.
+   */
+  if (searchParams.focus !== undefined && selected && !opened && selected.kind !== 'event') {
+    return (
+      <FocusView
+        title={documentLabel(selected)}
+        subtitle={box.name}
+        closeHref={href(selected.id)}
+        notes={
+          <NoteEditor
+            key={selected.id}
+            surface="box_item"
+            id={selected.id}
+            targets={linkTargets}
+            openBase={openBase}
+            height={selected.noteHeight ?? null}
+            dense={selected.noteDense ?? null}
+            initialContent={selected.notes ?? docFromText(selected.description ?? '')}
+            onSave={updateBoxItemNotes.bind(null, selected.id)}
+            placeholder="Write something."
+            fill
+          />
+        }
+        rest={
+          <DocumentDetail
+            key={selected.id}
+            item={selected}
+            categories={categories}
+            boxes={boxList}
+            projects={projectOptions}
+            linkTargets={linkTargets}
+            openBase={openBase}
+            hideNotes
+          />
+        }
+      />
+    );
+  }
 
   return (
     <>
@@ -549,7 +611,13 @@ export default async function BoxPage(props: PageProps<'/box/[id]'>) {
               <DayHeading label={pinned.length === 1 ? 'Pinned' : `Pinned · ${pinned.length}`} />
               {pinned.map((item) => (
                 <TagDrop key={item.id} itemId={item.id} label={documentLabel(item)} accepts={item.kind !== 'event'}>
-                  <DocumentMenu id={item.id} name={documentLabel(item)} description={item.description} pinned={item.pinned}>
+                  <DocumentMenu
+                    id={item.id}
+                    name={documentLabel(item)}
+                    description={item.description}
+                    pinned={item.pinned}
+                    focusHref={focusHref(item.id)}
+                  >
                     {boxView === 'gallery' ? (
                       <DocumentGalleryRow
                         item={item}
@@ -596,6 +664,7 @@ export default async function BoxPage(props: PageProps<'/box/[id]'>) {
                     name={documentLabel(item)}
                     description={item.description}
                     pinned={item.pinned}
+                    focusHref={focusHref(item.id)}
                   >
                     <DocumentGalleryRow
                       item={item}
@@ -619,6 +688,7 @@ export default async function BoxPage(props: PageProps<'/box/[id]'>) {
                     name={documentLabel(item)}
                     description={item.description}
                     pinned={item.pinned}
+                    focusHref={focusHref(item.id)}
                   >
                     <DocumentRow
                       item={item}

@@ -56,7 +56,18 @@ export function ActionDetail({
   contextGroups,
   parties,
   projects = [],
+  hideNotes,
 }: {
+  /**
+   * Leave the note out, because something else is showing it.
+   *
+   * The focus view puts the note in a column of its own with everything else
+   * beside it, which is a *layout* this pane cannot express — so rather than
+   * teaching the component a second shape, it drops the one block the modal
+   * renders itself. One boolean instead of a rewrite, and the pane is unchanged
+   * when nobody passes it.
+   */
+  hideNotes?: boolean;
   action: ActionDetailData;
   /** Projects it could be filed under. Empty hides the control. */
   projects?: { id: string; title: string }[];
@@ -263,20 +274,22 @@ export function ActionDetail({
         </div>
       </section>
 
-      <section className="mt-7 border-t border-grey-150 pt-5">
-        <NoteEditor
-          key={action.id}
-          surface="action"
-          id={action.id}
-          height={action.noteHeight ?? null}
-          dense={action.noteDense ?? null}
-          initialContent={action.notes}
-          placeholder="Notes on this action…"
-          onSave={async (doc) => {
-            await updateActionNotes(action.id, doc);
-          }}
-        />
-      </section>
+{hideNotes ? null : (
+        <section className="mt-7 border-t border-grey-150 pt-5">
+          <NoteEditor
+            key={action.id}
+            surface="action"
+            id={action.id}
+            height={action.noteHeight ?? null}
+            dense={action.noteDense ?? null}
+            initialContent={action.notes}
+            placeholder="Notes on this action…"
+            onSave={async (doc) => {
+              await updateActionNotes(action.id, doc);
+            }}
+          />
+        </section>
+      )}
 
       <Attachments
         parentType="action"

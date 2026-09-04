@@ -22,7 +22,13 @@ import { DRAG_PROJECT, SortableList, dragPayload, hasDragType } from './sortable
  * `SortableList` ignores drops of a project it doesn't contain, so those
  * bubble up to the surrounding group and land here.
  */
-export type ProjectListItem = Row & { href: string };
+/**
+ * `focusHref` rides with `href` for the same reason: where a row goes when you
+ * click it and where it goes when you open it are both facts the page knows and
+ * the list does not. Optional, so a list with no focus view simply does not
+ * offer the gesture.
+ */
+export type ProjectListItem = Row & { href: string; focusHref?: string };
 
 /** The statuses you can drag between — the archive is reached by finishing. */
 const BUCKETS: ProjectStatus[] = ['active', 'standby', 'someday'];
@@ -158,6 +164,7 @@ export function SortableProjectList({
             renderItem={(project, isDragging) => (
               <RowMenu
                 name={project.title}
+                focusHref={project.focusHref}
                 onRename={(next) => updateProjectTitle(project.id, next)}
                 onDelete={() => deleteProject(project.id)}
                 deleteNote="Its actions and files go with it. Cited documents are only unlinked."

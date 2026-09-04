@@ -36,6 +36,7 @@ export function DocumentMenu({
   name,
   description,
   pinned,
+  focusHref,
   children,
 }: {
   id: string;
@@ -43,11 +44,14 @@ export function DocumentMenu({
   description: string | null;
   /** Whether it is currently lifted above the days. */
   pinned?: boolean;
+  /** Where a double-click opens this entry to work on. */
+  focusHref?: string;
   children: React.ReactNode;
 }) {
   return (
     <RowMenu
       name={name}
+      focusHref={focusHref}
       onRename={(next) => updateDocument(id, next, description ?? '')}
       onDelete={() => deleteDocument(id)}
       deleteLabel="Throw away"

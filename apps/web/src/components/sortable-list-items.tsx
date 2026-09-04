@@ -11,7 +11,13 @@ import { SortableList } from './sortable';
 /** List items have their own drag type so they can't be crossed with actions. */
 export const DRAG_LIST_ITEM = 'application/x-gtd-list-item';
 
-export type ListItemWithHref = Row & { href: string };
+/**
+ * `focusHref` rides with `href` for the same reason: where a row goes when you
+ * click it and where it goes when you open it are both facts the page knows and
+ * the list does not. Optional, so a list with no focus view simply does not
+ * offer the gesture.
+ */
+export type ListItemWithHref = Row & { href: string; focusHref?: string };
 
 export function SortableListItems({
   items,
@@ -43,6 +49,7 @@ export function SortableListItems({
       renderItem={(item, isDragging) => (
         <RowMenu
           name={item.title}
+          focusHref={item.focusHref}
           onRename={(next) => updateListItemTitle(item.id, next)}
           onDelete={() => deleteListItem(item.id)}
           deleteNote="Its files go to the Drive bin with it."

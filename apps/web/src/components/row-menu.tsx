@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState, useTransition } from 'react';
 import { createPortal } from 'react-dom';
+import { useRouter } from 'next/navigation';
 
 /**
  * Rename and delete, on the row itself.
@@ -28,6 +29,7 @@ export function RowMenu({
   /** What deleting will actually do, when it is worth saying. */
   deleteNote,
   extra,
+  focusHref,
   className,
   children,
 }: {
@@ -50,6 +52,20 @@ export function RowMenu({
    */
   extra?: { label: string; run: () => Promise<unknown> | void }[];
   /**
+   * Where a double-click goes: this row, opened in the focus view.
+   *
+   * The gesture is borrowed rather than invented — everywhere else on the
+   * machine single-click selects and double-click *opens*, and a list here
+   * already does the first half, so the second was sitting unused. It costs no
+   * space at all, which is the same argument that put rename and delete in this
+   * menu rather than on five hundred rows.
+   *
+   * It lives here because this component already wraps every list row in the
+   * app. A wrapper of its own would have been a fourth element around each row
+   * carrying one handler.
+   */
+  focusHref?: string;
+  /**
    * Classes for the wrapper. It is a real element in the layout — an attachment
    * row makes it the flex row itself — so the caller has to be able to say what
    * shape it is.
@@ -62,6 +78,7 @@ export function RowMenu({
   const [confirming, setConfirming] = useState(false);
   const [draft, setDraft] = useState(name);
   const [pending, startTransition] = useTransition();
+  const router = useRouter();
 
   /**
    * The menu itself, so a press inside it can be told from a press outside.
@@ -135,7 +152,8 @@ export function RowMenu({
     };
   }, [at]);
 
-  if (!onRename && !onDelete) return <>{children}</>;
+  // Nothing to offer and nothing to open: get out of the layout's way entirely.
+  if (!onRename && !onDelete && !focusHref) return <>{children}</>;
 
   return (
     <>
@@ -144,6 +162,29 @@ export function RowMenu({
           event.preventDefault();
           open(event.clientX, event.clientY);
         }}
+        /*
+         * The single click still happens first, and that is wanted: the row is
+         * selected on the way through, so the view opens on what you pointed at
+         * and closing it leaves that row selected behind you.
+         *
+         * Not on something that already means something. A checkbox, a grip, a
+         * link inside a note — each is doing its own job, and a second click on
+         * one of them is not a request to open anything.
+         */
+        onDoubleClick={
+          focusHref
+            ? (event) => {
+                const hit = event.target as HTMLElement | null;
+                if (
+                  hit?.closest('input, button, select, textarea, audio, [role="menu"]')
+                ) {
+                  return;
+                }
+                event.preventDefault();
+                router.push(focusHref);
+              }
+            : undefined
+        }
         /*
          * Touch only. A mouse has the right-click already, and a 500ms timer on
          * every mouse press would turn a slow click — which is most clicks —
@@ -182,9 +223,19 @@ export function RowMenu({
           event.stopPropagation();
           consumed.current = false;
         }}
-        /* iOS shows its own callout on a long press and never fires
-           `contextmenu`, so ours would open underneath the system one. */
-        className={['[-webkit-touch-callout:none]', className ?? ''].join(' ')}
+        /*
+         * `select-none` because a double-click selects a word by default, so
+         * without it every row you opened would leave a highlighted fragment of
+         * its own title behind — which then fights the next drag you start.
+         *
+         * iOS shows its own callout on a long press and never fires
+         * `contextmenu`, so ours would open underneath the system one.
+         */
+        className={[
+          '[-webkit-touch-callout:none]',
+          focusHref ? 'select-none' : '',
+          className ?? '',
+        ].join(' ')}
       >
         {children}
       </div>

@@ -1,6 +1,9 @@
 import Link from 'next/link';
 import { ActionDetail } from '@/components/action-detail';
 import { Board } from '@/components/board';
+import { FocusView } from '@/components/focus-view';
+import { NoteEditor } from '@/components/note-editor';
+import { updateActionNotes } from '@/lib/actions';
 import { SortableActionList } from '@/components/sortable-action-list';
 import { EmojifyButton } from '@/components/emojify-button';
 import { ContextFilter } from '@/components/context-filter';
@@ -57,6 +60,9 @@ export default async function NowPage(props: PageProps<'/now'>) {
   };
 
   const qs = (id: string) => nowUrl({ action: id });
+
+  /** The same row with the window given over to it, filters intact. */
+  const focusOf = (id: string) => `${nowUrl({ action: id })}&focus=1`;
 
   /*
    * Cut into the headings you made, in their order, with everything else last.
@@ -126,6 +132,51 @@ export default async function NowPage(props: PageProps<'/now'>) {
       projects={projectOptions}
     />
   ) : null;
+
+  /**
+   * One action, opened to work on.
+   *
+   * Instead of the panes rather than over them: it covers the window either
+   * way, and drawing both would mount this action's note editor twice — two
+   * autosaves for one document.
+   */
+  if (searchParams.focus !== undefined && selected && detail) {
+    return (
+      <FocusView
+        title={selected.title}
+        subtitle={selected.projectTitle ?? 'No project'}
+        closeHref={qs(selected.id)}
+        notes={
+          <NoteEditor
+            key={selected.id}
+            surface="action"
+            id={selected.id}
+            height={selected.noteHeight}
+            dense={selected.noteDense}
+            initialContent={selected.notes}
+            onSave={updateActionNotes.bind(null, selected.id)}
+            placeholder="What it depends on, what you tried, what you decided…"
+            fill
+          />
+        }
+        rest={
+          <ActionDetail
+            key={selected.id}
+            action={selected}
+            attachments={files!.rows}
+            fileOrder={files!.order}
+            documents={docs!.rows}
+            docOrder={docs!.order}
+            documentOptions={await getLinkableDocuments('action', selected.id, '')}
+            contextGroups={groups}
+            parties={groups.person.map((p) => p.name)}
+            projects={projectOptions}
+            hideNotes
+          />
+        }
+      />
+    );
+  }
 
   if (wantsBoard) {
     /*
@@ -267,7 +318,7 @@ export default async function NowPage(props: PageProps<'/now'>) {
         */}
         {sections.length === 0 ? (
           <SortableActionList
-            actions={rows.map((a) => ({ ...a, href: qs(a.id) }))}
+            actions={rows.map((a) => ({ ...a, href: qs(a.id), focusHref: focusOf(a.id) }))}
             selectedId={selectedId}
             mode={viewMode}
             emptyState={
@@ -300,6 +351,7 @@ export default async function NowPage(props: PageProps<'/now'>) {
                   actions={(bySection.get(section.id) ?? []).map((a) => ({
                     ...a,
                     href: qs(a.id),
+                    focusHref: focusOf(a.id),
                   }))}
                   selectedId={selectedId}
                   mode={viewMode}
@@ -309,7 +361,7 @@ export default async function NowPage(props: PageProps<'/now'>) {
 
             <NowLoose count={loose.length}>
               <SortableActionList
-                actions={loose.map((a) => ({ ...a, href: qs(a.id) }))}
+                actions={loose.map((a) => ({ ...a, href: qs(a.id), focusHref: focusOf(a.id) }))}
                 selectedId={selectedId}
                 mode={viewMode}
               />

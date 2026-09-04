@@ -71,6 +71,9 @@ export async function ProjectListPane({
           projects={rows.map((p) => ({
             ...p,
             href: `/projects/${p.id}${stalledOnly ? '?filter=stalled' : ''}`,
+            // Double-click opens the project to work on; the filter rides
+            // along so closing it puts you back in the view you were in.
+            focusHref: `/projects/${p.id}?${stalledOnly ? 'filter=stalled&' : ''}focus=1`,
           }))}
           selectedId={selectedId}
           mode={viewMode}

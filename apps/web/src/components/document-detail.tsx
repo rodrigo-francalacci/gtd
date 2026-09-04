@@ -83,7 +83,18 @@ export function DocumentDetail({
   projects,
   linkTargets,
   openBase,
+  hideNotes,
 }: {
+  /**
+   * Leave the note out, because something else is showing it.
+   *
+   * The focus view puts the note in a column of its own with everything else
+   * beside it, which is a *layout* this pane cannot express — so rather than
+   * teaching the component a second shape, it drops the one block the modal
+   * renders itself. One boolean instead of a rewrite, and the pane is unchanged
+   * when nobody passes it.
+   */
+  hideNotes?: boolean;
   item: BoxItemDetail;
   categories: BoxCategoryRow[];
   boxes: BoxRow[];
@@ -373,82 +384,84 @@ export function DocumentDetail({
         </div>
       ) : null}
 
-      <section className="flex flex-col gap-1">
-        <label className="text-[10px] uppercase tracking-wider text-grey-500">
-          {isAudio
-            ? 'About this recording'
-            : item.kind === 'link'
-              ? 'What this page is'
-              : isDocument
-                ? 'What this is'
-                : 'Note'}
-        </label>
-        {/*
-          Already resizable; now it stays where you put it. `rows` is dropped,
-          because a height and a row count are two answers to one question and
-          the row count would win on first paint before the variable applied.
-        */}
-        {/*
-          The same editor every other note in the app uses.
+{hideNotes ? null : (
+        <section className="flex flex-col gap-1">
+          <label className="text-[10px] uppercase tracking-wider text-grey-500">
+            {isAudio
+              ? 'About this recording'
+              : item.kind === 'link'
+                ? 'What this page is'
+                : isDocument
+                  ? 'What this is'
+                  : 'Note'}
+          </label>
+          {/*
+            Already resizable; now it stays where you put it. `rows` is dropped,
+            because a height and a row count are two answers to one question and
+            the row count would win on first paint before the variable applied.
+          */}
+          {/*
+            The same editor every other note in the app uses.
 
-          It seeds from `description` when there is no rich document yet, which
-          is every entry filed before this and every summary a model wrote — so
-          nothing had to be migrated, and an AI summary is simply the first
-          draft of a note you can then format.
+            It seeds from `description` when there is no rich document yet, which
+            is every entry filed before this and every summary a model wrote — so
+            nothing had to be migrated, and an AI summary is simply the first
+            draft of a note you can then format.
 
-          It saves itself, like notes everywhere else here, which is why the
-          Save and Discard below now belong to the title alone. A rich editor
-          owns its content; a manual save over the top is two sources of truth
-          for one field.
-        */}
-        <NoteEditor
-          key={item.id}
-          surface="box_item"
-          id={item.id}
-          targets={linkTargets}
-          openBase={openBase}
-          height={item.noteHeight ?? null}
-          dense={item.noteDense ?? null}
-          initialContent={item.notes ?? docFromText(item.description ?? '')}
-          onSave={async (doc) => {
-            await updateBoxItemNotes(item.id, doc);
-          }}
-          placeholder={
-            isAudio
-              ? 'Not transcribed — nothing here reads speech yet. Write what it was about and search will find it.'
-              : isDocument
-                ? 'Not summarised yet.'
-                : 'Write something.'
-          }
-        />
+            It saves itself, like notes everywhere else here, which is why the
+            Save and Discard below now belong to the title alone. A rich editor
+            owns its content; a manual save over the top is two sources of truth
+            for one field.
+          */}
+          <NoteEditor
+            key={item.id}
+            surface="box_item"
+            id={item.id}
+            targets={linkTargets}
+            openBase={openBase}
+            height={item.noteHeight ?? null}
+            dense={item.noteDense ?? null}
+            initialContent={item.notes ?? docFromText(item.description ?? '')}
+            onSave={async (doc) => {
+              await updateBoxItemNotes(item.id, doc);
+            }}
+            placeholder={
+              isAudio
+                ? 'Not transcribed — nothing here reads speech yet. Write what it was about and search will find it.'
+                : isDocument
+                  ? 'Not summarised yet.'
+                  : 'Write something.'
+            }
+          />
 
-        {dirty ? (
-          <div className="flex items-center gap-3">
-            <button
-              type="button"
-              disabled={pending}
-              onClick={() =>
-                startTransition(async () => {
-                  await updateDocument(item.id, title, item.description ?? '');
-                  // Back to showing the row itself, which is now what we sent.
-                  setDraft(null);
-                  router.refresh();
-                })
-              }
-              className="self-start rounded-sm bg-grey-800 px-2 py-1 text-[11px] text-paper disabled:opacity-50"
-            >
-              Save
-            </button>
-            <button
-              type="button"
-              onClick={() => setDraft(null)}
-              className="text-[11px] text-grey-500 underline underline-offset-2"
-            >
-              Discard
-            </button>
-          </div>
-        ) : null}
-      </section>
+          {dirty ? (
+            <div className="flex items-center gap-3">
+              <button
+                type="button"
+                disabled={pending}
+                onClick={() =>
+                  startTransition(async () => {
+                    await updateDocument(item.id, title, item.description ?? '');
+                    // Back to showing the row itself, which is now what we sent.
+                    setDraft(null);
+                    router.refresh();
+                  })
+                }
+                className="self-start rounded-sm bg-grey-800 px-2 py-1 text-[11px] text-paper disabled:opacity-50"
+              >
+                Save
+              </button>
+              <button
+                type="button"
+                onClick={() => setDraft(null)}
+                className="text-[11px] text-grey-500 underline underline-offset-2"
+              >
+                Discard
+              </button>
+            </div>
+          ) : null}
+        </section>
+      )}
 
       {/* Dates, plural and deliberately so: a bill that arrives in August is
           dated July, and both facts are worth keeping. A note has only the one

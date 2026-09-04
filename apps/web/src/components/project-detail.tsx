@@ -75,7 +75,18 @@ export function ProjectDetail({
   boxes = [],
   timelines = [],
   tree = null,
+  hideNotes,
 }: {
+  /**
+   * Leave the note out, because something else is showing it.
+   *
+   * The focus view puts the note in a column of its own with everything else
+   * beside it, which is a *layout* this pane cannot express — so rather than
+   * teaching the component a second shape, it drops the one block the modal
+   * renders itself. One boolean instead of a rewrite, and the pane is unchanged
+   * when nobody passes it.
+   */
+  hideNotes?: boolean;
   project: ProjectDetailData;
   attachments: AttachmentRow[];
   documents: LinkedDocumentRow[];
@@ -274,20 +285,22 @@ export function ProjectDetail({
         </div>
       ) : null}
 
-      <section className="mt-7 border-t border-grey-150 pt-5">
-        <NoteEditor
-          key={project.id}
-          surface="project"
-          id={project.id}
-          height={project.noteHeight ?? null}
-          dense={project.noteDense ?? null}
-          initialContent={project.notes}
-          placeholder="Project notes, outcome, reference…"
-          onSave={async (doc) => {
-            await updateProjectNotes(project.id, doc);
-          }}
-        />
-      </section>
+{hideNotes ? null : (
+        <section className="mt-7 border-t border-grey-150 pt-5">
+          <NoteEditor
+            key={project.id}
+            surface="project"
+            id={project.id}
+            height={project.noteHeight ?? null}
+            dense={project.noteDense ?? null}
+            initialContent={project.notes}
+            placeholder="Project notes, outcome, reference…"
+            onSave={async (doc) => {
+              await updateProjectNotes(project.id, doc);
+            }}
+          />
+        </section>
+      )}
 
       <Attachments
         parentType="project"

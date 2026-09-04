@@ -47,6 +47,7 @@ export function NoteEditor({
   dense,
   targets,
   openBase,
+  fill = false,
 }: {
   initialContent: unknown;
   onSave: (doc: unknown) => Promise<void>;
@@ -84,6 +85,20 @@ export function NoteEditor({
    * back to the target's own page.
    */
   openBase?: string;
+  /**
+   * Take the height available instead of the height you were dragged to.
+   *
+   * A remembered height is the right answer in a pane, where the note is one
+   * section among several and how much of the column it should claim is a real
+   * decision. In the focus view it is the *only* thing in its column, and a
+   * note sized to a pane sitting in the top third of a full-screen editor with
+   * dead space under it is the view failing to be what it is for.
+   *
+   * The handle goes with it, and so does remembering: there is nothing to
+   * choose when the answer is "all of it", and writing a window-sized height
+   * back to the row would then follow the note into every pane it appears in.
+   */
+  fill?: boolean;
 }) {
   const router = useRouter();
   const [state, setState] = useState<SaveState>('idle');
@@ -184,8 +199,8 @@ export function NoteEditor({
   // the call sites, which remounts the editor with the right content.
 
   return (
-    <div>
-      <div className="mb-1 flex h-4 items-center justify-end">
+    <div className={fill ? 'flex h-full min-h-0 flex-col' : undefined}>
+      <div className="mb-1 flex h-4 shrink-0 items-center justify-end">
         <span className="text-[11px] text-grey-400">
           {state === 'saving' ? 'Saving…' : state === 'saved' ? 'Saved' : ''}
         </span>
@@ -233,7 +248,7 @@ export function NoteEditor({
         than leaving ctrl-click doing nothing at all.
       */}
       <div
-        ref={box}
+        ref={fill ? undefined : box}
         onClickCapture={(event) => {
           const span = (event.target as HTMLElement | null)?.closest?.(
             'span[data-internal]',
@@ -261,9 +276,13 @@ export function NoteEditor({
 
           router.push(href);
         }}
-        style={height ? { height: `${height}px` } : undefined}
+        style={!fill && height ? { height: `${height}px` } : undefined}
         className={[
-          'h-[var(--note-height,16rem)] min-h-24 resize-y overflow-auto rounded-sm',
+          fill
+            // `min-h-0` above a scroller in a flex column, or it grows to its
+            // content and the whole modal scrolls instead of the note.
+            ? 'min-h-0 flex-1 overflow-auto rounded-sm'
+            : 'h-[var(--note-height,16rem)] min-h-24 resize-y overflow-auto rounded-sm',
           // The wrapper carries it, so the leading reaches the headings and
           // lists inside as well as the paragraphs.
           tight ? 'note-tight' : '',
@@ -272,7 +291,7 @@ export function NoteEditor({
         <EditorContent editor={editor} />
       </div>
 
-      <RememberedHeight surface={surface} id={id} target={box} />
+      {fill ? null : <RememberedHeight surface={surface} id={id} target={box} />}
     </div>
   );
 }

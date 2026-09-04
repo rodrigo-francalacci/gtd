@@ -13,7 +13,13 @@ import { DRAG_ACTION, SortableList } from './sortable';
  * `href` is precomputed per row by the server rather than passed as a builder
  * function — functions can't cross the server/client boundary.
  */
-export type ActionListItem = ActionRow & { href: string };
+/**
+ * `focusHref` rides with `href` for the same reason: where a row goes when you
+ * click it and where it goes when you open it are both facts the page knows and
+ * the list does not. Optional, so a list that has no focus view simply does not
+ * offer the gesture.
+ */
+export type ActionListItem = ActionRow & { href: string; focusHref?: string };
 
 /**
  * The actions list, drag-reorderable. Rows also carry the action drag type, so
@@ -52,6 +58,7 @@ export function SortableActionList({
       renderItem={(action, isDragging) => (
         <RowMenu
           name={action.title}
+          focusHref={action.focusHref}
           onRename={(next) => updateActionTitle(action.id, next)}
           onDelete={() => deleteAction(action.id)}
           /*

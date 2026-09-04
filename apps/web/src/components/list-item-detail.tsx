@@ -36,7 +36,18 @@ export function ListItemDetail({
   documentOptions,
   isPurchases,
   projectOptions,
+  hideNotes,
 }: {
+  /**
+   * Leave the note out, because something else is showing it.
+   *
+   * The focus view puts the note in a column of its own with everything else
+   * beside it, which is a *layout* this pane cannot express — so rather than
+   * teaching the component a second shape, it drops the one block the modal
+   * renders itself. One boolean instead of a rewrite, and the pane is unchanged
+   * when nobody passes it.
+   */
+  hideNotes?: boolean;
   item: Row;
   attachments: AttachmentRow[];
   documents: LinkedDocumentRow[];
@@ -184,25 +195,27 @@ export function ListItemDetail({
         </select>
       </section>
 
-      <section className="mt-6">
-        <h2 className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-grey-500">
-          Notes
-        </h2>
-        {/* key: the editor must not resync from props on autosave, so switching
-            items is handled by remounting rather than by an effect. */}
-        <NoteEditor
-          key={item.id}
-          surface="list_item"
-          id={item.id}
-          height={item.noteHeight ?? null}
-          dense={item.noteDense ?? null}
-          initialContent={item.notes}
-          placeholder="Why this is here, what it depends on…"
-          onSave={async (doc) => {
-            await updateListItemNotes(item.id, doc);
-          }}
-        />
-      </section>
+      {hideNotes ? null : (
+        <section className="mt-6">
+          <h2 className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-grey-500">
+              Notes
+            </h2>
+            {/* key: the editor must not resync from props on autosave, so switching
+                items is handled by remounting rather than by an effect. */}
+            <NoteEditor
+              key={item.id}
+              surface="list_item"
+              id={item.id}
+              height={item.noteHeight ?? null}
+              dense={item.noteDense ?? null}
+              initialContent={item.notes}
+              placeholder="Why this is here, what it depends on…"
+              onSave={async (doc) => {
+                await updateListItemNotes(item.id, doc);
+              }}
+            />
+        </section>
+      )}
 
       <Attachments
         parentType="list_item"

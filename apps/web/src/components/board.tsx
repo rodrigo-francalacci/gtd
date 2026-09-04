@@ -1,10 +1,9 @@
 'use client';
 
-import Link from 'next/link';
-import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import type { ReactNode } from 'react';
 import type { ViewMode } from '@/lib/pane';
+import { FullScreen } from './full-screen';
 import { ViewToggle } from './view-toggle';
 
 /**
@@ -90,83 +89,13 @@ export function Board({
 }) {
   const router = useRouter();
 
-  /*
-   * Escape closes it, which is what every full-screen thing on this machine
-   * does. `router.push` rather than `back()`: the board is a URL, and the way
-   * out has to be the same whether you opened it with the button, followed a
-   * link into it, or refreshed the page while it was open.
-   */
-  useEffect(() => {
-    const key = (event: KeyboardEvent) => {
-      if (event.key !== 'Escape') return;
-
-      // Not while something is being typed into — Escape means "abandon this
-      // field" first, and closing the whole board out from under a half-written
-      // price is the kind of thing you only forgive once.
-      const active = document.activeElement as HTMLElement | null;
-      if (
-        active &&
-        (active.tagName === 'INPUT' ||
-          active.tagName === 'TEXTAREA' ||
-          active.isContentEditable)
-      ) {
-        return;
-      }
-
-      router.push(closeHref);
-    };
-
-    document.addEventListener('keydown', key);
-    return () => document.removeEventListener('keydown', key);
-  }, [router, closeHref]);
-
   return (
-    <div
-      /*
-       * The surface markers, so the theme with three grounds reaches this too.
-       *
-       * `data-surface`, not `data-pane` — that is the attribute those rules
-       * address, and getting it wrong is silent: the board simply renders on
-       * the base tokens with no texture and no charcoal reading column, looking
-       * like the one screen in the app that belongs to a different app.
-       *
-       * The lanes are the list and the reading side is the detail, because that
-       * is what they are. A board is the same two panes at a different size.
-       */
-      data-surface="list"
-      /*
-       * `z-50`, and the number is not arbitrary.
-       *
-       * The sidebar's wrapper is `relative z-50`, so anything below that is
-       * painted *under* the navigation — which at `z-30` meant the first lane
-       * sat behind it, cut off, on a view whose whole point is seeing all four
-       * at once. Matching it wins on source order instead, because the board is
-       * rendered after the sidebar.
-       *
-       * It must not go higher. The row menus and the theme switcher portal to
-       * the body at `z-50` too, and they are later in the document still — so
-       * they land above this, which is what a right-click on a row here needs.
-       * Raising the board would put every menu behind it.
-       */
-      className="fixed inset-0 z-50 flex flex-col bg-paper"
+    <FullScreen
+      title={title}
+      subtitle={subtitle}
+      closeHref={closeHref}
+      actions={<ViewToggle mode={viewMode} viewKey={viewKey} />}
     >
-      <header className="flex shrink-0 flex-wrap items-baseline justify-between gap-x-4 gap-y-1 border-b border-grey-200 px-4 py-2">
-        <div className="min-w-0">
-          <h1 className="truncate text-[13px] font-semibold text-grey-900">{title}</h1>
-          <p className="truncate text-[11px] text-grey-500">{subtitle}</p>
-        </div>
-
-        <div className="flex items-center gap-3">
-          <ViewToggle mode={viewMode} viewKey={viewKey} />
-          <Link
-            href={closeHref}
-            className="text-[11px] text-grey-500 underline underline-offset-2 hover:text-grey-800"
-          >
-            Close
-          </Link>
-        </div>
-      </header>
-
       {/*
         Lanes and the reading side.
 
@@ -224,6 +153,6 @@ export function Board({
           {side}
         </aside>
       </div>
-    </div>
+    </FullScreen>
   );
 }
