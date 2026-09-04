@@ -1608,6 +1608,19 @@ Turbopack is the default; `middleware` is now `proxy`.
   own size with the wash around it that makes it read as paper. `mm` is not a
   flourish: this is the one place in the app measuring something with a physical
   width rather than a number of characters.
+- **A link followed full screen carries where it came from.** The parent trail
+  cannot answer this: an action's parent is its project, which is a fact about
+  the *row*, so following a note's link into another action offered its project
+  instead of the note you came from. Following a link is arbitrary by nature, so
+  the only thing that can say where you were is the link itself —
+  `back=<token>`, resolved by `getBackTrail` into a name and an address, and
+  winning over the parent when both exist.
+  **One step, deliberately.** It answers "take me back to what I was reading",
+  not "unwind everything I have opened", and a breadcrumb claiming the second
+  would be lying about a chain nothing recorded.
+  **The same parameter carries the box's month**, and the two cannot be
+  confused: a token names a row, `month` names a view, and `readToken` refuses
+  anything that is not a token.
 - **The focus view names its parent, from the data rather than from history.**
   Full screen there is no list beside you to say where you are, so a step opened
   from its project had only "Close" — which returns to the panes rather than to
@@ -2201,9 +2214,22 @@ Turbopack is the default; `middleware` is now `proxy`.
   ordinary case though: you called something "nice to have" in October and by
   January the honest answer is *undecided*, not a third guess. It follows that
   it is rendered even when empty, like the project statuses: it became a place
-  the moment you could drag something back into it. `updateListItemFields`
-  already cleared the field when handed `undefined`, so only the target had to
-  stop saying no.
+  the moment you could drag something back into it. The target had to stop
+  saying no — and so did the *write*, which was broken in a second, quieter
+  way.
+- **`undefined` does not survive a Server Action, so `null` is how you clear a
+  field.** `updateListItemFields` documented "an explicit undefined means clear
+  this field", and that rule was unreachable from any client: React's
+  serialiser drops a property whose value is `undefined`, so
+  `{ impact: undefined }` arrived as `{}` and the loop had nothing to do. Both
+  the drag back to "Not said yet" *and* clicking an active impact chip to
+  un-pick it were accepted, ran a transition, and changed nothing — the worst
+  shape of bug, because every visible part of it worked.
+  The same family as the `Object.create(null)` trap that cost every note link
+  its `href`: **when a value has to cross, say it in something that survives.**
+  `PurchaseFieldsPatch` is a separate type from `PurchaseFields` because the two
+  are different things — `null` is an instruction, never a stored value, and the
+  nulls are deleted on the way in so the column never holds one.
 - **A truncated model reply must be recognised before it is parsed.** The
   classifier has checked `status === 'incomplete'` since it was written; the
   emoji path did not, and the difference reached the user as *"Unterminated
