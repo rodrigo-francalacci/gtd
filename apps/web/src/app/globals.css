@@ -364,7 +364,18 @@
  * rendered five route segments from here.
  */
 :root[data-theme='paper'] [data-pane='preview'] {
-  position: relative;
+  /*
+   * `z-index` and no `position`, which is not an oversight.
+   *
+   * A flex item takes a `z-index` while staying `position: static`, and the
+   * pane is a child of the shell's flex row — so this lifts it above the grain
+   * without saying anything about where it sits. Stating `position: relative`
+   * here did say something, and it beat the `fixed` the pane puts on itself
+   * when you expand it: an attribute selector on the root plus one on the pane
+   * outranks a utility class, so pressing "read it full screen" flipped the
+   * button's label and moved nothing. Broken in every theme that lifts the
+   * preview — paper, and both phosphors — and in none of the three that don't.
+   */
   z-index: 10000;
 }
 
@@ -976,7 +987,9 @@
  */
 :root[data-theme='sci'] [data-pane='preview'],
 :root[data-theme='amber'] [data-pane='preview'] {
-  position: relative;
+  /* No `position`, for the reason paper mode's rule gives at length: it would
+   * outrank the `fixed` the pane sets on itself and full screen would stop
+   * working. A flex item is allowed a `z-index` without one. */
   z-index: 10000;
 }
 

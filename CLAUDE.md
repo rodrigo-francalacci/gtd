@@ -2003,6 +2003,23 @@ Turbopack is the default; `middleware` is now `proxy`.
 - **Inputs on the phone are 16px minimum.** iOS Safari zooms the page in when a
   smaller field takes focus. The fix is the type size, never
   `user-scalable=no` — blocking pinch-zoom to stop it is a bad trade.
+- **A theme that lifts the preview must give it a `z-index` and *not* a
+  `position`.** Paper mode and both phosphors lift that pane above their
+  overlay so the app's costume does not land on somebody's PDF, and all three
+  did it with `position: relative; z-index: 10000`. The `position` was the
+  mistake: `:root[data-theme='sci'] [data-pane='preview']` is two attribute
+  selectors and outranks a utility class, so it beat the `fixed inset-0` the
+  pane puts on itself when you expand it. Pressing "read it full screen"
+  flipped the button to "back to the pane" and moved nothing — the state
+  changed, the layout could not. Broken in exactly the three themes that lift
+  the pane and working in the three that don't, which is what made it look like
+  a console-theme bug rather than a stacking one.
+  A flex item takes a `z-index` while staying `position: static`, and that pane
+  is a child of the shell's flex row, so the lift needs nothing else. Verified
+  in all three: collapsed, the pane is still the topmost thing inside its own
+  rectangle (the grain and the scanlines are below it); expanded, it is
+  `fixed`, 1920 wide, and `elementFromPoint` in the middle of the screen finds
+  it.
 - **`fixed z-50` is not "above everything" — it is 50 inside whatever stacking
   context encloses it.** Both context menus were `fixed z-50` inside the list
   pane, which is `relative z-0`: the whole context sits at zero, so the part of
