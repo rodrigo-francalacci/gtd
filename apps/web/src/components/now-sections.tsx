@@ -168,58 +168,6 @@ export function NowSection({
   );
 }
 
-/**
- * What you have committed to today, above the pool of what you could do.
- *
- * The list already answers *what could I do now*; this answers *what did I say
- * I would do now*, which is a different and louder question. Its own block
- * rather than colour on the rows — his own two suggestions, and the block wins
- * because the whole value of a commitment is that it is separate from the
- * pool: a marked row in a list of forty is still a row in a list of forty.
- * Pinned entries in a box get their own block above the days for exactly this
- * reason.
- *
- * **Today and anything overdue, never what is coming.** A slot booked for next
- * Tuesday is not something to do now, and lifting it here would fill the block
- * with things that are not today's — which is the failure that makes people
- * stop reading a calendar. Those rows stay in the pool with their date beside
- * them, which is the marking half of the same idea.
- *
- * Not a drop target and not sortable: the order is the clock's, and a heading
- * you could drag onto would be offering to schedule something for a time
- * nobody named.
- */
-export function NowScheduled({
-  count,
-  late,
-  children,
-}: {
-  count: number;
-  /** How many of them have already been and gone. */
-  late: number;
-  children: ReactNode;
-}) {
-  if (count === 0) return null;
-
-  return (
-    <section>
-      <header className="flex items-baseline gap-2 border-b border-grey-200 bg-grey-100 px-4 py-1.5">
-        <h3 className="min-w-0 flex-1 truncate text-[10px] font-semibold uppercase tracking-wider text-grey-600">
-          Scheduled
-        </h3>
-        {late > 0 ? (
-          /* Said in words rather than as a colour, because "three of these
-             were meant to have happened" is the fact, and a red row only
-             says that something is wrong with it. */
-          <span className="shrink-0 text-[10px] text-stale">{late} gone by</span>
-        ) : null}
-        <span className="shrink-0 tabular-nums text-[10px] text-grey-400">{count}</span>
-      </header>
-      {children}
-    </section>
-  );
-}
-
 /** Its own type, so a heading being reordered is not read as an action. */
 export const DRAG_SECTION = 'application/x-gtd-now-section';
 

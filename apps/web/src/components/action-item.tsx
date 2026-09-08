@@ -15,21 +15,25 @@ import { SimpleRow } from './simple-row';
 import { IconCalendar, IconLater } from './icons';
 
 /**
- * "Tue 14:00", "23 Feb", "not until 1 Mar" — or nothing at all.
+ * "15:30", "Tue 14:00", "not until 1 Mar" — or nothing at all.
  *
  * Read off the row rather than passed in, because every list that draws an
  * action wants the same answer and threading a flag through five call sites is
  * how two of them end up disagreeing.
  *
- * Today's bookings say nothing here: they are in the scheduled block with the
- * clock beside them already, and repeating it in the pool would only be
- * possible for a row that is in both, which none are.
+ * Today's bookings say just the time, and they have to say something: they
+ * were lifted into a block above the list before the calendar started drawing
+ * them, and now that they sit back in the pool the time is the only thing
+ * distinguishing a step you booked for half three from one you could pick up
+ * this minute.
  */
 function whenLabel(action: ActionRow): string | null {
   const standing = standingOf(action.scheduledAt);
 
-  if (action.scheduledAt && standing === 'ahead') {
+  if (action.scheduledAt && standing !== null) {
     const when = action.scheduledAt;
+    if (standing !== 'ahead') return clock.format(when);
+
     const sameYear = when.getFullYear() === new Date().getFullYear();
     return dayAndTime.format(when) + (sameYear ? '' : ` ${when.getFullYear()}`);
   }
@@ -55,6 +59,8 @@ const dayAndTime = new Intl.DateTimeFormat('en-GB', {
 });
 
 const dayOnly = new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'short' });
+
+const clock = new Intl.DateTimeFormat('en-GB', { hour: '2-digit', minute: '2-digit' });
 import { RowEmoji } from './row-emoji';
 
 /**

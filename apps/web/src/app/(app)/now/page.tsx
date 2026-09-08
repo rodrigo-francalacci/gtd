@@ -11,14 +11,8 @@ import { ContextFilter } from '@/components/context-filter';
 import { ListKeys } from '@/components/list-keys';
 import { DetailPane, EmptyDetail, EmptyList, ListPane } from '@/components/panes';
 import { QuickAddAction } from '@/components/quick-add';
-import {
-  AddNowSection,
-  NowLoose,
-  NowScheduled,
-  NowSection,
-} from '@/components/now-sections';
+import { AddNowSection, NowLoose, NowSection } from '@/components/now-sections';
 import { ACTION_COLUMNS } from '@/lib/columns';
-import { standingOf } from '@/lib/queries.shared';
 import { attachmentsFor, documentsFor } from '@/lib/file-lists';
 import { deleteAction } from '@/lib/actions';
 import { getNowSections, getProjectOptions } from '@/lib/queries';
@@ -96,38 +90,19 @@ export default async function NowPage(props: PageProps<'/now'>) {
    * knows nothing about an arrangement no other page uses.
    */
   /*
-   * What you have committed to today comes out of the pool first.
+   * Today's bookings are *not* lifted out of the list.
    *
-   * Today and anything overdue, in clock order, above everything — because
-   * "what did I say I would do now" is a different and louder question than
-   * "what could I do now", and a commitment mixed into a list of forty is not
-   * a commitment. Anything booked for a later day stays exactly where it is,
-   * with its date on the row: lifting those here would fill the block with
-   * things that are not today's, which is how a calendar stops being read.
+   * They were, into a block of their own above the pool, and that block is
+   * gone: the calendar now draws every scheduled step on the timeline beside
+   * Google's events, which is a better answer to the same question and makes
+   * the block a second, worse copy of it. Two places showing the same set is
+   * two places to keep in agreement, and the one with the actual day around it
+   * wins.
    *
-   * Taken out of `rows` rather than drawn twice, or the arrows would walk past
-   * each of them once in each place.
+   * What survives is the marking half of the idea — a scheduled row wears its
+   * time in the list, so it is not mistaken for something to pick up now.
    */
-  const booked = (later ? [] : rows)
-    .filter((a) => {
-      const standing = standingOf(a.scheduledAt);
-      return standing === 'today' || standing === 'overdue';
-    })
-    .sort((a, b) => (a.scheduledAt?.getTime() ?? 0) - (b.scheduledAt?.getTime() ?? 0));
-
-  const bookedIds = new Set(booked.map((a) => a.id));
-  const pool = rows.filter((a) => !bookedIds.has(a.id));
-  /*
-   * Late is measured against the clock, not against the day.
-   *
-   * `standingOf` cuts in whole days because that decides *where* a row is
-   * drawn — today's bookings lift, later ones stay in the pool. Whether one
-   * has been missed is a different question with a different unit: a slot at
-   * seven this morning, read at four in the afternoon, has been and gone, and
-   * saying "none gone by" over it would be the header stating something false.
-   */
-  const now = Date.now();
-  const late = booked.filter((a) => (a.scheduledAt?.getTime() ?? 0) < now).length;
+  const pool = rows;
 
   const bySection = new Map<string, typeof rows>();
   const loose: typeof rows = [];
@@ -404,7 +379,6 @@ export default async function NowPage(props: PageProps<'/now'>) {
            * order is how the arrows end up jumping about.
            */
           rows={[
-            ...booked,
             ...sections.flatMap((section) => bySection.get(section.id) ?? []),
             ...loose,
           ].map((a) => ({ id: a.id, href: qs(a.id) }))}
@@ -415,21 +389,6 @@ export default async function NowPage(props: PageProps<'/now'>) {
         />
 
         {later ? null : <QuickAddAction />}
-
-        <NowScheduled count={booked.length} late={late}>
-          <SortableActionList
-            actions={booked.map((a) => ({
-              ...a,
-              href: qs(a.id),
-              focusHref: focusOf(a.id),
-            }))}
-            selectedId={selectedId}
-            mode={viewMode}
-            /* The clock decides this order, so dragging inside it would look
-               like it had done nothing. */
-            sortable={false}
-          />
-        </NowScheduled>
 
         {/*
           With no headings this is the list exactly as it was — one sortable

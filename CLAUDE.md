@@ -281,24 +281,20 @@ Turbopack is the default; `middleware` is now `proxy`.
   until March still *has* one and you have said when you will pick it up, which
   is the opposite of stalled — and that count has to keep agreeing exactly with
   `isStalled` over `getProjects()`.
-- **Today's commitments get their own block above the pool.** The list already
-  answers *what could I do now*; this answers *what did I say I would do now*,
-  which is louder. A block rather than colour on the rows, which was the other
-  option on the table: the whole value of a commitment is being separate from
-  the pool, and a marked row in a list of forty is still a row in a list of
-  forty. Pinned entries in a box get their own block above the days for the
-  same reason.
-  **Today and anything overdue, never what is coming.** A slot booked for next
-  Tuesday is not something to do now, and lifting it here would fill the block
-  with things that are not today's — which is how a calendar stops being read.
-  Those rows stay in the pool with the date beside them.
-  **Not a drop target and not sortable**: the order is the clock's, and
-  `SortableActionList` grew a `sortable` flag for it rather than a second row
-  renderer — a drag that silently re-sorts itself is worse than a drag that is
-  not offered. **Late is measured against the clock, not the day**, unlike
-  `standingOf`, which cuts in whole days because that decides *where* a row is
-  drawn: a slot at seven this morning read at four has been and gone, and
-  "none gone by" over it would be false.
+- **Today's commitments are *not* lifted out of the Now list.** They were, into
+  a block of their own above the pool, and that block is gone: the calendar
+  draws every scheduled step on the timeline beside Google's events, which
+  answers the same question with the actual day around it. Two places showing
+  one set is two places to keep in agreement, and the block was the weaker of
+  them.
+  What survives is the marking half of the idea — a scheduled row wears its
+  time in the list, so a step booked for half three is not mistaken for
+  something to pick up this minute. `standingOf` still cuts in whole days,
+  because that decides what the label *says*: today's and anything overdue read
+  as a bare time, later ones carry their day.
+  `SortableActionList`'s `sortable` flag stays, since the deferred view uses it
+  for the same reason the block did — an order that is a fact rather than a
+  preference must not offer a drag that silently re-sorts itself.
 - **In the titles-only view a when is a flag, not words.** That view drops
   metadata on purpose and a date is metadata — but a row put off until March
   looks identical to a live one in a column of plain titles, which is the one
@@ -1106,10 +1102,26 @@ Turbopack is the default; `middleware` is now `proxy`.
   empty box of the same size. A mark some rows carry and others do not is what
   leaves a left edge ragged, and this column is read straight down. Measured
   after: every title in the list starts at the same x.
-  **An action's pane is short on purpose.** An appointment's ends in a link to
-  Google because Google is the only place it can be changed; a step of yours
-  has a whole detail pane two clicks away, so repeating its notes and files
-  here would be a second, worse copy of it.
+  **An action gets its real pane, not a summary of one.** A short panel was the
+  first attempt and it was exactly the friction the calendar exists to remove:
+  you look at the day, you see the thing, and you want the quote attached to it
+  — having to leave for the Now list to read a note or open a file makes the
+  timeline somewhere you glance rather than somewhere you work. It is the same
+  `ActionDetail` with the same six reads, so the preview column behaves the way
+  it does everywhere else, because that column belongs to the shell rather than
+  to any page.
+  **Rendered by the page and handed down as a node.** A Server Component can
+  give a Client Component a rendered child, which is what lets this view stay a
+  client one — its other half is fetched in the browser — while the pane beside
+  it is server data. It cannot hand it a *function*, which is the rule that put
+  `openBase` in as a string elsewhere. The reads are conditional on one of ours
+  being chosen, so a calendar showing nothing but appointments runs none of
+  them, and the key's `action:` prefix is the whole of telling the two kinds
+  apart. An event keeps its own panel, because Google is the only place an
+  appointment can be changed and a link there is the whole of what to say.
+  While the navigation is in flight the pane says which row is opening rather
+  than going blank — choosing a row is a URL change, so the server's pane
+  arrives on the next render.
 - **The calendar heading carries today's date, formatted on the server.**
   Every other date in the app is cut in the server’s timezone, and a heading
   announcing one day while the chip under the first event says another is the

@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useEffect, useRef, useState, useTransition } from 'react';
+import { useEffect, useRef, useState, useTransition, type ReactNode } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { setActionStatus, setHiddenCalendars } from '@/lib/actions';
 import type { CalendarEvent, CalendarSource } from '@/lib/google/calendar';
@@ -114,6 +114,7 @@ export function CalendarView({
   viewKey,
   today,
   scheduled,
+  actionPane,
 }: {
   paneWidth: number;
   viewMode: ViewMode;
@@ -138,6 +139,22 @@ export function CalendarView({
    * does.
    */
   scheduled: ScheduledAction[];
+  /**
+   * The chosen step's real detail pane, rendered by the server.
+   *
+   * Clicking a step on the timeline used to give a summary with its notes, its
+   * files and its contexts a page away — which is precisely the friction the
+   * calendar exists to remove: you look at the day, you see the thing, you
+   * want the quote attached to it. This is the same pane the Now list shows,
+   * so opening a file from here fills the preview column exactly as it does
+   * everywhere else, because that column belongs to the shell.
+   *
+   * Handed down as a node rather than built here, because it is server data
+   * and this view has to be a client component — its other half is fetched in
+   * the browser. Null whenever the chosen row is Google's, or nothing is
+   * chosen at all.
+   */
+  actionPane: ReactNode;
 }) {
   const [state, setState] = useState<Payload | null>(null);
   const [failed, setFailed] = useState<string | null>(null);
@@ -337,7 +354,18 @@ export function CalendarView({
           {selected.kind === 'event' ? (
             <Detail event={selected.event} />
           ) : (
-            <ActionDetailPanel action={selected.action} />
+            /*
+             * The server's pane, or a plain line while it is on its way.
+             *
+             * Choosing a row is a navigation — the key goes in the URL — so
+             * the pane arrives on the next render rather than instantly. The
+             * fallback is what stops that reading as an empty pane, and it
+             * also covers the case where the row has been ticked off in
+             * another tab and no longer exists.
+             */
+            (actionPane ?? (
+              <p className="px-1 text-[12px] text-grey-400">Opening {selected.action.title}…</p>
+            ))
           )}
         </DetailPane>
       ) : (
@@ -555,48 +583,6 @@ function ActionRowLine({
           <span className="truncate text-[11px] text-grey-500">{action.projectTitle}</span>
         ) : null}
       </button>
-    </div>
-  );
-}
-
-/**
- * What one of your own steps says, in the pane.
- *
- * Short on purpose. An appointment's pane ends in a link to Google because
- * Google is the only place it can be changed; a step of yours has a whole
- * detail pane of its own two clicks away, so repeating the notes, the files
- * and the contexts here would be a second, worse copy of it.
- */
-function ActionDetailPanel({ action }: { action: ScheduledAction }) {
-  const at = new Date(action.scheduledAt);
-  const until = action.scheduledEnd ? new Date(action.scheduledEnd) : null;
-
-  return (
-    <div className="px-1">
-      <h1 className="flex items-baseline gap-2 text-[15px] font-medium text-grey-900">
-        <RowEmoji emoji={action.emoji} />
-        <span className="min-w-0">{action.title}</span>
-      </h1>
-
-      <p className="mt-2 text-[12px] text-grey-600">
-        {full.format(at)} · {clock.format(at)}
-        {until ? `–${clock.format(until)}` : ''}
-      </p>
-
-      {action.projectTitle ? (
-        <p className="mt-1 text-[12px] text-grey-500">{action.projectTitle}</p>
-      ) : null}
-
-      <p className="mt-4 text-[11px] text-grey-400">
-        Yours, not Google&rsquo;s. Nothing here is written to your calendar.
-      </p>
-
-      <Link
-        href={`/now?action=${action.id}`}
-        className="mt-4 inline-block text-[12px] text-grey-600 underline underline-offset-2 hover:text-grey-900"
-      >
-        Open it in Now
-      </Link>
     </div>
   );
 }
