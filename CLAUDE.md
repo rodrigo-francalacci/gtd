@@ -3071,6 +3071,27 @@ to be kept. They meet at `box_item_links` and nowhere else.
   capture carried the filename and the supplied date, the attachment came back
   with Drive's own name, type and size, the file was in `GTD/Inbox`, enrichment
   was queued, and the row rendered in the inbox with its paperclip.
+- **Every `.gs` file in an Apps Script project shares one global scope, and a
+  duplicated function name is a silent, total failure.** There are no modules.
+  `big-box-feed.gs` and `gtd-email.gs` had each always declared a `post`, which
+  was survivable while both took the same three arguments — the worst it did
+  was send the scanner's "read" step to the ingest path. Giving the scanner's a
+  fourth parameter ended that: the later declaration wins, so
+  `post(origin, secret, toInbox, payload)` reached the *email* version,
+  `toInbox` was read as the payload, and every scan went up as
+  `JSON.stringify(false)`. The app answered `400 No filename.` for each file
+  while the run reported "Completed", and nothing had been filed for three
+  days.
+  **The symptom is what makes it worth remembering.** Neither file looks wrong
+  on its own, both were correct in the repo, and the executions log showed
+  green. Renamed to `postFeed`, because a name nobody else will pick is the
+  only real fix — a comment asking future callers not to collide is not one.
+  Audit the whole project for duplicate top-level names before adding a
+  parameter to anything shared.
+  **And triggers run *head*, while the panel runs a deployed version.** Saving
+  fixes the automatic side immediately and changes nothing about the buttons
+  until the deployment is edited to a new version — which keeps the same
+  deployment id and URL, so the address stored in the app is untouched.
 - **The script asks the app to read; it never reads.** Moving classification
   back into Apps Script would mean the tag vocabulary, the prompt, the
   validation and a database credential living there too — which is what was

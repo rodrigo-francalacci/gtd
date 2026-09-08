@@ -313,7 +313,7 @@ function ingestFile(origin, secret, config, file, startedAt) {
     return false;
   }
 
-  const open = post(origin, secret, toInbox, {
+  const open = postFeed(origin, secret, toInbox, {
     step: 'open',
     box: box,
     name: name,
@@ -344,7 +344,7 @@ function ingestFile(origin, secret, config, file, startedAt) {
 
   const dated = datedFrom(name, file);
 
-  const done = post(origin, secret, toInbox, {
+  const done = postFeed(origin, secret, toInbox, {
     step: 'complete',
     box: box,
     // The inbox needs it too: the capture's own label is the filename, since
@@ -381,7 +381,7 @@ function ingestFile(origin, secret, config, file, startedAt) {
   // the inbox rather than in a box.
   if (!toInbox && READ_ON_INGEST && Date.now() - startedAt < READ_BUDGET_MS) {
     try {
-      post(origin, secret, false, { step: 'read', itemId: done.id });
+      postFeed(origin, secret, false, { step: 'read', itemId: done.id });
       Logger.log('    read');
     } catch (e) {
       Logger.log('    queued for later: ' + e);
@@ -408,7 +408,23 @@ function archive(file) {
   file.moveTo(filed);
 }
 
-function post(origin, secret, toInbox, payload) {
+/**
+ * Named `postFeed`, not `post`, and that is load-bearing.
+ *
+ * Apps Script has no modules: every `.gs` file in a project is concatenated
+ * into one global scope, so two files declaring `function post(...)` are two
+ * declarations of one name and the later one silently wins. `gtd-email.gs` has
+ * always had a `post` of its own, which was survivable while both took the
+ * same three arguments — the worst it did was send this script's "read" step
+ * to the ingest path.
+ *
+ * Adding a fourth parameter here ended that: every scan went out as
+ * `JSON.stringify(false)`, the app found no filename in it, and every file
+ * came back `400 No filename.` while the run reported "Completed". Nothing in
+ * either file looks wrong on its own, which is what makes this worth a name
+ * nobody else will pick rather than a comment asking them not to.
+ */
+function postFeed(origin, secret, toInbox, payload) {
   // Three routes, one secret. The read endpoint is its own because it needs a
   // longer time limit than an ingest step does; the inbox is its own because a
   // capture is not a document — nothing about it is classified, so none of the
