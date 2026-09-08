@@ -71,6 +71,7 @@ import {
   ensureBoxFolder,
   copyBoxItemFile,
   ensureBoxLabel,
+  pushBoxTitleToDrive,
   renameBoxContainers,
   trashBoxFolder,
 } from './google/boxes';
@@ -3351,6 +3352,27 @@ export async function updateDocument(
       updatedAt: new Date(),
     })
     .where(eq(boxItems.id, itemId));
+
+  /*
+   * And out to Drive, once the response has gone.
+   *
+   * A box document's filename is its title — that is what `driveNameFor` is
+   * for, and it is why a scan read by the model is renamed in Drive the moment
+   * the title is written rather than on the next tick. Typing the title by
+   * hand is the same statement and had no such path: for an uploaded file the
+   * daily sweep caught up eventually, and for a Sheet or a Doc made from the
+   * box's own menu nothing ever did, so it kept the placeholder name it was
+   * created with for good.
+   *
+   * `after` rather than inline, because this is one Drive call the person
+   * saving a title should not wait on, and rather than a queued job because
+   * `refreshBoxNames` is already the backstop that keeps `name` truthful if it
+   * fails.
+   */
+  after(async () => {
+    await pushBoxTitleToDrive(itemId);
+    revalidateShell();
+  });
 
   revalidateShell();
 }

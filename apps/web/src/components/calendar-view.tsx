@@ -33,6 +33,21 @@ const full = new Intl.DateTimeFormat('en-GB', {
   year: 'numeric',
 });
 
+/**
+ * The far end of the window, named as a date.
+ *
+ * An empty calendar should say where it stopped looking, and "the next 90
+ * days" is a span rather than a place — "3 December" is the thing you can
+ * check an event against. Computed in the browser, which is safe here for the
+ * reason nothing else in this view is: the whole pane is client-rendered
+ * against a fetch, so there is no server rendering for it to disagree with.
+ */
+function horizon(days = 90): string {
+  const end = new Date();
+  end.setDate(end.getDate() + days);
+  return end.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' });
+}
+
 /** "14:00 – 15:30", or "All day". */
 function when(event: CalendarEvent): string {
   if (event.allDay) return 'All day';
@@ -52,6 +67,15 @@ type Payload = {
   /** Every calendar, including the hidden ones — the picker needs them all. */
   calendars: CalendarSource[];
   events: CalendarEvent[];
+  /**
+   * How far ahead the read went, in days, straight from the server.
+   *
+   * The list is a window and an empty one is ambiguous — "nothing booked" and
+   * "nothing booked *in the next three months*" are different statements, and
+   * only the second one is true. Sent rather than restated here, because two
+   * definitions of the window is how the pane comes to disagree with the read.
+   */
+  days?: number;
 };
 
 /**
@@ -187,8 +211,8 @@ export function CalendarView({
               : failed
                 ? 'Cannot read the calendar'
                 : events.length === 0
-                  ? 'Nothing booked'
-                  : `${events.length} coming up · read-only`
+                  ? `Nothing in the next ${state.days ?? 90} days`
+                  : `${events.length} in the next ${state.days ?? 90} days · read-only`
         }
       >
         {state === null ? (
@@ -198,7 +222,7 @@ export function CalendarView({
         ) : failed ? (
           <Problem message={failed} enableUrl={state.enableUrl} />
         ) : events.length === 0 ? (
-          <EmptyList message="Nothing in the next couple of months." />
+          <EmptyList message={`Nothing booked between now and ${horizon(state.days)}.`} />
         ) : (
           days.map((day) => (
             <section key={day.key}>

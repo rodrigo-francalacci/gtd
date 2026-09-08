@@ -69,8 +69,8 @@ export async function GET(request: Request) {
     }
 
     const { hiddenCalendars } = await getPreferences();
-    const { calendars, events } = await getUpcomingEvents(hiddenCalendars);
-    return NextResponse.json({ connected: true, calendars, events });
+    const { calendars, events, days } = await getUpcomingEvents(hiddenCalendars);
+    return NextResponse.json({ connected: true, calendars, events, days });
   } catch (error) {
     // A withdrawn grant is not a broken calendar, and must not be reported as
     // one — the same distinction the file proxy had to learn.

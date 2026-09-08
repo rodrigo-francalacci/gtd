@@ -734,6 +734,133 @@ export async function reconcileBoxFiles(limit = 50): Promise<number> {
   return moved;
 }
 
+/**
+ * Carry a hand-typed title out to Drive, now rather than on the next tick.
+ *
+ * `renameBoxFiles` is the sweep and it deliberately never touches a
+ * Docs-editor file, because a sweep that pushed them would fight
+ * `refreshBoxNames` pulling the other way — two sweeps in one `Promise.all`,
+ * each undoing the other on alternate ticks. That is a real trap and it is
+ * about *sweeps*, not about direction.
+ *
+ * An edit is not a sweep. Typing a title is you saying what the thing is
+ * called, at a moment nothing else is claiming otherwise, so pushing it is
+ * unambiguous — and it is the same shape `drainBoxQueue` already uses when the
+ * model writes a title: rename Drive there and then, because a document
+ * correctly titled in the app and still called `Google Sheet — 05-09-2026` in
+ * Drive is the app being right and everything looking broken.
+ *
+ * Afterwards the pull sweep is what keeps the two honest: rename it in the
+ * Sheets title bar instead and the box catches up, because nothing here is
+ * standing over the file insisting.
+ *
+ * Quiet on failure, for the reason the read path is quiet: the title is
+ * already saved, and a filename must never take an edit down with it.
+ */
+export async function pushBoxTitleToDrive(itemId: string): Promise<boolean> {
+  const [row] = await db
+    .select({
+      name: boxItems.name,
+      title: boxItems.title,
+      docDate: boxItems.docDate,
+      mimeType: boxItems.mimeType,
+      driveFileId: boxItems.driveFileId,
+    })
+    .from(boxItems)
+    .where(eq(boxItems.id, itemId))
+    .limit(1);
+
+  if (!row?.driveFileId || !row.title) return false;
+  // A gallery's folder is named by the sweep, which owns it; this is only for
+  // the files a sweep will not touch.
+  if (row.mimeType === 'application/vnd.google-apps.folder') return false;
+
+  const wanted = driveNameFor(row.title, row.name, row.docDate);
+  if (!wanted || wanted === row.name) return false;
+
+  try {
+    await renameFile(row.driveFileId, wanted);
+  } catch (error) {
+    console.error('could not push a box title to Drive', itemId, error);
+    return false;
+  }
+
+  // After Drive agrees, never before — this column is the record of what Drive
+  // holds, and the pull sweep reads it to decide whether anything has drifted.
+  await db.update(boxItems).set({ name: wanted }).where(eq(boxItems.id, itemId));
+  return true;
+}
+
+/**
+ * Pull a Docs-editor file's name *in*, for a document filed in a box.
+ *
+ * The mirror of `renameBoxFiles`, and the half that was missing. That sweep
+ * pushes our title out to Drive and deliberately skips Docs-editor files,
+ * because Google owns those names — you rename a Sheet by typing in its title
+ * bar and this app offers no other way. `refreshGoogleNames` is the pull that
+ * answers for that, and it only ever looked at `attachments`. So when a box
+ * gained the ability to *make* a Doc, a Sheet or a Slides deck
+ * (`createBoxFile`), neither sweep could reach it: the push excluded it by
+ * type and the pull excluded it by table, and its name could never catch up
+ * with Drive however many ticks ran.
+ *
+ * Found in real rows rather than reasoned about — a sheet titled `Finances
+ * Check 05-09-2026` sat in a box under `Google Sheet — 05-09-2026`, which is
+ * the name it was created with, for as long as the box had existed.
+ *
+ * Simpler than the attachment version by one column. An attachment carries
+ * `name` *and* `drive_name`, because the app names those files itself and the
+ * two can legitimately disagree while a rename is queued. `box_items.name` is
+ * by definition the name Drive holds, so there is one column and writing it is
+ * the whole of it.
+ */
+export async function refreshBoxNames(limit = 50): Promise<number> {
+  const grant = await getGrant();
+  if (!grant?.refreshToken || !hasSyncScopes(grant.scope)) return 0;
+
+  const rows = await db
+    .select({
+      id: boxItems.id,
+      name: boxItems.name,
+      driveFileId: boxItems.driveFileId,
+    })
+    .from(boxItems)
+    /*
+     * Docs-editor files only, and never a folder — the same exclusion the
+     * attachment sweep carries and for the same reason. A gallery's folder is
+     * named by this app and by nothing else, so the *push* is authoritative
+     * there; pulling Drive's answer back would race it, and the two run in one
+     * `Promise.all`.
+     *
+     * Bracketed deliberately: a bare `or` inside `and()` binds looser than the
+     * `and`, which is the slip both rename sweeps in this file made once.
+     */
+    .where(
+      and(
+        isNotNull(boxItems.driveFileId),
+        sql`(${boxItems.mimeType} like 'application/vnd.google-apps.%'
+             and ${boxItems.mimeType} <> 'application/vnd.google-apps.folder')`,
+      ),
+    )
+    .limit(limit);
+
+  let changed = 0;
+
+  for (const row of rows) {
+    if (!row.driveFileId) continue;
+
+    // A file deleted in Drive is left alone rather than renamed to nothing:
+    // losing the label as well would be losing twice.
+    const file = await getFile(row.driveFileId);
+    if (!file?.name || file.name === row.name) continue;
+
+    await db.update(boxItems).set({ name: file.name }).where(eq(boxItems.id, row.id));
+    changed += 1;
+  }
+
+  return changed;
+}
+
 export async function renameBoxFiles(limit = 50): Promise<number> {
   const grant = await getGrant();
   if (!grant?.refreshToken || !hasSyncScopes(grant.scope)) return 0;

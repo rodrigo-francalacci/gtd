@@ -718,6 +718,35 @@ Turbopack is the default; `middleware` is now `proxy`.
   A Google call inside a request, under the same exception the read itself is:
   that function has already downloaded the file and spent a model call on it, so
   one metadata write is not what makes it slow.
+- **A hand-typed title is pushed too, and until it was, a Sheet kept its
+  placeholder name for ever.** `drainBoxQueue` renames Drive the moment the
+  *model* writes a title; typing one yourself had no such path. For an uploaded
+  file the daily sweep caught up eventually. For a Doc, a Sheet or a Slides deck
+  made from the box's own menu, nothing ever did — the sweep excludes
+  Docs-editor files by type, so a sheet created as `Google Sheet — 05-09-2026`
+  and immediately retitled `Finances Check 05-09-2026` was still called the
+  first thing in Drive months later. Measured on the real row before anything
+  was written.
+  **An edit is not a sweep, and that is what makes this safe.** The Docs
+  exclusion exists because a *sweep* pushing them would fight
+  `refreshBoxNames` pulling the other way — two sweeps in one `Promise.all`,
+  each undoing the other on alternate ticks. Typing a title is you saying what
+  the thing is called at a moment nothing else is claiming otherwise, so
+  `pushBoxTitleToDrive` runs from `updateDocument` in `after()` and no sweep
+  ever pushes a Docs file. Rename it in the Sheets title bar instead and the
+  pull brings it back, because nothing is standing over the file insisting.
+  Verified in both directions against the live file: the title pushed and Drive
+  agreed; Drive renamed by hand and the box caught up; and the pull reported no
+  drift immediately after a push, which is the proof they are not fighting.
+- **`refreshGoogleNames` had no box half at all, and could not have.** It pulls
+  a Docs-editor file's name in from Google — and only ever looked at
+  `attachments`. So when a box gained the ability to *make* a Doc
+  (`createBoxFile`), that file was excluded from the push by type and from the
+  pull by table, and its name could never catch up with Drive by any route.
+  `refreshBoxNames` is the missing half, and it is simpler than the attachment
+  version by one column: an attachment carries `name` *and* `drive_name`
+  because the app names those files itself, where `box_items.name` is by
+  definition the name Drive holds.
 - **`renameBoxFiles` stays, as the backstop.** It catches anything the read path
   missed — a rename that failed, a title corrected by hand afterwards, a document
   read before this existed. A failure at read time is deliberately quiet in the
@@ -962,6 +991,17 @@ Turbopack is the default; `middleware` is now `proxy`.
   also be impure in render and a hydration mismatch waiting for midnight.
   `ListPane`’s `titleNote` is for facts as fixed as the heading itself;
   `subtitle` is for what the contents happen to be.
+- **The upcoming window is ninety days, and the page says so.** It was sixty,
+  and the way that was found is the argument for stating it: an event put in a
+  chosen calendar for the following February simply did not appear, which reads
+  as a calendar that has stopped syncing rather than as a list with an end. An
+  empty list means "nothing in range" and "nothing at all" identically, so the
+  subtitle now names the window and the empty state names the date it stops at.
+  The number comes back *with* the events rather than being restated in the
+  pane — `calendar.ts` is `server-only`, so the constant cannot be imported,
+  and two definitions of how far ahead this looks is how the two come to
+  disagree. Ninety does not remove the edge, only move it: the honest answer is
+  months you can walk, the way a box's calendar already does.
 - **`singleEvents=true` is not optional.** Without it a recurring event comes
   back as the *rule* rather than its instances, so a weekly stand-up appears
   once, dated whenever the series began — usually in the past. It is also what
@@ -2638,6 +2678,17 @@ to be kept. They meet at `box_item_links` and nowhere else.
   two of them disagreeing: page outside the range and the month comes back
   empty for a reason nothing on screen explains. That costs one extra read
   without the range, on this view only.
+  **Which month you are reading is in the URL, not in the calendar's state.**
+  It was `useState` seeded from today, so opening an entry and closing it
+  rebuilt the grid at *this* month — which makes rummaging through an old one
+  impossible: you get to look at exactly one thing per visit, and every entry
+  you check costs you your place. `m=YYYY-MM` now, written as you walk with
+  `history.replaceState` rather than a navigation (stepping a month already
+  costs a Google read, and no server component depends on the answer), and
+  replace rather than push, because thirteen months of walking should not be
+  thirteen presses of Back to leave. The month is appended to each entry's link
+  in the browser: those hrefs are built on the server, which cannot know what
+  the arrows have done since the page was drawn.
   **An entry opens on the calendar rather than away from it** — its own focus
   view, with `back=month` in the URL putting a trail in the header and sending
   Close there too. Read off the URL rather than from history, so it survives a
@@ -3594,6 +3645,28 @@ in `a427778` with `*/10 * * * *`, and every one of the eighteen pushes after it
 silently failed that validation while looking exactly like a dead webhook. If
 pushes stop producing deployments, suspect `vercel.json` before the Git
 integration.
+
+## Checking things from a script
+
+`scripts/ts-resolve.mjs` is what lets a check script import the app's own
+modules. It grew three rules the first time something above a leaf needed
+testing, and each was a hard stop rather than an inconvenience:
+
+- **`@/lib/x` is `apps/web/src/lib/x`.** Next reads that from `tsconfig.json`
+  and Node has never heard of it, so before this the only testable files were
+  the pure ones — nearly every module in `lib/` imports at least one thing by
+  the alias.
+- **`server-only` resolves to a file that throws.** It is a guard for the
+  bundler, not a runtime dependency, so in a plain script it takes down every
+  server module — which is all the ones worth checking. Answered with an empty
+  module, which is what it compiles to on the server anyway.
+- **The extension test is whether the file exists, not what the specifier looks
+  like.** `./queries.shared` ends in something that reads as an extension and
+  is not one, so a pattern match refused to try `.ts` on it.
+
+Use `--experimental-transform-types`, not `--experimental-strip-types`, for
+anything that reaches `lib/box/classify.ts`: strip-only mode cannot handle a
+constructor parameter property and fails to parse the file.
 
 ## Gotchas hit already
 

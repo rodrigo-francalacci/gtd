@@ -111,6 +111,7 @@ export function BoxCalendar({
   typeCounts,
   requestedTypes,
   excludedTypes,
+  month,
 }: {
   boxId: string;
   boxName: string;
@@ -133,9 +134,25 @@ export function BoxCalendar({
   typeCounts: Record<string, number>;
   requestedTypes: EntryType[];
   excludedTypes: EntryType[];
+  /**
+   * Which month to open at, as `YYYY-MM`, or null for this one.
+   *
+   * It comes from the URL, and that is the point. Held only in state it was
+   * rebuilt from today's date every time the component mounted — so opening an
+   * entry from last March and closing it landed you back in September, which
+   * makes rummaging through an old month impossible: you can look at one thing
+   * per visit. The same reasoning as the back trail, which reads where it came
+   * from off the address rather than out of history.
+   */
+  month: string | null;
 }) {
   const today = new Date();
-  const [at, setAt] = useState({ year: today.getFullYear(), month: today.getMonth() });
+  const [at, setAt] = useState(() => {
+    const parsed = month ? /^(\d{4})-(\d{2})$/.exec(month) : null;
+    return parsed
+      ? { year: Number(parsed[1]), month: Number(parsed[2]) - 1 }
+      : { year: today.getFullYear(), month: today.getMonth() };
+  });
 
   const [sources, setSources] = useState<Source[] | null>(null);
   const [events, setEvents] = useState<Event[]>([]);
@@ -219,6 +236,9 @@ export function BoxCalendar({
       return { year: next.getFullYear(), month: next.getMonth() };
     });
 
+  /** The month on screen, in the shape the URL and the links carry. */
+  const atKey = `${at.year}-${String(at.month + 1).padStart(2, '0')}`;
+
   const toggle = (id: string) => {
     const next = chosen.includes(id)
       ? chosen.filter((c) => c !== id)
@@ -228,6 +248,26 @@ export function BoxCalendar({
       await setBoxCalendars(viewKey, next);
     });
   };
+
+  /*
+   * Write the month into the address as you walk, and never navigate.
+   *
+   * `replaceState` rather than `router.replace`: stepping a month already
+   * costs a Google read, and asking the server to re-render the whole box on
+   * top of that would make the arrows feel heavy for a change no server
+   * component depends on. What the URL is *for* here is the way back — a
+   * refresh, a shared link, and the entry links below, which read it from
+   * state directly.
+   *
+   * Replace rather than push, because thirteen months of walking should not be
+   * thirteen presses of Back to leave the calendar.
+   */
+  useEffect(() => {
+    const url = new URL(window.location.href);
+    if (url.searchParams.get('m') === atKey) return;
+    url.searchParams.set('m', atKey);
+    window.history.replaceState(window.history.state, '', url);
+  }, [atKey]);
 
   const todayKey = dayKey(today.toISOString());
 
@@ -406,7 +446,13 @@ export function BoxCalendar({
                   {mine.map((entry) => (
                     <Link
                       key={entry.id}
-                      href={entry.href}
+                      /*
+                       * The month goes on the link rather than being read from
+                       * the address when you arrive: these hrefs are built on
+                       * the server, which cannot know what the arrows have done
+                       * since the page was drawn.
+                       */
+                      href={`${entry.href}&m=${atKey}`}
                       title={entry.title}
                       className="block truncate rounded-sm px-1 py-px text-[11px] text-grey-800 hover:bg-grey-150"
                     >

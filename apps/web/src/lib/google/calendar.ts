@@ -175,8 +175,21 @@ function hiddenIds(list: CalendarListEntry[], hidden: string[] | null): Set<stri
   return new Set(list.filter((c) => c.selected === false).map((c) => c.id));
 }
 
-/** How far ahead to look. Past this, "upcoming" stops being a useful word. */
-const DEFAULT_DAYS = 60;
+/**
+ * How far ahead to look. Past this, "upcoming" stops being a useful word.
+ *
+ * Ninety rather than sixty, because sixty was found by walking into it: an
+ * event put in a chosen calendar for February simply did not appear, and an
+ * empty list means "nothing in range" and "nothing at all" identically. A
+ * quarter is the span a deadline is set at — the MOT, the tax return, the
+ * flights — which is exactly the class of thing you keep a Deadlines calendar
+ * for and precisely what a fortnight or two would never show.
+ *
+ * It does not make the edge go away, only move: the honest answer is months
+ * you can walk, the way a box's calendar already does. Until then this is the
+ * number, and the page says it.
+ */
+const DEFAULT_DAYS = 90;
 
 /** Per calendar. A subscribed holiday calendar can be dense. */
 const PER_CALENDAR = 100;
@@ -197,11 +210,18 @@ const PER_CALENDAR = 100;
 export async function getUpcomingEvents(
   hidden: string[] | null,
   days = DEFAULT_DAYS,
-): Promise<{ calendars: CalendarSource[]; events: CalendarEvent[] }> {
+): Promise<{ calendars: CalendarSource[]; events: CalendarEvent[]; days: number }> {
   const now = new Date();
   const until = new Date(now.getTime() + days * 24 * 60 * 60 * 1000);
 
-  return readEvents({ from: now, to: until, hidden });
+  /*
+   * The window comes back with the events, and that is not decoration: an
+   * empty list means "nothing in range" and "nothing at all" identically, so
+   * the view has to be able to say which. `calendar.ts` is `server-only`, so
+   * the number cannot be imported into the pane — handing it over is what
+   * keeps one definition of how far ahead this looks.
+   */
+  return { ...(await readEvents({ from: now, to: until, hidden })), days };
 }
 
 /**

@@ -334,6 +334,28 @@ export default async function BoxPage(props: PageProps<'/box/[id]'>) {
    */
   const entryCategories = openEntry ? await getBoxCategories(openEntry.boxId) : [];
 
+  /*
+   * Which month the calendar was showing, when it was showing one.
+   *
+   * In the URL rather than in the calendar's own state, and that is the whole
+   * fix: it was `useState` seeded from today, so opening an entry and closing
+   * it rebuilt the grid at this month. Rummaging around last March meant being
+   * returned to September after every entry you looked at — the same argument
+   * the back trail already won, one step further: read it off the address, so
+   * it survives a refresh and a shared link too.
+   *
+   * Validated rather than trusted: it is interpolated into every link on the
+   * page, and `YYYY-MM` is the whole of what it may be.
+   */
+  const monthParam =
+    typeof searchParams.m === 'string' && /^\d{4}-(0[1-9]|1[0-2])$/.test(searchParams.m)
+      ? searchParams.m
+      : null;
+
+  /** Back to the month view, at the month you were actually reading. */
+  const monthHref = (id: string) =>
+    `${href(id)}&month=1${monthParam ? `&m=${monthParam}` : ''}`;
+
   /* Where a link was followed from, when the trail is a row rather than a view. */
   const followedHere =
     searchParams.back === 'month'
@@ -535,6 +557,7 @@ export default async function BoxPage(props: PageProps<'/box/[id]'>) {
            */
           href: `${href(item.id)}&focus=1&back=month`,
         }))}
+        month={monthParam}
       />
     );
   }
@@ -568,14 +591,14 @@ export default async function BoxPage(props: PageProps<'/box/[id]'>) {
          */
         parent={
           searchParams.back === 'month'
-            ? { label: `${box.name}, by month`, href: `${href(selected.id)}&month=1` }
+            ? { label: `${box.name}, by month`, href: monthHref(selected.id) }
             : followedHere
               ? { label: followedHere.label, href: followedHere.focusHref }
               : undefined
         }
         subtitle={box.name}
         closeHref={
-          searchParams.back === 'month' ? `${href(selected.id)}&month=1` : href(selected.id)
+          searchParams.back === 'month' ? monthHref(selected.id) : href(selected.id)
         }
         notes={
           <NoteEditor
