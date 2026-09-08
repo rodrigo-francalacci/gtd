@@ -2,6 +2,7 @@
 
 import { useState, useTransition, type ReactNode } from 'react';
 import {
+  createActionInSection,
   createNowSection,
   deleteNowSection,
   moveActionToSection,
@@ -105,6 +106,15 @@ export function NowSection({
     >
       <RowMenu
         name={title}
+        /*
+         * The verb the arrangement was missing. Right-click is already how you
+         * ask a row what it can do, and adding *into* a heading is the thing
+         * you want most while you are arranging one — otherwise the action is
+         * created in the ungrouped run and dragged up, which is three moves and
+         * a step briefly in the wrong place.
+         */
+        onAdd={(next) => createActionInSection(id, next)}
+        addLabel="Add an action here"
         onRename={(next) => renameNowSection(id, next)}
         onDelete={() => deleteNowSection(id)}
         deleteLabel="Remove the heading"

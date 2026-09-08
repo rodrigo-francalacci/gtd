@@ -23,6 +23,8 @@ import { useRouter } from 'next/navigation';
  */
 export function RowMenu({
   name,
+  onAdd,
+  addLabel = 'Add',
   onRename,
   onDelete,
   deleteLabel = 'Delete',
@@ -35,6 +37,19 @@ export function RowMenu({
 }: {
   /** What it is called now, which is what the field starts with. */
   name: string;
+  /**
+   * Make something *under* this row, named on the spot.
+   *
+   * The same field Rename uses, starting empty rather than at the current
+   * name, because the two are the same gesture pointed in different
+   * directions: one names this thing, the other names a new one belonging to
+   * it. A Now heading is the case — arranging a list, the natural next thought
+   * is "and another one under here", and the app made you create it in the
+   * ungrouped run and drag it up.
+   */
+  onAdd?: (title: string) => Promise<unknown>;
+  /** What the menu calls it — "Add an action here…". */
+  addLabel?: string;
   /** Absent when this row cannot be renamed — a raw capture, say. */
   onRename?: (next: string) => Promise<unknown>;
   onDelete?: () => Promise<unknown>;
@@ -74,7 +89,12 @@ export function RowMenu({
   children: React.ReactNode;
 }) {
   const [at, setAt] = useState<{ x: number; y: number } | null>(null);
-  const [renaming, setRenaming] = useState(false);
+  /**
+   * Which text field is open, if any. One piece of state rather than a boolean
+   * apiece: they are the same input in the same place and only one of them can
+   * sensibly be showing.
+   */
+  const [typing, setTyping] = useState<'rename' | 'add' | null>(null);
   const [confirming, setConfirming] = useState(false);
   const [draft, setDraft] = useState(name);
   const [pending, startTransition] = useTransition();
@@ -110,7 +130,7 @@ export function RowMenu({
 
   const open = (x: number, y: number) => {
     setDraft(name);
-    setRenaming(false);
+    setTyping(null);
     setConfirming(false);
     setAt({
       x: Math.min(x, window.innerWidth - 210),
@@ -120,7 +140,7 @@ export function RowMenu({
 
   const shut = () => {
     setAt(null);
-    setRenaming(false);
+    setTyping(null);
     setConfirming(false);
   };
 
@@ -153,7 +173,9 @@ export function RowMenu({
   }, [at]);
 
   // Nothing to offer and nothing to open: get out of the layout's way entirely.
-  if (!onRename && !onDelete && !focusHref) return <>{children}</>;
+  if (!onAdd && !onRename && !onDelete && !focusHref && !extra?.length) {
+    return <>{children}</>;
+  }
 
   return (
     <>
@@ -286,18 +308,25 @@ export function RowMenu({
             </button>
           ))}
 
-          {renaming && onRename ? (
+          {typing ? (
             <form
               className="flex items-center gap-1 px-2 py-1"
               onSubmit={(event) => {
                 event.preventDefault();
                 const next = draft.trim();
-                if (!next || next === name) {
+                // Renaming to what it is called already is a no-op; adding
+                // nothing is one too. Neither is worth a round trip.
+                if (!next || (typing === 'rename' && next === name)) {
+                  shut();
+                  return;
+                }
+                const run = typing === 'add' ? onAdd : onRename;
+                if (!run) {
                   shut();
                   return;
                 }
                 startTransition(async () => {
-                  await onRename(next);
+                  await run(next);
                   shut();
                 });
               }}
@@ -306,7 +335,7 @@ export function RowMenu({
                 value={draft}
                 onChange={(event) => setDraft(event.target.value)}
                 autoFocus
-                aria-label="New name"
+                aria-label={typing === 'add' ? addLabel : 'New name'}
                 /* 16px, or iOS Safari zooms the page in when it takes focus. */
                 className="min-w-0 flex-1 rounded-sm border border-grey-300 bg-paper px-1.5 py-1 text-[16px] text-grey-800 focus:border-selected focus:outline-none md:text-[12px]"
               />
@@ -315,19 +344,41 @@ export function RowMenu({
                 disabled={pending}
                 className="shrink-0 rounded-sm bg-grey-800 px-2 py-1 text-[11px] text-paper disabled:opacity-40"
               >
-                Save
+                {typing === 'add' ? 'Add' : 'Save'}
               </button>
             </form>
-          ) : onRename ? (
-            <button
-              type="button"
-              role="menuitem"
-              onClick={() => setRenaming(true)}
-              className="block w-full px-3 py-1.5 text-left text-[12px] text-grey-800 hover:bg-grey-150"
-            >
-              Rename…
-            </button>
-          ) : null}
+          ) : (
+            <>
+              {onAdd ? (
+                <button
+                  type="button"
+                  role="menuitem"
+                  onClick={() => {
+                    // Empty, unlike Rename: this names a new thing, not this one.
+                    setDraft('');
+                    setTyping('add');
+                  }}
+                  className="block w-full px-3 py-1.5 text-left text-[12px] text-grey-800 hover:bg-grey-150"
+                >
+                  {addLabel}…
+                </button>
+              ) : null}
+
+              {onRename ? (
+                <button
+                  type="button"
+                  role="menuitem"
+                  onClick={() => {
+                    setDraft(name);
+                    setTyping('rename');
+                  }}
+                  className="block w-full px-3 py-1.5 text-left text-[12px] text-grey-800 hover:bg-grey-150"
+                >
+                  Rename…
+                </button>
+              ) : null}
+            </>
+          )}
 
           {onDelete ? (
             confirming ? (

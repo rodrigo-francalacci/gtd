@@ -914,6 +914,35 @@ export async function deleteNowSection(sectionId: string) {
 }
 
 /** Put an action under a heading, or back into the ungrouped run. */
+/**
+ * A new action, straight into the heading you asked from.
+ *
+ * The gesture the arrangement was missing. Headings in Now are for saying *in
+ * what order am I going to*, and the natural thought while arranging one is
+ * "and another one under here" — which meant creating the action in the
+ * ungrouped run, finding it, and dragging it up. Three moves for one sentence,
+ * and in between, a step sitting in the wrong place on the one list that
+ * answers what to do next.
+ *
+ * `section_id` is set on the insert rather than by a second statement: every
+ * `await` on this driver is a round trip, and a failure between the two would
+ * leave the action ungrouped with nothing saying why.
+ *
+ * `next`, always. A heading is an arrangement of work you intend to do, so
+ * parking something under one would be two statements contradicting each other
+ * — and the Future bucket is somewhere else entirely.
+ */
+export async function createActionInSection(sectionId: string, title: string) {
+  await requireSession();
+
+  const trimmed = title.trim();
+  if (!trimmed) return;
+
+  await db.insert(actions).values({ title: trimmed, sectionId, status: 'next' });
+
+  revalidateShell();
+}
+
 export async function moveActionToSection(actionId: string, sectionId: string | null) {
   await requireSession();
 

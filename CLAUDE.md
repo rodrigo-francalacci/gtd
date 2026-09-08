@@ -212,6 +212,19 @@ Turbopack is the default; `middleware` is now `proxy`.
   the work that queries all over the app depend on, and the moment an
   arrangement started meaning something the list would stop being free to
   rearrange.
+  **A heading can be added to directly, and that is `RowMenu`'s field again.**
+  The natural thought while arranging a list is "and another one under here",
+  and the app made you create the action in the ungrouped run, find it, and drag
+  it up — three moves for one sentence, with a step sitting on the wrong part of
+  the one list that answers what to do next. `onAdd` is the same input Rename
+  uses, starting empty rather than at the current name, because the two are one
+  gesture pointed in different directions: one names this thing, the other names
+  a new thing belonging to it. `createActionInSection` sets `section_id` on the
+  *insert* — a second statement would be a second round trip, and a failure
+  between them would leave the action ungrouped with nothing saying why — and
+  always `next`, because a heading is an arrangement of work you intend to do
+  and parking something under one would be two statements contradicting each
+  other.
   **`actions.section_id` is `on delete set null`, never cascade.** Removing a
   heading is a change of mind about the arrangement and must never take the work
   with it — the actions fall back into the ungrouped run, exactly where they
@@ -2000,6 +2013,24 @@ Turbopack is the default; `middleware` is now `proxy`.
   `hidden` still creates a scroll container, so both symptoms survive it.
   Anything genuinely wider than a phone gets its own `overflow-x: auto`
   container, which still works inside `clip` and keeps its gesture to itself.
+- **A note can take the whole phone screen, and it is the same editor moved.**
+  The desktop already had this — double-click a row and the focus view gives the
+  note a column of its own — and a phone has no double-click and no room for two
+  columns, so the note there was a few lines inside a pane also carrying the
+  title, the dates, the tags and the files: fine for a sentence, hopeless for a
+  paragraph.
+  **One editor, not two.** `NoteEditor` portals *itself* into the overlay rather
+  than a second one being drawn there, for the reason the board renders instead
+  of the panes rather than on top of them: two editors over one row would be two
+  autosaves for one document. Verified by counting `.ProseMirror` nodes across
+  the transition — one throughout — and by typing inside the overlay and reading
+  `notes`, `description` and `search_text` back from the row, which is the trio
+  a note has to write or it is stored and unfindable.
+  **Portalled to the body**, because a pane is a stacking context and a `fixed`
+  overlay inside one is only above what that pane paints — the trap the context
+  menus were caught by and the preview pane was caught by again.
+  **`lg:hidden`**, so it exists only where there is no other way in: offering
+  both doors on a desktop would spend space in the pane that has least of it.
 - **Inputs on the phone are 16px minimum.** iOS Safari zooms the page in when a
   smaller field takes focus. The fix is the type size, never
   `user-scalable=no` — blocking pinch-zoom to stop it is a bad trade.
@@ -2652,6 +2683,17 @@ to be kept. They meet at `box_item_links` and nowhere else.
   **`previewFeedFolders` writes nothing**, because bringing a backlog across is
   one-way with an expensive mistake in it, and two hundred arrival dates are not
   something anybody fixes by hand.
+- **Right-clicking the printed date files the entry under it.** The two dates
+  stay different facts — that is the rule below and it is not weakening — but
+  for a scan they are *often* meant to agree, and saying so meant reading one
+  date and typing it into the field beside it. One item in the menu the app
+  already opens on right-click and press-and-hold, labelled with the date rather
+  than with the action, because the date is the part you check before pressing.
+  Midday, not midnight, the same rule ingest follows: a bare date is midnight
+  UTC, and west of Greenwich the entry would head the day before.
+  `RowMenu` had to stop bailing out when `extra` was its only content — it
+  returned its children bare unless there was a rename, a delete or a focus
+  target, so a menu of one verb rendered nothing at all.
 - **`captured_at` and `doc_date` are different facts.** A bill that arrives in
   August is dated July. The feed orders and groups by arrival; the printed date
   is shown beside it. The ingest endpoint accepts the original file's date so a

@@ -4,6 +4,7 @@ import { EditorContent, useEditor } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import { NoteColourMark } from '@/lib/note-colour';
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { emptyDoc } from '@/lib/tiptap';
 import { useRouter } from 'next/navigation';
 import { EditorToolbar, type LinkTarget } from './editor-toolbar';
@@ -227,14 +228,65 @@ export function NoteEditor({
    * The toolbar is inside the measure too. Controls running the full width above
    * a column of text half that wide reads as a mistake rather than as a margin.
    */
-  const column = fill ? 'mx-auto w-full max-w-[60ch] text-[14px]' : undefined;
+  /**
+   * Writing with the whole screen, on a phone.
+   *
+   * The desktop already has this: double-click a row and the focus view puts
+   * the note in a column of its own. A phone has no double-click and no room
+   * for two columns, and the note there is a box a few lines tall inside a
+   * pane that is also carrying the title, the dates, the tags and the files —
+   * which is fine for a sentence and hopeless for a paragraph.
+   *
+   * The *same editor* moves into the overlay rather than a second one being
+   * drawn there. Two `NoteEditor`s over one row would be two autosaves for one
+   * document, which is the reason the board renders instead of the panes
+   * rather than on top of them.
+   */
+  const [maximised, setMaximised] = useState(false);
 
-  return (
-    <div className={fill ? 'flex h-full min-h-0 flex-col' : undefined}>
-      <div className={['mb-1 flex h-4 shrink-0 items-center justify-end', column ?? ''].join(' ')}>
+  /** Full height and a measure: true when this editor is the whole view. */
+  const big = fill || maximised;
+
+  useEffect(() => {
+    if (!maximised) return;
+    const key = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setMaximised(false);
+    };
+    document.addEventListener('keydown', key);
+    return () => document.removeEventListener('keydown', key);
+  }, [maximised]);
+
+  const column = big ? 'mx-auto w-full max-w-[60ch] text-[14px]' : undefined;
+
+  const body = (
+    <div className={big ? 'flex h-full min-h-0 flex-col' : undefined}>
+      <div
+        className={[
+          // Taller on a phone than it needs to be for the words, because the
+          // button beside them has to be big enough to hit with a thumb.
+          'mb-1 flex h-6 shrink-0 items-center justify-end gap-2 lg:h-4',
+          column ?? '',
+        ].join(' ')}
+      >
         <span className="text-[11px] text-grey-400">
           {state === 'saving' ? 'Saving…' : state === 'saved' ? 'Saved' : ''}
         </span>
+        {/*
+          Only where there is no other way in. On a desktop double-clicking the
+          row opens the focus view, which is this and more; offering both would
+          be two doors to one room in the pane with the least space to spare.
+        */}
+        {fill ? null : (
+          <button
+            type="button"
+            onClick={() => setMaximised((was) => !was)}
+            aria-label={maximised ? 'Back to the pane' : 'Write full screen'}
+            title={maximised ? 'Back to the pane' : 'Write full screen'}
+            className="shrink-0 px-1 text-[13px] leading-none text-grey-400 hover:text-grey-700 lg:hidden"
+          >
+            {maximised ? '⤡' : '⤢'}
+          </button>
+        )}
       </div>
       <div className={column}>
       <EditorToolbar
@@ -281,7 +333,7 @@ export function NoteEditor({
         than leaving ctrl-click doing nothing at all.
       */}
       <div
-        ref={fill ? undefined : box}
+        ref={big ? undefined : box}
         onClickCapture={(event) => {
           const span = (event.target as HTMLElement | null)?.closest?.(
             'span[data-internal]',
@@ -349,9 +401,9 @@ export function NoteEditor({
 
           router.push(href);
         }}
-        style={!fill && height ? { height: `${height}px` } : undefined}
+        style={!big && height ? { height: `${height}px` } : undefined}
         className={[
-          fill
+          big
             // `min-h-0` above a scroller in a flex column, or it grows to its
             // content and the whole modal scrolls instead of the note.
             //
@@ -368,7 +420,24 @@ export function NoteEditor({
         <EditorContent editor={editor} />
       </div>
 
-      {fill ? null : <RememberedHeight surface={surface} id={id} target={box} />}
+      {big ? null : <RememberedHeight surface={surface} id={id} target={box} />}
     </div>
+  );
+
+  if (!maximised) return body;
+
+  /*
+   * Portalled to the body, and not merely `fixed` where it stands.
+   *
+   * A pane is a stacking context of its own, so a fixed overlay rendered
+   * inside one is only above what that pane paints — which is the trap the
+   * context menus were caught by and the preview pane was caught by again.
+   * Out here there is nothing to be underneath.
+   */
+  return createPortal(
+    <div className="fixed inset-0 z-50 flex flex-col bg-paper px-3 pb-3 pt-2" data-pane="detail">
+      {body}
+    </div>,
+    document.body,
   );
 }

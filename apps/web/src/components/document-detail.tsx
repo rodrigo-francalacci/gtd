@@ -23,6 +23,7 @@ import {
   updateDocument,
 } from '@/lib/actions';
 import { readDocument } from '@/lib/read-document';
+import { RowMenu } from './row-menu';
 import { driveFileUrl } from '@/lib/google/sync';
 import {
   documentLabel,
@@ -511,12 +512,47 @@ export function DocumentDetail({
           />
         </label>
         {item.docDate ? (
-          <span className="text-grey-500">
-            Dated{' '}
-            <span className="text-grey-700">
-              {printed.format(new Date(item.docDate))}
+          /*
+           * Right-click the printed date to file the entry under it.
+           *
+           * The two dates are different facts and stay different — arrival is
+           * when it turned up, the printed date is what the paper says — but
+           * for a scan they are *often* meant to agree, and saying so meant
+           * reading one date and typing it into the field beside it. The
+           * gesture is the one the app already uses to ask a thing what it can
+           * do, and the label says the date rather than describing the action,
+           * because the date is the part you are checking before you press.
+           *
+           * Only the day is taken. Midday rather than midnight, the rule the
+           * ingest path already follows: a bare date is midnight UTC, which
+           * west of Greenwich is the previous evening, and the feed cuts its
+           * days in the server's timezone — so the entry would head a day it
+           * did not arrive on.
+           */
+          <RowMenu
+            name={printed.format(new Date(item.docDate))}
+            className="text-grey-500"
+            extra={[
+              {
+                label: `File it under ${printed.format(new Date(item.docDate))}`,
+                run: () =>
+                  startTransition(async () => {
+                    await setDocumentArrivedAt(
+                      item.id,
+                      new Date(`${item.docDate}T12:00:00`).toISOString(),
+                    );
+                    router.refresh();
+                  }),
+              },
+            ]}
+          >
+            <span>
+              Dated{' '}
+              <span className="text-grey-700 underline decoration-dotted underline-offset-2">
+                {printed.format(new Date(item.docDate))}
+              </span>
             </span>
-          </span>
+          </RowMenu>
         ) : null}
       </section>
 
