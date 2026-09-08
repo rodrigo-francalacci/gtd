@@ -1,6 +1,15 @@
 import 'server-only';
 
-import { attachments, actions, boxItems, db, listItems, lists, projects } from '@gtd/db';
+import {
+  attachments,
+  actions,
+  boxItems,
+  db,
+  inboxItems,
+  listItems,
+  lists,
+  projects,
+} from '@gtd/db';
 import type { AttachmentKind, AttachmentParentType } from '@gtd/db';
 import { and, eq, isNotNull, isNull, ne, sql } from 'drizzle-orm';
 import { getGrant } from '@/lib/auth/token';
@@ -560,6 +569,85 @@ export async function startUploadSession(
     folderId,
     origin,
   );
+}
+
+/**
+ * Open a session for a scan that is going into the *inbox*, not a box.
+ *
+ * The scanner bridge could only ever say "keep this" — every folder it watches
+ * feeds a box, and a box is for keeping. But a good half of what goes through
+ * a scanner is not a thing to file, it is a thing to *do*: a letter from the
+ * council is a to-do with a piece of paper attached. The only route in was to
+ * file it in a box and then clarify it back out, which is the model upside
+ * down.
+ *
+ * No parent, deliberately, and that is what makes this its own function rather
+ * than `startUploadSession` with `'inbox_item'`. `GTD/Inbox` is a fixed folder
+ * — `attachmentFolder` reaches it without reading any row — so the capture can
+ * be created *after* the bytes land. Creating it first, as the phone does,
+ * would leave an empty capture behind every time Drive refused an upload, and
+ * unlike the phone there is no half-typed thought here that has to be kept
+ * safe: the file is the capture.
+ */
+export async function startInboxUpload(
+  name: string,
+  mimeType: string,
+  origin: string | null,
+): Promise<string> {
+  const grant = await getGrant();
+  if (!grant?.refreshToken || !hasSyncScopes(grant.scope)) {
+    throw new AttachmentError(
+      'Drive is not connected. Connect it on the Google page first.',
+    );
+  }
+
+  const folderId = await ensureFolder(INBOX, await ensureFolder(ROOT));
+  return createResumableSession(
+    safeName(name),
+    mimeType || 'application/octet-stream',
+    folderId,
+    origin,
+  );
+}
+
+/**
+ * Record a scan as a capture with its file attached.
+ *
+ * The filename becomes `raw_text`, which is not the app inventing words: it is
+ * the name the scanner or the person gave the file, and it is the only thing
+ * that tells one scan from another in a queue of twenty. Without it every one
+ * of them reads "Photo" and the inbox — a list whose whole job is to be read
+ * and emptied — becomes unreadable exactly when it fills up. The email bridge
+ * already does the same with a subject.
+ *
+ * The extension goes, because it is filing detail rather than a title, and the
+ * attachment row beside it carries the real filename anyway.
+ *
+ * Order is the safeguard, as ever on a driver with no transactions: the
+ * capture exists before the attachment points at it, so a failure between the
+ * two leaves a capture with no file — visible, and dismissible — rather than a
+ * file pointing at nothing.
+ */
+export async function completeInboxUpload(
+  driveFileId: string,
+  filename: string,
+  capturedAt?: Date,
+): Promise<{ id: string; name: string }> {
+  const bare = filename.replace(/\.[A-Za-z0-9]{1,8}$/, '').trim();
+
+  const [capture] = await db
+    .insert(inboxItems)
+    .values({
+      // `photo` where it is one, so the fallback label is right if the name
+      // ever turns out to be empty. Nothing else keys on this.
+      rawType: 'photo',
+      rawText: bare || null,
+      ...(capturedAt ? { createdAt: capturedAt } : {}),
+    })
+    .returning({ id: inboxItems.id });
+
+  const file = await completeUpload('inbox_item', capture.id, driveFileId);
+  return { id: capture.id, name: file.name };
 }
 
 /**

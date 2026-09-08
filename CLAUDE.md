@@ -2911,6 +2911,35 @@ to be kept. They meet at `box_item_links` and nowhere else.
   through with no way to know how far it got. The script's loop is bounded by
   elapsed time, not count: a trigger gets six minutes and a backlog would
   otherwise be cut off mid-file.
+- **A scan can go to the inbox instead of a box, and that is a different kind
+  of answer rather than another box.** The bridge could only ever say "keep
+  this" — every watched folder feeds a box, and a box is for keeping. But a
+  good half of what goes through a scanner is a thing to *do*: a letter from
+  the council is a to-do with a piece of paper attached, and the only way in
+  was to file it in a box and clarify it back out, which is the model upside
+  down. `{ folderId, inbox: true }` in `FOLDERS` and it arrives as a capture
+  with its file already on it.
+  **Its own route, not a `destination` on the box's.** `/api/box/ingest`
+  resolves a box, refuses a folder the app files *into*, carries email facts
+  and a classifier's title, and queues a reading — none of which means anything
+  for a capture, because deciding what a capture is *is* what clarifying does.
+  So `/api/inbox/ingest` is the same two steps and the same secret with none of
+  that, and the script never asks for a reading on one.
+  **The capture is written after the bytes land**, which is the opposite order
+  to the phone and right for the opposite reason. There, the row goes first
+  because the thought must be safe before an upload can fail; here the file
+  *is* the capture, so creating the row first would leave an empty one behind
+  every time Drive refused. `GTD/Inbox` is a fixed folder — `attachmentFolder`
+  reaches it without reading any row — which is what makes that order possible.
+  **The filename becomes `raw_text`.** Not the app inventing words: it is the
+  name the scanner or the person gave the file, and it is the only thing that
+  tells one scan from another in a queue of twenty — without it `captureLabel`
+  falls back to "Photo" for every one of them and the inbox becomes unreadable
+  exactly when it fills up. The email bridge already does this with a subject.
+  Verified end to end against the real Drive: session, PUT, complete; the
+  capture carried the filename and the supplied date, the attachment came back
+  with Drive's own name, type and size, the file was in `GTD/Inbox`, enrichment
+  was queued, and the row rendered in the inbox with its paperclip.
 - **The script asks the app to read; it never reads.** Moving classification
   back into Apps Script would mean the tag vocabulary, the prompt, the
   validation and a database credential living there too — which is what was

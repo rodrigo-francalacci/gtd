@@ -34,12 +34,27 @@
 // revision history, and in any chat you paste the file into.
 
 /**
- * Which folder feeds which box.
+ * Which folder feeds what.
  *
  * `box` is matched on the box's name in the app, case-insensitively. A name the
  * app doesn't know falls back to the default box rather than failing — a
  * document filed in the wrong box is fixable, a document rejected at the door
  * is gone.
+ *
+ * `inbox: true` is the other destination, and it is a different *kind* of
+ * answer rather than another box. A box is for keeping; the inbox is a queue to
+ * be emptied. Half of what goes through a scanner is not a thing to file but a
+ * thing to do — a letter from the council is a to-do with a piece of paper
+ * attached — and filing one in a box means clarifying it back out later, which
+ * is the model upside down. Scan into a folder wired this way instead and it
+ * arrives as a capture with its file already on it, waiting to be turned into
+ * an action, a project or a list item.
+ *
+ *   { folderId: 'PASTE_THE_FOLDER_ID', inbox: true },
+ *
+ * The id is the last part of the folder's URL in Drive. Nothing is classified
+ * and nothing is read: what a capture *is* gets decided by you, at clarify
+ * time, which is the whole point of it landing there.
  */
 const FOLDERS = [
   { folderId: '1OQ1JoO0BPY0ub6oRhpXKMhyzT98ltlrA', box: 'Feed' },
@@ -107,7 +122,13 @@ function previewFeedFolders() {
       return;
     }
 
-    Logger.log('— ' + folder.getName() + ' → box "' + config.box + '" —');
+    Logger.log(
+      '— ' +
+        folder.getName() +
+        ' → ' +
+        (config.inbox ? 'the inbox' : 'box "' + config.box + '"') +
+        ' —',
+    );
 
     const files = folder.getFiles();
 
@@ -165,7 +186,12 @@ function processFeedFolders() {
       return;
     }
 
-    Logger.log('Scanning ' + folder.getName() + ' -> box "' + config.box + '"');
+    Logger.log(
+      'Scanning ' +
+        folder.getName() +
+        ' -> ' +
+        (config.inbox ? 'the inbox' : 'box "' + config.box + '"'),
+    );
 
     const files = folder.getFiles();
     var sent = 0;
@@ -174,7 +200,7 @@ function processFeedFolders() {
       const file = files.next();
 
       try {
-        if (ingestFile(origin, secret, config.box, file, config.folderId, startedAt)) sent++;
+        if (ingestFile(origin, secret, config, file, startedAt)) sent++;
       } catch (e) {
         // Left where it is, so the next run tries again. A failure here is
         // usually the app being redeployed mid-run.
@@ -269,8 +295,11 @@ function datedFrom(name, file) {
   };
 }
 
-function ingestFile(origin, secret, box, file, sourceFolderId, startedAt) {
+function ingestFile(origin, secret, config, file, startedAt) {
   const name = file.getName();
+  const box = config.box;
+  const sourceFolderId = config.folderId;
+  const toInbox = config.inbox === true;
 
   if (file.getSize() > MAX_BYTES) {
     Logger.log('Skipping ' + name + ' — larger than this script can forward.');
@@ -284,7 +313,7 @@ function ingestFile(origin, secret, box, file, sourceFolderId, startedAt) {
     return false;
   }
 
-  const open = post(origin, secret, {
+  const open = post(origin, secret, toInbox, {
     step: 'open',
     box: box,
     name: name,
@@ -315,9 +344,13 @@ function ingestFile(origin, secret, box, file, sourceFolderId, startedAt) {
 
   const dated = datedFrom(name, file);
 
-  const done = post(origin, secret, {
+  const done = post(origin, secret, toInbox, {
     step: 'complete',
     box: box,
+    // The inbox needs it too: the capture's own label is the filename, since
+    // that is the only thing that tells one scan from another in a queue of
+    // twenty. `/api/box/ingest` ignores it at this step.
+    name: name,
     driveFileId: uploaded.id,
     // The date the scan was made, so a backlog files under the days it
     // actually arrived instead of burying years of letters under today.
@@ -341,9 +374,14 @@ function ingestFile(origin, secret, box, file, sourceFolderId, startedAt) {
   // safe the moment `complete` returns, and a model that is slow or down must
   // not cost us the file. A failure here leaves it queued, which is exactly
   // where it would have been anyway.
-  if (READ_ON_INGEST && Date.now() - startedAt < READ_BUDGET_MS) {
+  //
+  // Never for a capture. There is nothing to read it *for*: a capture carries
+  // no tags, no title and no summary, because deciding what it is is exactly
+  // what clarifying does — by hand, later, which is the point of it landing in
+  // the inbox rather than in a box.
+  if (!toInbox && READ_ON_INGEST && Date.now() - startedAt < READ_BUDGET_MS) {
     try {
-      post(origin, secret, { step: 'read', itemId: done.id });
+      post(origin, secret, false, { step: 'read', itemId: done.id });
       Logger.log('    read');
     } catch (e) {
       Logger.log('    queued for later: ' + e);
@@ -370,10 +408,17 @@ function archive(file) {
   file.moveTo(filed);
 }
 
-function post(origin, secret, payload) {
-  // The read endpoint is its own route because it needs a longer time limit
-  // than an ingest step does.
-  const path = payload.step === 'read' ? '/api/box/read' : '/api/box/ingest';
+function post(origin, secret, toInbox, payload) {
+  // Three routes, one secret. The read endpoint is its own because it needs a
+  // longer time limit than an ingest step does; the inbox is its own because a
+  // capture is not a document — nothing about it is classified, so none of the
+  // box route's box-resolving, loop-refusing or title-carrying applies.
+  const path =
+    payload.step === 'read'
+      ? '/api/box/read'
+      : toInbox
+        ? '/api/inbox/ingest'
+        : '/api/box/ingest';
 
   const response = UrlFetchApp.fetch(origin + path, {
     method: 'post',
