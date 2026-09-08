@@ -136,7 +136,13 @@ Turbopack is the default; `middleware` is now `proxy`.
   for what should carry, with yellow warning and red alerting. Pure black and
   not a near-black: the whole effect rests on the ground being *off*, so that
   green is the only thing emitting.
-  **It overrides `--font-sans` outright, and it is the only theme that does.**
+  **It overrides `--font-sans` outright**, which riso does too — that is three
+  themes of the six, and the claim here that the console was the only one was
+  simply wrong. It matters because it is the first thing to suspect when the
+  app "looks like a different font": three themes replace the typeface, riso
+  also tightens `word-spacing` to `-0.12em`, and the other three leave Source
+  Sans alone. Measured rather than remembered — body is 14px in every one of
+  them, so what changes is the face, never the size.
   A console is monospaced; setting only the labels — which is what this did on
   the first attempt — produces an app with a terminal's captions and a website's
   body. The cost is real, because mono is wider and this layout is built around
