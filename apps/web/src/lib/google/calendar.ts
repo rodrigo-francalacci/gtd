@@ -189,7 +189,9 @@ function hiddenIds(list: CalendarListEntry[], hidden: string[] | null): Set<stri
  * you can walk, the way a box's calendar already does. Until then this is the
  * number, and the page says it.
  */
-const DEFAULT_DAYS = 90;
+export const UPCOMING_DAYS = 90;
+
+const DEFAULT_DAYS = UPCOMING_DAYS;
 
 /** Per calendar. A subscribed holiday calendar can be dense. */
 const PER_CALENDAR = 100;

@@ -1072,6 +1072,44 @@ Turbopack is the default; `middleware` is now `proxy`.
   is worse than one that shows too much. Granted separately from `SYNC_SCOPES`
   via `?scopes=calendar`, so the calendar stays optional and first sign-in never
   bundles it.
+- **Your own scheduled steps are drawn on the calendar beside Google's
+  events, and nothing is written to Google to do it.** An appointment and a
+  step you booked for three are the same kind of claim on the same afternoon,
+  so reading them in two places means holding the merge in your head — which is
+  most of what the calendar is for. One time-ordered column, grouped by day.
+  **The two halves arrive by different routes and that is a feature.** The
+  events are fetched by the client, because a request must not wait on Google;
+  the actions are a database read on the page's own path, so the server renders
+  them. Your afternoon is therefore on screen before Google has been asked
+  anything, and stays there if Google never answers — the loading and error
+  states are shown *above* the timeline rather than instead of it whenever
+  there is anything of ours to draw.
+  **From the start of today, where the Google half starts from now.** An
+  appointment at nine read at ten has happened; a step booked for nine that you
+  have not done is still outstanding, and dropping it would be the calendar
+  hiding the one thing you most need to see. Same window at the far end, from
+  one exported constant, so the two stop together.
+  **Merged then sorted, never concatenated.** Google returns its events in
+  order and the query returns the actions in order, and two ordered lists put
+  end to end are not an ordered list. Keys are namespaced (`event:` /
+  `action:`) — Google's ids and our uuids cannot collide in practice, and
+  "cannot in practice" is how a selection lands on the wrong row once,
+  unreproducibly.
+  **The emoji travels, and the checkbox is what separates the two kinds.** A
+  row you recognise by its shape in the Now list has to keep that shape here or
+  the calendar is a second, unfamiliar list of the same work. And a thing you
+  can *tick off* is not an appointment: ticking one from the timeline is most
+  of why this exists — reading down the day and doing things as they come is
+  the activity, and leaving for the Now list to mark one done breaks it.
+  **Google's rows hold both slots open.** An event has no checkbox and no
+  emoji, so once anything in the column has either, an event row renders an
+  empty box of the same size. A mark some rows carry and others do not is what
+  leaves a left edge ragged, and this column is read straight down. Measured
+  after: every title in the list starts at the same x.
+  **An action's pane is short on purpose.** An appointment's ends in a link to
+  Google because Google is the only place it can be changed; a step of yours
+  has a whole detail pane two clicks away, so repeating its notes and files
+  here would be a second, worse copy of it.
 - **The calendar heading carries today's date, formatted on the server.**
   Every other date in the app is cut in the server’s timezone, and a heading
   announcing one day while the chip under the first event says another is the

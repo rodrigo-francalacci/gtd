@@ -1,11 +1,14 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import Link from 'next/link';
+import { useEffect, useRef, useState, useTransition } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
-import { setHiddenCalendars } from '@/lib/actions';
+import { setActionStatus, setHiddenCalendars } from '@/lib/actions';
 import type { CalendarEvent, CalendarSource } from '@/lib/google/calendar';
 import { groupByDay, upcomingDayLabel } from '@/lib/days';
 import type { ViewMode } from '@/lib/pane';
+import type { ScheduledAction } from '@/lib/queries.shared';
+import { RowEmoji } from './row-emoji';
 import { DayHeading } from './day-heading';
 import { DetailPane, EmptyDetail, EmptyList, ListPane } from './panes';
 import { IconCalendar, IconConnections, IconPlace, IconWaiting } from './icons';
@@ -92,11 +95,25 @@ type Payload = {
  * a slow or unreachable Google costs a list that is still loading, never a
  * page that will not open.
  */
+/**
+ * One line on the timeline, from either side.
+ *
+ * Google's appointments and your own booked steps are the same kind of claim
+ * on the same afternoon, and reading them in two lists means doing the merge
+ * in your head — which is the whole reason to draw them together. Nothing is
+ * written to Google to achieve it: the two are simply shown in one column and
+ * neither knows about the other.
+ */
+type Entry =
+  | { key: string; at: Date; kind: 'event'; event: CalendarEvent }
+  | { key: string; at: Date; kind: 'action'; action: ScheduledAction };
+
 export function CalendarView({
   paneWidth,
   viewMode,
   viewKey,
   today,
+  scheduled,
 }: {
   paneWidth: number;
   viewMode: ViewMode;
@@ -111,6 +128,16 @@ export function CalendarView({
    * the server’s.
    */
   today: string;
+  /**
+   * Your own commitments, rendered by the server.
+   *
+   * They come as a prop rather than through the fetch because they are ours: a
+   * database read, on the page's own critical path, with nothing to wait for.
+   * That gives the view a useful property — the timeline is drawn with your
+   * steps on it before Google has answered, and stays useful if Google never
+   * does.
+   */
+  scheduled: ScheduledAction[];
 }) {
   const [state, setState] = useState<Payload | null>(null);
   const [failed, setFailed] = useState<string | null>(null);
@@ -171,9 +198,43 @@ export function CalendarView({
    * for, so an empty Thursday simply is not there rather than appearing as a
    * heading over nothing.
    */
-  const days = groupByDay(events, toDate, false, upcomingDayLabel);
+  /*
+   * Merged into one time-ordered column before grouping.
+   *
+   * Sorted here rather than relying on either source: Google returns its
+   * events in order and the query returns the actions in order, and two
+   * ordered lists concatenated are not an ordered list. An all-day event has
+   * `at` at local midnight, so it lands at the top of its day, which is where
+   * it belongs.
+   *
+   * Keys are namespaced. Google's ids and our uuids cannot collide in
+   * practice, but "cannot in practice" is how a selection ends up on the wrong
+   * row once, unreproducibly.
+   */
+  const entries: Entry[] = [
+    ...events.map(
+      (event): Entry => ({ key: `event:${event.id}`, at: toDate(event), kind: 'event', event }),
+    ),
+    ...scheduled.map(
+      (action): Entry => ({
+        key: `action:${action.id}`,
+        at: new Date(action.scheduledAt),
+        kind: 'action',
+        action,
+      }),
+    ),
+  ].sort((a, b) => a.at.getTime() - b.at.getTime());
 
-  const selected = events.find((e) => e.id === selectedId) ?? events[0] ?? null;
+  /*
+   * One glyph anywhere in the column puts the slot on every row, Google's
+   * included. A mark some rows carry and others do not is what leaves a left
+   * edge ragged, and this column is read straight down.
+   */
+  const emojified = scheduled.some((action) => action.emoji);
+
+  const days = groupByDay(entries, (entry) => entry.at, false, upcomingDayLabel);
+
+  const selected = entries.find((e) => e.key === selectedId) ?? entries[0] ?? null;
 
   return (
     <>
@@ -210,39 +271,74 @@ export function CalendarView({
               ? 'Not connected'
               : failed
                 ? 'Cannot read the calendar'
-                : events.length === 0
+                : entries.length === 0
                   ? `Nothing in the next ${state.days ?? 90} days`
-                  : `${events.length} in the next ${state.days ?? 90} days · read-only`
+                  : `${entries.length} in the next ${state.days ?? 90} days` +
+                    (scheduled.length > 0 ? ` · ${scheduled.length} yours` : ' · read-only')
         }
       >
-        {state === null ? (
+        {/*
+          Your own steps are drawn even while Google is still being asked, and
+          even when it cannot be reached at all — they are ours, they came with
+          the page, and a broken connection to Google should cost you Google's
+          half rather than your afternoon. So the loading and error states are
+          shown *above* the timeline rather than instead of it, whenever there
+          is anything of ours to draw.
+        */}
+        {state === null && entries.length === 0 ? (
           <p className="px-4 py-6 text-[13px] text-grey-400">Reading your calendar…</p>
-        ) : !state.connected ? (
-          <Connect reconnect={state.reconnect} message={failed} />
-        ) : failed ? (
-          <Problem message={failed} enableUrl={state.enableUrl} />
-        ) : events.length === 0 ? (
-          <EmptyList message={`Nothing booked between now and ${horizon(state.days)}.`} />
+        ) : !state?.connected && entries.length === 0 ? (
+          <Connect reconnect={state?.reconnect} message={failed} />
         ) : (
-          days.map((day) => (
-            <section key={day.key}>
-              <DayHeading label={day.label} />
-              {day.items.map((event) => (
-                <Row
-                  key={`${event.calendarId}:${event.id}`}
-                  event={event}
-                  selected={event.id === selected?.id}
-                  onSelect={() => choose(event.id)}
-                />
-              ))}
-            </section>
-          ))
+          <>
+            {state === null ? (
+              <p className="px-4 py-2 text-[11px] text-grey-400">Reading your calendar…</p>
+            ) : !state.connected ? (
+              <Connect reconnect={state.reconnect} message={failed} />
+            ) : failed ? (
+              <Problem message={failed} enableUrl={state.enableUrl} />
+            ) : null}
+
+            {entries.length === 0 ? (
+              <EmptyList message={`Nothing booked between now and ${horizon(state?.days)}.`} />
+            ) : (
+              days.map((day) => (
+                <section key={day.key}>
+                  <DayHeading label={day.label} />
+                  {day.items.map((entry) =>
+                    entry.kind === 'event' ? (
+                      <Row
+                        key={entry.key}
+                        event={entry.event}
+                        selected={entry.key === selected?.key}
+                        onSelect={() => choose(entry.key)}
+                        withCheckbox={scheduled.length > 0}
+                        emojified={emojified}
+                      />
+                    ) : (
+                      <ActionRowLine
+                        key={entry.key}
+                        action={entry.action}
+                        selected={entry.key === selected?.key}
+                        onSelect={() => choose(entry.key)}
+                        emojified={emojified}
+                      />
+                    ),
+                  )}
+                </section>
+              ))
+            )}
+          </>
         )}
       </ListPane>
 
       {selected ? (
         <DetailPane>
-          <Detail event={selected} />
+          {selected.kind === 'event' ? (
+            <Detail event={selected.event} />
+          ) : (
+            <ActionDetailPanel action={selected.action} />
+          )}
         </DetailPane>
       ) : (
         <EmptyDetail
@@ -374,6 +470,138 @@ function CalendarPicker({
 }
 
 /**
+ * One of your own steps, on the timeline.
+ *
+ * Deliberately the same shape as an event's row — the same time column, the
+ * same title weight — because the point of drawing them together is that they
+ * are the same kind of claim on the same afternoon. What separates them is the
+ * emoji and the checkbox, which is exactly right: the emoji is how you already
+ * recognise that row in the Now list, and a thing you can *tick off* is not an
+ * appointment.
+ *
+ * **The emoji travels**, which is the rule the whole column follows: a row you
+ * have learned to recognise by its shape must keep that shape when it changes
+ * list, or the calendar becomes a second, unfamiliar list of the same work.
+ * The slot is reserved on every row once any row has one, so the titles stay
+ * on one left edge.
+ */
+function ActionRowLine({
+  action,
+  selected,
+  onSelect,
+  emojified,
+}: {
+  action: ScheduledAction;
+  selected: boolean;
+  onSelect: () => void;
+  /** Whether any row in this column has a glyph, so the slot is held on all. */
+  emojified: boolean;
+}) {
+  const [pending, startTransition] = useTransition();
+  const router = useRouter();
+
+  const at = new Date(action.scheduledAt);
+  const until = action.scheduledEnd ? new Date(action.scheduledEnd) : null;
+
+  return (
+    <div
+      className={[
+        'flex w-full items-baseline gap-3 border-b border-grey-150 px-4 py-2',
+        pending ? 'opacity-50' : '',
+        selected ? 'bg-selected-bg' : 'hover:bg-grey-100',
+      ].join(' ')}
+    >
+      <span className="w-24 shrink-0 tabular-nums text-[11px] text-grey-600">
+        {clock.format(at)}
+        {until ? `–${clock.format(until)}` : ''}
+      </span>
+
+      {/*
+        Ticking it off from the timeline is most of why this is here: reading
+        down the day and doing the things as they come is the whole activity,
+        and having to leave for the Now list to mark one done breaks it.
+      */}
+      <button
+        type="button"
+        aria-label="Mark done"
+        disabled={pending}
+        onClick={() =>
+          startTransition(async () => {
+            await setActionStatus(action.id, 'done');
+            router.refresh();
+          })
+        }
+        className="mt-0.5 h-3.5 w-3.5 shrink-0 rounded-[3px] border border-grey-400 bg-paper hover:border-grey-600"
+      />
+
+      <button
+        type="button"
+        onClick={onSelect}
+        className="flex min-w-0 flex-1 flex-col gap-0.5 text-left"
+      >
+        <span className="flex min-w-0 items-baseline gap-1.5">
+          <RowEmoji emoji={emojified ? action.emoji : undefined} />
+          <span
+            className={[
+              'truncate text-[13px]',
+              selected ? 'font-medium text-grey-900' : 'text-grey-800',
+            ].join(' ')}
+          >
+            {action.title}
+          </span>
+        </span>
+
+        {action.projectTitle ? (
+          <span className="truncate text-[11px] text-grey-500">{action.projectTitle}</span>
+        ) : null}
+      </button>
+    </div>
+  );
+}
+
+/**
+ * What one of your own steps says, in the pane.
+ *
+ * Short on purpose. An appointment's pane ends in a link to Google because
+ * Google is the only place it can be changed; a step of yours has a whole
+ * detail pane of its own two clicks away, so repeating the notes, the files
+ * and the contexts here would be a second, worse copy of it.
+ */
+function ActionDetailPanel({ action }: { action: ScheduledAction }) {
+  const at = new Date(action.scheduledAt);
+  const until = action.scheduledEnd ? new Date(action.scheduledEnd) : null;
+
+  return (
+    <div className="px-1">
+      <h1 className="flex items-baseline gap-2 text-[15px] font-medium text-grey-900">
+        <RowEmoji emoji={action.emoji} />
+        <span className="min-w-0">{action.title}</span>
+      </h1>
+
+      <p className="mt-2 text-[12px] text-grey-600">
+        {full.format(at)} · {clock.format(at)}
+        {until ? `–${clock.format(until)}` : ''}
+      </p>
+
+      {action.projectTitle ? (
+        <p className="mt-1 text-[12px] text-grey-500">{action.projectTitle}</p>
+      ) : null}
+
+      <p className="mt-4 text-[11px] text-grey-400">
+        Yours, not Google&rsquo;s. Nothing here is written to your calendar.
+      </p>
+
+      <Link
+        href={`/now?action=${action.id}`}
+        className="mt-4 inline-block text-[12px] text-grey-600 underline underline-offset-2 hover:text-grey-900"
+      >
+        Open it in Now
+      </Link>
+    </div>
+  );
+}
+
+/**
  * A button, not a link.
  *
  * Every other row in this app navigates, because every other row is server
@@ -386,10 +614,24 @@ function Row({
   event,
   selected,
   onSelect,
+  withCheckbox,
+  emojified,
 }: {
   event: CalendarEvent;
   selected: boolean;
   onSelect: () => void;
+  /**
+   * Whether anything in this column has a checkbox, and so whether this row
+   * has to leave room for one it will never have.
+   *
+   * An appointment cannot be ticked off — Google owns it and nothing here
+   * writes — so the control is genuinely absent rather than disabled. But a
+   * mark that only some rows carry is what makes a column of titles ragged,
+   * which in a list you read down by the clock is the one thing to get right.
+   * The same rule `RowEmoji` follows for its own slot.
+   */
+  withCheckbox: boolean;
+  emojified: boolean;
 }) {
   return (
     <button
@@ -411,14 +653,20 @@ function Row({
         {when(event)}
       </span>
 
+      {/* Held open, never drawn: see `withCheckbox`. */}
+      {withCheckbox ? <span aria-hidden className="mt-0.5 h-3.5 w-3.5 shrink-0" /> : null}
+
       <span className="flex min-w-0 flex-1 flex-col gap-0.5">
-        <span
-          className={[
-            'truncate text-[13px]',
-            selected ? 'font-medium text-grey-900' : 'text-grey-800',
-          ].join(' ')}
-        >
-          {event.title}
+        <span className="flex min-w-0 items-baseline gap-1.5">
+          {emojified ? <RowEmoji emoji={null} /> : null}
+          <span
+            className={[
+              'truncate text-[13px]',
+              selected ? 'font-medium text-grey-900' : 'text-grey-800',
+            ].join(' ')}
+          >
+            {event.title}
+          </span>
         </span>
 
         {event.location ? (

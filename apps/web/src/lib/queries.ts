@@ -44,8 +44,12 @@ import {
   count,
   desc,
   eq,
+  gte,
   inArray,
+  isNotNull,
   isNull,
+  lt,
+  ne,
   notInArray,
   sql,
 } from 'drizzle-orm';
@@ -65,6 +69,7 @@ import type {
   ListRow,
   ProjectRow,
   PurchaseFields,
+  ScheduledAction,
 } from './queries.shared';
 import { stageOf } from './queries.shared';
 
@@ -83,6 +88,7 @@ export type {
   ListRow,
   ProjectRow,
   PurchaseFields,
+  ScheduledAction,
 } from './queries.shared';
 export {
   CURRENCY,
@@ -416,6 +422,58 @@ export async function getDeferredActions(): Promise<ActionRow[]> {
     .orderBy(asc(actions.deferUntil), asc(actions.createdAt));
 
   return attachContexts(rows);
+}
+
+/**
+ * Your own commitments, for the calendar to draw beside Google's.
+ *
+ * The point of putting them there is the *timeline*: an appointment and a step
+ * you booked for three o'clock are the same kind of claim on the same
+ * afternoon, and reading them in two places means holding the merge in your
+ * head. Nothing is written to Google to achieve it — the two are shown
+ * together and neither knows about the other, which is the whole design.
+ *
+ * **From the start of today, not from now**, which is where this deliberately
+ * differs from the Google half. An appointment at nine, read at ten, has
+ * happened and drops off; a step booked for nine that you have not done is
+ * still outstanding and dropping it would be the calendar hiding the thing you
+ * most need to see. Same window at the far end, so the two halves stop
+ * together.
+ *
+ * Done ones are excluded rather than struck through: this view is a timeline
+ * of what is *left*, and a finished step is already in the project's Done fold
+ * where the record belongs.
+ */
+export async function getScheduledActions(days: number): Promise<ScheduledAction[]> {
+  const from = new Date();
+  from.setHours(0, 0, 0, 0);
+  const to = new Date(from.getTime() + days * 24 * 60 * 60 * 1000);
+
+  const rows = await db
+    .select({
+      id: actions.id,
+      title: actions.title,
+      emoji: actions.emoji,
+      projectTitle: projects.title,
+      scheduledAt: actions.scheduledAt,
+      scheduledEnd: actions.scheduledEnd,
+      status: actions.status,
+    })
+    .from(actions)
+    .leftJoin(projects, eq(projects.id, actions.projectId))
+    .where(
+      and(
+        isNotNull(actions.scheduledAt),
+        isNull(actions.completedAt),
+        ne(actions.status, 'done'),
+        gte(actions.scheduledAt, from),
+        lt(actions.scheduledAt, to),
+      ),
+    )
+    .orderBy(asc(actions.scheduledAt));
+
+  // The `isNotNull` above is the guarantee; this is what tells the compiler.
+  return rows.map((row) => ({ ...row, scheduledAt: row.scheduledAt! }));
 }
 
 /** How many are waiting for their day — the number beside the sidebar entry. */

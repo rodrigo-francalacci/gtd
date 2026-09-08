@@ -1,4 +1,6 @@
 import { CalendarView } from '@/components/calendar-view';
+import { getScheduledActions } from '@/lib/queries';
+import { UPCOMING_DAYS } from '@/lib/google/calendar';
 import { todayLabel } from '@/lib/days';
 import { getPreferences, paneWidth } from '@/lib/view-mode';
 import { densityKeys, getView } from '@/lib/view-prefs';
@@ -17,13 +19,29 @@ import { densityKeys, getView } from '@/lib/view-prefs';
  */
 export default async function CalendarPage() {
   const viewKey = densityKeys.path('/calendar');
-  const [prefs, view] = await Promise.all([getPreferences(), getView(viewKey)]);
+  const [prefs, view, scheduled] = await Promise.all([
+    getPreferences(),
+    getView(viewKey),
+    /*
+     * Ours, so the server renders them.
+     *
+     * The Google half cannot be — a request must not wait on Google — but this
+     * is a database read on the page's own path, and rendering it here is what
+     * gives the view its best property: your own afternoon is drawn before
+     * Google has been asked anything, and stays drawn if Google never answers.
+     *
+     * The same window as the events, from one definition, so the two halves of
+     * the timeline stop at the same place.
+     */
+    getScheduledActions(UPCOMING_DAYS),
+  ]);
 
   return (
     <CalendarView
       paneWidth={paneWidth(prefs)}
       viewMode={view.density ?? prefs.viewMode}
       viewKey={viewKey}
+      scheduled={scheduled}
       /* Formatted on the server, which is where every other date in the app
          is formatted — and which is also what stops the heading disagreeing
          with the day chips underneath it, or with itself across midnight. */

@@ -70,6 +70,27 @@ export type ActionRow = {
  * saying loudest. The cut is the server's day, which is where every other date
  * in this app is cut.
  */
+/**
+ * One of your own commitments, drawn on the calendar beside Google's events.
+ *
+ * A narrow shape rather than a whole `ActionRow`: the calendar draws a time, a
+ * title and where it belongs, and shipping the contexts, the position and the
+ * waiting state of every scheduled action to a view that renders none of them
+ * is payload for nothing.
+ */
+export type ScheduledAction = {
+  id: string;
+  title: string;
+  /** Carried across deliberately — a row you recognise by its shape in the
+   *  Now list should be the same row here, or the calendar is a different
+   *  list of the same work. */
+  emoji: string | null;
+  projectTitle: string | null;
+  scheduledAt: Date;
+  scheduledEnd: Date | null;
+  status: ActionStatus;
+};
+
 export type ScheduleStanding = 'overdue' | 'today' | 'ahead';
 
 export function standingOf(
