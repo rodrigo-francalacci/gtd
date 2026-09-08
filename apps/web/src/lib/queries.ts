@@ -273,6 +273,9 @@ const actionSelect = {
   position: actions.position,
   /** Which of your own headings it sits under in Now, if any. */
   sectionId: actions.sectionId,
+  deferUntil: actions.deferUntil,
+  scheduledAt: actions.scheduledAt,
+  scheduledEnd: actions.scheduledEnd,
 };
 
 /**
@@ -313,8 +316,38 @@ export async function getNowSections(): Promise<NowSectionRow[]> {
     .orderBy(asc(nowSections.position), asc(nowSections.createdAt));
 }
 
+/**
+ * Rows put off until a day that has not arrived.
+ *
+ * Cut in SQL against the server's date, which is where every other day in this
+ * app is cut — the alternative is fetching the deferred rows and dropping them
+ * in JavaScript, which means the count in the sidebar and the list on screen
+ * would each be deciding what "today" means.
+ *
+ * `current_date` rather than a value from the request: a page rendered a
+ * second before midnight and read a second after would otherwise disagree with
+ * the database about which day it is, and the database is the one that has to
+ * be right.
+ */
+const NOT_YET = sql`${actions.deferUntil} is not null and ${actions.deferUntil} > current_date`;
+
 export async function getNowActions(contextIds: string[]): Promise<ActionRow[]> {
-  const base = and(eq(actions.status, 'next'), isNull(actions.completedAt));
+  /*
+   * Deferred rows are out until their day.
+   *
+   * The one list in the app that answers "what could I do right now", so
+   * something you have explicitly said is not relevant until March has no
+   * business on it — that is the whole feature. It is never *nowhere* though:
+   * it stays on its project, and `getDeferredActions` is the view that lists
+   * every one of them by the day it comes back. A row that has left every list
+   * with nothing saying where it went is the worst bug this codebase knows how
+   * to write, and it has written it twice.
+   */
+  const base = and(
+    eq(actions.status, 'next'),
+    isNull(actions.completedAt),
+    sql`not (${NOT_YET})`,
+  );
 
   if (contextIds.length === 0) {
     const rows = await db
@@ -358,6 +391,41 @@ export async function getNowActions(contextIds: string[]): Promise<ActionRow[]> 
     .orderBy(...byPosition);
 
   return attachContexts(rows);
+}
+
+/**
+ * Everything put off, soonest to come back first.
+ *
+ * The view that stops deferral being a way to lose things. `/now?filter=later`
+ * rather than a page of its own, the same shape "Stalled" takes on
+ * `/projects` — it is a view of the same rows asked a different question, and
+ * the sidebar is the only place it can be reached from, which is precisely why
+ * the sidebar entry has to light up on the query as well as the path.
+ *
+ * Ordered by the day it returns rather than by hand: a manual order over a
+ * list whose whole content is "when does this come back" would be two answers
+ * to one question.
+ */
+export async function getDeferredActions(): Promise<ActionRow[]> {
+  const rows = await db
+    .select(actionSelect)
+    .from(actions)
+    .leftJoin(projects, eq(projects.id, actions.projectId))
+    .leftJoin(waitingParty, eq(waitingParty.id, actions.waitingOnId))
+    .where(and(eq(actions.status, 'next'), isNull(actions.completedAt), NOT_YET))
+    .orderBy(asc(actions.deferUntil), asc(actions.createdAt));
+
+  return attachContexts(rows);
+}
+
+/** How many are waiting for their day — the number beside the sidebar entry. */
+export async function countDeferred(): Promise<number> {
+  const [row] = await db
+    .select({ n: sql<number>`count(*)::int` })
+    .from(actions)
+    .where(and(eq(actions.status, 'next'), isNull(actions.completedAt), NOT_YET));
+
+  return row?.n ?? 0;
 }
 
 /**
@@ -587,6 +655,9 @@ export async function getAction(id: string) {
       noteDense: actions.noteDense,
       projectId: actions.projectId,
       projectTitle: projects.title,
+      deferUntil: actions.deferUntil,
+      scheduledAt: actions.scheduledAt,
+      scheduledEnd: actions.scheduledEnd,
       createdAt: actions.createdAt,
       /** When it was finished, for the archive's own heading. */
       completedAt: actions.completedAt,
@@ -994,6 +1065,11 @@ export async function getAttachableActions() {
  * is 11ms. Nothing about the app got cleverer — the same numbers arrive, they
  * just stop queueing.
  *
+ * The stalled count is deliberately left alone by deferral: a project whose
+ * only next action is put off until March still *has* a next action, and you
+ * have said when you will pick it up, which is the opposite of stalled. It
+ * also has to keep agreeing exactly with `isStalled` over `getProjects()`.
+ *
  * The stalled count is the one worth reading twice. It must agree exactly with
  * `isStalled` over `getProjects()`, and the obvious correlated subquery does
  * not: `not exists` against a *join* of the two tables silently counts nothing.
@@ -1004,7 +1080,16 @@ export async function getSidebarCounts() {
   const rows = await db.execute(sql`
     select
       (select count(*) from inbox_items where status = 'pending')::int as inbox,
-      (select count(*) from actions where status = 'next')::int as next,
+      -- Deferred rows are out of the Now list, so they must be out of the
+      -- number beside it too: a sidebar saying 37 over a list showing 34 is
+      -- the app disagreeing with itself in a single glance.
+      (select count(*) from actions
+         where status = 'next'
+           and (defer_until is null or defer_until <= current_date))::int as next,
+      (select count(*) from actions
+         where status = 'next'
+           and defer_until is not null
+           and defer_until > current_date)::int as later,
       (select count(*) from actions where status = 'waiting')::int as waiting,
       (select count(*) from actions
          where project_id is null and status in ('next', 'waiting'))::int as unfiled,
@@ -1025,6 +1110,7 @@ export async function getSidebarCounts() {
     inbox: row?.inbox ?? 0,
     archived: row?.archived ?? 0,
     next: row?.next ?? 0,
+    later: row?.later ?? 0,
     waiting: row?.waiting ?? 0,
     projects: row?.projects ?? 0,
     stalled: row?.stalled ?? 0,

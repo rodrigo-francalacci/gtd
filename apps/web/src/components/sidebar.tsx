@@ -10,6 +10,7 @@ import {
   IconConnections,
   IconContexts,
   IconInbox,
+  IconLater,
   IconArchive,
   IconFile,
   IconLists,
@@ -84,6 +85,8 @@ export function SidebarNav({
   appsScriptUrl: string | null;
   counts: {
     next: number;
+    /** How many are put off until a day that has not arrived. */
+    later: number;
     waiting: number;
     projects: number;
     stalled: number;
@@ -134,6 +137,30 @@ export function SidebarNav({
           count: counts.waiting,
           drop: { kind: 'waiting' },
         },
+        /*
+         * Everything put off, and the only way to reach it.
+         *
+         * Deferral takes a row off the one list that answers "what could I do
+         * now", which is the point — and a row that has left every list with
+         * nothing saying where it went is the worst bug this codebase knows
+         * how to write. So it is a view of the same page, the shape "Stalled"
+         * takes on `/projects`, and the sidebar is where you get to it.
+         *
+         * Hidden at zero, unlike its neighbours. Waiting-for and Now are
+         * permanent parts of the method and belong in the list whether or not
+         * they hold anything today; this is a thing you have done to some rows
+         * and there is nothing to look at until you have.
+         */
+        ...(counts.later > 0
+          ? [
+              {
+                href: '/now?filter=later',
+                label: 'Put off',
+                icon: IconLater,
+                count: counts.later,
+              },
+            ]
+          : []),
         // Engage rather than Organise: the calendar is not something you keep,
         // it is the shape of the day you are deciding inside. No count —
         // the events are read from Google when the view opens, and the shell

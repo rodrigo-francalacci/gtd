@@ -21,6 +21,7 @@ import {
   type AttachmentRow,
   type LinkedDocumentRow,
 } from '@/lib/queries.shared';
+import { ActionWhen } from './action-when';
 import { Attachments } from './attachments';
 import { MoveTo } from './move-to';
 import { LinkedDocuments } from './linked-documents';
@@ -44,6 +45,11 @@ type ActionDetailData = {
   notes: unknown;
   projectId: string | null;
   projectTitle: string | null;
+  /** A day it is put off until, or null. See `deferAction`. */
+  deferUntil: string | null;
+  /** A slot committed to, in this app only. See `scheduleAction`. */
+  scheduledAt: Date | null;
+  scheduledEnd: Date | null;
   contexts: { id: string; name: string; dimension: string }[];
 };
 
@@ -240,6 +246,22 @@ export function ActionDetail({
           />
         </section>
       ) : null}
+
+      {/*
+        Above Contexts, because it is the newer question and the more urgent
+        one. A context says *where this can be done*; these two say whether it
+        is on the list at all today, which is the thing you are deciding while
+        the pane is open. Hidden once it is finished: a slot for something
+        already done is a row nothing will ever draw.
+      */}
+      {action.status === 'done' ? null : (
+        <ActionWhen
+          actionId={action.id}
+          scheduledAt={action.scheduledAt}
+          scheduledEnd={action.scheduledEnd}
+          deferUntil={action.deferUntil}
+        />
+      )}
 
       <section className="mt-6">
         <h2 className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-grey-500">

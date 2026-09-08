@@ -9,9 +9,52 @@ import {
   WAITING_COLUMNS,
 } from '@/lib/columns';
 import type { ViewMode } from '@/lib/pane';
-import { daysSince, isStale, type ActionRow } from '@/lib/queries.shared';
+import { daysSince, isStale, standingOf, type ActionRow } from '@/lib/queries.shared';
 import { DragGrip } from './sortable';
 import { SimpleRow } from './simple-row';
+import { IconCalendar, IconLater } from './icons';
+
+/**
+ * "Tue 14:00", "23 Feb", "not until 1 Mar" — or nothing at all.
+ *
+ * Read off the row rather than passed in, because every list that draws an
+ * action wants the same answer and threading a flag through five call sites is
+ * how two of them end up disagreeing.
+ *
+ * Today's bookings say nothing here: they are in the scheduled block with the
+ * clock beside them already, and repeating it in the pool would only be
+ * possible for a row that is in both, which none are.
+ */
+function whenLabel(action: ActionRow): string | null {
+  const standing = standingOf(action.scheduledAt);
+
+  if (action.scheduledAt && standing === 'ahead') {
+    const when = action.scheduledAt;
+    const sameYear = when.getFullYear() === new Date().getFullYear();
+    return dayAndTime.format(when) + (sameYear ? '' : ` ${when.getFullYear()}`);
+  }
+
+  if (action.deferUntil) {
+    // Local midnight, never `new Date('2026-03-01')`, which is UTC by
+    // specification and reads as the previous evening west of Greenwich.
+    const day = new Date(`${action.deferUntil}T00:00:00`);
+    return Number.isNaN(day.getTime())
+      ? null
+      : `not until ${dayOnly.format(day)}`;
+  }
+
+  return null;
+}
+
+const dayAndTime = new Intl.DateTimeFormat('en-GB', {
+  weekday: 'short',
+  day: 'numeric',
+  month: 'short',
+  hour: '2-digit',
+  minute: '2-digit',
+});
+
+const dayOnly = new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'short' });
 import { RowEmoji } from './row-emoji';
 
 /**
@@ -98,6 +141,24 @@ export function ActionItem({
         struck={false}
         faded={pending || isDragging}
         control={checkbox}
+        /*
+         * A when, as a flag rather than as words.
+         *
+         * This view drops metadata on purpose, and a date is metadata — but a
+         * row that has been put off until March or booked for Tuesday is not
+         * *available*, and in a column of plain titles it would look identical
+         * to one that is. That is the same argument the paperclip already won
+         * here: what the row carries earns a mark, and the mark goes on the
+         * right so the left edge stays straight. The words are in the title
+         * attribute, which is where a flag's detail belongs.
+         */
+        after={
+          whenLabel(action) ? (
+            <span className="shrink-0 text-grey-400" title={whenLabel(action) ?? undefined}>
+              {action.deferUntil ? <IconLater /> : <IconCalendar />}
+            </span>
+          ) : null
+        }
       />
     );
   }
@@ -220,6 +281,24 @@ export function ActionItem({
           {action.status === 'waiting' ? (
             <span className="truncate text-grey-500">
               {action.waitingOn ? `on ${action.waitingOn}` : 'on ?'}
+            </span>
+          ) : null}
+
+          {/*
+            When, where there is a when.
+            
+            Both of these are rows that are *not* in today's scheduled block —
+            one booked for a later day, one put off until a later day — so the
+            chip is the only thing on screen saying so. Without it a deferred
+            row seen on its project looks identical to a live one, and a row
+            booked for Tuesday looks like something to do this afternoon.
+            
+            Greyscale, because neither is a warning: the semantic three are
+            spoken for and a date is a fact rather than a state.
+          */}
+          {whenLabel(action) ? (
+            <span className="rounded-sm bg-grey-150 px-1.5 py-px text-grey-600">
+              {whenLabel(action)}
             </span>
           ) : null}
         </div>

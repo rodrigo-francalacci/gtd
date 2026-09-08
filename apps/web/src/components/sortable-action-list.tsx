@@ -33,6 +33,7 @@ export function SortableActionList({
   mode = 'comfortable',
   variant = 'default',
   emptyState,
+  sortable = true,
 }: {
   actions: ActionListItem[];
   selectedId?: string | null;
@@ -40,6 +41,20 @@ export function SortableActionList({
   mode?: ViewMode;
   variant?: 'default' | 'waiting';
   emptyState?: React.ReactNode;
+  /**
+   * Whether dragging inside this run reorders it.
+   *
+   * False where the order is a *fact* rather than a preference — the scheduled
+   * block is in time order, and a drag there would look like it had done
+   * nothing, because the list re-sorts itself by the clock on the next render.
+   * A gesture that appears to do nothing is worse than a gesture that is not
+   * offered.
+   *
+   * The rows are identical either way, which is the point of the flag: one row
+   * renderer, so the menu, the emoji slot and the density cannot drift between
+   * a list you can drag and one you cannot.
+   */
+  sortable?: boolean;
 }) {
   /*
    * One row with an emoji is enough to put the slot on all of them. Decided
@@ -49,13 +64,7 @@ export function SortableActionList({
    */
   const emojified = actions.some((action) => action.emoji);
 
-  return (
-    <SortableList
-      items={actions}
-      mimeType={DRAG_ACTION}
-      onReorder={moveActionBetween}
-      emptyState={emptyState}
-      renderItem={(action, isDragging) => (
+  const row = (action: ActionListItem, isDragging: boolean) => (
         <RowMenu
           name={action.title}
           focusHref={action.focusHref}
@@ -85,7 +94,20 @@ export function SortableActionList({
           variant={variant}
         />
         </RowMenu>
-      )}
+  );
+
+  if (!sortable) {
+    if (actions.length === 0) return <>{emptyState ?? null}</>;
+    return <div>{actions.map((action) => <div key={action.id}>{row(action, false)}</div>)}</div>;
+  }
+
+  return (
+    <SortableList
+      items={actions}
+      mimeType={DRAG_ACTION}
+      onReorder={moveActionBetween}
+      emptyState={emptyState}
+      renderItem={row}
     />
   );
 }

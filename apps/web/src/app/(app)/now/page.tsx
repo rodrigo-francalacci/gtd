@@ -11,8 +11,14 @@ import { ContextFilter } from '@/components/context-filter';
 import { ListKeys } from '@/components/list-keys';
 import { DetailPane, EmptyDetail, EmptyList, ListPane } from '@/components/panes';
 import { QuickAddAction } from '@/components/quick-add';
-import { AddNowSection, NowLoose, NowSection } from '@/components/now-sections';
+import {
+  AddNowSection,
+  NowLoose,
+  NowScheduled,
+  NowSection,
+} from '@/components/now-sections';
 import { ACTION_COLUMNS } from '@/lib/columns';
+import { standingOf } from '@/lib/queries.shared';
 import { attachmentsFor, documentsFor } from '@/lib/file-lists';
 import { deleteAction } from '@/lib/actions';
 import { getNowSections, getProjectOptions } from '@/lib/queries';
@@ -21,6 +27,7 @@ import {
   getAction,
   getBackTrail,
   getContextsByDimension,
+  getDeferredActions,
   getNowActions,
   getLinkableDocuments,
 } from '@/lib/queries';
@@ -34,10 +41,21 @@ export default async function NowPage(props: PageProps<'/now'>) {
   const contextIds = raw === undefined ? [] : Array.isArray(raw) ? raw : [raw];
   const selectedId = typeof searchParams.action === 'string' ? searchParams.action : null;
 
+  /*
+   * The same page asked the opposite question.
+   *
+   * `?filter=later` lists what has been put off rather than what is live —
+   * the shape "Stalled" already takes on `/projects`, and for the same reason:
+   * it is a view of the same rows, not a page of its own, and the sidebar is
+   * the only way in. Deferral must never be a way to lose something, and a
+   * feature that hides rows with nowhere to see them is exactly that.
+   */
+  const later = searchParams.filter === 'later';
+
   const viewKey = densityKeys.path('/now');
   const [groups, rows, sections, selected, prefs, view] = await Promise.all([
     getContextsByDimension(),
-    getNowActions(contextIds),
+    later ? getDeferredActions() : getNowActions(contextIds),
     getNowSections(),
     selectedId ? getAction(selectedId) : Promise.resolve(null),
     getPreferences(),
@@ -58,6 +76,9 @@ export default async function NowPage(props: PageProps<'/now'>) {
     contextIds.forEach((c) => p.append('ctx', c));
     if (opts.action) p.set('action', opts.action);
     if (opts.board) p.set('board', '1');
+    // Or clicking a row in the deferred view would silently drop you back into
+    // the live list, with the row you chose no longer in it.
+    if (later) p.set('filter', 'later');
     const query = p.toString();
     return query ? `/now?${query}` : '/now';
   };
@@ -74,11 +95,48 @@ export default async function NowPage(props: PageProps<'/now'>) {
    * ordered, and grouping them here keeps `getNowActions` a single query that
    * knows nothing about an arrangement no other page uses.
    */
+  /*
+   * What you have committed to today comes out of the pool first.
+   *
+   * Today and anything overdue, in clock order, above everything — because
+   * "what did I say I would do now" is a different and louder question than
+   * "what could I do now", and a commitment mixed into a list of forty is not
+   * a commitment. Anything booked for a later day stays exactly where it is,
+   * with its date on the row: lifting those here would fill the block with
+   * things that are not today's, which is how a calendar stops being read.
+   *
+   * Taken out of `rows` rather than drawn twice, or the arrows would walk past
+   * each of them once in each place.
+   */
+  const booked = (later ? [] : rows)
+    .filter((a) => {
+      const standing = standingOf(a.scheduledAt);
+      return standing === 'today' || standing === 'overdue';
+    })
+    .sort((a, b) => (a.scheduledAt?.getTime() ?? 0) - (b.scheduledAt?.getTime() ?? 0));
+
+  const bookedIds = new Set(booked.map((a) => a.id));
+  const pool = rows.filter((a) => !bookedIds.has(a.id));
+  /*
+   * Late is measured against the clock, not against the day.
+   *
+   * `standingOf` cuts in whole days because that decides *where* a row is
+   * drawn — today's bookings lift, later ones stay in the pool. Whether one
+   * has been missed is a different question with a different unit: a slot at
+   * seven this morning, read at four in the afternoon, has been and gone, and
+   * saying "none gone by" over it would be the header stating something false.
+   */
+  const now = Date.now();
+  const late = booked.filter((a) => (a.scheduledAt?.getTime() ?? 0) < now).length;
+
   const bySection = new Map<string, typeof rows>();
   const loose: typeof rows = [];
 
-  for (const action of rows) {
-    if (action.sectionId && sections.some((s) => s.id === action.sectionId)) {
+  for (const action of pool) {
+    // In the deferred view nothing is grouped: the order is the day each row
+    // comes back, and an arrangement of the live list has nothing to say about
+    // rows that are not in it.
+    if (!later && action.sectionId && sections.some((s) => s.id === action.sectionId)) {
       bySection.set(action.sectionId, [
         ...(bySection.get(action.sectionId) ?? []),
         action,
@@ -287,12 +345,24 @@ export default async function NowPage(props: PageProps<'/now'>) {
   return (
     <>
       <ListPane
-        title="What can I do now"
+        title={later ? 'Put off' : 'What can I do now'}
         viewMode={viewMode}
         viewKey={viewKey}
         paneWidth={paneWidth(prefs)}
         columns={ACTION_COLUMNS}
-        subtitle={<ContextFilter groups={groups} />}
+        /*
+         * No context filter in the deferred view. Contexts narrow "what could
+         * I do right now", and nothing here is available right now — offering
+         * the control would be offering to filter a list by a question it is
+         * not answering.
+         */
+        subtitle={
+          later ? (
+            `${rows.length} put off, soonest first`
+          ) : (
+            <ContextFilter groups={groups} />
+          )
+        }
         /*
          * The ids are the rows the context filter has left, not every action in
          * the table — what you asked to mark is what you were looking at, and
@@ -334,6 +404,7 @@ export default async function NowPage(props: PageProps<'/now'>) {
            * order is how the arrows end up jumping about.
            */
           rows={[
+            ...booked,
             ...sections.flatMap((section) => bySection.get(section.id) ?? []),
             ...loose,
           ].map((a) => ({ id: a.id, href: qs(a.id) }))}
@@ -343,24 +414,44 @@ export default async function NowPage(props: PageProps<'/now'>) {
           deleteNote="Its files go to the Drive bin with it."
         />
 
-        <QuickAddAction />
+        {later ? null : <QuickAddAction />}
+
+        <NowScheduled count={booked.length} late={late}>
+          <SortableActionList
+            actions={booked.map((a) => ({
+              ...a,
+              href: qs(a.id),
+              focusHref: focusOf(a.id),
+            }))}
+            selectedId={selectedId}
+            mode={viewMode}
+            /* The clock decides this order, so dragging inside it would look
+               like it had done nothing. */
+            sortable={false}
+          />
+        </NowScheduled>
 
         {/*
           With no headings this is the list exactly as it was — one sortable
           run, dragged into whatever order you like. Headings are opt-in and
           cost nothing until the first one exists.
         */}
-        {sections.length === 0 ? (
+        {later || sections.length === 0 ? (
           <SortableActionList
-            actions={rows.map((a) => ({ ...a, href: qs(a.id), focusHref: focusOf(a.id) }))}
+            actions={pool.map((a) => ({ ...a, href: qs(a.id), focusHref: focusOf(a.id) }))}
             selectedId={selectedId}
             mode={viewMode}
+            /* The day each one comes back is the order, so dragging would look
+               like it had done nothing. */
+            sortable={!later}
             emptyState={
               <EmptyList
                 message={
-                  contextIds.length > 0
-                    ? 'Nothing matches this combination of contexts. Loosen a filter.'
-                    : 'No next actions. Either you are done, or something needs clarifying.'
+                  later
+                    ? 'Nothing is put off. Set "Not until" on an action to park it here.'
+                    : contextIds.length > 0
+                      ? 'Nothing matches this combination of contexts. Loosen a filter.'
+                      : 'No next actions. Either you are done, or something needs clarifying.'
                 }
               />
             }
@@ -403,7 +494,8 @@ export default async function NowPage(props: PageProps<'/now'>) {
           </>
         )}
 
-        <AddNowSection />
+        {/* Headings arrange the live list; there is nothing here to arrange. */}
+        {later ? null : <AddNowSection />}
       </ListPane>
 
       {selected ? (

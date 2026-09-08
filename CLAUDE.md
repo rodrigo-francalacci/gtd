@@ -238,6 +238,81 @@ Turbopack is the default; `middleware` is now `proxy`.
   section holds a real `SortableActionList`, which is what makes the gesture
   work: dragging inside one reorders, and dragging to another is ignored by the
   list and caught by the heading it lands on, the bubbling the buckets rely on.
+- **The app had no answer for *when*, and the answer is two columns rather
+  than one.** Everything here says what a step *is* — its project, its
+  contexts, who you are waiting on — and nothing said when it becomes relevant.
+  `defer_until` and `scheduled_at` look alike and are opposites, and keeping
+  them apart is worth the space it costs.
+  **"Not until" is a suppression**: this is not relevant before March, so take
+  it off the one list that answers *what could I do right now* and give it back
+  on the day. A `date`, because nobody defers something to half past two, cut
+  against `current_date` in SQL — the alternative is fetching the deferred rows
+  and dropping them in JavaScript, which would leave the count in the sidebar
+  and the list on screen each deciding what "today" means.
+  **"Do it" is a commitment**, and it never leaves this app. Google Calendar
+  owns appointments and its whole value is being the *hard landscape* — things
+  that must happen at that time. The moment it also holds "I meant to do this
+  at three" it fills with things you did not do, you stop trusting it, and the
+  one reliable surface is poisoned. So the app holds intentions, Google holds
+  commitments, and they are shown together with neither writing to the other.
+  That is also what *disposes* of the reconciliation problem rather than
+  solving it: deleted, done, done-and-next, a queue advancing, and the case
+  nobody lists — somebody moving the event in Google. None can arise, because
+  there is no second copy.
+  **Deliberately not a status.** `future` is a statement about the work and
+  does not expire; a date expires on its own. Two facts, two columns.
+  **A day is a string and a moment is a `Date`**, which is not an
+  inconsistency: `defer_until` is a `date` column and `scheduled_at` is a
+  `timestamptz`, and the types saying which is which is worth more than making
+  them match.
+- **A deferred row leaves every list, so it needs a list of its own.**
+  `/now?filter=later` — a view of the same page, the shape "Stalled" takes on
+  `/projects`, reachable only from the sidebar, which is exactly why that entry
+  has to light up on the query as well as the path. A row that has left every
+  list with nothing saying where it went is the worst bug this codebase knows
+  how to write, and it has written it twice.
+  The sidebar entry is **hidden at zero**, unlike its neighbours: Now and
+  Waiting-for are permanent parts of the method and belong there whether or not
+  they hold anything today, where this is something you have done to some rows
+  and there is nothing to look at until you have.
+  **The Now count drops deferred rows too**, or the sidebar says 37 over a list
+  showing 34 — the app disagreeing with itself in one glance. **The stalled
+  count deliberately does not**: a project whose only next action is put off
+  until March still *has* one and you have said when you will pick it up, which
+  is the opposite of stalled — and that count has to keep agreeing exactly with
+  `isStalled` over `getProjects()`.
+- **Today's commitments get their own block above the pool.** The list already
+  answers *what could I do now*; this answers *what did I say I would do now*,
+  which is louder. A block rather than colour on the rows, which was the other
+  option on the table: the whole value of a commitment is being separate from
+  the pool, and a marked row in a list of forty is still a row in a list of
+  forty. Pinned entries in a box get their own block above the days for the
+  same reason.
+  **Today and anything overdue, never what is coming.** A slot booked for next
+  Tuesday is not something to do now, and lifting it here would fill the block
+  with things that are not today's — which is how a calendar stops being read.
+  Those rows stay in the pool with the date beside them.
+  **Not a drop target and not sortable**: the order is the clock's, and
+  `SortableActionList` grew a `sortable` flag for it rather than a second row
+  renderer — a drag that silently re-sorts itself is worse than a drag that is
+  not offered. **Late is measured against the clock, not the day**, unlike
+  `standingOf`, which cuts in whole days because that decides *where* a row is
+  drawn: a slot at seven this morning read at four has been and gone, and
+  "none gone by" over it would be false.
+- **In the titles-only view a when is a flag, not words.** That view drops
+  metadata on purpose and a date is metadata — but a row put off until March
+  looks identical to a live one in a column of plain titles, which is the one
+  thing it must not. The same argument the paperclip already won there: what
+  the row *carries* earns a mark, the mark goes on the right so the left edge
+  stays straight, and the words go in the `title` attribute. A monochrome
+  glyph, never an emoji, like every other flag in the app.
+- **A date field seeded with `defaultValue` needs a `key`.** Clearing a
+  deferral wrote null to the database and left the old date sitting in the
+  field: `defaultValue` is read once at mount, and `router.refresh()` re-renders
+  with new props while React keeps the same input, which holds whatever the DOM
+  last had. Found by reading the row back rather than by looking — the write
+  was right and only the field was lying. Keyed on the stored value now, which
+  is the same trap panels seeded from props solve with `key={row.id}`.
 - **`future` actions are parked, not next.** They stay on the project, never
   reach the Now view, and deliberately don't satisfy the stalled check — a
   project whose only remaining steps are future still needs a real next action.

@@ -490,6 +490,98 @@ export async function removeFromActionQueue(entryId: string) {
   revalidateShell();
 }
 
+/**
+ * Put something off until a day, or bring it back.
+ *
+ * The dimension the app had no answer for. Everything else here says what a
+ * step *is*; nothing said when it becomes relevant, so "not until March" was
+ * carried in your head or parked in the Future bucket and remembered — and
+ * `future` deliberately does not expire, because it is a statement about the
+ * work rather than a date.
+ *
+ * A bare day, validated to shape rather than trusted: it goes into a `date`
+ * column and is interpolated into a query, and a client is not the authority
+ * on either. Rails to match the box's dates, for the same reason — a year
+ * mistyped as 202 would mean "already back", and one typed as 20260 would mean
+ * never.
+ *
+ * Null clears it, which is how a deferral is undone. `undefined` cannot be
+ * used to mean that: React's Server Action serialiser drops a property whose
+ * value is `undefined`, so the instruction would never arrive — the trap that
+ * cost the purchases drag a whole afternoon.
+ */
+export async function deferAction(actionId: string, day: string | null) {
+  await requireSession();
+
+  if (day !== null) {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(day)) return;
+
+    const when = new Date(`${day}T00:00:00`);
+    if (Number.isNaN(when.getTime())) return;
+    if (when.getFullYear() < 2000 || when.getFullYear() > 2200) return;
+  }
+
+  await db
+    .update(actions)
+    .set({ deferUntil: day, updatedAt: new Date() })
+    .where(eq(actions.id, actionId));
+
+  revalidateShell();
+}
+
+/**
+ * Book a slot for something, in the app's own calendar and nowhere else.
+ *
+ * Nothing is written to Google, now or ever. A calendar is worth having
+ * because it is the *hard landscape* — things that genuinely must happen at
+ * that time — and the moment it also holds "I meant to do this at three" it
+ * fills with things you did not do and you stop trusting it. So Google keeps
+ * the appointments, the app keeps the intentions, and the schedule view shows
+ * them together without either writing to the other.
+ *
+ * That is also what disposes of the reconciliation problem rather than solving
+ * it: deleted, done, done-and-next, a queue advancing, and the case nobody
+ * lists — somebody moving the event in Google. None of them can arise, because
+ * there is no second copy.
+ *
+ * Null for `at` clears the booking, and clears the end with it: an end time
+ * with no start is not a shorter booking, it is a row that cannot be drawn.
+ */
+export async function scheduleAction(
+  actionId: string,
+  at: string | null,
+  end: string | null = null,
+) {
+  await requireSession();
+
+  if (at === null) {
+    await db
+      .update(actions)
+      .set({ scheduledAt: null, scheduledEnd: null, updatedAt: new Date() })
+      .where(eq(actions.id, actionId));
+
+    revalidateShell();
+    return;
+  }
+
+  const start = new Date(at);
+  if (Number.isNaN(start.getTime())) return;
+  if (start.getFullYear() < 2000 || start.getFullYear() > 2200) return;
+
+  // An end before its start is a mis-drag, not a request. Dropped rather than
+  // refused: the start is what was asked for and is worth keeping.
+  const finish = end ? new Date(end) : null;
+  const usable =
+    finish && !Number.isNaN(finish.getTime()) && finish > start ? finish : null;
+
+  await db
+    .update(actions)
+    .set({ scheduledAt: start, scheduledEnd: usable, updatedAt: new Date() })
+    .where(eq(actions.id, actionId));
+
+  revalidateShell();
+}
+
 export async function setActionStatus(actionId: string, status: ActionStatus) {
   await requireSession();
 

@@ -34,8 +34,60 @@ export type ActionRow = {
   position: number | null;
   /** Which of your own headings it sits under in the Now list, if any. */
   sectionId: string | null;
+  /**
+   * Put off until this day, as `YYYY-MM-DD`, or null for "it is relevant now".
+   *
+   * A deferred action is out of the Now list until the day arrives, which is
+   * the whole point — but it is never nowhere, because a row that has left
+   * every list with nothing saying where it went is the worst kind of bug this
+   * app can have. It is still on its project, and `/now?filter=deferred` is
+   * the view that lists them all by the day they come back.
+   */
+  deferUntil: string | null;
+  /*
+   * A day is a string and a moment is a `Date`, which is not an inconsistency:
+   * `defer_until` is a `date` column and comes back as `YYYY-MM-DD`, where
+   * `scheduled_at` is a `timestamptz` and comes back as a point in time. The
+   * types say which is which, and that is worth more than making them match.
+   */
+  /**
+   * A time you have committed to doing it, or null.
+   *
+   * The app's own, never Google's: the calendar is the hard landscape and
+   * putting intentions in it is how a calendar stops being trusted.
+   */
+  scheduledAt: Date | null;
+  scheduledEnd: Date | null;
   contexts: { id: string; name: string; dimension: string }[];
 };
+
+/**
+ * Where a scheduled action stands relative to now, cut in whole days.
+ *
+ * Days rather than hours, because that is what decides where the row is drawn:
+ * today's commitments lift to the top of the list, everything later stays in
+ * the pool with its date on it, and anything that has come and gone needs
+ * saying loudest. The cut is the server's day, which is where every other date
+ * in this app is cut.
+ */
+export type ScheduleStanding = 'overdue' | 'today' | 'ahead';
+
+export function standingOf(
+  scheduledAt: Date | null,
+  now: Date = new Date(),
+): ScheduleStanding | null {
+  if (!scheduledAt) return null;
+
+  const when = new Date(scheduledAt);
+  if (Number.isNaN(when.getTime())) return null;
+
+  const day = (d: Date) =>
+    Date.UTC(d.getFullYear(), d.getMonth(), d.getDate());
+
+  const difference = day(when) - day(now);
+  if (difference < 0) return 'overdue';
+  return difference === 0 ? 'today' : 'ahead';
+}
 
 /** Days after which a waiting-for item is considered stale. */
 export const WAITING_STALE_DAYS = 14;

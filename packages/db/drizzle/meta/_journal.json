@@ -463,6 +463,13 @@
       "when": 1788528134873,
       "tag": "0065_boring_loners",
       "breakpoints": true
+    },
+    {
+      "idx": 66,
+      "version": "7",
+      "when": 1788862892753,
+      "tag": "0066_quick_pretty_boy",
+      "breakpoints": true
     }
   ]
 }

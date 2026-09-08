@@ -461,6 +461,46 @@ export const actions = pgTable(
     sectionId: uuid('section_id').references(() => nowSections.id, {
       onDelete: 'set null',
     }),
+    /**
+     * Don't show me this until then.
+     *
+     * The dimension the app had no answer for. Everything here says what a
+     * step *is* — which project, which context, who you are waiting on — and
+     * nothing said *when it becomes relevant*. "Not until March" had to be
+     * carried in your head or parked in the Future bucket and remembered.
+     *
+     * Deliberately not a status. `future` is a statement about the work
+     * ("this is parked, and a project whose only steps are parked still needs
+     * a real next action"); this is a date, and the difference is that a date
+     * expires on its own. Two facts, two columns.
+     *
+     * A `date` rather than a timestamp, because the answer is always a day —
+     * nobody defers something to half past two — and because it is compared
+     * against the server's day, which is where every other date in this app is
+     * cut.
+     */
+    deferUntil: date('defer_until'),
+    /**
+     * A slot you have committed to, and it never leaves this app.
+     *
+     * Google Calendar owns your appointments, and the whole value of a
+     * calendar is that it is the *hard landscape* — things that genuinely must
+     * happen at that time. The moment it also holds "I intend to do this at
+     * three" it fills with things you then don't do, you start ignoring it,
+     * and the one reliable surface is poisoned. So the app holds intentions
+     * and Google holds commitments, and they are shown together without either
+     * writing to the other.
+     *
+     * That also disposes of the whole reconciliation problem — deleted, done,
+     * done-and-next, a queue advancing, and the one nobody lists, *edited in
+     * Google*. There is no second copy to disagree with.
+     *
+     * `scheduled_end` is null for something with no particular length. It is
+     * not a duration, because a duration has to be added to something to be
+     * drawn and the drawing is what this is for.
+     */
+    scheduledAt: timestamp('scheduled_at', { withTimezone: true }),
+    scheduledEnd: timestamp('scheduled_end', { withTimezone: true }),
     /** When this was last ticked off in a weekly review. */
     lastReviewedAt: timestamp('last_reviewed_at', { withTimezone: true }),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
@@ -473,6 +513,11 @@ export const actions = pgTable(
     index('actions_waiting_since_idx').on(t.waitingSince),
     index('actions_waiting_on_idx').on(t.waitingOnId),
     index('actions_section_idx').on(t.sectionId),
+    // Both are read on every load of the Now list — one to hide rows, one to
+    // lift them — and both are null on nearly every row, which is exactly the
+    // shape a partial index is for.
+    index('actions_defer_idx').on(t.deferUntil),
+    index('actions_scheduled_idx').on(t.scheduledAt),
     index('actions_search_idx').using('gin', t.searchVector),
   ],
 );

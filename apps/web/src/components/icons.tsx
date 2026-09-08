@@ -67,6 +67,23 @@ export const IconWaiting = (p: IconProps) => (
   </Glyph>
 );
 
+/**
+ * Put off — a clock with its hands ahead, on an arrow going forward.
+ *
+ * Deliberately close to `IconWaiting` and deliberately not the same: waiting
+ * is a clock (something is running while you do nothing), and this is a clock
+ * you have *set*. The arrow under it is the difference — the row comes back on
+ * its own, which is the whole distinction from the Future bucket.
+ */
+export const IconLater = (p: IconProps) => (
+  <Glyph {...p}>
+    <circle cx="8" cy="7" r="4.6" />
+    <path d="M8 4.4V7l1.9 1.1" />
+    <path d="M3 13.4h8.2" />
+    <path d="M9.6 12.1 11.4 13.4 9.6 14.7" />
+  </Glyph>
+);
+
 /** File actions — tray with an arrow in. */
 export const IconFile = (p: IconProps) => (
   <Glyph {...p}>
