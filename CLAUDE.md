@@ -271,18 +271,69 @@ Turbopack is the default; `middleware` is now `proxy`.
   inconsistency: `defer_until` is a `date` column and `scheduled_at` is a
   `timestamptz`, and the types saying which is which is worth more than making
   them match.
+- **`blocked_by` is the cheap 80% of a project mind map, and it is one column.**
+  A graph of steps unlocking steps was the alternative and was rejected on
+  maintenance rather than concept: a dependency graph is useful only while it
+  is accurate, and accurate only if you redraw it every time reality moves,
+  which on real work is weekly. The action queue works because it is *lazy*,
+  and this is the same trade — a fact you state once, about one step, at the
+  moment you notice it. If the *shape* of a project ever needs seeing, that is
+  a rendering of data already here rather than a canvas to keep.
+  **`set null`, never cascade**, the same reasoning `section_id` has: deleting
+  the blocker is a statement about the blocker, and the step that was waiting
+  is simply free — which is exactly what ticking the blocker off does too, so
+  both routes end in the same place.
+  **The blocker's *title* is joined, not a boolean.** "after Get three quotes"
+  is something you can act on and "blocked" is not. The same join answers
+  whether the blocker is finished, because a blocker already ticked off is not
+  a block at all and the row has to tell the difference without a second query.
+  `isBlocked` is that test in one place — the list that hides these rows, the
+  view that gathers them and the row that greys itself must agree, and would
+  not for long if each asked it its own way.
+  **Cycles are refused, and only the direct one is checked.** A waits on B
+  while B waits on A is the loop a person actually makes by hand; walking an
+  arbitrary chain on every save would be real work for a shape nobody has
+  produced here. The picker also declines to *offer* anything already waiting
+  on this step, so the ordinary route never reaches the guard. A longer loop
+  would take both steps out of Now with nothing on screen explaining why, so
+  that is where to widen it if one ever appears.
+  **Greyed where it is drawn, gone only from Now.** On its project a blocked
+  step is greyed back at `opacity-55` and wears "after <title>" — it is still
+  part of what the project is made of, and that is where the dependency lives.
+  Not struck through: a line means disregard, and this is work you *will* do.
+  The one list it leaves is the one that answers what is available.
+- **A standby project takes its steps out of Now, and nothing else.** Parking a
+  project that keeps feeding the one list that matters means "standby" does not
+  mean anything. Only `standby` — `someday` is arguably the same argument one
+  step further and is left alone until asked, because changing what that list
+  contains is not a thing to do on inference. An action with no project is
+  never hidden this way: there is nothing above it to be parked.
+  **They are not gathered into the "Not available" view**, unlike deferred and
+  blocked steps. Those are facts about a *step*; this is a fact about a
+  project, and its steps are already sitting together on its page under a
+  status that says so. Folding them in would make one list out of two
+  questions, and the count beside it would jump by nine because you parked one
+  project.
+  **List items are deliberately untouched.** A purchases list is a set of
+  candidates and its budget adds them up; hiding rows because a project is
+  parked would change the totals with nothing on screen explaining it, which
+  is worse than showing a want you are not acting on.
 - **A deferred row leaves every list, so it needs a list of its own.**
-  `/now?filter=later` — a view of the same page, the shape "Stalled" takes on
-  `/projects`, reachable only from the sidebar, which is exactly why that entry
-  has to light up on the query as well as the path. A row that has left every
+  `/now?filter=later` — "Not available", which now gathers the blocked ones
+  too, since both answer the same question of where a row went. A view of the
+  same page, the shape "Stalled" takes on `/projects`, reachable only from the
+  sidebar, which is exactly why that entry has to light up on the query as well
+  as the path. Deferred rows sort first, soonest to come back, then the blocked
+  ones: a date is a promise about when a row returns and a blocker is not, so
+  the two cannot be ordered against each other. A row that has left every
   list with nothing saying where it went is the worst bug this codebase knows
   how to write, and it has written it twice.
   The sidebar entry is **hidden at zero**, unlike its neighbours: Now and
   Waiting-for are permanent parts of the method and belong there whether or not
   they hold anything today, where this is something you have done to some rows
   and there is nothing to look at until you have.
-  **The Now count drops deferred rows too**, or the sidebar says 37 over a list
-  showing 34 — the app disagreeing with itself in one glance. **The stalled
+  **The Now count drops whatever the list drops** — deferred, blocked, and
+  parked by a standby project — or the sidebar says 37 over a list showing 34 — the app disagreeing with itself in one glance. **The stalled
   count deliberately does not**: a project whose only next action is put off
   until March still *has* one and you have said when you will pick it up, which
   is the opposite of stalled — and that count has to keep agreeing exactly with

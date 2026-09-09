@@ -58,8 +58,33 @@ export type ActionRow = {
    */
   scheduledAt: Date | null;
   scheduledEnd: Date | null;
+  /**
+   * The step this one waits on, if any, with enough to draw it.
+   *
+   * `blockerTitle` so a row can say *what* is in its way — "after Get the
+   * quotes" is actionable where "blocked" is not — and `blockerDone` because a
+   * blocker already ticked off is not a block, and the row has to be able to
+   * tell the difference without a second query.
+   */
+  blockedBy: string | null;
+  blockerTitle: string | null;
+  blockerDone: boolean;
   contexts: { id: string; name: string; dimension: string }[];
 };
+
+/**
+ * Waiting on a step that has not been done.
+ *
+ * One definition, used by the list that hides these rows, the view that
+ * gathers them and the row that greys itself — three places that must agree,
+ * and would not for long if each asked the question its own way.
+ */
+export function isBlocked(row: {
+  blockedBy: string | null;
+  blockerDone: boolean;
+}): boolean {
+  return row.blockedBy !== null && !row.blockerDone;
+}
 
 /**
  * Where a scheduled action stands relative to now, cut in whole days.

@@ -47,6 +47,8 @@ type ActionDetailData = {
   projectTitle: string | null;
   /** A day it is put off until, or null. See `deferAction`. */
   deferUntil: string | null;
+  /** The step it waits on, if any. See `setActionBlocker`. */
+  blockedBy: string | null;
   /** A slot committed to, in this app only. See `scheduleAction`. */
   scheduledAt: Date | null;
   scheduledEnd: Date | null;
@@ -63,6 +65,7 @@ export function ActionDetail({
   contextGroups,
   parties,
   projects = [],
+  blockers = [],
   hideNotes,
   queue,
 }: {
@@ -86,6 +89,8 @@ export function ActionDetail({
     done: { id: string; title: string; doneAt: string }[];
   };
   action: ActionDetailData;
+  /** What this step could wait on — its project's other steps, or the loose ones. */
+  blockers?: { id: string; title: string }[];
   /** Projects it could be filed under. Empty hides the control. */
   projects?: { id: string; title: string }[];
   attachments: AttachmentRow[];
@@ -260,6 +265,8 @@ export function ActionDetail({
           scheduledAt={action.scheduledAt}
           scheduledEnd={action.scheduledEnd}
           deferUntil={action.deferUntil}
+          blockedBy={action.blockedBy}
+          blockers={blockers}
         />
       )}
 

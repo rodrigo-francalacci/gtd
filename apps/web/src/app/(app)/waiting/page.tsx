@@ -12,6 +12,7 @@ import {
   getAction,
   getLinkableDocuments,
   getContextsByDimension,
+  getBlockerOptions,
   getProjectOptions,
   getWaitingActions,
   isStale,
@@ -39,6 +40,10 @@ export default async function WaitingPage(props: PageProps<'/waiting'>) {
   // preference lookup, and calling them inline would run both twice —
   // once for the rows and again for the order they are in.
   const projectOptions = await getProjectOptions();
+  /* What the chosen step could wait on — see `getBlockerOptions`. */
+  const blockers = selected
+    ? await getBlockerOptions(selected.id, selected.projectId)
+    : [];
   const files = selected ? await attachmentsFor('action', selected.id) : null;
   const docs = selected ? await documentsFor('action', selected.id) : null;
 
@@ -103,6 +108,7 @@ export default async function WaitingPage(props: PageProps<'/waiting'>) {
             contextGroups={groups}
             parties={groups.person.map((p) => p.name)}
             projects={projectOptions}
+            blockers={blockers}
           />
         </DetailPane>
       ) : (

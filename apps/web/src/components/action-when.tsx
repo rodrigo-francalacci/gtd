@@ -2,7 +2,7 @@
 
 import { useRouter } from 'next/navigation';
 import { useTransition } from 'react';
-import { deferAction, scheduleAction } from '@/lib/actions';
+import { deferAction, scheduleAction, setActionBlocker } from '@/lib/actions';
 
 /**
  * The two questions about *when*, which the app had no answer for until now.
@@ -27,11 +27,21 @@ export function ActionWhen({
   scheduledAt,
   scheduledEnd,
   deferUntil,
+  blockedBy,
+  blockers,
 }: {
   actionId: string;
   scheduledAt: Date | null;
   scheduledEnd: Date | null;
   deferUntil: string | null;
+  /** The step this one waits on, if any. */
+  blockedBy: string | null;
+  /**
+   * What it could sensibly wait on — its project's other steps, or the other
+   * loose ones. Empty means there is nothing to choose from and the row says
+   * so rather than offering a picker with one blank entry in it.
+   */
+  blockers: { id: string; title: string }[];
 }) {
   const [pending, startTransition] = useTransition();
   const router = useRouter();
@@ -136,6 +146,46 @@ export function ActionWhen({
           onClear={deferUntil ? () => run(() => deferAction(actionId, null)) : null}
           pending={pending}
           note={deferUntil ? 'hidden from Now until then' : 'off the list until the day'}
+        />
+
+        {/*
+          The third "when", and the one that is not a date.
+          
+          It belongs beside the other two because it answers the same question
+          — is this available yet — and putting it in a section of its own
+          would make a dependency feel like a bigger commitment than it is. It
+          is one fact about one step, stated once, at the moment you notice it.
+        */}
+        <Row
+          label="After"
+          input={
+            blockers.length === 0 ? (
+              <span className="text-[11px] text-grey-400">
+                {/* Honest about *why* there is nothing, or it reads as broken. */}
+                No other step here to wait on.
+              </span>
+            ) : (
+              <select
+                value={blockedBy ?? ''}
+                disabled={pending}
+                aria-label="Waits for"
+                onChange={(e) =>
+                  run(() => setActionBlocker(actionId, e.target.value || null))
+                }
+                className={FIELD}
+              >
+                <option value="">— nothing —</option>
+                {blockers.map((b) => (
+                  <option key={b.id} value={b.id}>
+                    {b.title}
+                  </option>
+                ))}
+              </select>
+            )
+          }
+          onClear={blockedBy ? () => run(() => setActionBlocker(actionId, null)) : null}
+          pending={pending}
+          note={blockedBy ? 'off the list until that is done' : null}
         />
       </div>
     </section>

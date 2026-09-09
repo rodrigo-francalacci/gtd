@@ -84,6 +84,21 @@ export const IconLater = (p: IconProps) => (
   </Glyph>
 );
 
+/**
+ * Waiting on another step — a bar across a path.
+ *
+ * Deliberately unlike `IconLater`, which is a clock you have set: this is not
+ * about time at all, it is about something being in the way. A gate reads as
+ * "not yet, and not because of the date".
+ */
+export const IconBlocked = (p: IconProps) => (
+  <Glyph {...p}>
+    <path d="M2.6 8h4.2" />
+    <path d="M9.2 8h4.2" />
+    <path d="M8 3.4v9.2" />
+  </Glyph>
+);
+
 /** File actions — tray with an arrow in. */
 export const IconFile = (p: IconProps) => (
   <Glyph {...p}>

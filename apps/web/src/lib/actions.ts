@@ -582,6 +582,49 @@ export async function scheduleAction(
   revalidateShell();
 }
 
+/**
+ * Say that this step waits on another, or that it no longer does.
+ *
+ * The cheap 80% of a project mind map, and the reason it is a column rather
+ * than a canvas: a dependency graph is only useful while it is accurate, and
+ * only accurate if you redraw it every time reality moves. This is a fact you
+ * state once, about one step, at the moment you notice it.
+ *
+ * **Cycles are refused rather than prevented.** Only the direct one is checked
+ * — A waits on B while B waits on A — because that is the one a person
+ * actually creates by hand, and because chasing an arbitrary chain would mean
+ * walking the graph on every save for a shape nobody has ever produced here.
+ * A longer loop would take those steps out of Now with nothing on screen
+ * explaining why, so if one ever appears this is where to widen the check.
+ *
+ * Null clears it. `undefined` cannot be used to mean that: React's Server
+ * Action serialiser drops a property whose value is `undefined`, so the
+ * instruction would never arrive.
+ */
+export async function setActionBlocker(actionId: string, blockerId: string | null) {
+  await requireSession();
+
+  if (blockerId !== null) {
+    if (blockerId === actionId) return;
+
+    const [other] = await db
+      .select({ blockedBy: actions.blockedBy })
+      .from(actions)
+      .where(eq(actions.id, blockerId))
+      .limit(1);
+
+    if (!other) return;
+    if (other.blockedBy === actionId) return;
+  }
+
+  await db
+    .update(actions)
+    .set({ blockedBy: blockerId, updatedAt: new Date() })
+    .where(eq(actions.id, actionId));
+
+  revalidateShell();
+}
+
 export async function setActionStatus(actionId: string, status: ActionStatus) {
   await requireSession();
 

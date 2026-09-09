@@ -55,6 +55,7 @@ import {
   getBackTrail,
   getFolderTree,
   getLinkableEntries,
+  getBlockerOptions,
   getProjectOptions,
   getProjectTree,
   resolveInternalLinks,
@@ -376,6 +377,10 @@ export default async function BoxPage(props: PageProps<'/box/[id]'>) {
           documentsFor('action', openAction.id),
           getLinkableDocuments('action', openAction.id, ''),
           getContextsByDimension(),
+          /* What it could wait on — its project's other steps, or the loose
+             ones. Without it the pane's "After" row would say there is
+             nothing to choose, which is a different claim from not asking. */
+          getBlockerOptions(openAction.id, openAction.projectId),
         ])
       : null;
 
@@ -971,6 +976,7 @@ export default async function BoxPage(props: PageProps<'/box/[id]'>) {
               contextGroups={actionPane[3]}
               parties={actionPane[3].person.map((party) => party.name)}
               projects={projectOptions}
+              blockers={actionPane[4]}
             />
           ) : timeline && timeline[0] ? (
             <ProjectDetail

@@ -470,6 +470,13 @@
       "when": 1788862892753,
       "tag": "0066_quick_pretty_boy",
       "breakpoints": true
+    },
+    {
+      "idx": 67,
+      "version": "7",
+      "when": 1788946098887,
+      "tag": "0067_glossy_metal_master",
+      "breakpoints": true
     }
   ]
 }

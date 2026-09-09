@@ -3,6 +3,7 @@ import {
   boolean,
   customType,
   date,
+  type AnyPgColumn,
   doublePrecision,
   index,
   integer,
@@ -481,6 +482,27 @@ export const actions = pgTable(
      */
     deferUntil: date('defer_until'),
     /**
+     * The step this one waits on, and the cheap 80% of a dependency graph.
+     *
+     * A mind map of a project — steps branching and unlocking other steps —
+     * was the alternative and was rejected on maintenance rather than on
+     * concept: a graph is only useful while it is accurate, and it is only
+     * accurate if you redraw it every time reality moves, which on real work
+     * is weekly. The action queue already works because it is *lazy*, and this
+     * is the same trade. One column and one filter answers the question the
+     * graph was wanted for — what can I actually start — and if the shape of a
+     * project ever needs *seeing*, that is a rendering of data already here
+     * rather than a canvas to maintain.
+     *
+     * `set null`, never cascade, for the reason `section_id` is: deleting the
+     * blocker is a statement about the blocker. The step that was waiting is
+     * simply free, which is the same thing that happens when the blocker is
+     * ticked off.
+     */
+    blockedBy: uuid('blocked_by').references((): AnyPgColumn => actions.id, {
+      onDelete: 'set null',
+    }),
+    /**
      * A slot you have committed to, and it never leaves this app.
      *
      * Google Calendar owns your appointments, and the whole value of a
@@ -517,6 +539,7 @@ export const actions = pgTable(
     // lift them — and both are null on nearly every row, which is exactly the
     // shape a partial index is for.
     index('actions_defer_idx').on(t.deferUntil),
+    index('actions_blocked_idx').on(t.blockedBy),
     index('actions_scheduled_idx').on(t.scheduledAt),
     index('actions_search_idx').using('gin', t.searchVector),
   ],

@@ -85,7 +85,7 @@ export function SidebarNav({
   appsScriptUrl: string | null;
   counts: {
     next: number;
-    /** How many are put off until a day that has not arrived. */
+    /** Put off until a day, or waiting on a step that is not done. */
     later: number;
     waiting: number;
     projects: number;
@@ -138,13 +138,14 @@ export function SidebarNav({
           drop: { kind: 'waiting' },
         },
         /*
-         * Everything put off, and the only way to reach it.
+         * Everything that is not available yet, and the only way to reach it.
          *
-         * Deferral takes a row off the one list that answers "what could I do
-         * now", which is the point — and a row that has left every list with
-         * nothing saying where it went is the worst bug this codebase knows
-         * how to write. So it is a view of the same page, the shape "Stalled"
-         * takes on `/projects`, and the sidebar is where you get to it.
+         * Deferring a step or putting it behind another takes it off the one
+         * list that answers "what could I do now", which is the point — and a
+         * row that has left every list with nothing saying where it went is
+         * the worst bug this codebase knows how to write. So it is a view of
+         * the same page, the shape "Stalled" takes on `/projects`, and the
+         * sidebar is where you get to it.
          *
          * Hidden at zero, unlike its neighbours. Waiting-for and Now are
          * permanent parts of the method and belong in the list whether or not
@@ -155,7 +156,7 @@ export function SidebarNav({
           ? [
               {
                 href: '/now?filter=later',
-                label: 'Put off',
+                label: 'Not available',
                 icon: IconLater,
                 count: counts.later,
               },

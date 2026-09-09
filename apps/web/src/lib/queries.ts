@@ -266,6 +266,8 @@ async function attachContexts(
 
 /** Aliased so the party join doesn't collide with the contexts join. */
 const waitingParty = alias(contexts, 'waiting_party');
+/** The step an action waits on, so a row can name what is in its way. */
+const blocker = alias(actions, 'blocker');
 
 const actionSelect = {
   id: actions.id,
@@ -282,6 +284,17 @@ const actionSelect = {
   deferUntil: actions.deferUntil,
   scheduledAt: actions.scheduledAt,
   scheduledEnd: actions.scheduledEnd,
+  blockedBy: actions.blockedBy,
+  /*
+   * The blocker's title and whether it is finished, rather than a boolean.
+   *
+   * A row has to be able to say *what* is in its way — "after Get the quotes"
+   * is actionable where "blocked" is not — and it has to tell a live blocker
+   * from one already ticked off, because the second is not a block at all.
+   * Both come off the same join, so it is one round trip either way.
+   */
+  blockerTitle: blocker.title,
+  blockerDone: sql<boolean>`(${blocker.id} is not null and (${blocker.completedAt} is not null or ${blocker.status} = 'done'))`,
 };
 
 /**
@@ -337,6 +350,40 @@ export async function getNowSections(): Promise<NowSectionRow[]> {
  */
 const NOT_YET = sql`${actions.deferUntil} is not null and ${actions.deferUntil} > current_date`;
 
+/**
+ * Waiting on another step that is not finished.
+ *
+ * A sub-select rather than a join, because this clause is dropped into
+ * `getNowActions` beside the context filters and a join there would change the
+ * shape of every row for the sake of one boolean.
+ *
+ * "Not finished" is the whole test — a blocker that has been *deleted* leaves
+ * `blocked_by` null through the foreign key, which is the same freedom ticking
+ * it off gives. That is why the column is `set null` rather than cascade.
+ */
+const BLOCKED = sql`exists (
+  select 1 from ${actions} as blocker
+  where blocker.id = ${actions.blockedBy}
+    and blocker.completed_at is null
+    and blocker.status <> 'done'
+)`;
+
+/**
+ * On a project that is parked.
+ *
+ * Standby only, deliberately, which is the word he used. `someday` is arguably
+ * the same argument one step further and is left alone until asked: changing
+ * what the one list showing "what could I do now" contains is not a thing to
+ * do on inference.
+ *
+ * An action with no project is never hidden by this — there is nothing above
+ * it to be parked.
+ */
+const PARKED_PROJECT = sql`exists (
+  select 1 from ${projects} as parked
+  where parked.id = ${actions.projectId} and parked.status = 'standby'
+)`;
+
 export async function getNowActions(contextIds: string[]): Promise<ActionRow[]> {
   /*
    * Deferred rows are out until their day.
@@ -353,6 +400,15 @@ export async function getNowActions(contextIds: string[]): Promise<ActionRow[]> 
     eq(actions.status, 'next'),
     isNull(actions.completedAt),
     sql`not (${NOT_YET})`,
+    /*
+     * Three reasons a step is not available, and this is the list that only
+     * shows what is. Each is visible somewhere else — deferred and blocked in
+     * the "Not available" view, parked ones on their project — because a row
+     * that has left every list with nothing saying where it went is the worst
+     * bug this codebase knows how to write.
+     */
+    sql`not (${BLOCKED})`,
+    sql`not (${PARKED_PROJECT})`,
   );
 
   if (contextIds.length === 0) {
@@ -361,6 +417,7 @@ export async function getNowActions(contextIds: string[]): Promise<ActionRow[]> 
       .from(actions)
       .leftJoin(projects, eq(projects.id, actions.projectId))
       .leftJoin(waitingParty, eq(waitingParty.id, actions.waitingOnId))
+      .leftJoin(blocker, eq(blocker.id, actions.blockedBy))
       .where(base)
       .orderBy(...byPosition);
     return attachContexts(rows);
@@ -393,6 +450,7 @@ export async function getNowActions(contextIds: string[]): Promise<ActionRow[]> 
     .from(actions)
     .leftJoin(projects, eq(projects.id, actions.projectId))
     .leftJoin(waitingParty, eq(waitingParty.id, actions.waitingOnId))
+    .leftJoin(blocker, eq(blocker.id, actions.blockedBy))
     .where(and(base, ...dimensionClauses))
     .orderBy(...byPosition);
 
@@ -412,14 +470,28 @@ export async function getNowActions(contextIds: string[]): Promise<ActionRow[]> 
  * list whose whole content is "when does this come back" would be two answers
  * to one question.
  */
-export async function getDeferredActions(): Promise<ActionRow[]> {
+export async function getUnavailableActions(): Promise<ActionRow[]> {
   const rows = await db
     .select(actionSelect)
     .from(actions)
     .leftJoin(projects, eq(projects.id, actions.projectId))
     .leftJoin(waitingParty, eq(waitingParty.id, actions.waitingOnId))
-    .where(and(eq(actions.status, 'next'), isNull(actions.completedAt), NOT_YET))
-    .orderBy(asc(actions.deferUntil), asc(actions.createdAt));
+    .leftJoin(blocker, eq(blocker.id, actions.blockedBy))
+    .where(
+      and(
+        eq(actions.status, 'next'),
+        isNull(actions.completedAt),
+        sql`(${NOT_YET}) or (${BLOCKED})`,
+      ),
+    )
+    /*
+     * Deferred first, soonest to come back; then the blocked ones, oldest
+     * first. A date is a promise about when a row returns and a blocker is
+     * not, so the two cannot be sorted against each other — putting the ones
+     * that answer "when" ahead of the ones that answer "after what" is the
+     * only ordering that means anything.
+     */
+    .orderBy(sql`${actions.deferUntil} asc nulls last`, asc(actions.createdAt));
 
   return attachContexts(rows);
 }
@@ -476,14 +548,61 @@ export async function getScheduledActions(days: number): Promise<ScheduledAction
   return rows.map((row) => ({ ...row, scheduledAt: row.scheduledAt! }));
 }
 
-/** How many are waiting for their day — the number beside the sidebar entry. */
-export async function countDeferred(): Promise<number> {
+/**
+ * How many steps are not available — the number beside the sidebar entry.
+ *
+ * Deliberately *not* counting the ones parked by a standby project. Those are
+ * a fact about the project, they sit together on its page under a status that
+ * says so, and folding them in would make one number out of two questions —
+ * the count would jump by nine because you parked one project.
+ */
+export async function countUnavailable(): Promise<number> {
   const [row] = await db
     .select({ n: sql<number>`count(*)::int` })
     .from(actions)
-    .where(and(eq(actions.status, 'next'), isNull(actions.completedAt), NOT_YET));
+    .where(
+      and(
+        eq(actions.status, 'next'),
+        isNull(actions.completedAt),
+        sql`(${NOT_YET}) or (${BLOCKED})`,
+      ),
+    );
 
   return row?.n ?? 0;
+}
+
+/**
+ * The steps this one could sensibly wait on.
+ *
+ * Its own project's, or — for a step with nothing above it — the other loose
+ * ones. Both are bounded sets and both are where a dependency actually lives;
+ * offering every action in the app would be a picker of four hundred rows for
+ * a question whose answer is nearly always three feet away.
+ *
+ * Finished steps are excluded, because choosing one would be choosing a block
+ * already lifted. So is this action itself, and so is anything already waiting
+ * *on* it — a two-step cycle is the one a person actually creates by hand, and
+ * it would take both rows out of Now for ever with nothing on screen saying
+ * why.
+ */
+export async function getBlockerOptions(
+  actionId: string,
+  projectId: string | null,
+): Promise<{ id: string; title: string }[]> {
+  return db
+    .select({ id: actions.id, title: actions.title })
+    .from(actions)
+    .where(
+      and(
+        projectId ? eq(actions.projectId, projectId) : isNull(actions.projectId),
+        ne(actions.id, actionId),
+        ne(actions.status, 'done'),
+        isNull(actions.completedAt),
+        sql`(${actions.blockedBy} is null or ${actions.blockedBy} <> ${actionId}::uuid)`,
+      ),
+    )
+    .orderBy(asc(actions.title))
+    .limit(200);
 }
 
 /**
@@ -497,6 +616,7 @@ export async function getWaitingActions(): Promise<ActionRow[]> {
     .from(actions)
     .leftJoin(projects, eq(projects.id, actions.projectId))
     .leftJoin(waitingParty, eq(waitingParty.id, actions.waitingOnId))
+    .leftJoin(blocker, eq(blocker.id, actions.blockedBy))
     .where(eq(actions.status, 'waiting'))
     .orderBy(sql`${actions.position} asc nulls last`, asc(actions.waitingSince));
 
@@ -693,6 +813,7 @@ export async function getProjectActions(projectId: string): Promise<ActionRow[]>
     .from(actions)
     .leftJoin(projects, eq(projects.id, actions.projectId))
     .leftJoin(waitingParty, eq(waitingParty.id, actions.waitingOnId))
+    .leftJoin(blocker, eq(blocker.id, actions.blockedBy))
     .where(eq(actions.projectId, projectId))
     .orderBy(asc(actions.status), ...byPosition);
 
@@ -716,6 +837,9 @@ export async function getAction(id: string) {
       deferUntil: actions.deferUntil,
       scheduledAt: actions.scheduledAt,
       scheduledEnd: actions.scheduledEnd,
+      blockedBy: actions.blockedBy,
+      blockerTitle: blocker.title,
+      blockerDone: sql<boolean>`(${blocker.id} is not null and (${blocker.completedAt} is not null or ${blocker.status} = 'done'))`,
       createdAt: actions.createdAt,
       /** When it was finished, for the archive's own heading. */
       completedAt: actions.completedAt,
@@ -723,6 +847,7 @@ export async function getAction(id: string) {
     .from(actions)
     .leftJoin(projects, eq(projects.id, actions.projectId))
     .leftJoin(waitingParty, eq(waitingParty.id, actions.waitingOnId))
+    .leftJoin(blocker, eq(blocker.id, actions.blockedBy))
     .where(eq(actions.id, id))
     .limit(1);
 
@@ -1138,16 +1263,40 @@ export async function getSidebarCounts() {
   const rows = await db.execute(sql`
     select
       (select count(*) from inbox_items where status = 'pending')::int as inbox,
-      -- Deferred rows are out of the Now list, so they must be out of the
-      -- number beside it too: a sidebar saying 37 over a list showing 34 is
-      -- the app disagreeing with itself in a single glance.
-      (select count(*) from actions
-         where status = 'next'
-           and (defer_until is null or defer_until <= current_date))::int as next,
-      (select count(*) from actions
-         where status = 'next'
-           and defer_until is not null
-           and defer_until > current_date)::int as later,
+      -- Whatever the Now list hides, this number hides too: a sidebar saying
+      -- 37 over a list showing 34 is the app disagreeing with itself in one
+      -- glance. Three reasons, and they have to stay in step with the clauses
+      -- in getNowActions: deferred, waiting on a live step, or on a project
+      -- that has been put on standby.
+      (select count(*) from actions a
+         where a.status = 'next'
+           and a.completed_at is null
+           and (a.defer_until is null or a.defer_until <= current_date)
+           and not exists (
+             select 1 from actions b
+             where b.id = a.blocked_by
+               and b.completed_at is null
+               and b.status <> 'done'
+           )
+           and not exists (
+             select 1 from projects p
+             where p.id = a.project_id and p.status = 'standby'
+           ))::int as next,
+      -- Put off until a day, or waiting on a step that is not done. One
+      -- number for one question — "what is not available yet" — because the
+      -- view behind it lists exactly these rows and the two must agree.
+      (select count(*) from actions a
+         where a.status = 'next'
+           and a.completed_at is null
+           and (
+             (a.defer_until is not null and a.defer_until > current_date)
+             or exists (
+               select 1 from actions b
+               where b.id = a.blocked_by
+                 and b.completed_at is null
+                 and b.status <> 'done'
+             )
+           ))::int as later,
       (select count(*) from actions where status = 'waiting')::int as waiting,
       (select count(*) from actions
          where project_id is null and status in ('next', 'waiting'))::int as unfiled,

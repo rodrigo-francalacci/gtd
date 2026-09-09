@@ -21,7 +21,8 @@ import {
   getAction,
   getBackTrail,
   getContextsByDimension,
-  getDeferredActions,
+  getBlockerOptions,
+  getUnavailableActions,
   getNowActions,
   getLinkableDocuments,
 } from '@/lib/queries';
@@ -38,18 +39,23 @@ export default async function NowPage(props: PageProps<'/now'>) {
   /*
    * The same page asked the opposite question.
    *
-   * `?filter=later` lists what has been put off rather than what is live —
-   * the shape "Stalled" already takes on `/projects`, and for the same reason:
-   * it is a view of the same rows, not a page of its own, and the sidebar is
-   * the only way in. Deferral must never be a way to lose something, and a
-   * feature that hides rows with nowhere to see them is exactly that.
+   * `?filter=later` lists what is *not available* rather than what is — put
+   * off until a day, or waiting on another step. The shape "Stalled" already
+   * takes on `/projects`, and for the same reason: it is a view of the same
+   * rows, not a page of its own, and the sidebar is the only way in. Neither
+   * deferring nor blocking may become a way to lose something, and a feature
+   * that hides rows with nowhere to see them is exactly that.
+   *
+   * Steps parked by a *standby project* are deliberately not here. They are a
+   * fact about the project, they sit together on its page under a status that
+   * says so, and gathering them would make one list out of two questions.
    */
   const later = searchParams.filter === 'later';
 
   const viewKey = densityKeys.path('/now');
   const [groups, rows, sections, selected, prefs, view] = await Promise.all([
     getContextsByDimension(),
-    later ? getDeferredActions() : getNowActions(contextIds),
+    later ? getUnavailableActions() : getNowActions(contextIds),
     getNowSections(),
     selectedId ? getAction(selectedId) : Promise.resolve(null),
     getPreferences(),
@@ -133,6 +139,11 @@ export default async function NowPage(props: PageProps<'/now'>) {
   /* What the selected step becomes when it is ticked off. */
   const actionQueue = selected ? await getActionQueue(selected.id) : undefined;
 
+  /* And what it could wait on — its project's other steps, or the loose ones. */
+  const blockers = selected
+    ? await getBlockerOptions(selected.id, selected.projectId)
+    : [];
+
   /**
    * The board, and it only means anything once there are headings.
    *
@@ -178,6 +189,7 @@ export default async function NowPage(props: PageProps<'/now'>) {
       contextGroups={groups}
       parties={groups.person.map((p) => p.name)}
       projects={projectOptions}
+      blockers={blockers}
     />
   ) : null;
 
@@ -238,6 +250,7 @@ export default async function NowPage(props: PageProps<'/now'>) {
             contextGroups={groups}
             parties={groups.person.map((p) => p.name)}
             projects={projectOptions}
+            blockers={blockers}
             hideNotes
           />
         }
@@ -320,7 +333,7 @@ export default async function NowPage(props: PageProps<'/now'>) {
   return (
     <>
       <ListPane
-        title={later ? 'Put off' : 'What can I do now'}
+        title={later ? 'Not available' : 'What can I do now'}
         viewMode={viewMode}
         viewKey={viewKey}
         paneWidth={paneWidth(prefs)}
@@ -333,7 +346,7 @@ export default async function NowPage(props: PageProps<'/now'>) {
          */
         subtitle={
           later ? (
-            `${rows.length} put off, soonest first`
+            `${rows.length} not available yet`
           ) : (
             <ContextFilter groups={groups} />
           )
@@ -407,7 +420,7 @@ export default async function NowPage(props: PageProps<'/now'>) {
               <EmptyList
                 message={
                   later
-                    ? 'Nothing is put off. Set "Not until" on an action to park it here.'
+                    ? 'Everything is available — nothing put off, nothing waiting on another step.'
                     : contextIds.length > 0
                       ? 'Nothing matches this combination of contexts. Loosen a filter.'
                       : 'No next actions. Either you are done, or something needs clarifying.'
@@ -475,6 +488,7 @@ export default async function NowPage(props: PageProps<'/now'>) {
             contextGroups={groups}
             parties={groups.person.map((p) => p.name)}
             projects={projectOptions}
+            blockers={blockers}
           />
         </DetailPane>
       ) : (

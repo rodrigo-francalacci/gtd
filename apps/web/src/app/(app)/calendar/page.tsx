@@ -4,6 +4,7 @@ import { attachmentsFor, documentsFor } from '@/lib/file-lists';
 import {
   getAction,
   getActionQueue,
+  getBlockerOptions,
   getContextsByDimension,
   getLinkableDocuments,
   getProjectOptions,
@@ -110,14 +111,16 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
  * unless one of your own rows is selected.
  */
 async function actionPane(action: NonNullable<Awaited<ReturnType<typeof getAction>>>) {
-  const [groups, files, docs, projects, queue, documentOptions] = await Promise.all([
+  const [groups, files, docs, projects, queue, documentOptions, blockers] =
+    await Promise.all([
     getContextsByDimension(),
     attachmentsFor('action', action.id),
     documentsFor('action', action.id),
     getProjectOptions(),
     getActionQueue(action.id),
     getLinkableDocuments('action', action.id, ''),
-  ]);
+      getBlockerOptions(action.id, action.projectId),
+    ]);
 
   return (
     <ActionDetail
@@ -135,6 +138,7 @@ async function actionPane(action: NonNullable<Awaited<ReturnType<typeof getActio
       contextGroups={groups}
       parties={groups.person.map((p) => p.name)}
       projects={projects}
+      blockers={blockers}
     />
   );
 }

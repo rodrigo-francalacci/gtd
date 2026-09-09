@@ -9,10 +9,16 @@ import {
   WAITING_COLUMNS,
 } from '@/lib/columns';
 import type { ViewMode } from '@/lib/pane';
-import { daysSince, isStale, standingOf, type ActionRow } from '@/lib/queries.shared';
+import {
+  daysSince,
+  isBlocked,
+  isStale,
+  standingOf,
+  type ActionRow,
+} from '@/lib/queries.shared';
 import { DragGrip } from './sortable';
 import { SimpleRow } from './simple-row';
-import { IconCalendar, IconLater } from './icons';
+import { IconBlocked, IconCalendar, IconLater } from './icons';
 
 /**
  * "15:30", "Tue 14:00", "not until 1 Mar" — or nothing at all.
@@ -103,6 +109,20 @@ export function ActionItem({
   const days = daysSince(action.waitingSince);
   const done = action.status === 'done';
 
+  /*
+   * Waiting on a step that is not finished.
+   *
+   * Greyed rather than hidden wherever it *is* drawn, which in practice means
+   * the project page: that is where the dependency lives, and a step you
+   * cannot start yet is still part of what the project is made of. The one
+   * list it leaves entirely is Now, because that list answers what is
+   * available and it would be answering it wrongly.
+   *
+   * Not struck through. A line through a row means disregard it, and this is
+   * the opposite — it is work you will do, once something else is done.
+   */
+  const blocked = isBlocked(action);
+
   const checkbox = (
     <button
       type="button"
@@ -141,7 +161,7 @@ export function ActionItem({
         title={action.title}
         emoji={emojified ? action.emoji : undefined}
         selected={selected}
-        muted={done}
+        muted={done || blocked}
         /* Greyed but not crossed out — a finished step is the record of how
            this was done, not something to disregard. */
         struck={false}
@@ -159,7 +179,11 @@ export function ActionItem({
          * attribute, which is where a flag's detail belongs.
          */
         after={
-          whenLabel(action) ? (
+          blocked ? (
+            <span className="shrink-0 text-grey-400" title={`Waits for ${action.blockerTitle}`}>
+              <IconBlocked />
+            </span>
+          ) : whenLabel(action) ? (
             <span className="shrink-0 text-grey-400" title={whenLabel(action) ?? undefined}>
               {action.deferUntil ? <IconLater /> : <IconCalendar />}
             </span>
@@ -228,6 +252,9 @@ export function ActionItem({
       className={[
         'group flex items-start gap-2 border-b border-grey-150 px-4 py-2.5',
         selected ? 'bg-selected-bg' : 'hover:bg-grey-100',
+        // Greyed back as a whole, the way a finished step is: the row is still
+        // readable and plainly not startable, which is the distinction.
+        blocked && !done ? 'opacity-55' : '',
         pending ? 'opacity-50' : '',
         isDragging ? 'opacity-40' : '',
       ].join(' ')}
@@ -305,6 +332,22 @@ export function ActionItem({
           {whenLabel(action) ? (
             <span className="rounded-sm bg-grey-150 px-1.5 py-px text-grey-600">
               {whenLabel(action)}
+            </span>
+          ) : null}
+
+          {/*
+            What is in the way, by name.
+            
+            "after Get three quotes" is something you can act on; "blocked" is
+            not. The title is the whole value of the chip, which is why the
+            blocker is joined rather than reduced to a boolean.
+          */}
+          {blocked ? (
+            <span
+              className="max-w-full truncate rounded-sm bg-grey-150 px-1.5 py-px text-grey-600"
+              title={`Waits for ${action.blockerTitle}`}
+            >
+              after {action.blockerTitle}
             </span>
           ) : null}
         </div>
