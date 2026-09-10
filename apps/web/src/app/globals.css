@@ -807,6 +807,26 @@
 }
 
 /*
+ * Tracking for the body, which these themes never set.
+ *
+ * A mono face sets its own, and it is wider than a proportional one — which is
+ * most of why this theme costs the narrow list column its room. Tightening it a
+ * little buys that back; tightening it far reads as a fault rather than as a
+ * terminal, so both of these want an eye rather than a number chosen in the
+ * abstract.
+ *
+ * Zero by default, so this changes nothing until somebody decides otherwise.
+ * The source view is immune by construction: `SOURCE_TEXT` pins both to
+ * `normal`, because its two layers have to wrap at the same character and one
+ * of them is a `<textarea>`, which does not inherit `word-spacing` at all.
+ */
+:root[data-theme='sci'] body,
+:root[data-theme='amber'] body {
+  letter-spacing: var(--console-letter, 0em);
+  word-spacing: var(--console-word, 0em);
+}
+
+/*
  * The labels are the instrumentation, and read as it.
  *
  * Wide tracking and a faint bloom, which is what a phosphor tube does to a
@@ -824,7 +844,7 @@
  */
 :root[data-theme='sci'] .uppercase,
 :root[data-theme='amber'] .uppercase {
-  letter-spacing: 0.16em;
+  letter-spacing: var(--console-label, 0.16em);
   text-shadow: 0 0 6px rgb(var(--console-glow) / 0.45);
   /*
    * `backwards`, never `both`. The difference only shows up when something goes
@@ -913,10 +933,10 @@
   background-image:
     repeating-linear-gradient(
       0deg,
-      rgba(0, 0, 0, 0.34) 0px,
-      rgba(0, 0, 0, 0.34) 1px,
-      transparent 1px,
-      transparent 3px
+      rgba(0, 0, 0, var(--console-line-ink, 0.34)) 0px,
+      rgba(0, 0, 0, var(--console-line-ink, 0.34)) var(--console-line-thick, 1px),
+      transparent var(--console-line-thick, 1px),
+      transparent var(--console-line-gap, 3px)
     ),
     radial-gradient(120% 90% at 50% 45%, rgba(0, 0, 0, 0) 52%, rgba(0, 0, 0, 0.62) 100%);
 }

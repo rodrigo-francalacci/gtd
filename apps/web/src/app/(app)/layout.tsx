@@ -1,6 +1,7 @@
 import { AppShell } from '@/components/app-shell';
 import { boxLabelName } from '@/lib/google/boxes';
 import { CaptureHotkey } from '@/components/capture-hotkey';
+import { ConsoleTuner } from '@/components/console-tuner';
 import { FilePreviewProvider } from '@/components/file-preview';
 import { SidebarNav } from '@/components/sidebar';
 import { SidebarSlotProvider } from '@/components/sidebar-slot';
@@ -58,6 +59,10 @@ export default async function AppLayout({ children }: { children: React.ReactNod
             from wherever you are; the other counts what gets opened. */}
         <CaptureHotkey />
         <UsageTracker />
+        {/* TEMPORARY: sliders for the console themes' scanlines and tracking.
+            Renders nothing outside `sci` and `amber`. Delete with the
+            component once the numbers are settled. */}
+        <ConsoleTuner />
 
         <AppShell
           sidebar={
