@@ -415,6 +415,27 @@ export type BoxCategoryRow = {
   tags: BoxTagRow[];
 };
 
+/**
+ * One proposed tag, waiting to be accepted or thrown away.
+ *
+ * Accepting makes the tag and nothing else — no document is tagged by it. What
+ * `entries` is for is *judging*: a word proposed with nothing behind it cannot
+ * be told from a good one, and "seen on twelve of these, including these three"
+ * can be agreed or refused at a glance. Validated against what was actually
+ * sent, so the count is a fact rather than a number the model chose.
+ */
+export type BoxTagSuggestion = {
+  /** Stable within the set, so accepting or dismissing can name exactly one. */
+  key: string;
+  category: string;
+  tag: string;
+  why: string;
+  /** `box_items.id` — evidence only, never applied. */
+  entries: string[];
+  /** A few of their titles, so the row can show what it is talking about. */
+  examples: string[];
+};
+
 /** A tag as it hangs off a document: enough to render, not enough to edit. */
 export type AppliedTag = { id: string; name: string; category: string };
 

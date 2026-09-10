@@ -2,7 +2,7 @@ import { BoxManager } from '@/components/box-manager';
 import { BoxSetup } from '@/components/box-setup';
 import { NewBoxForm } from '@/components/box-manager';
 import { DetailPane, EmptyDetail, EmptyList, ListPane } from '@/components/panes';
-import { getBoxCategories, getBoxes } from '@/lib/queries';
+import { getBoxCategories, getBoxes, getTagSuggestions } from '@/lib/queries';
 import { getBoxQueueStatus } from '@/lib/box/queue';
 import Link from 'next/link';
 
@@ -33,8 +33,11 @@ export default async function BoxesPage(props: PageProps<'/box'>) {
   }
 
   const target = boxes.find((b) => b.id === selectedId) ?? boxes[0];
-  const [categories, queue] = await Promise.all([
+  const [categories, proposed, queue] = await Promise.all([
     getBoxCategories(target.id),
+    /* Null means nobody has asked; an empty set means it has been worked
+       through, and the panel says those differently. */
+    getTagSuggestions(target.id),
     getBoxQueueStatus(),
   ]);
 
@@ -90,7 +93,15 @@ export default async function BoxesPage(props: PageProps<'/box'>) {
         <DetailPane>
           {/* key: the manager seeds its name and instruction drafts from the
               box, and a `useState` initialiser only runs on mount. */}
-          <BoxManager key={target.id} box={target} categories={categories} />
+          <BoxManager
+            key={target.id}
+            box={target}
+            categories={categories}
+            suggestions={proposed?.suggestions ?? []}
+            suggestionsRead={proposed?.readCount ?? 0}
+            suggestionsTotal={proposed?.totalCount ?? 0}
+            suggestionsAsked={proposed !== null}
+          />
         </DetailPane>
       ) : (
         <EmptyDetail message="Select a box" />

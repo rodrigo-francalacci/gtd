@@ -1353,6 +1353,47 @@ export const boxTags = pgTable(
   ],
 );
 
+/**
+ * A vocabulary the model has proposed for a box, waiting to be judged.
+ *
+ * Everything else the model does here fills in a vocabulary somebody wrote;
+ * this proposes the *axes* — which is a genuinely different question and the
+ * one nobody wants to answer facing an empty tag panel and two hundred filed
+ * documents. What comes back is a proposal, so it is stored the way
+ * `inbox_items.ai_suggestion` is: beside the real thing, never as the real
+ * thing, and worth nothing until somebody presses accept.
+ *
+ * **Stored rather than held in the page**, unlike almost every derived thing
+ * here, and for two reasons that both come down to the call costing money and
+ * taking half a minute: the panel borrows the sidebar, which you close to get
+ * at what you were reading, and a proposal you have to buy again because you
+ * clicked away is one you stop asking for. It is not derived state — nothing
+ * can recompute it — it is a thing that was said once.
+ *
+ * **One row per box.** A second set would be two vocabularies to choose
+ * between, which is a worse question than the one this is answering; running
+ * it again replaces what was there.
+ */
+export const boxTagSuggestions = pgTable('box_tag_suggestions', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  boxId: uuid('box_id')
+    .notNull()
+    .unique()
+    .references(() => boxes.id, { onDelete: 'cascade' }),
+  /** `BoxTagSuggestion[]`, minus the ones already accepted or dismissed. */
+  suggestions: jsonb('suggestions').notNull(),
+  /**
+   * How many entries were looked at, and how many the box holds.
+   *
+   * Both, because they can differ: a very full box is sampled, and a panel that
+   * did not say so would be presenting a reading of the recent half as a
+   * reading of the box.
+   */
+  readCount: integer('read_count').notNull(),
+  totalCount: integer('total_count').notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+});
+
 /** Whether a document has been read yet. */
 export const boxItemStatus = pgEnum('box_item_status', [
   'pending',

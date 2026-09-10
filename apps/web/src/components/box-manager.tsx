@@ -16,7 +16,8 @@ import {
   updateBoxCategory,
 } from '@/lib/actions';
 import { driveFolderUrl } from '@/lib/google/sync';
-import type { BoxCategoryRow, BoxRow } from '@/lib/queries.shared';
+import type { BoxCategoryRow, BoxRow, BoxTagSuggestion } from '@/lib/queries.shared';
+import { TagSuggestions } from './tag-suggestions';
 
 /**
  * A box's settings: what it's for, and the vocabulary it may be tagged with.
@@ -28,9 +29,28 @@ import type { BoxCategoryRow, BoxRow } from '@/lib/queries.shared';
 export function BoxManager({
   box,
   categories,
+  suggestions,
+  suggestionsRead,
+  suggestionsTotal,
+  suggestionsAsked,
 }: {
   box: BoxRow;
   categories: BoxCategoryRow[];
+  /**
+   * A vocabulary the model has proposed for this box, if it has been asked.
+   *
+   * It belongs on this page rather than in the sidebar's tag panel, and the
+   * distinction is what each is *for*: that panel filters a box you are
+   * reading — chips that narrow a list, and tags you drag onto a row — while
+   * this page is where a vocabulary is made, renamed, re-filed and thrown
+   * away. A proposal to make one is a verb of this page, and putting it in
+   * both would be two places showing one set.
+   */
+  suggestions: BoxTagSuggestion[];
+  suggestionsRead: number;
+  suggestionsTotal: number;
+  /** Never asked, versus asked and worked through: different things to say. */
+  suggestionsAsked: boolean;
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
@@ -155,6 +175,23 @@ export function BoxManager({
         ))}
 
         <NewCategoryForm boxId={box.id} />
+
+        {/*
+          Under the hand-written ones, not above them.
+
+          What is already there is the answer; a proposal is a way of getting
+          started or of noticing something missed, and putting it at the top
+          would make the page open on the model's opinion rather than on your
+          own vocabulary.
+        */}
+        <TagSuggestions
+          boxId={box.id}
+          suggestions={suggestions}
+          readCount={suggestionsRead}
+          totalCount={suggestionsTotal}
+          asked={suggestionsAsked}
+          existingCategories={categories.map((category) => category.name)}
+        />
       </section>
 
       {!box.isDefault ? (

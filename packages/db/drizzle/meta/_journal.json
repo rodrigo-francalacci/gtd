@@ -477,6 +477,13 @@
       "when": 1788946098887,
       "tag": "0067_glossy_metal_master",
       "breakpoints": true
+    },
+    {
+      "idx": 68,
+      "version": "7",
+      "when": 1789033774196,
+      "tag": "0068_gigantic_meltdown",
+      "breakpoints": true
     }
   ]
 }

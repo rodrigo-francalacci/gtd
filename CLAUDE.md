@@ -2839,6 +2839,75 @@ to be kept. They meet at `box_item_links` and nowhere else.
   tag filed into another box's category would leave documents tagged with
   something their own box has never heard of, and every facet count wrong with
   nothing on screen to explain it.
+- **The model can propose the *vocabulary*, and that is a different question
+  from tagging with it.** Everything else here fills in a vocabulary somebody
+  wrote — the classifier is handed the categories and tags and picks from them.
+  This asks the question above it, *what are the axes of this box*, which is
+  the one that has to be answered first and the one nobody wants to answer
+  facing an empty tag panel and two hundred filed documents.
+  **Accepting makes the tag and tags nothing.** That is the design and not a
+  shortcut: "what are the axes here" is a reading of the whole box, where "is
+  this one a receipt" is easy, answerable at a glance, and already has two
+  answers — your hand, and the classifier reading the file. Applying a
+  vocabulary onto two hundred documents off the press that invented it would
+  put two hundred guesses in the database at once and would be the app asking
+  to be trusted with exactly what it has always been careful not to do.
+  **The entries each proposal names are evidence, not a preview of a write.** A
+  word proposed with nothing behind it cannot be told from a good one, so a
+  proposal carries the count and three titles — and because they are validated
+  against what was actually sent, the count is a fact rather than a number the
+  model chose. The panel says outright that nothing is being tagged, because a
+  number beside a button is otherwise read as what the button will do.
+  **It reads the stored titles and summaries, never the files**, the emojify
+  rule again and for the same reason: a PDF bills as its text *and* an image of
+  every page, so re-reading a box to propose a dozen words would cost more than
+  the readings that made it findable. Newest first, capped at four hundred —
+  past that the proposal stops changing while the reply keeps growing.
+  **One call for the whole box.** A vocabulary is a statement about a *set* —
+  that these forty are receipts and those six are letters from the council — and
+  a model shown one entry at a time cannot make one. Asked separately you get
+  forty plausible words and no vocabulary.
+  **Short keys, not uuids, and that does not weaken "matched back by id".** A
+  uuid is around eighteen tokens; a reply where thirty tags each name twenty
+  entries would spend ten thousand on identifiers alone. `e1` is still an *id*:
+  given to the model, echoed by it, and dropped by the cleaner if it comes back
+  unrecognised. What that rule forbids is an array whose *order* carries the
+  meaning, which is a promise a model has no way to keep.
+  **The budget is mostly for thinking.** Sized like the emoji batch's — a fixed
+  allowance plus a little per row — sixteen entries overran it before the answer
+  began, because this holds a whole box in mind and tries groupings where that
+  one answers a row at a time. Eight thousand plus twenty-four a row now, and an
+  unused allowance costs nothing.
+  **It lives on `/box`, not in the sidebar's tag panel.** That panel *filters* a
+  box you are reading — chips that narrow a list, tags you drag onto rows —
+  while the manage page is where a vocabulary is made, renamed, re-filed and
+  thrown away. A proposal to make one is a verb of that page, and putting it in
+  both would be two places showing one set. Under the hand-written categories
+  rather than above them: what is already there is the answer.
+  **Whether an axis is "new" is derived, never stored.** It was on each
+  proposal, and went stale the instant one was accepted — taking "Document type
+  · Webpage" makes that axis, and "Document type · Article" under it went on
+  claiming it would make one. The panel has the live vocabulary a few lines up.
+  **A string bound for a `jsonb` column cannot carry a NUL**, and this is the
+  one place in the app where text arrives from outside every column that would
+  have refused it. Postgres rejects the whole document — `unsupported Unicode
+  escape sequence` — so one stray character in one reply threw away a call that
+  had already been paid for and reached the screen as "a server error occurred".
+  Found in a model reply, not in the box: the entries were checked and had none.
+  `plain()` strips the C0 range by code point rather than by a regex range,
+  because a range has to be written with escapes and an escape that loses a
+  backslash on the way to the file becomes a literal NUL in the source — which
+  is the exact character it exists to remove. `scripts/check-tag-suggest.mjs`
+  asserts that and eighteen other refusals; run it before touching the cleaner.
+  **`actions.ts` must not import `queries.ts`.** Adding
+  `getBoxCategories` there pulled the whole read layer — `server-only`, a
+  `cache()` at module scope and its entire import graph — into the module every
+  Server Action is bundled from, and the action threw at the point of use with
+  the page reporting nothing but "a server error occurred". Every other write in
+  that file reads what it needs with `db` directly, and so does this one.
+  **The dev server writes its errors to `apps/web/.next/dev/logs/`**, which is
+  what finally named that one after three wrong guesses. Read it before
+  theorising.
 - **The model proposes tags; code disposes.** What comes back is matched
   against that box's own vocabulary and anything invented is dropped, unless
   the category is explicitly allowed to grow — a city on a fuel receipt. The

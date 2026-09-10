@@ -24,6 +24,7 @@ import {
   boxItemTags,
   boxItems,
   boxJobs,
+  boxTagSuggestions,
   boxTags,
   boxes,
   contexts,
@@ -69,6 +70,7 @@ import type {
   ListRow,
   ProjectRow,
   PurchaseFields,
+  BoxTagSuggestion,
   ScheduledAction,
 } from './queries.shared';
 import { stageOf } from './queries.shared';
@@ -88,6 +90,7 @@ export type {
   ListRow,
   ProjectRow,
   PurchaseFields,
+  BoxTagSuggestion,
   ScheduledAction,
 } from './queries.shared';
 export {
@@ -1439,6 +1442,35 @@ export async function getDefaultBox(): Promise<BoxRow | null> {
  * the tag editor all want the whole shape, and the usage count is what the
  * editor needs before it will offer to delete anything.
  */
+/**
+ * The vocabulary the model has proposed for this box, if it has been asked.
+ *
+ * Null means nobody has asked, which the panel says as an offer rather than as
+ * an absence — and an empty `suggestions` array means the set has been worked
+ * through, which is a different thing again and reads as finished.
+ */
+export async function getTagSuggestions(boxId: string): Promise<{
+  suggestions: BoxTagSuggestion[];
+  readCount: number;
+  totalCount: number;
+  createdAt: Date;
+} | null> {
+  const [row] = await db
+    .select({
+      suggestions: boxTagSuggestions.suggestions,
+      readCount: boxTagSuggestions.readCount,
+      totalCount: boxTagSuggestions.totalCount,
+      createdAt: boxTagSuggestions.createdAt,
+    })
+    .from(boxTagSuggestions)
+    .where(eq(boxTagSuggestions.boxId, boxId))
+    .limit(1);
+
+  if (!row) return null;
+
+  return { ...row, suggestions: (row.suggestions as BoxTagSuggestion[] | null) ?? [] };
+}
+
 export async function getBoxCategories(boxId: string): Promise<BoxCategoryRow[]> {
   const rows = await db
     .select({

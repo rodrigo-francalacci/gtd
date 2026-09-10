@@ -12,6 +12,7 @@ import {
   boxItemLinks,
   boxItemTags,
   boxItems,
+  boxTagSuggestions,
   boxTags,
   boxes,
   contexts,
@@ -33,7 +34,11 @@ import {
   aiPrices,
   aiTopups,
 } from '@gtd/db';
-import type { PurchaseFields, PurchaseFieldsPatch } from './queries.shared';
+import type {
+  BoxTagSuggestion,
+  PurchaseFields,
+  PurchaseFieldsPatch,
+} from './queries.shared';
 import { and, asc, desc, eq, inArray, isNull, ne, sql } from 'drizzle-orm';
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
@@ -46,6 +51,13 @@ import {
 import { suggester } from './ai/suggest';
 import { readPurchase, type PurchaseRead } from './ai/purchase';
 import { oneEmoji, pickEmoji } from './ai/emoji';
+import {
+  MAX_ENTRIES,
+  MAX_SUGGESTIONS,
+  TagSuggestError,
+  suggestTags,
+} from './ai/tag-suggest';
+import { cleanSuggestions, tagKey } from './box/suggest-clean';
 import { suggestContexts } from './ai/contexts';
 import { nameAttachment } from './ai/filename';
 import { requireSession } from './auth/session';
@@ -4772,6 +4784,252 @@ export async function clearEmoji(target: EmojiTarget, ids: string[]) {
  * gallery switch and the tag link, and a fourth control there was crowding the
  * one header with the most in it.
  */
+/**
+ * This box's categories and the tags under them, in one statement.
+ *
+ * Read here rather than through `getBoxCategories`, and that is not a
+ * duplication worth removing: `actions.ts` is `'use server'` and had never
+ * imported `queries.ts`, so adding the edge pulled the whole read layer —
+ * `server-only`, a `cache()` at module scope and its entire import graph —
+ * into the module every Server Action in the app is bundled from. The action
+ * threw at the point of use with the page reporting nothing but "a server
+ * error occurred", which is the failure that edge is worth avoiding for.
+ *
+ * Every other write in this file reads what it needs with `db` directly. This
+ * does the same, and needs three columns rather than the shaped rows the panel
+ * gets.
+ */
+async function boxVocabulary(boxId: string) {
+  const rows = await db
+    .select({
+      id: boxCategories.id,
+      name: boxCategories.name,
+      tag: boxTags.name,
+    })
+    .from(boxCategories)
+    .leftJoin(boxTags, eq(boxTags.categoryId, boxCategories.id))
+    .where(eq(boxCategories.boxId, boxId));
+
+  const byId = new Map<string, { id: string; name: string; tags: string[] }>();
+
+  for (const row of rows) {
+    const found = byId.get(row.id) ?? { id: row.id, name: row.name, tags: [] };
+    if (row.tag) found.tags.push(row.tag);
+    byId.set(row.id, found);
+  }
+
+  return [...byId.values()];
+}
+
+/**
+ * Ask the model what this box's vocabulary should be.
+ *
+ * The classifier has always filled in a vocabulary somebody wrote. This is the
+ * question above it — *what axes would sort this box* — which has to be
+ * answered first and is the one nobody wants to answer facing an empty tag
+ * panel and two hundred filed documents.
+ *
+ * **Reads the stored titles and summaries, never the files**, the same rule the
+ * emojify button follows and for the same reason: a PDF bills as its text *and*
+ * an image of every page, so re-reading the box to propose a dozen words would
+ * cost more than the readings that made it findable at all. Those titles were
+ * written by a model that did look, and they are what a person skimming the box
+ * would go on.
+ *
+ * Pressed, never automatic, and the answer is written down rather than held on
+ * the page: the call costs money and takes a moment, the panel borrows a column
+ * you close to get at what you were reading, and a proposal you have to buy
+ * again because you clicked away is one you stop asking for.
+ */
+export async function suggestBoxTags(boxId: string) {
+  await requireSession();
+
+  const key = process.env.CHATGPT_API_KEY;
+  if (!key) {
+    return { ok: false as const, error: 'CHATGPT_API_KEY is not set, so nothing can be asked.' };
+  }
+
+  const [box] = await db
+    .select({ name: boxes.name, instruction: boxes.instruction })
+    .from(boxes)
+    .where(eq(boxes.id, boxId))
+    .limit(1);
+
+  if (!box) return { ok: false as const, error: 'That box has gone.' };
+
+  const [counted] = await db
+    .select({ n: sql<number>`count(*)::int` })
+    .from(boxItems)
+    .where(eq(boxItems.boxId, boxId));
+
+  /*
+   * Newest first, capped. A box's recent half is the half whose vocabulary you
+   * are still deciding, and past a few hundred entries the proposal stops
+   * changing while the reply keeps growing — every entry a tag covers costs a
+   * key in the answer.
+   */
+  const rows = await db
+    .select({
+      id: boxItems.id,
+      title: boxItems.title,
+      description: boxItems.description,
+      name: boxItems.name,
+    })
+    .from(boxItems)
+    .where(eq(boxItems.boxId, boxId))
+    .orderBy(desc(boxItems.capturedAt))
+    .limit(MAX_ENTRIES);
+
+  if (rows.length === 0) {
+    return { ok: false as const, error: 'This box is empty, so there is nothing to read.' };
+  }
+
+  /*
+   * Short keys rather than uuids, mapped back here.
+   *
+   * A uuid is around eighteen tokens, and a reply where thirty tags each name
+   * twenty entries would spend ten thousand of them on identifiers alone. This
+   * does not weaken "matched back by id, never by position": the key is given
+   * to the model and echoed by it, and `cleanSuggestions` drops anything it
+   * does not recognise. What that rule forbids is an array whose *order*
+   * carries the meaning, which is a promise a model has no way to keep.
+   */
+  const known = new Map<string, string>();
+  /** Id to title, so a proposal can show what it is talking about. */
+  const labels = new Map<string, string>();
+  const entries = rows.map((row, at) => {
+    const label = [
+      row.title ?? row.description ?? row.name,
+      row.title ? row.description : null,
+    ]
+      .filter(Boolean)
+      .join(' — ');
+
+    const short = `e${at + 1}`;
+    known.set(short, row.id);
+    labels.set(row.id, row.title ?? row.description ?? row.name ?? 'Untitled');
+    return { key: short, label: label || 'Untitled' };
+  });
+
+  const existing = (await boxVocabulary(boxId)).map(({ name, tags }) => ({ name, tags }));
+
+  let raw;
+  try {
+    raw = await suggestTags(key, box.name, box.instruction, existing, entries);
+  } catch (error) {
+    // Said plainly rather than swallowed: a refused key, a retired model name
+    // and an exhausted quota all look identical from the button otherwise.
+    return {
+      ok: false as const,
+      error: error instanceof TagSuggestError ? error.message : 'That could not be asked.',
+    };
+  }
+
+  const suggestions = cleanSuggestions({ raw, existing, known, labels, limit: MAX_SUGGESTIONS });
+  const totalCount = counted?.n ?? rows.length;
+
+  await db
+    .insert(boxTagSuggestions)
+    .values({ boxId, suggestions, readCount: rows.length, totalCount })
+    /* One set per box: a second would be two vocabularies to choose between,
+       which is a worse question than the one this is answering. */
+    .onConflictDoUpdate({
+      target: boxTagSuggestions.boxId,
+      set: { suggestions, readCount: rows.length, totalCount, createdAt: new Date() },
+    });
+
+  revalidateShell();
+  return { ok: true as const, suggested: suggestions.length, read: rows.length };
+}
+
+/** What is left of the stored set once one proposal has been dealt with. */
+async function withoutSuggestion(boxId: string, key: string) {
+  const [row] = await db
+    .select({ suggestions: boxTagSuggestions.suggestions })
+    .from(boxTagSuggestions)
+    .where(eq(boxTagSuggestions.boxId, boxId))
+    .limit(1);
+
+  const all = (row?.suggestions as BoxTagSuggestion[] | undefined) ?? [];
+  return { one: all.find((s) => s.key === key), rest: all.filter((s) => s.key !== key) };
+}
+
+/**
+ * Take one proposal: make the category if it is new, and make the tag.
+ *
+ * **It does not tag anything, and that is the design rather than a shortcut.**
+ * The model is answering "what are the axes here", which is a reading of the
+ * box as a whole and a genuinely hard question; whether *this* document is a
+ * receipt is a different and much easier one that you can answer at a glance
+ * and the classifier can already answer on its own. Applying a vocabulary on
+ * the strength of the call that invented it would put two hundred taggings in
+ * the database off one press, each of them a guess, and the app would be
+ * asking to be trusted with exactly the thing it has always been careful not
+ * to do: the model proposes and code disposes, and here the person disposes.
+ *
+ * The entries the proposal named are kept as *evidence* — the count and a few
+ * titles, so a tag can be judged before it is made — and are read by nothing
+ * else. Putting the tag on things afterwards is dragging it onto a row, or
+ * "Read it again", both of which already exist.
+ *
+ * Order is the safeguard, as ever on a driver with no transactions: the
+ * category before the tag, so a failure between them leaves an empty category,
+ * which is visible and removable. The foreign key makes the other order
+ * impossible, which is the point of it.
+ */
+export async function acceptTagSuggestion(boxId: string, key: string) {
+  await requireSession();
+
+  const { one, rest } = await withoutSuggestion(boxId, key);
+  if (!one) return;
+
+  const categories = await boxVocabulary(boxId);
+  const wanted = tagKey(one.category);
+  let categoryId = categories.find((c) => tagKey(c.name) === wanted)?.id;
+
+  if (!categoryId) {
+    const [made] = await db
+      .insert(boxCategories)
+      .values({ boxId, name: one.category })
+      .returning({ id: boxCategories.id });
+    categoryId = made.id;
+  }
+
+  /*
+   * `onConflictDoNothing`, because the unique index is on `lower(name)` and a
+   * tag added by hand between the proposal and the press is not an error — it
+   * is the same tag, already made, which is exactly what was wanted.
+   */
+  await db.insert(boxTags).values({ categoryId, name: one.tag }).onConflictDoNothing();
+
+  await db
+    .update(boxTagSuggestions)
+    .set({ suggestions: rest })
+    .where(eq(boxTagSuggestions.boxId, boxId));
+
+  revalidateShell();
+}
+
+/** Throw one proposal away. Gone from the set, not remembered as refused. */
+export async function dismissTagSuggestion(boxId: string, key: string) {
+  await requireSession();
+
+  const { rest } = await withoutSuggestion(boxId, key);
+  await db
+    .update(boxTagSuggestions)
+    .set({ suggestions: rest })
+    .where(eq(boxTagSuggestions.boxId, boxId));
+
+  revalidateShell();
+}
+
+/** Throw the whole set away, so the panel goes back to offering to ask. */
+export async function clearTagSuggestions(boxId: string) {
+  await requireSession();
+  await db.delete(boxTagSuggestions).where(eq(boxTagSuggestions.boxId, boxId));
+  revalidateShell();
+}
+
 export async function emojifyBox(boxId: string, redo = false) {
   await requireSession();
 
