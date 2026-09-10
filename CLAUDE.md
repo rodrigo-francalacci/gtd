@@ -172,6 +172,30 @@ Turbopack is the default; `middleware` is now `proxy`.
   heading invisible, where `backwards` lets a finished animation stop applying
   anything at all. One caret, beside the wordmark, because a screen full of
   blinking is not a terminal — it is a fault.
+  **The scanlines and the tracking were set by eye, with sliders, against the
+  real app.** Six numbers that cannot be chosen in the abstract: a scanline
+  period is a fact about a screen, and how tight mono wants to be is a fact
+  about a layout built around a narrow list column. A temporary panel drove
+  them as custom properties, each rule carrying the old value as its fallback
+  so nothing moved until a slider did; the panel is gone and the numbers are
+  written in.
+  **Finer and fainter together**, which is the interesting half. It was a 1px
+  line every 3px at `0.34` — a third of the screen carrying a mark dark enough
+  to read *as* a mark. It is now 1px every 2px at `0.16`: half the screen, by
+  something you cannot pick out on its own. That is the difference between a
+  grille and a tube, and it is why the two moved in opposite directions at
+  once — more lines, each doing less.
+  **The body gets `-0.06em` and `-0.12em`**, having had neither. A mono face
+  carries its own tracking and it is wider than a proportional one, which is
+  most of what this theme costs the list column; pulling both axes in buys that
+  back and is also closer to the thing being imitated, where the glyphs of a
+  character cell sat shoulder to shoulder. The word figure is exactly riso's,
+  arrived at separately and for the same reason.
+  **The labels came down from `0.16em` to `0.06em`.** That tracking was doing
+  two jobs and only one well: it said "instrumentation", and it also pushed a
+  small-caps heading most of the way across a pane with no width to spare. With
+  the body pulled in around it, a label that wide read as a different typeface
+  rather than a louder one — and the caps and the bloom already do the work.
   **Scanlines are a gradient and the sweep is a transform**, which is the lesson
   paper mode paid for — no blend mode, no filter, nothing that forces the page
   to be re-composited on every paint. The beam is one element moved on the
