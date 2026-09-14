@@ -2229,10 +2229,15 @@ Turbopack is the default; `middleware` is now `proxy`.
   entry: open a box from home, press Back, and you are home again. A drawer
   opened by state has nothing to come back to, so Back lands on whatever page
   was underneath.
-  **The server cannot tell a phone from a desktop**, so `/` still redirects to
-  Now for everyone and `/menu` moves a desktop on to Now itself, against the
-  same 768px the shell turns on — replacing, so Back from Now is not an address
-  that only sends you forward. The one remaining use of the sliding sheet is the
+  **The server cannot tell a phone from a desktop**, so every way in — `/`,
+  sign-in and the Google callback — goes to `/menu`, and that page moves a
+  desktop on to Now itself, against the same 768px the shell turns on —
+  replacing, so Back from Now is not an address that only sends you forward.
+  **The start URL alone was not enough.** Android refreshes an installed app's
+  manifest on its own schedule, so after the change it went on opening at `/`,
+  which redirected to Now: the app still opened on the one screen this was
+  meant to replace. Redirecting `/` is what makes the change reach a phone
+  whose manifest is stale. The one remaining use of the sliding sheet is the
   tag panel borrowing the column.
   **`max-md:hidden!` on the track, not `max-md:hidden`.** `.pane-track` sets
   `display: flex` in globals.css outside any cascade layer, and unlayered CSS

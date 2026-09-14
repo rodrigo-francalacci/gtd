@@ -70,7 +70,9 @@ export async function GET(request: Request) {
 
   await createSession(email);
 
-  const response = NextResponse.redirect(new URL('/now', request.url));
+  // Home rather than Now, so a phone signing in lands where it would have
+  // opened; `/menu` moves a desktop on to Now.
+  const response = NextResponse.redirect(new URL('/menu', request.url));
   response.cookies.delete('gtd_oauth_state');
   response.cookies.delete('gtd_oauth_verifier');
   return response;

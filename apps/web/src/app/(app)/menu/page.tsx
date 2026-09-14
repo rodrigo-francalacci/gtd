@@ -17,7 +17,8 @@ import { MenuHome } from '@/components/menu-home';
  *
  * No panes of its own. A desktop always has the navigation on screen and
  * nothing to show at this address, so `MenuHome` sends it on to Now — the
- * brief's default view, and what `/` still redirects to for everyone.
+ * brief's default view. `/`, sign-in and the Google callback all arrive here
+ * rather than at Now, because only the browser knows which device it is.
  */
 export default function MenuPage() {
   return <MenuHome />;

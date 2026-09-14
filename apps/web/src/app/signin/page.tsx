@@ -15,7 +15,8 @@ export default async function SignInPage(props: PageProps<'/signin'>) {
   const searchParams = await props.searchParams;
   const error = typeof searchParams.error === 'string' ? searchParams.error : null;
 
-  if (await getSession()) redirect('/now');
+  // `/menu`, not `/now`: that page decides between the two devices.
+  if (await getSession()) redirect('/menu');
 
   const configured = isConfigured();
 
