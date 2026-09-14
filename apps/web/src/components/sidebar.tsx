@@ -257,8 +257,8 @@ export function SidebarNav({
   return (
     <nav
       /* Full width of whatever holds it: a 14rem column on a desktop, the
-         drawer's own width on a phone. The drawer decides how wide it is;
-         this decides what is in it. */
+         whole screen on a phone's home screen. The shell decides how wide it
+         is; this decides what is in it. */
       className="flex h-full w-full flex-col border-r border-grey-200 bg-grey-100 md:w-56"
       /*
        * Marks this as navigation rather than content, which paper mode reads to
@@ -332,11 +332,12 @@ export function SidebarNav({
                        * scrollbar to hide two entries — and four pixels a row
                        * across nineteen rows buys back more than twice that.
                        *
-                       * Not on the phone, where this is a drawer that scrolls
-                       * anyway and a row is a thumb target rather than a
-                       * glance.
+                       * Roomier on the phone, where this is the home screen and
+                       * a row is a thumb target rather than a glance — each one
+                       * is where you are going next, so it is worth the height
+                       * of a tap you do not have to aim.
                        */
-                      'flex items-center gap-2 px-4 py-1.5 text-[13px] md:py-1',
+                      'flex items-center gap-3 px-4 py-2.5 text-[15px] md:gap-2 md:py-1 md:text-[13px]',
                       active
                         ? 'bg-selected-bg font-medium text-selected'
                         : 'text-grey-700 hover:bg-grey-150',

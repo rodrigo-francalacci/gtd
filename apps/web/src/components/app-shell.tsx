@@ -1,11 +1,11 @@
 'use client';
 
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useRef, type ReactNode } from 'react';
 import { usePathname, useSearchParams } from 'next/navigation';
 import { PreviewPane, useFilePreview, useOpenPreview } from './file-preview';
 import { MobileBar } from './mobile-bar';
 import { SidebarSlotTarget, useSidebarSlot } from './sidebar-slot';
-import { IconMenu } from './icons';
+import { MENU_PATH } from './menu-home';
 
 /**
  * The same panes, arranged two ways.
@@ -30,17 +30,29 @@ export function AppShell({
   sidebar,
   children,
 }: {
-  /** Pane 1. A fixed column on a desktop, a drawer on a phone. */
+  /**
+   * Pane 1. A fixed column on a desktop; on a phone, the home screen at
+   * `/menu`, and a sheet when a box lends it to the tag panel.
+   */
   sidebar: ReactNode;
   children: ReactNode;
 }) {
   const preview = useOpenPreview();
   const { close, focused, expanded, expand, collapse } = useFilePreview();
-  const [drawerOpen, setDrawerOpen] = useState(false);
   const { open: tagsOpen, claim: claimSidebar } = useSidebarSlot();
   const pathname = usePathname();
   const params = useSearchParams();
   const track = useRef<HTMLElement>(null);
+  /**
+   * On the phone's home screen, where the navigation is the page.
+   *
+   * It was a drawer, and a drawer is the wrong shape for the thing a phone
+   * opens to: every box and list was two taps from launch — the menu, then the
+   * place — where a messaging app puts every conversation one tap away. Here it
+   * takes the whole screen, and the panes are hidden because this page has
+   * none; a desktop never sees the difference, since `MenuHome` moves it on.
+   */
+  const home = pathname === MENU_PATH;
   /** Whether a history entry is standing in for the open preview pane. */
   const pushed = useRef(false);
 
@@ -236,37 +248,18 @@ export function AppShell({
       data-preview={preview ? 'open' : 'closed'}
       className="group/shell flex h-[100dvh] w-screen flex-col md:flex-row"
     >
-      {/* Pane 1. Static beside the panes on a desktop; on a phone it slides
-          over them, because a phone has no width to spare for navigation that
-          is only used between tasks. */}
+      {/* Pane 1. Static beside the panes on a desktop. On a phone it is the
+          home screen at `/menu` and nowhere else — except when a box lends it
+          to the tag panel, which slides over the list as a sheet. */}
       <div
-        /*
-         * Choosing something is the end of navigating, so the drawer closes on
-         * the act of choosing rather than on the route changing afterwards.
-         * Tying it to the route would also leave it open when you tap the view
-         * you are already on — nothing changes, so nothing would close it.
-         *
-         * A takeover is exempt: its links are filters, and choosing two or
-         * three in a row is the normal way to use it.
-         */
-        onClick={(event) => {
-          if (tagsOpen) return;
-          if ((event.target as Element).closest('a')) setDrawerOpen(false);
-        }}
         className={[
           'relative z-50 shrink-0',
-          'max-md:fixed max-md:inset-y-0 max-md:left-0 max-md:transition-transform',
-          /*
-           * Wider while it is lent out. A navigation drawer wants to leave some
-           * of the pane behind it visible, so you can see what you are leaving;
-           * a panel you are reading and typing into wants the screen. Same
-           * element, two jobs, and the width is the honest difference between
-           * them.
-           */
-          tagsOpen ? 'max-md:w-[88vw]' : 'max-md:w-72',
-          drawerOpen || tagsOpen
-            ? 'max-md:translate-x-0'
-            : 'max-md:-translate-x-full',
+          home
+            ? 'max-md:min-h-0 max-md:w-full max-md:flex-1'
+            : [
+                'max-md:fixed max-md:inset-y-0 max-md:left-0 max-md:w-[88vw] max-md:transition-transform',
+                tagsOpen ? 'max-md:translate-x-0' : 'max-md:-translate-x-full',
+              ].join(' '),
         ].join(' ')}
       >
         {sidebar}
@@ -282,22 +275,27 @@ export function AppShell({
         <SidebarSlotTarget />
       </div>
 
-      {/* Tapping away closes it — the standard way out of a drawer, and the
-          one people try first. A takeover closes the same way, which is what
-          makes it feel like the modal it is on a phone. */}
-      {drawerOpen || tagsOpen ? (
+      {/* Tapping away closes the tag sheet — the standard way out of a sheet,
+          and the one people try first. */}
+      {tagsOpen ? (
         <button
           type="button"
-          aria-label={tagsOpen ? 'Close tags' : 'Close menu'}
-          onClick={() => {
-            setDrawerOpen(false);
-            claimSidebar(null);
-          }}
+          aria-label="Close tags"
+          onClick={() => claimSidebar(null)}
           className="z-40 bg-ink/40 max-md:fixed max-md:inset-0 md:hidden"
         />
       ) : null}
 
-      <main ref={track} className="pane-track min-h-0 flex-1">
+      <main
+        ref={track}
+        /*
+         * `!important`, because `.pane-track` sets `display: flex` in
+         * globals.css outside any cascade layer, and unlayered CSS beats every
+         * Tailwind utility whatever its specificity. Without it the empty track
+         * kept half the screen and the navigation got the other half.
+         */
+        className={['pane-track min-h-0 flex-1', home ? 'max-md:hidden!' : ''].join(' ')}
+      >
         {children}
         {preview ? (
           <PreviewPane
@@ -309,7 +307,7 @@ export function AppShell({
         ) : null}
       </main>
 
-      <MobileBar onOpenMenu={() => setDrawerOpen(true)} menuIcon={<IconMenu />} />
+      <MobileBar />
     </div>
   );
 }

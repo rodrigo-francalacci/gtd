@@ -2,11 +2,11 @@
 
 import Link from 'next/link';
 import { usePathname, useSearchParams } from 'next/navigation';
-import type { ReactNode } from 'react';
-import { IconCalendar, IconCapture, IconInbox, IconNow } from './icons';
+import { IconCalendar, IconCapture, IconInbox, IconMenu, IconNow } from './icons';
+import { MENU_PATH } from './menu-home';
 
 /**
- * The fixed footer: the menu, and the places worth one tap.
+ * The fixed footer: the way home, and the places worth one tap.
  *
  * Phone only — a desktop has the whole sidebar on screen and needs neither.
  *
@@ -34,13 +34,7 @@ const SHORTCUTS = [
   { href: '/calendar', label: 'Calendar', icon: IconCalendar },
 ];
 
-export function MobileBar({
-  onOpenMenu,
-  menuIcon,
-}: {
-  onOpenMenu: () => void;
-  menuIcon: ReactNode;
-}) {
+export function MobileBar() {
   const pathname = usePathname();
   const params = useSearchParams();
 
@@ -51,15 +45,24 @@ export function MobileBar({
       // screen. Without this the labels sit underneath it.
       style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
     >
-      <button
-        type="button"
-        onClick={onOpenMenu}
-        aria-label="Open menu"
-        className="flex min-h-14 flex-1 flex-col items-center justify-center gap-0.5 text-grey-500"
+      {/*
+        A link home, not a button that opens a drawer.
+
+        The navigation is the phone's first screen now, so reaching it from
+        anywhere else is going to a place — which gives it a history entry, and
+        Back from whatever you open next brings you straight here again.
+      */}
+      <Link
+        href={MENU_PATH}
+        aria-current={pathname === MENU_PATH ? 'page' : undefined}
+        className={[
+          'flex min-h-14 flex-1 flex-col items-center justify-center gap-0.5',
+          pathname === MENU_PATH ? 'text-selected' : 'text-grey-500',
+        ].join(' ')}
       >
-        {menuIcon}
+        <IconMenu />
         <span className="text-[10px]">Menu</span>
-      </button>
+      </Link>
 
       {SHORTCUTS.map(({ href, label, icon: Icon }) => {
         // A box's own page lives under /box/<id>, so the Boxes shortcut has to

@@ -3,12 +3,14 @@ import type { MetadataRoute } from 'next';
 /**
  * Makes the app installable, and registers it as a share target on Android.
  *
- * `start_url` is `/`, which lands on "what can I do now" — the whole app,
- * because the whole app is on a phone now. It used to open straight onto the
- * capture screen, from when that screen was all there was here; opening a
- * capture box every time you reach for a tool that also holds your projects,
- * boxes and calendar is the tail wagging the dog. Capture is a tap away on the
- * bar, and a share goes there directly without passing through this at all.
+ * `start_url` is `/menu`, the navigation at full width — every box, list and
+ * view one tap from launch, the way a messaging app opens on its list of
+ * conversations. It was `/`, which lands on "what can I do now" with the map
+ * of the app folded into a drawer, so reaching a particular box cost a tap for
+ * the drawer first. Before that it opened on the capture screen, from when that
+ * screen was all there was here. Capture is a tap away on the bar, and a share
+ * goes there directly without passing through this at all. A desktop that
+ * launches the installed app is moved on to Now by the page itself.
  *
  * `display: standalone` drops the browser chrome, which is most of what makes
  * the difference between "a bookmark" and "the capture app".
@@ -54,7 +56,7 @@ export default function manifest(): MetadataRoute.Manifest {
     name: 'GTD',
     short_name: 'GTD',
     description: 'Get a thought out of your head — text, photo or voice note.',
-    start_url: '/',
+    start_url: '/menu',
     scope: '/',
     display: 'standalone',
     orientation: 'portrait',

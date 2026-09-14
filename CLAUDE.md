@@ -2219,6 +2219,26 @@ Turbopack is the default; `middleware` is now `proxy`.
   `hidden` still creates a scroll container, so both symptoms survive it.
   Anything genuinely wider than a phone gets its own `overflow-x: auto`
   container, which still works inside `clip` and keeps its gesture to itself.
+- **A phone opens on the navigation, at full width, and it is a place.** Pane 1
+  was a drawer behind the bar's Menu button, so every box and list was two taps
+  from launch — the drawer, then the place — where a messaging app puts every
+  conversation one tap away. `/menu` is now the manifest's `start_url` and the
+  bar's Menu is a link to it; `AppShell` gives the nav the whole screen there and
+  hides the empty track.
+  **A route rather than the drawer left open**, because a route has a history
+  entry: open a box from home, press Back, and you are home again. A drawer
+  opened by state has nothing to come back to, so Back lands on whatever page
+  was underneath.
+  **The server cannot tell a phone from a desktop**, so `/` still redirects to
+  Now for everyone and `/menu` moves a desktop on to Now itself, against the
+  same 768px the shell turns on — replacing, so Back from Now is not an address
+  that only sends you forward. The one remaining use of the sliding sheet is the
+  tag panel borrowing the column.
+  **`max-md:hidden!` on the track, not `max-md:hidden`.** `.pane-track` sets
+  `display: flex` in globals.css outside any cascade layer, and unlayered CSS
+  beats every Tailwind utility whatever its specificity — so the empty track
+  kept half the screen and the navigation got the other half. Measured, not
+  seen: 390 by 393 before, 390 by 787 after.
 - **A note can take the whole phone screen, and it is the same editor moved.**
   The desktop already had this — double-click a row and the focus view gives the
   note a column of its own — and a phone has no double-click and no room for two
