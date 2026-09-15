@@ -8,6 +8,8 @@ import type { CalendarEvent, CalendarSource } from '@/lib/google/calendar';
 import { groupByDay, upcomingDayLabel } from '@/lib/days';
 import type { ViewMode } from '@/lib/pane';
 import type { ScheduledAction } from '@/lib/queries.shared';
+import { EventNotes } from './event-notes';
+import { useOpenFile } from './file-preview';
 import { RowEmoji } from './row-emoji';
 import { DayHeading } from './day-heading';
 import { DetailPane, EmptyDetail, EmptyList, ListPane } from './panes';
@@ -738,12 +740,27 @@ function Detail({ event }: { event: CalendarEvent }) {
       {event.description ? (
         <section className="flex flex-col gap-1">
           <h2 className="text-[10px] uppercase tracking-wider text-grey-500">Notes</h2>
-          {/* Google allows HTML here. Rendered as text rather than markup: this
-              is somebody else's content arriving from an invitation, and the
-              app has no business executing any of it. */}
-          <p className="whitespace-pre-wrap text-[13px] leading-relaxed text-grey-700">
-            {event.description}
-          </p>
+          {/* Google stores formatted notes as HTML. `EventNotes` draws them as
+              Google does, rebuilt from an allowlist rather than injected. */}
+          <EventNotes text={event.description} />
+        </section>
+      ) : null}
+
+      {event.attachments.length > 0 ? (
+        <section className="flex flex-col gap-1">
+          <h2 className="text-[10px] uppercase tracking-wider text-grey-500">
+            Files
+            <span className="ml-1.5 tabular-nums text-grey-400">
+              {event.attachments.length}
+            </span>
+          </h2>
+          <ul className="flex flex-col">
+            {event.attachments.map((file) => (
+              <li key={file.url}>
+                <EventFile file={file} />
+              </li>
+            ))}
+          </ul>
         </section>
       ) : null}
 
@@ -768,6 +785,56 @@ function Detail({ event }: { event: CalendarEvent }) {
         </footer>
       ) : null}
     </div>
+  );
+}
+
+/**
+ * One file attached to an event: a plain click shows it in the preview pane.
+ *
+ * The same gesture as every attachment in the app — a plain click previews, a
+ * modified one leaves — because a booking confirmation's PDF is exactly the
+ * thing you want beside the event rather than in a tab you come back from.
+ * The pane frames Drive's own preview page, which reads the file through the
+ * browser's Google session; the app never holds its bytes. The `href` is the
+ * real Drive address, so ctrl-click, middle-click and a phone's long-press all
+ * still reach Drive itself.
+ */
+function EventFile({ file }: { file: CalendarEvent['attachments'][number] }) {
+  const openFile = useOpenFile();
+
+  return (
+    <a
+      href={file.url}
+      target="_blank"
+      rel="noreferrer"
+      onClick={(event) => {
+        if (!file.previewUrl) return;
+        if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+        event.preventDefault();
+        openFile({
+          id: `calendar-file:${file.url}`,
+          name: file.title,
+          mimeType: file.mimeType,
+          src: '',
+          driveFileId: null,
+          driveUrl: file.url,
+          embedUrl: file.previewUrl,
+        });
+      }}
+      className="flex items-center gap-2 border-b border-grey-150 py-1.5 text-[12px] text-grey-800 hover:bg-grey-100"
+    >
+      {/* Google's own mark for the type, proxied like the project tree's. */}
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        src={`/api/google-icon?type=${encodeURIComponent(file.mimeType ?? 'application/octet-stream')}&size=32`}
+        alt=""
+        width={16}
+        height={16}
+        className="block h-4 w-4 shrink-0"
+        draggable={false}
+      />
+      <span className="min-w-0 flex-1 truncate">{file.title}</span>
+    </a>
   );
 }
 

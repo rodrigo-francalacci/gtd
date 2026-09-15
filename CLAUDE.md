@@ -1203,6 +1203,25 @@ Turbopack is the default; `middleware` is now `proxy`.
   While the navigation is in flight the pane says which row is opening rather
   than going blank — choosing a row is a URL change, so the server's pane
   arrives on the next render.
+- **An event's notes are drawn as Google draws them, and rebuilt rather than
+  injected.** Google stores a formatted description as HTML — a booking
+  confirmation arrives as paragraphs, bold labels, a list and links — and it was
+  rendered as text, so every `<li>` and `<b>` was on screen. `EventNotes` parses
+  it with `DOMParser`, whose document is inert (no scripts run, no images load,
+  because it has no browsing context), and re-creates each allowlisted element
+  as React with our own classes; anything else contributes only its text. The
+  `NoteText` shape again: no `dangerouslySetInnerHTML` anywhere near content
+  that anybody can put in your calendar by inviting you. Images are dropped —
+  in an invitation they are tracking pixels — and a link keeps only http, https,
+  mailto or tel. Plain descriptions keep their newlines, and bare addresses in
+  either kind become links.
+  **Its attachments open in the preview pane.** They are Drive files the app did
+  not create, so `drive.file` cannot read them; the pane frames Drive's own
+  `/file/d/<id>/preview`, which reads through the browser's Google session —
+  the fallback it already uses for types a browser will not render. The preview
+  address is *built* from a validated file id rather than taken from the event,
+  so the unsandboxed frame can only ever point at Drive; the `href` stays the
+  real Drive address, so a modified click still leaves.
 - **The calendar heading carries today's date, formatted on the server.**
   Every other date in the app is cut in the server’s timezone, and a heading
   announcing one day while the chip under the first event says another is the

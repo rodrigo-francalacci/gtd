@@ -105,6 +105,13 @@ type GoogleEvent = {
     organizer?: boolean;
   }[];
   recurringEventId?: string;
+  /** Drive files attached to the event, in the order Google lists them. */
+  attachments?: {
+    fileUrl?: string;
+    title?: string;
+    mimeType?: string;
+    fileId?: string;
+  }[];
 };
 
 /** What the view needs, flattened and normalised. */
@@ -131,6 +138,23 @@ export type CalendarEvent = {
   attendees: { name: string; email: string | null; response: string | null }[];
   /** True when this is one instance of a repeating event. */
   recurring: boolean;
+  /**
+   * Drive files attached to the event.
+   *
+   * Never read by the app: they are files in somebody's Drive that it did not
+   * create, which `drive.file` cannot open. What it can do is frame Drive's
+   * own preview page, which runs off the browser's Google session rather than
+   * the app's token — the same fallback the preview pane already uses for any
+   * type a browser will not render. The addresses are checked and built here,
+   * once, so the pane can use them without asking again.
+   */
+  attachments: {
+    title: string;
+    url: string;
+    mimeType: string | null;
+    /** Drive's preview page, or null when Google gave no usable file id. */
+    previewUrl: string | null;
+  }[];
 };
 
 /** One calendar, as the picker needs it. */
@@ -354,5 +378,30 @@ function normalise(
       response: a.responseStatus ?? null,
     })),
     recurring: Boolean(event.recurringEventId),
+    attachments: (event.attachments ?? []).flatMap((file) =>
+      /*
+       * A Google address or nothing. The url becomes an `href`, and an event
+       * is content anybody can put in your calendar by inviting you — a
+       * `javascript:` url there is a script that runs when clicked.
+       */
+      file.fileUrl && GOOGLE_URL.test(file.fileUrl)
+        ? [
+            {
+              title: file.title?.trim() || 'Attachment',
+              url: file.fileUrl,
+              mimeType: file.mimeType ?? null,
+              /* Built from the id rather than taken from the event, so the
+                 frame can only ever point at Drive's preview page. */
+              previewUrl:
+                file.fileId && DRIVE_ID.test(file.fileId)
+                  ? `https://drive.google.com/file/d/${file.fileId}/preview`
+                  : null,
+            },
+          ]
+        : [],
+    ),
   };
 }
+
+const GOOGLE_URL = /^https:\/\/([a-z0-9-]+\.)*google\.com\//i;
+const DRIVE_ID = /^[A-Za-z0-9_-]{10,200}$/;
