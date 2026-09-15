@@ -305,6 +305,18 @@ export const IconRiso = (p: IconProps) => (
   </Glyph>
 );
 
+/**
+ * The drawing themes — a set square, the instrument of the drawing office the
+ * look is taken from. One glyph for both: the menu's words say which sheet.
+ */
+export const IconSetSquare = (p: IconProps) => (
+  <Glyph {...p}>
+    <path d="M3 13V3l10 10z" />
+    <path d="M5.4 10.6V8.2l2.4 2.4z" />
+    <path d="M3 5.2h1.2M3 7.4h1.2" />
+  </Glyph>
+);
+
 /** Simple view — titles and nothing else, so: lines. */
 export const IconViewSimple = (p: IconProps) => (
   <Glyph {...p}>

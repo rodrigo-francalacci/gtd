@@ -204,6 +204,32 @@ Turbopack is the default; `middleware` is now `proxy`.
   drops the beam and keeps the scanlines, which are most of the look.
   The preview pane is lifted above both, for the reason it is in paper mode: a
   costume over somebody's photograph is the app decorating their document.
+- **The drawing register is the seventh and eighth theme, and it is borrowed.**
+  `drawing` and `drawing-night` take the report hub and Stage 3/4 handbook's
+  identity with their own token values: a cool grey-green film under paper-white
+  panes, slate ink, one magenta pen for what is chosen, square corners,
+  title-block labels in Barlow Condensed capitals, Source Serif 4 for reading and
+  IBM Plex Mono for figures. Still the one ramp — the reference's rules and inks
+  *are* grey-200, grey-300, grey-500, grey-600 and grey-900 — so no component
+  knows it exists.
+  **Two themes, not one following the operating system** as the reference does:
+  every named theme here is an explicit choice, and one that changed sheet when
+  the laptop did would be the exception.
+  **Its habits are rules, not component edits.** Every small-capital label is
+  `.uppercase` and every figure is `tabular-nums`, so the display face and the
+  mono each land with one selector. A chosen row keeps its ink and gets a 3px
+  pen bar as an inset shadow (nothing moves); a pressed chip — the selections
+  that *do* colour their text — inverts to ink, which is how the reference draws
+  every toggle. `rounded-full` survives the square corners, because a square
+  dot is a different control. The pane header gained `data-pane-header` so the
+  title-block rule has something to address; nothing marked it before.
+  **The fonts are `preload: false`, and that was measured.** next/font declares
+  the faces on every page, but a browser fetches one only when something is set
+  in it: a fresh tab on the console theme requested Source Sans and nothing
+  else. Preloading would have put three downloads in front of everybody who
+  never chose the theme, which is the rule the console's system stack exists to
+  keep. Test that in a *new tab* — one that has shown the theme replays the
+  files from memory and looks like a leak.
 - **A theme with per-pane grounds must set `color` on every one of them.**
   `color` inherits as a *computed* value, so everything in riso's charcoal panes
   was carrying whatever `body` resolved to — the indigo meant for the cream

@@ -4,7 +4,7 @@ import { useEffect, useRef, useState, useTransition } from 'react';
 import { createPortal } from 'react-dom';
 import { setTheme } from '@/lib/actions';
 import type { Theme } from '@/lib/pane';
-import { IconMoon, IconRiso, IconScroll, IconSignal, IconSun, IconTube } from './icons';
+import { IconMoon, IconRiso, IconScroll, IconSetSquare, IconSignal, IconSun, IconTube } from './icons';
 
 /**
  * Light, dark, paper and the two consoles, as one button.
@@ -36,7 +36,7 @@ import { IconMoon, IconRiso, IconScroll, IconSignal, IconSun, IconTube } from '.
  * because green and amber are the same theme in two colours and swapping
  * between them should be one press rather than four.
  */
-const ORDER = ['light', 'dark', 'paper', 'sci', 'amber', 'riso'] as const;
+const ORDER = ['light', 'dark', 'paper', 'sci', 'amber', 'riso', 'drawing', 'drawing-night'] as const;
 
 type Real = (typeof ORDER)[number];
 
@@ -47,6 +47,8 @@ const ICON = {
   sci: IconSignal,
   amber: IconTube,
   riso: IconRiso,
+  drawing: IconSetSquare,
+  'drawing-night': IconSetSquare,
 } as const;
 
 const CALLED = {
@@ -56,6 +58,8 @@ const CALLED = {
   sci: 'green console',
   amber: 'amber console',
   riso: 'riso',
+  drawing: 'drawing',
+  'drawing-night': 'drawing, night',
 } as const;
 
 export function ThemeToggle({ preference }: { preference: Theme }) {

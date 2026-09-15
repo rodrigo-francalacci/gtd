@@ -5,7 +5,7 @@ import { eq } from 'drizzle-orm';
 import type { Preferences } from './pane';
 
 /** The themes there are. Anything else in the column is treated as no choice. */
-const THEMES = ['light', 'dark', 'paper', 'sci', 'amber', 'riso'] as const;
+const THEMES = ['light', 'dark', 'paper', 'sci', 'amber', 'riso', 'drawing', 'drawing-night'] as const;
 
 export type {
   BoxView,

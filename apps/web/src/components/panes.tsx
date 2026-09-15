@@ -103,7 +103,9 @@ export function ListPane({
         Done here rather than on each menu, because the next menu added to a
         pane header would have the same problem and no reason to expect it.
       */}
-      <header className="relative z-10 border-b border-grey-200 px-4 py-3">
+      {/* `data-pane-header` so a theme can rule it heavier than the hairlines
+          under it: the drawing themes draw it as a title block. */}
+      <header data-pane-header className="relative z-10 border-b border-grey-200 px-4 py-3">
         <div className="flex items-baseline justify-between gap-2">
           <h1 className="min-w-0 truncate text-[13px] font-semibold uppercase tracking-wide text-grey-700">
             {title}

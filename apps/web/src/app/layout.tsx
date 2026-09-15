@@ -1,5 +1,5 @@
 import type { Metadata } from 'next';
-import { Source_Sans_3 } from 'next/font/google';
+import { Barlow_Condensed, IBM_Plex_Mono, Source_Sans_3, Source_Serif_4 } from 'next/font/google';
 import './globals.css';
 import { getPreferences } from '@/lib/view-mode';
 
@@ -12,6 +12,38 @@ const sourceSans = Source_Sans_3({
   subsets: ['latin'],
   display: 'swap',
   variable: '--font-source-sans',
+});
+
+/*
+ * The drawing themes' three faces: a condensed display for the title-block
+ * labels, a text serif for reading, and a mono for figures.
+ *
+ * **`preload: false` is what keeps the rule that a theme must not make everyone
+ * download something.** next/font declares the `@font-face` rules for every
+ * page — a few hundred bytes of CSS — but a browser fetches a face only when
+ * something on screen is set in it, and nothing is outside those two themes.
+ * Preloading would put three font requests in front of every page for people
+ * who never chose them.
+ */
+const drawingDisplay = Barlow_Condensed({
+  subsets: ['latin'],
+  weight: ['500', '600', '700'],
+  display: 'swap',
+  preload: false,
+  variable: '--font-drawing-display',
+});
+const drawingBody = Source_Serif_4({
+  subsets: ['latin'],
+  display: 'swap',
+  preload: false,
+  variable: '--font-drawing-body',
+});
+const drawingMono = IBM_Plex_Mono({
+  subsets: ['latin'],
+  weight: ['400', '500'],
+  display: 'swap',
+  preload: false,
+  variable: '--font-drawing-mono',
 });
 
 export const metadata: Metadata = {
@@ -51,7 +83,12 @@ export default async function RootLayout({
     <html
       lang="en"
       data-theme={theme ?? undefined}
-      className={sourceSans.variable}
+      className={[
+        sourceSans.variable,
+        drawingDisplay.variable,
+        drawingBody.variable,
+        drawingMono.variable,
+      ].join(' ')}
       suppressHydrationWarning
     >
       <body className="antialiased">{children}</body>

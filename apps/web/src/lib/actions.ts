@@ -1977,7 +1977,7 @@ async function savePreference(patch: {
   viewMode?: ViewMode;
   boxView?: BoxView;
   listPaneWidth?: number;
-  theme?: 'light' | 'dark' | 'paper' | 'sci' | 'amber' | 'riso' | null;
+  theme?: 'light' | 'dark' | 'paper' | 'sci' | 'amber' | 'riso' | 'drawing' | 'drawing-night' | null;
   hiddenCalendars?: string[];
 }) {
   await db
@@ -2230,7 +2230,7 @@ export async function setListPaneWidth(width: number) {
  * instead of accepting `string` and trusting the caller.
  */
 export async function setTheme(
-  theme: 'light' | 'dark' | 'paper' | 'sci' | 'amber' | 'riso',
+  theme: 'light' | 'dark' | 'paper' | 'sci' | 'amber' | 'riso' | 'drawing' | 'drawing-night',
 ) {
   await requireSession();
   await savePreference({ theme });

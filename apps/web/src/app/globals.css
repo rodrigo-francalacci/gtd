@@ -150,7 +150,7 @@
    * win on source order alone — which is a rule that works until somebody
    * moves a block.
    */
-  :root:not([data-theme='light']):not([data-theme='paper']):not([data-theme='sci']):not([data-theme='amber']):not([data-theme='riso']) {
+  :root:not([data-theme='light']):not([data-theme='paper']):not([data-theme='sci']):not([data-theme='amber']):not([data-theme='riso']):not([data-theme='drawing']):not([data-theme='drawing-night']) {
   color-scheme: dark;
 
   --color-paper: #17181a;
@@ -655,6 +655,230 @@
  * and the fixed overlay would carry one sheet's tooth across all three, which
  * is exactly the flatness having three sheets is meant to avoid.
  */
+
+/* Drawing mode ----------------------------------------------------------- */
+
+/*
+ * The drawing register: a sheet from a drawing office, in two lights.
+ *
+ * Taken from the report hub and the Stage 3/4 handbook rather than invented,
+ * and the tokens below are those files' own values. What makes it recognisable
+ * is a small set of habits, and each is carried here as a rule rather than as
+ * a component change: a cool grey-green film under paper-white panes, ink that
+ * is a very dark slate rather than black, a single magenta pen for whatever is
+ * chosen, square corners everywhere, title-block labels in a condensed face in
+ * capitals, and figures in a mono.
+ *
+ * **Still the one ramp.** `grey-800` is prominent text and `grey-200` a
+ * hairline on both sheets, so no component knows this theme exists. The ramp is
+ * built out of the reference's rules and inks instead of neutral grey:
+ * `rule-soft` is grey-200, `rule` grey-300, `ink-3` grey-500, `ink-2` grey-600
+ * and `ink` grey-900.
+ *
+ * **Two themes rather than one that follows the operating system**, which is
+ * what the reference does. Everywhere else a named theme is an explicit choice
+ * and only light and dark are asked of the system; a drawing theme that changed
+ * sheet when the laptop did would be the one named theme that is not a choice.
+ */
+:root[data-theme='drawing'] {
+  color-scheme: light;
+
+  --color-paper: #f8faf8;
+  --color-ink: #17252d;
+
+  --color-grey-50: #f2f5f3;
+  --color-grey-100: #edf0ee;
+  --color-grey-150: #e4e9e7;
+  --color-grey-200: #dce3e0;
+  --color-grey-300: #c5cfcc;
+  --color-grey-400: #93a09f;
+  --color-grey-500: #6e7d82;
+  --color-grey-600: #4a5a61;
+  --color-grey-700: #34444b;
+  --color-grey-800: #23323a;
+  --color-grey-900: #17252d;
+
+  --color-waiting: #a86a10;
+  --color-waiting-bg: #f4e8d2;
+  --color-stale: #c2452d;
+  --color-stale-bg: #f6e1db;
+  /*
+   * The pen, deepened a step from the reference's #b8336a so it holds text on
+   * the selection wash: at the reference's value it measures 4.4:1 there, which
+   * is legible and not comfortable.
+   */
+  --color-selected: #a42a5c;
+  --color-selected-bg: #dde8ea;
+  --color-journal: #6d3fa3;
+  --color-journal-bg: #ece4f4;
+
+  --note-blue: #2f6fb5;
+  --note-green: #2f7d4a;
+  --note-amber: #a86a10;
+  --note-red: #c2452d;
+
+  --code-heading: #1d6f80;
+  --code-marker: #a86a10;
+  --code-keyword: #6d3fa3;
+  --code-string: #2f7d4a;
+  --code-comment: #6e7d82;
+  --code-accent: #b8336a;
+}
+
+:root[data-theme='drawing-night'] {
+  color-scheme: dark;
+
+  --color-paper: #172126;
+  --color-ink: #dde6e5;
+
+  --color-grey-50: #1b262b;
+  --color-grey-100: #10171a;
+  --color-grey-150: #243136;
+  --color-grey-200: #2f3d42;
+  --color-grey-300: #3e4e53;
+  --color-grey-400: #5f6f73;
+  --color-grey-500: #7f8e91;
+  --color-grey-600: #a5b3b5;
+  --color-grey-700: #bcc8c9;
+  --color-grey-800: #cfd9d8;
+  --color-grey-900: #dde6e5;
+
+  --color-waiting: #e0a64a;
+  --color-waiting-bg: #33281a;
+  --color-stale: #ee7a60;
+  --color-stale-bg: #3a221d;
+  --color-selected: #e07aa3;
+  --color-selected-bg: #22343b;
+  --color-journal: #b18ae6;
+  --color-journal-bg: #2a2238;
+
+  --note-blue: #6fa6e8;
+  --note-green: #6bc08a;
+  --note-amber: #e0a64a;
+  --note-red: #ee7a60;
+
+  --code-heading: #6fc0cf;
+  --code-marker: #e0a64a;
+  --code-keyword: #b18ae6;
+  --code-string: #6bc08a;
+  --code-comment: #7f8e91;
+  --code-accent: #e07aa3;
+}
+
+/*
+ * The three faces, shared by both sheets.
+ *
+ * A text serif for the body is the reference's boldest decision and the one
+ * that makes it read as a document rather than as an app. The condensed face
+ * is what buys the width back in a narrow list column: labels in capitals take
+ * a third less room than they would in the body face.
+ */
+:root[data-theme='drawing'],
+:root[data-theme='drawing-night'] {
+  --font-sans: var(--font-drawing-body), 'Source Serif 4', Georgia, 'Times New Roman', serif;
+  --font-mono: var(--font-drawing-mono), 'IBM Plex Mono', ui-monospace, Consolas, monospace;
+  --drawing-display: var(--font-drawing-display), 'Barlow Condensed', 'Arial Narrow', sans-serif;
+}
+
+/*
+ * Title-block lettering.
+ *
+ * Every small-capital label in the app is `.uppercase`, so this one rule sets
+ * the section headings, the column headers, the pane titles and the day chips
+ * the way the reference sets `.label`. A condensed face at the size a text face
+ * was chosen for reads a size smaller, so it is opened out by a fifth.
+ */
+:root[data-theme='drawing'] .uppercase,
+:root[data-theme='drawing-night'] .uppercase {
+  font-family: var(--drawing-display);
+  font-weight: 600;
+  letter-spacing: 0.09em;
+}
+
+/* Headings in the display face too, the way the reference sets h1 to h3. */
+:root[data-theme='drawing'] :is(h1, h2, h3),
+:root[data-theme='drawing-night'] :is(h1, h2, h3) {
+  font-family: var(--drawing-display);
+  letter-spacing: 0.01em;
+}
+
+/*
+ * Figures in the mono. Every count, amount and time in the app is already
+ * `tabular-nums`, because they were meant to line up, which is exactly the set
+ * the reference puts in Plex Mono.
+ */
+:root[data-theme='drawing'] .tabular-nums,
+:root[data-theme='drawing-night'] .tabular-nums {
+  font-family: var(--font-mono);
+}
+
+/*
+ * Square corners. A drawing has none, and the reference has none anywhere.
+ * `rounded-full` is spared: a circle is a dot, a handle or a radio button, and a
+ * square one of those is a different control rather than a sharper one.
+ * Unlayered, so it beats the utilities without a specificity fight.
+ */
+:root[data-theme='drawing'] [class*='rounded']:not(.rounded-full),
+:root[data-theme='drawing-night'] [class*='rounded']:not(.rounded-full) {
+  border-radius: 0;
+}
+
+/*
+ * The pane header is the title block: a heavy ink rule under it, where every
+ * other rule on the sheet is a hairline. That weight difference is most of what
+ * makes the reference look drawn rather than styled.
+ */
+:root[data-theme='drawing'] [data-pane-header],
+:root[data-theme='drawing-night'] [data-pane-header],
+:root[data-theme='drawing'] [data-pane='nav'] > div:first-child,
+:root[data-theme='drawing-night'] [data-pane='nav'] > div:first-child {
+  border-bottom: 2px solid var(--color-ink);
+}
+
+/* The wordmark in the display face, the way the title block's mark is set. */
+:root[data-theme='drawing'] [data-pane='nav'] > div:first-child span,
+:root[data-theme='drawing-night'] [data-pane='nav'] > div:first-child span {
+  font-family: var(--drawing-display);
+  font-weight: 700;
+  font-size: 1.25rem;
+  letter-spacing: 0.02em;
+}
+
+/*
+ * A chosen row carries the pen down its left edge, and keeps its ink.
+ *
+ * The reference never colours the words of a selected row: it lays a wash
+ * under them and rules a magenta bar beside them. An inset shadow rather than a
+ * border, so nothing in the row moves when it is chosen.
+ *
+ * Rows are the selections with no pen-coloured text and no ring; chips and drop
+ * targets carry those, and a bar on a chip reads as a stray mark.
+ */
+:root[data-theme='drawing'] .bg-selected-bg:not(.text-selected):not([class*='ring']):not([class*='border-selected']),
+:root[data-theme='drawing-night'] .bg-selected-bg:not(.text-selected):not([class*='ring']):not([class*='border-selected']),
+:root[data-theme='drawing'] [data-pane='nav'] a.bg-selected-bg,
+:root[data-theme='drawing-night'] [data-pane='nav'] a.bg-selected-bg {
+  box-shadow: inset 3px 0 0 var(--color-selected);
+}
+
+:root[data-theme='drawing'] [data-pane='nav'] a.bg-selected-bg,
+:root[data-theme='drawing-night'] [data-pane='nav'] a.bg-selected-bg {
+  color: var(--color-ink);
+  font-weight: 600;
+}
+
+/*
+ * A pressed chip is inverted, ink ground and paper letters, which is how the
+ * reference draws every pressed toggle and the habit of it most worth keeping:
+ * a filter that is on reads as *on* from across the room, where a tint only
+ * reads as different.
+ */
+:root[data-theme='drawing'] :is(button, a).bg-selected-bg.text-selected:not([data-pane='nav'] a),
+:root[data-theme='drawing-night'] :is(button, a).bg-selected-bg.text-selected:not([data-pane='nav'] a) {
+  background-color: var(--color-ink);
+  border-color: var(--color-ink);
+  color: var(--color-paper);
+}
 
 /* Console mode ------------------------------------------------------------ */
 
@@ -1509,7 +1733,7 @@ select {
 
 /* A null preference means "ask the operating system", exactly as above. */
 @media (prefers-color-scheme: dark) {
-  :root:not([data-theme='light']):not([data-theme='paper']):not([data-theme='sci']):not([data-theme='amber']):not([data-theme='riso']) {
+  :root:not([data-theme='light']):not([data-theme='paper']):not([data-theme='sci']):not([data-theme='amber']):not([data-theme='riso']):not([data-theme='drawing']):not([data-theme='drawing-night']) {
     --code-heading: #7fa9e0;
     --code-marker: #cfa94e;
     --code-keyword: #b795dd;
