@@ -3,9 +3,18 @@
 import { useRef } from 'react';
 import { emojifyLater } from '@/lib/emojify-later';
 import { createListItem } from '@/lib/actions';
+import { ListPhoto } from './list-photo';
 
 /** Zero-friction capture onto a list. Nothing here is a commitment yet. */
-export function QuickAddListItem({ listId }: { listId: string }) {
+export function QuickAddListItem({
+  listId,
+  /* Only a purchases list reads prices off the page, and only it has anywhere
+     to put one. */
+  purchases = false,
+}: {
+  listId: string;
+  purchases?: boolean;
+}) {
   const formRef = useRef<HTMLFormElement>(null);
 
   return (
@@ -16,15 +25,17 @@ export function QuickAddListItem({ listId }: { listId: string }) {
         emojifyLater('list_items', await createListItem(formData));
         formRef.current?.reset();
       }}
-      className="border-b border-grey-200 bg-paper px-4 py-2"
+      className="flex flex-wrap items-center gap-2 border-b border-grey-200 bg-paper px-4 py-2"
     >
       <input type="hidden" name="listId" value={listId} />
       <input
         name="title"
         placeholder="Add to this list…"
         autoComplete="off"
-        className="w-full bg-transparent text-[13px] text-grey-800 placeholder:text-grey-500 focus:outline-none"
+        className="min-w-0 flex-1 bg-transparent text-[13px] text-grey-800 placeholder:text-grey-500 focus:outline-none"
       />
+
+      <ListPhoto kind={purchases ? 'purchases' : 'list'} listId={listId} />
     </form>
   );
 }

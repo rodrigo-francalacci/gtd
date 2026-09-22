@@ -2,6 +2,7 @@
 
 import { useRef } from 'react';
 import { createAction, createProject } from '@/lib/actions';
+import { ListPhoto } from './list-photo';
 
 /**
  * Zero-friction add: one field, Enter to commit, stays focused for the next
@@ -29,7 +30,7 @@ export function QuickAddAction({
         await createAction(formData);
         formRef.current?.reset();
       }}
-      className="border-b border-grey-200 bg-paper px-4 py-2"
+      className="flex flex-wrap items-center gap-2 border-b border-grey-200 bg-paper px-4 py-2"
     >
       {projectId ? <input type="hidden" name="projectId" value={projectId} /> : null}
       {status ? <input type="hidden" name="status" value={status} /> : null}
@@ -37,8 +38,15 @@ export function QuickAddAction({
         name="title"
         placeholder={placeholder}
         autoComplete="off"
-        className="w-full bg-transparent text-[13px] text-grey-800 placeholder:text-grey-500 focus:outline-none"
+        className="min-w-0 flex-1 bg-transparent text-[13px] text-grey-800 placeholder:text-grey-500 focus:outline-none"
       />
+
+      {/* The same row, because it is the same act: putting things on this list.
+          A future bucket is not a page you photograph into, so it keeps the
+          plain field. */}
+      {status === 'future' ? null : (
+        <ListPhoto kind={projectId ? 'project' : 'now'} projectId={projectId} />
+      )}
     </form>
   );
 }

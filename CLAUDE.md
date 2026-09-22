@@ -1651,6 +1651,50 @@ Turbopack is the default; `middleware` is now `proxy`.
   the pane while the list rearranges underneath. Verified: an entry at position 1
   of 15 re-dated to 2019 went to position 14, stayed selected, stayed open, and
   the arrows continued from its new neighbours.
+- **A photographed list is read into rows, and the photograph is never kept.**
+  A page of handwriting goes into Now, a project, a list or the inbox through
+  the camera on that list's own quick-add row — which is the answer to "where
+  does this live on a list with no uploader": every list that can be typed into
+  already has one line for typing, so the camera goes on the end of it, in the
+  same place on all four.
+  **The destination decides what an indented line means**, which is what makes
+  the rule on paper unambiguous: under an action it is the queue, on a purchases
+  list it is a note. Nothing on the page has to say which, because you chose
+  before the shutter.
+  **Two passes in one call, and the first attempt proves why.** Asked to "read
+  this list", the model reads and interprets at once, and where the writing is
+  hard it writes something plausible: a line reading "This is another action
+  with no queue tasks whatsoever" came back as "This is another exercise we can
+  do", marked confident. Nothing downstream can catch that. So the reply carries
+  `lines` — every physical line verbatim, with its marker — *before* `items`,
+  which are those lines grouped; the same page then came back word for word
+  apart from one misread, and that item was flagged `unsure` and drawn in the
+  stale colour.
+  **A few crossed-out words are not a crossed-out line.** The first rule marked
+  a line struck because two words in it were scored out, and dropped the whole
+  item. Only a line struck end to end goes.
+  **The browser cleans the photo**, and each part of that was measured: a phone
+  page is 4.9 MB against a 4.5 MB body cap, so it is shrunk to 2048px; ink is a
+  brightness, so it goes grey; and a hard shadow across half the sample was
+  exactly where the reader started inventing, so the range is stretched between
+  the 2nd and 98th percentile rather than multiplied from the middle.
+  **Nothing is stored, which is how "delete the source after parsing" is kept.**
+  The bytes reach a route, are read, and are gone — never Drive, never an
+  attachment, nothing to sweep up and nothing left behind if the panel is
+  abandoned. A route rather than a Server Action because `maxDuration` is a
+  route setting (a page takes 17–35 seconds) and an action caps its body at 1 MB.
+  **It proposes; only the ticks write.** Rows are editable in place and nothing
+  exists until the button is pressed — the standing rule for model output, and
+  it earns its keep here more than anywhere, because a misread word reads
+  exactly like a correct one.
+  **`apiSession` hands back a refusal, not a session**, and writing
+  `if (!session)` refused precisely the person who was signed in: every parse
+  answered "Not signed in." from a page that had just rendered their own list.
+  The same inversion `authoriseSecret` is on record for, in a helper whose name
+  reads like the opposite. `if (denied) return denied`.
+  **The reading model, not the cheap one.** On the same page luna misread two
+  words of a line where terra misread one and flagged it. A page is about 1.2p
+  against 0.2p.
 - **`c` captures from anywhere.** The barrier is almost never the typing, it is
   that the thought arrives three clicks from the inbox. `CaptureHotkey` yields
   to any focused field — `isContentEditable` included, or the note editor would

@@ -415,7 +415,7 @@ export default async function ListPage(props: PageProps<'/lists/[id]'>) {
           )
         }
       >
-        <QuickAddListItem listId={id} />
+        <QuickAddListItem listId={id} purchases={isPurchases} />
 
         {/*
           Arrows walk the list as it is *drawn*, which the layout decides — an

@@ -61,6 +61,7 @@ import { cleanSuggestions, tagKey } from './box/suggest-clean';
 import { suggestContexts } from './ai/contexts';
 import { nameAttachment } from './ai/filename';
 import { requireSession } from './auth/session';
+import type { ListPhotoKind, ReadItem } from './list-photo';
 import type { ReviewStep } from './review';
 import {
   attachmentFolder,
@@ -2235,6 +2236,112 @@ export async function setTheme(
   await requireSession();
   await savePreference({ theme });
   revalidateShell();
+}
+
+// ---------------------------------------------------------------------------
+// A photographed list
+// ---------------------------------------------------------------------------
+
+/**
+ * Write down what a photographed page turned out to say.
+ *
+ * The reading happens in `/api/parse-list` and lands in a panel you edit; this
+ * is what happens when you press the button under it. By the time anything
+ * gets here the words are *yours* — every one of them has been on screen, and
+ * the rows that arrive are the rows that were ticked.
+ *
+ * **One action per destination, rather than four.** The four lists differ only
+ * in what a nested line means, and that is a fact about the destination rather
+ * than about the page: under an action it is the queue, under a purchase it is
+ * a note. Splitting them would be four copies of the same loop, each able to
+ * drift.
+ *
+ * **Written one at a time, and a failure part way keeps what it made.** There
+ * are no transactions on this driver, so ten items are ten inserts; stopping
+ * after six leaves six real rows and a panel still holding the rest, which is
+ * recoverable. The alternative — collect everything and write at the end — is
+ * a single round trip that loses all ten.
+ */
+export async function addParsedList(
+  kind: ListPhotoKind,
+  target: { projectId?: string | null; listId?: string | null },
+  items: ReadItem[],
+): Promise<number> {
+  await requireSession();
+
+  let made = 0;
+
+  for (const item of items) {
+    const title = item.text.trim();
+    if (!title) continue;
+
+    if (kind === 'inbox') {
+      /*
+       * A capture is one `raw_text`: the first line is the title and the note
+       * sits under it after a blank line, which is the shape the whole inbox
+       * already reads. So a nested line becomes part of the capture rather
+       * than a second row — nothing on paper said it was a separate thought.
+       */
+      const note = item.children.map((child) => child.text.trim()).filter(Boolean);
+      const raw = note.length > 0 ? `${title}\n\n${note.join('\n')}` : title;
+
+      await db.insert(inboxItems).values({ rawType: 'text', rawText: raw });
+      made += 1;
+      continue;
+    }
+
+    if (kind === 'purchases' || kind === 'list') {
+      if (!target.listId) continue;
+
+      const note = item.children.map((child) => child.text.trim()).filter(Boolean);
+
+      const [row] = await db
+        .insert(listItems)
+        .values({
+          listId: target.listId,
+          title,
+          /*
+           * A price the writer put on the page is a fact about the page, so it
+           * is stored — but only as `cost`, never as a decision: nothing on a
+           * list is a commitment until it is promoted, and reading a number
+           * off paper must not look like one.
+           */
+          ...(typeof item.price === 'number' ? { fields: { cost: item.price } } : {}),
+          ...(note.length > 0 ? noteColumns(note.join('\n')) : {}),
+        })
+        .returning({ id: listItems.id });
+
+      if (row) made += 1;
+      continue;
+    }
+
+    /*
+     * Now and a project are the same write with a different parent: an action,
+     * and anything under it queued behind it in the order it was written.
+     */
+    const [action] = await db
+      .insert(actions)
+      .values({ title, projectId: target.projectId ?? null, status: 'next' })
+      .returning({ id: actions.id });
+
+    if (!action) continue;
+    made += 1;
+
+    let position = 1;
+    for (const child of item.children) {
+      const queued = child.text.trim();
+      if (!queued) continue;
+      await db.insert(actionQueue).values({
+        actionId: action.id,
+        title: queued,
+        position,
+      });
+      position += 1;
+    }
+  }
+
+  revalidateShell();
+  return made;
 }
 
 // ---------------------------------------------------------------------------
