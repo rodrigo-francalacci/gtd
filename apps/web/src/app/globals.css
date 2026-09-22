@@ -1551,6 +1551,54 @@ select {
   background: transparent;
 }
 
+/* A strip of filter chips ------------------------------------------------- */
+
+/*
+ * The tag and type filters scroll sideways rather than wrapping.
+ *
+ * Wrapping cost the list a line for every extra row of chips, at the top of the
+ * one pane you are trying to read — a box with a real vocabulary pushed its own
+ * entries off the screen before you had chosen anything. One line that slides
+ * keeps the header a fixed height however many tags a box grows.
+ *
+ * This is the exception `.pane-track`'s rule names: a pane sets `overflow-x:
+ * clip` so a stray wide element can never turn it into a sideways scroller and
+ * steal the carousel's swipe, and anything genuinely wider than the pane gets
+ * *its own* `auto` container, which still works inside `clip` and keeps its
+ * gesture to itself. `overscroll-behavior-x: contain` is what stops a swipe
+ * that reaches the end of the strip carrying on into the carousel behind it.
+ *
+ * The scrollbar fades in while it is being used, like the sidebar's — a
+ * permanent bar under a row of chips is a second line of furniture, which is
+ * what wrapping cost in the first place.
+ */
+.chip-strip {
+  display: flex;
+  align-items: baseline;
+  gap: 0.25rem;
+  min-width: 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  overscroll-behavior-x: contain;
+  /* Chips keep their own width: a squashed chip is an unreadable one. */
+  flex-wrap: nowrap;
+  /*
+   * No `scrollbar-gutter`: it reserves space for the *vertical* bar, in the
+   * inline direction, which here is simply width taken away from the chips —
+   * and it left the strip ten pixels short of its own end, so the last tag
+   * could not be reached however far you slid.
+   */
+}
+
+.chip-strip > * {
+  flex: none;
+}
+
+/* `.scrollbar-fade` sizes the vertical bar; a sideways one needs the height. */
+.chip-strip::-webkit-scrollbar {
+  height: 8px;
+}
+
 /* The pane track ---------------------------------------------------------- */
 
 /*

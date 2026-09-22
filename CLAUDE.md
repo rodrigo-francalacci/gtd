@@ -3438,6 +3438,28 @@ to be kept. They meet at `box_item_links` and nowhere else.
   space-insensitively like every other tag comparison. Labelling every chip to
   cover a collision that usually doesn't exist is what the old layout was
   paying for.
+- **The chip rows slide sideways; they never wrap.** Tags and types are one
+  line each now, in their own `overflow-x: auto` container — the exception the
+  pane's `overflow-x: clip` rule names, so the strip keeps its gesture and can
+  never turn the pane into a sideways scroller that steals the carousel swipe.
+  Wrapping cost the list a line per extra row of chips at the top of the one
+  pane you are reading, and it got worse as a box grew a vocabulary, which is
+  the opposite of what a filter should do.
+  **The cap went with the wrapping.** Fifteen chips was "about two lines"; a row
+  that slides costs the same whatever it holds, so every tag that would still
+  find something is offered, ranked so the useful ones need no sliding.
+  **No `scrollbar-gutter`** — it reserves space for the *vertical* bar in the
+  inline direction, and it left the strip ten pixels short of its own end, so
+  the last tag could not be reached however far you slid. Measured, not seen.
+  **A wheel over the strip scrolls the strip**, which is the one thing CSS
+  cannot do: a mouse reports vertical movement and the browser hands it to the
+  nearest *vertically* scrolling ancestor, so over these rows it moved the pane
+  and never the chips — a phone could slide them and a mouse had to find the
+  8px bar. `ChipStrip` translates it, and **gives the wheel back at either
+  end** so the strip is never a trap, and leaves a trackpad's sideways gesture
+  alone because that already works natively. The listener is an effect with
+  `passive: false`: React attaches wheel handlers passively, and a passive
+  listener may not `preventDefault`.
 - **What survives the cut is the current count, so the bar moves as you
   filter.** The counts already come from the rows on screen, so after choosing
   Tesco the tags offered next are the ones that still co-occur with it, not the

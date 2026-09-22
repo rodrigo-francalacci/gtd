@@ -6,6 +6,7 @@ import {
   ENTRY_TYPE_ORDER,
   type EntryType,
 } from '@/lib/queries.shared';
+import { ChipStrip } from './chip-strip';
 import { FilterChip, filterHref } from './filter-chip';
 
 /**
@@ -53,10 +54,14 @@ export function TypeFilter({
 
 
   return (
-    <div className="flex flex-wrap items-baseline gap-1">
-      <span className="mr-1 shrink-0 text-[10px] uppercase tracking-wider text-grey-400">
+    /* The label sits outside the scroller, so it is still there to say what
+       the row is once you have slid the chips along. */
+    <div className="flex items-baseline gap-1">
+      <span className="shrink-0 text-[10px] uppercase tracking-wider text-grey-400">
         Type
       </span>
+
+      <ChipStrip>
 
       {present.map((type) => {
         const state = selected.includes(type)
@@ -92,6 +97,7 @@ export function TypeFilter({
           />
         );
       })}
+      </ChipStrip>
     </div>
   );
 }

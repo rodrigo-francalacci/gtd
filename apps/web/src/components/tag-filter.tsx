@@ -2,6 +2,7 @@
 
 import { useSearchParams } from 'next/navigation';
 import type { BoxCategoryRow } from '@/lib/queries.shared';
+import { ChipStrip } from './chip-strip';
 import { FilterChip, filterHref } from './filter-chip';
 
 /**
@@ -37,14 +38,17 @@ import { FilterChip, filterHref } from './filter-chip';
  * would leave no way to undo it.
  */
 
-/**
- * How many chips before the row stops being glanceable.
+/*
+ * There is no cap any more, and the strip scrolling is why.
  *
- * Fifteen is about two lines in a pane at its usual width. Past that you are
- * not reading a bar, you are searching one — which is what the browser is for,
- * and it is one press away.
+ * It used to stop at fifteen — about two lines in a pane at its usual width —
+ * because every chip past that cost the list another line of its own height.
+ * A row that slides sideways costs the same whatever it holds, so the reason
+ * went with the wrapping. They are still ranked by what would narrow the list
+ * most, so the useful ones are the ones you can see without sliding at all,
+ * and the browser is still the way to *search* a vocabulary rather than read
+ * along it.
  */
-const QUICK_TAGS = 15;
 
 export function TagFilter({
   boxId,
@@ -104,10 +108,10 @@ export function TagFilter({
     );
   });
 
-  const quick = ranked.slice(0, QUICK_TAGS);
+  const quick = ranked;
 
   return (
-    <div className="flex flex-wrap items-baseline gap-1">
+    <ChipStrip>
       {quick.map((tag) => {
         const state = selected.includes(tag.id)
           ? 'include'
@@ -154,6 +158,6 @@ export function TagFilter({
         control for how the box is looked at, because choosing tags and choosing
         a layout are the two things you do to a box constantly.
       */}
-    </div>
+    </ChipStrip>
   );
 }
