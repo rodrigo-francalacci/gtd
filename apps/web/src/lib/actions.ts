@@ -11,6 +11,7 @@ import {
   boxDays,
   boxItemLinks,
   boxItemTags,
+  boxFolders,
   boxItems,
   boxTagSuggestions,
   boxTags,
@@ -82,11 +83,14 @@ import {
   createBoxDocument,
   deleteBoxItem,
   ensureBoxFolder,
+  ensureBoxSubfolder,
   copyBoxItemFile,
   ensureBoxLabel,
   pushBoxTitleToDrive,
+  pushFolderName,
   renameBoxContainers,
   trashBoxFolder,
+  trashFolderIfEmpty,
 } from './google/boxes';
 import { after } from 'next/server';
 import { drainSyncQueue, enqueueFileMove, enqueueSync } from './google/queue';
@@ -2952,13 +2956,24 @@ export async function createBoxGallery(
   boxId: string,
   name: string,
   capturedAt?: Date,
+  /**
+   * The drawer of the box to make it in, or nothing for the box itself.
+   *
+   * Made *in* the folder rather than moved there after: a file that lands in
+   * the right place never spends a tick in the wrong one.
+   */
+  into?: string | null,
 ): Promise<{ id: string } | { error: string }> {
   await requireSession();
 
   const title = name.trim().slice(0, 120) || 'Gallery';
 
   try {
-    const parentFolderId = await ensureBoxFolder(boxId);
+    /* A gallery's own folder is an ordinary member of the drawer it was made
+       in, so the drawer is its parent — the nesting mirrors the app exactly. */
+    const parentFolderId = into
+      ? await ensureBoxSubfolder(into)
+      : await ensureBoxFolder(boxId);
     if (!parentFolderId) return { error: 'That box has no folder in Drive yet.' };
 
     const folderId = await createGalleryFolder(title, parentFolderId);
@@ -2967,6 +2982,7 @@ export async function createBoxGallery(
       .insert(boxItems)
       .values({
         boxId,
+        folderId: into ?? null,
         kind: 'gallery',
         driveFileId: folderId,
         name: title,
@@ -3180,6 +3196,219 @@ export async function updateBox(
       await renameBoxContainers(boxId).catch(() => {});
     });
   }
+}
+
+// ---------------------------------------------------------------------------
+// Folders inside a box
+// ---------------------------------------------------------------------------
+
+/**
+ * Make a drawer in a box.
+ *
+ * **No Drive folder yet, on purpose.** A folder is made in Drive by the first
+ * document filed into it, the rule a project's folder and a box's own both
+ * follow: making one here would leave an empty folder in Drive for every
+ * drawer anybody ever thought about.
+ *
+ * The name is unique per box, case-insensitively, and a collision is answered
+ * with the folder that already has the name rather than an error — asked to
+ * make "Receipts" where Receipts exists, the only useful answer is the one
+ * that is already there.
+ */
+export async function createBoxFolder(boxId: string, name: string) {
+  await requireSession();
+
+  const wanted = name.trim();
+  if (!wanted) return null;
+
+  const [existing] = await db
+    .select({ id: boxFolders.id })
+    .from(boxFolders)
+    .where(
+      and(
+        eq(boxFolders.boxId, boxId),
+        sql`lower(btrim(${boxFolders.name})) = lower(btrim(${wanted}))`,
+      ),
+    )
+    .limit(1);
+
+  if (existing) return existing.id;
+
+  const [row] = await db
+    .insert(boxFolders)
+    .values({ boxId, name: wanted })
+    .returning({ id: boxFolders.id });
+
+  revalidateShell();
+  return row?.id ?? null;
+}
+
+/**
+ * Rename a drawer, here and in Drive.
+ *
+ * Pushed in `after()` rather than left to the sweep, the rule renaming a
+ * project learned: on a Hobby plan the cron runs daily, so a folder renamed at
+ * two in the afternoon would keep its old name in Drive until the following
+ * morning — the app right, Drive wrong, and no page admitting it.
+ *
+ * **Every document inside follows for free**, because a document names its
+ * folder by id and the file sits in a Drive folder that is being renamed
+ * rather than replaced. Nothing moves.
+ */
+export async function renameBoxFolder(folderId: string, name: string) {
+  await requireSession();
+
+  const wanted = name.trim();
+  if (!wanted) return;
+
+  const [folder] = await db
+    .select({ boxId: boxFolders.boxId, name: boxFolders.name })
+    .from(boxFolders)
+    .where(eq(boxFolders.id, folderId))
+    .limit(1);
+
+  if (!folder || folder.name === wanted) return;
+
+  // Two drawers with one name would be one drawer in Drive, so a collision is
+  // refused rather than merged: merging folders moves documents, which is not
+  // what renaming one asks for.
+  const [clash] = await db
+    .select({ id: boxFolders.id })
+    .from(boxFolders)
+    .where(
+      and(
+        eq(boxFolders.boxId, folder.boxId),
+        ne(boxFolders.id, folderId),
+        sql`lower(btrim(${boxFolders.name})) = lower(btrim(${wanted}))`,
+      ),
+    )
+    .limit(1);
+
+  if (clash) return;
+
+  await db
+    .update(boxFolders)
+    .set({ name: wanted, updatedAt: new Date() })
+    .where(eq(boxFolders.id, folderId));
+
+  revalidateShell();
+
+  after(async () => {
+    try {
+      await pushFolderName(folderId);
+    } catch {
+      // The name is saved; `reconcileBoxFolders` carries it over on the tick.
+    }
+  });
+}
+
+/**
+ * Throw a drawer away and keep everything that was in it.
+ *
+ * **The documents come back to the box**, they are never deleted — the same
+ * answer deleting a box gives (its documents are refiled into the default box)
+ * and the same rule `section_id` follows in Now. A folder is an arrangement,
+ * and changing your mind about an arrangement must not cost you the contents.
+ * The `set null` foreign key does that half by itself.
+ *
+ * Then the files follow, and only once they have *all* left does the empty
+ * folder go to Drive's bin — the order `deleteBox` uses, and for the same
+ * reason: they are inside that folder until their moves run, so binning it
+ * first would put a year of receipts in the bin with it. The drain's own
+ * report is the permission.
+ */
+export async function deleteBoxFolder(folderId: string) {
+  await requireSession();
+
+  const [folder] = await db
+    .select({ driveFolderId: boxFolders.driveFolderId })
+    .from(boxFolders)
+    .where(eq(boxFolders.id, folderId))
+    .limit(1);
+
+  if (!folder) return;
+
+  const freed = await db
+    .update(boxItems)
+    .set({ folderId: null, updatedAt: new Date() })
+    .where(eq(boxItems.folderId, folderId))
+    .returning({ id: boxItems.id, driveFileId: boxItems.driveFileId });
+
+  await db.delete(boxFolders).where(eq(boxFolders.id, folderId));
+
+  revalidateShell();
+
+  const withFiles = freed.filter((row) => row.driveFileId);
+  for (const row of withFiles) await enqueueFileMove({ boxItemId: row.id });
+
+  if (!folder.driveFolderId) return;
+  const driveFolderId = folder.driveFolderId;
+
+  after(async () => {
+    try {
+      const result = await drainSyncQueue(Math.max(withFiles.length, 1));
+
+      const allMoved =
+        result.done >= withFiles.length && result.failed === 0 && result.retrying === 0;
+
+      // Empty is checked again in Drive itself before anything is binned:
+      // a file somebody dropped in by hand is not ours to throw away.
+      if (allMoved) await trashFolderIfEmpty(driveFolderId);
+    } catch {
+      // The documents are safe and back in the box. A leftover empty folder is
+      // the cron's problem, and not worth failing this on.
+    }
+  });
+}
+
+/**
+ * Put an entry in a drawer, or take it out of one.
+ *
+ * `null` means the box itself, which is what "out of the folder" is: an entry
+ * is never *outside* its box, so there is no third state to represent.
+ *
+ * **The folder must belong to the entry's box**, checked rather than assumed.
+ * A document filed into another box's drawer would sit in a Drive folder its
+ * own box does not contain, and every count in the app would disagree with
+ * what Drive shows — the same class of mistake as a tag moved into another
+ * box's category.
+ */
+export async function setBoxItemFolder(itemId: string, folderId: string | null) {
+  await requireSession();
+
+  const [item] = await db
+    .select({ boxId: boxItems.boxId, folderId: boxItems.folderId })
+    .from(boxItems)
+    .where(eq(boxItems.id, itemId))
+    .limit(1);
+
+  if (!item) return;
+  if ((item.folderId ?? null) === folderId) return;
+
+  if (folderId) {
+    const [folder] = await db
+      .select({ boxId: boxFolders.boxId })
+      .from(boxFolders)
+      .where(eq(boxFolders.id, folderId))
+      .limit(1);
+
+    if (!folder || folder.boxId !== item.boxId) return;
+  }
+
+  await db
+    .update(boxItems)
+    .set({ folderId, updatedAt: new Date() })
+    .where(eq(boxItems.id, itemId));
+
+  revalidateShell();
+
+  /*
+   * And the file follows, the rule every move of a row here obeys: the app
+   * saying a document is in a drawer while Drive shows it loose in the box is
+   * exactly the disagreement a folder exists to prevent.
+   */
+  await enqueueFileMove({ boxItemId: itemId });
+  drainMovesAfterResponse(1);
 }
 
 /**
@@ -3943,9 +4172,15 @@ export async function moveDocument(itemId: string, boxId: string) {
       .onConflictDoNothing();
   }
 
+  /*
+   * The drawer does not travel. A folder belongs to one box, so an entry
+   * arriving in another box lands in that box itself — carrying `folder_id`
+   * across would point it at a drawer of the box it has just left, which is a
+   * row the app could never show you and Drive could never mirror.
+   */
   await db
     .update(boxItems)
-    .set({ boxId, updatedAt: new Date() })
+    .set({ boxId, folderId: null, updatedAt: new Date() })
     .where(eq(boxItems.id, itemId));
 
   /*
@@ -3975,9 +4210,20 @@ export async function moveDocument(itemId: string, boxId: string) {
  * directly. Returning it here saves the caller a second read of a row it has
  * just caused to exist.
  */
-export async function createBoxFile(boxId: string, mimeType: string, name: string) {
+export async function createBoxFile(
+  boxId: string,
+  mimeType: string,
+  name: string,
+  /**
+   * The drawer of the box to make it in, or nothing for the box itself.
+   *
+   * Made *in* the folder rather than moved there after: a file that lands in
+   * the right place never spends a tick in the wrong one.
+   */
+  into?: string | null,
+) {
   await requireSession();
-  const row = await createBoxDocument(boxId, mimeType, name);
+  const row = await createBoxDocument(boxId, mimeType, name, into);
   revalidateShell();
   return row;
 }
@@ -4176,7 +4422,18 @@ export async function forgetEmail(id: string) {
  * written here for the same reason it is everywhere else — the vector is
  * generated from that column, and a note without it is a note you can't find.
  */
-export async function postBoxNote(boxId: string, body: string) {
+export async function postBoxNote(
+  boxId: string,
+  body: string,
+  /**
+   * The drawer you are standing in, if any.
+   *
+   * Posted from inside a folder, an entry belongs in that folder — otherwise
+   * it lands in the box, the list you are looking at does not contain it, and
+   * posting something looks like losing it.
+   */
+  folderId?: string | null,
+) {
   await requireSession();
 
   const text = body.trim();
@@ -4186,6 +4443,7 @@ export async function postBoxNote(boxId: string, body: string) {
     .insert(boxItems)
     .values({
       boxId,
+      folderId: folderId ?? null,
       kind: 'note',
       description: text,
       searchText: text,
@@ -4206,7 +4464,19 @@ export async function postBoxNote(boxId: string, body: string) {
  * Post. Whether it is a page or a place is not decided here either. That needs
  * the shortener followed, which is the same wait.
  */
-export async function postBoxLink(boxId: string, url: string, body: string) {
+export async function postBoxLink(
+  boxId: string,
+  url: string,
+  body: string,
+  /**
+   * The drawer you are standing in, if any.
+   *
+   * Posted from inside a folder, an entry belongs in that folder — otherwise
+   * it lands in the box, the list you are looking at does not contain it, and
+   * posting something looks like losing it.
+   */
+  folderId?: string | null,
+) {
   await requireSession();
 
   const address = url.trim();
@@ -4218,6 +4488,7 @@ export async function postBoxLink(boxId: string, url: string, body: string) {
     .insert(boxItems)
     .values({
       boxId,
+      folderId: folderId ?? null,
       kind: 'link',
       url: address,
       // Until it has been read, the address is the only thing there is to
@@ -4247,6 +4518,14 @@ export async function postBoxLocation(
   lat: number,
   lng: number,
   body: string,
+  /**
+   * The drawer you are standing in, if any.
+   *
+   * Posted from inside a folder, an entry belongs in that folder — otherwise
+   * it lands in the box, the list you are looking at does not contain it, and
+   * posting something looks like losing it.
+   */
+  folderId?: string | null,
 ) {
   await requireSession();
 
@@ -4259,6 +4538,7 @@ export async function postBoxLocation(
     .insert(boxItems)
     .values({
       boxId,
+      folderId: folderId ?? null,
       kind: 'location',
       lat,
       lng,

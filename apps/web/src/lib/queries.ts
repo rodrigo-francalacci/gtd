@@ -22,6 +22,7 @@ import {
   boxDays,
   boxItemLinks,
   boxItemTags,
+  boxFolders,
   boxItems,
   boxJobs,
   boxTagSuggestions,
@@ -61,6 +62,7 @@ import type {
   ActionRow,
   AttachmentRow,
   BoxCategoryRow,
+  BoxFolderRow,
   BoxItemDetail,
   BoxItemRow,
   BoxLinkRow,
@@ -80,6 +82,7 @@ export type {
   AttachmentRow,
   AppliedTag,
   BoxCategoryRow,
+  BoxFolderRow,
   BoxItemDetail,
   BoxItemRow,
   BoxLinkRow,
@@ -1549,13 +1552,40 @@ const itemTags = sql<
 ), '[]'::json)`;
 
 /**
- * The documents in a box, newest first.
+ * The folders of a box, with what each holds.
  *
- * Newest first with no choice about it — a box is read the way the pile on the
- * table was read, from the top. `tagIds` narrows to documents carrying *all*
- * of them, so Tesco plus Fuel means both: a filter that widens as you add to
- * it is a filter you stop trusting.
+ * Ordered by name, because a folder list is read for the one you want rather
+ * than for when it was made — and a drawer that moves about between visits is
+ * one you have to read every time.
  */
+export async function getBoxFolders(boxId: string): Promise<BoxFolderRow[]> {
+  const rows = await db
+    .select({
+      id: boxFolders.id,
+      name: boxFolders.name,
+      driveFolderId: boxFolders.driveFolderId,
+      /*
+       * `box_folders.id` written out, never `${boxFolders.id}`.
+       *
+       * Drizzle renders a column in a select field as the bare `"id"`, which
+       * inside a subquery over another table resolves to *that* table's `id` —
+       * so the correlation became `i.folder_id = i.id` and every folder counted
+       * zero, silently and always. The two subqueries above are the same shape
+       * and are correct only by luck: `box_item_tags` and `box_item_links` have
+       * no `id` column for the inner scope to capture.
+       */
+      count: sql<number>`(
+        select count(*)::int from ${boxItems} i
+        where i.folder_id = box_folders.id and i.listed = true
+      )`,
+    })
+    .from(boxFolders)
+    .where(eq(boxFolders.boxId, boxId))
+    .orderBy(asc(sql`lower(${boxFolders.name})`));
+
+  return rows;
+}
+
 /**
  * The span a box actually covers, ignoring every filter.
  *
@@ -1578,11 +1608,32 @@ export async function getBoxRange(
   return { from: new Date(row.from), to: new Date(row.to) };
 }
 
+/**
+ * The documents in a box, newest first.
+ *
+ * Newest first with no choice about it — a box is read the way the pile on the
+ * table was read, from the top. `tagIds` narrows to documents carrying *all*
+ * of them, so Tesco plus Fuel means both: a filter that widens as you add to
+ * it is a filter you stop trusting.
+ */
 export async function getBoxItems(
   boxId: string,
   tagIds: string[] = [],
   /** Inclusive bounds on arrival, as whole days in the server's timezone. */
   range?: { from?: Date; to?: Date },
+  /**
+   * Which folder to look in, or undefined for the whole box.
+   *
+   * **The whole box means everything, folders included.** A box is a timeline
+   * and its folders are drawers within it, not partitions of it: a document
+   * does not leave the box by being filed, and a feed that hid it would make
+   * filing something a way of losing it.
+   *
+   * It narrows *with* the other filters rather than replacing them — folder
+   * and tags and types and a date range all at once — because they answer
+   * different questions about the same rows.
+   */
+  folderId?: string,
 ): Promise<BoxItemRow[]> {
   const rows = await db
     .select({
@@ -1626,6 +1677,8 @@ export async function getBoxItems(
        */
       projectTitle: projects.title,
       projectStatus: projects.status,
+      folderId: boxItems.folderId,
+      folderName: boxFolders.name,
       tags: itemTags,
       linkCount: sql<number>`(
         select count(*)::int from ${boxItemLinks} l where l.item_id = ${boxItems.id}
@@ -1633,9 +1686,13 @@ export async function getBoxItems(
     })
     .from(boxItems)
     .leftJoin(projects, eq(projects.id, boxItems.projectId))
+    // Left, because nearly every entry is in no folder at all and must still
+    // come back — the same reason the project join is one.
+    .leftJoin(boxFolders, eq(boxFolders.id, boxItems.folderId))
     .where(
       and(
         eq(boxItems.boxId, boxId),
+        folderId ? eq(boxItems.folderId, folderId) : undefined,
         /*
          * Unlisted entries are in the box and not in its feed. A message
          * fetched for a project is the case this exists for: you asked for it
@@ -1679,6 +1736,12 @@ export async function getBoxItem(id: string): Promise<BoxItemDetail | null> {
       id: boxItems.id,
       boxId: boxItems.boxId,
       boxName: boxes.name,
+      /* Selected, not inherited. `BoxItemDetail` extends the row type, so a
+         column added there and not asked for here arrives `undefined` and the
+         pane silently shows a filed document as loose — the drift a cast has
+         hidden in this query three times already. */
+      folderId: boxItems.folderId,
+      folderName: boxFolders.name,
       kind: boxItems.kind,
       driveFileId: boxItems.driveFileId,
       name: boxItems.name,
@@ -1720,6 +1783,8 @@ export async function getBoxItem(id: string): Promise<BoxItemDetail | null> {
     })
     .from(boxItems)
     .innerJoin(boxes, eq(boxes.id, boxItems.boxId))
+    // Left: nearly every entry is in no folder, and must still come back.
+    .leftJoin(boxFolders, eq(boxFolders.id, boxItems.folderId))
     .where(eq(boxItems.id, id))
     .limit(1);
 

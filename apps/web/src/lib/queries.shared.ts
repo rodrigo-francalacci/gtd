@@ -408,6 +408,21 @@ export type BoxRow = {
 
 export type BoxTagRow = { id: string; name: string; usageCount: number };
 
+/**
+ * One folder of a box, with how much is in it.
+ *
+ * The count is of *listed* entries, matching what the feed would show — a
+ * folder whose only document is an email fetched for a project would otherwise
+ * offer a drawer that opens on nothing.
+ */
+export type BoxFolderRow = {
+  id: string;
+  name: string;
+  /** Null until something has been filed into it and Drive has a folder. */
+  driveFolderId: string | null;
+  count: number;
+};
+
 export type BoxCategoryRow = {
   id: string;
   name: string;
@@ -453,6 +468,16 @@ export type BoxItemRow = {
   notes?: unknown;
   noteDense?: boolean | null;
   boxId: string;
+  /**
+   * Which drawer of the box it sits in, and what that drawer is called.
+   *
+   * Carried on the row so the feed can say where something lives while you are
+   * looking at the whole box — the thing a folder is *for* is being able to see
+   * the grouping, and a list that shows every entry without saying which of
+   * them are filed somewhere would hide exactly that.
+   */
+  folderId?: string | null;
+  folderName?: string | null;
   kind: BoxItemKind;
   /** For an `event`: which project, and which moment in its life. */
   projectId?: string | null;

@@ -47,7 +47,23 @@ const isGalleryable = (file: File) =>
  * three steps the bridge script uses, which is why a scan the size of a book
  * doesn't meet Vercel's 4.5 MB body cap on the way through.
  */
-export function BoxComposer({ boxId }: { boxId: string }) {
+export function BoxComposer({
+  boxId,
+  /**
+   * The drawer you are standing in, if any.
+   *
+   * Everything posted here goes into it — a note, a link, a place, an upload,
+   * a new Doc, a gallery. Posting from inside a folder and having the entry
+   * land in the box would mean the list you are looking at does not contain
+   * what you just wrote, which is indistinguishable from losing it.
+   */
+  folderId = null,
+  folderName = null,
+}: {
+  boxId: string;
+  folderId?: string | null;
+  folderName?: string | null;
+}) {
   const router = useRouter();
   const [, startTransition] = useTransition();
   const input = useRef<HTMLInputElement>(null);
@@ -102,6 +118,7 @@ export function BoxComposer({ boxId }: { boxId: string }) {
         boxId,
         mimeType,
         `${label} — ${new Date().toLocaleDateString('en-GB')}`,
+        folderId,
       );
 
       openFile({
@@ -175,10 +192,10 @@ export function BoxComposer({ boxId }: { boxId: string }) {
           return;
         }
       } else if (url) {
-        await postBoxLink(boxId, url, '');
+        await postBoxLink(boxId, url, '', folderId);
       } else {
         /* Same again: the note is in the box, and the emoji catches up. */
-        emojifyLater('box', await postBoxNote(boxId, body));
+        emojifyLater('box', await postBoxNote(boxId, body, folderId));
       }
 
       router.refresh();
@@ -209,6 +226,7 @@ export function BoxComposer({ boxId }: { boxId: string }) {
               ? new Date(file.lastModified)
               : undefined,
           readNow: true,
+          folder: folderId,
         });
 
         router.refresh();
@@ -268,7 +286,7 @@ export function BoxComposer({ boxId }: { boxId: string }) {
     const title =
       text.trim() || `${new Date().toISOString().slice(0, 10)} ${list.length} pictures`;
 
-    const made = await createBoxGallery(boxId, title);
+    const made = await createBoxGallery(boxId, title, undefined, folderId);
 
     if ('error' in made) {
       setError(made.error);
@@ -381,7 +399,7 @@ export function BoxComposer({ boxId }: { boxId: string }) {
         setBusy(null);
 
         startTransition(async () => {
-          await postBoxLocation(boxId, coords.latitude, coords.longitude, body);
+          await postBoxLocation(boxId, coords.latitude, coords.longitude, body, folderId);
           router.refresh();
         });
       },
@@ -519,7 +537,14 @@ export function BoxComposer({ boxId }: { boxId: string }) {
           }
         }}
         rows={2}
-        placeholder="Write something, paste a link, drop a file…"
+        placeholder={
+          /* Which drawer this lands in, said where you are typing rather than
+             only in the heading above the list: the composer is the one place
+             it changes what happens. */
+          folderName
+            ? `Write something, paste a link, drop a file — into ${folderName}…`
+            : 'Write something, paste a link, drop a file…'
+        }
         className="w-full resize-none bg-transparent text-[13px] leading-relaxed text-grey-800 placeholder:text-grey-500 focus:outline-none"
       />
 

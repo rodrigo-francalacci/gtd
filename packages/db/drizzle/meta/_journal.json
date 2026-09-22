@@ -484,6 +484,13 @@
       "when": 1789033774196,
       "tag": "0068_gigantic_meltdown",
       "breakpoints": true
+    },
+    {
+      "idx": 69,
+      "version": "7",
+      "when": 1790076596005,
+      "tag": "0069_massive_squadron_sinister",
+      "breakpoints": true
     }
   ]
 }

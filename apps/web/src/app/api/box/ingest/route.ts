@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
-import { boxes, db } from '@gtd/db';
-import { eq, sql } from 'drizzle-orm';
+import { boxFolders, boxes, db } from '@gtd/db';
+import { and, eq, sql } from 'drizzle-orm';
 import { authoriseBoxRequest } from '@/lib/box/auth';
 import {
   BoxError,
@@ -90,6 +90,7 @@ export async function POST(request: Request) {
     description: string;
     expires: string;
     sourceFolderId: string;
+    folder: string;
     email: EmailFacts;
   }>;
 
@@ -131,6 +132,25 @@ export async function POST(request: Request) {
     );
   }
 
+  /**
+   * The drawer, checked against this box's own folders.
+   *
+   * Never trusted as given: a folder id belonging to another box would put the
+   * file in a folder this box does not contain, and the row would then disagree
+   * with Drive in the one way the reconciliation sweeps cannot reason about.
+   * An id that does not check out files the document in the box itself, which
+   * is where it would have gone anyway.
+   */
+  const into = body.folder
+    ? ((
+        await db
+          .select({ id: boxFolders.id })
+          .from(boxFolders)
+          .where(and(eq(boxFolders.id, body.folder), eq(boxFolders.boxId, box.id)))
+          .limit(1)
+      )[0]?.id ?? null)
+    : null;
+
   try {
     if (body.step === 'complete') {
       if (!body.driveFileId) {
@@ -169,6 +189,7 @@ export async function POST(request: Request) {
                 : undefined,
             }
           : undefined,
+        into,
       );
 
       // Applied after the row exists rather than threaded through the insert:
@@ -201,6 +222,7 @@ export async function POST(request: Request) {
       body.name,
       body.mimeType ?? '',
       origin,
+      into,
     );
     return NextResponse.json({ ok: true, uploadUrl, box: box.name, boxId: box.id });
   } catch (error) {

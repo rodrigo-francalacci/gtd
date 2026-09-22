@@ -2,7 +2,7 @@ import { BoxManager } from '@/components/box-manager';
 import { BoxSetup } from '@/components/box-setup';
 import { NewBoxForm } from '@/components/box-manager';
 import { DetailPane, EmptyDetail, EmptyList, ListPane } from '@/components/panes';
-import { getBoxCategories, getBoxes, getTagSuggestions } from '@/lib/queries';
+import { getBoxFolders, getBoxCategories, getBoxes, getTagSuggestions } from '@/lib/queries';
 import { getBoxQueueStatus } from '@/lib/box/queue';
 import Link from 'next/link';
 
@@ -33,8 +33,9 @@ export default async function BoxesPage(props: PageProps<'/box'>) {
   }
 
   const target = boxes.find((b) => b.id === selectedId) ?? boxes[0];
-  const [categories, proposed, queue] = await Promise.all([
+  const [categories, folders, proposed, queue] = await Promise.all([
     getBoxCategories(target.id),
+    getBoxFolders(target.id),
     /* Null means nobody has asked; an empty set means it has been worked
        through, and the panel says those differently. */
     getTagSuggestions(target.id),
@@ -97,6 +98,7 @@ export default async function BoxesPage(props: PageProps<'/box'>) {
             key={target.id}
             box={target}
             categories={categories}
+            folders={folders}
             suggestions={proposed?.suggestions ?? []}
             suggestionsRead={proposed?.readCount ?? 0}
             suggestionsTotal={proposed?.totalCount ?? 0}

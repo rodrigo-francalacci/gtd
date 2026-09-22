@@ -41,6 +41,7 @@ const CAPPED_BY_PREVIEW = 'group-data-[preview=open]/shell:flex-[0_1_38rem]';
  */
 export function ListPane({
   title,
+  titleNode,
   titleNote,
   subtitle,
   actions,
@@ -53,6 +54,16 @@ export function ListPane({
   children,
 }: {
   title: string;
+  /**
+   * Drawn in place of the words, when the heading has to *do* something.
+   *
+   * A box's is its folder picker: the name of the place you are looking at is
+   * exactly the thing you would click to look somewhere else, and a separate
+   * control would be another button in the one pane header with the most in
+   * it. `title` is still required and still the plain words, because that is
+   * what a screen reader and every other list want.
+   */
+  titleNode?: ReactNode;
   /**
    * A fact about the pane that sits beside its name rather than under it.
    *
@@ -108,7 +119,7 @@ export function ListPane({
       <header data-pane-header className="relative z-10 border-b border-grey-200 px-4 py-3">
         <div className="flex items-baseline justify-between gap-2">
           <h1 className="min-w-0 truncate text-[13px] font-semibold uppercase tracking-wide text-grey-700">
-            {title}
+            {titleNode ?? title}
             {titleNote ? (
               // Same line, lighter weight: it is a caption on the name, not a
               // second heading competing with it.

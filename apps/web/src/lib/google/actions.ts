@@ -8,7 +8,12 @@ import {
   refreshGoogleNames,
   renameDriveAttachments,
 } from './attachments';
-import { reconcileBoxFiles, refreshBoxNames, renameBoxFiles } from './boxes';
+import {
+  reconcileBoxFiles,
+  reconcileBoxFolders,
+  refreshBoxNames,
+  renameBoxFiles,
+} from './boxes';
 import { LiveGoogleSync } from './live-sync';
 import type { LinkDrift } from './sync';
 import {
@@ -27,6 +32,7 @@ export async function runSyncNow() {
     renameBoxFiles(),
     refreshBoxNames(),
     reconcileBoxFiles(),
+    reconcileBoxFolders(),
     renameDriveAttachments(),
     reconcileAttachmentFiles(),
   ]);

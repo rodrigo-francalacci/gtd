@@ -3198,6 +3198,87 @@ to be kept. They meet at `box_item_links` and nowhere else.
   out to be a bad idea should not cost a year of receipts. The `restrict`
   foreign key makes the destructive order impossible rather than merely unwise.
   The default box cannot be deleted at all.
+- **A box can have folders, and Drive has the same ones.** Tags say what a
+  document is *about*; a folder says where it *lives*, and a document lives in
+  exactly one. The case tags cannot answer is the one where a group of documents
+  belongs together and you will one day go looking for them in Drive rather than
+  in the app — `GTD/Box/<box>/<folder>` is a real subfolder, so opening the box's
+  folder shows the same arrangement the app shows.
+  **`box_items.folder_id` is `on delete set null`**, the rule `section_id` and
+  `blocked_by` already follow: throwing a drawer away is a change of mind about
+  an arrangement and must never take the documents with it. They come back to
+  the box, which is where they were before any folder existed.
+  **Standing outside every folder shows everything**, including what is filed in
+  one. A box is read as a timeline and the folders are a way of grouping it, not
+  a way of hiding most of it — a box whose feed emptied as soon as you filed
+  anything would be a box you stopped filing in.
+  **The filters combine rather than replacing each other.** A folder is one more
+  clause in `getBoxItems`, so a drawer narrowed by tags, types and a date range
+  is an ordinary question. It also has to survive *choosing a row*: `href` builds
+  every entry's address from the filters the feed is under, and leaving the
+  folder out of it meant clicking an entry quietly took you out of the drawer
+  with the list changing underneath you.
+  **The heading is the control**, which is why `ListPane` grew `titleNode`. The
+  name of the place you are looking at is exactly the thing you would press to
+  look somewhere else, and that pane header is the one with the most in it
+  already — a separate button would be a fourth control for something the title
+  can say by itself. It reads `Box / Folder` inside one, and the menu's first
+  line is the way out.
+  **One answer to where a file goes.** `boxItemDestination(boxId, folderId)` —
+  the drawer, or the box — and every path that places a file asks it: the move
+  queue, the upload session, the sweep, the composer, a Doc made from the menu,
+  a gallery. Two definitions of that is the trap `attachmentFolder` exists to
+  avoid on the other side of the app, and here it would show as a file the mover
+  and the sweep passed between them for ever.
+  **Made in the drawer, never moved there afterwards.** An upload from inside a
+  folder opens its Drive session against that folder, so the bytes land in the
+  right place first time — the window `reconcileBoxFiles` exists to close is
+  better not opened. The folder id is validated against the box on the way in:
+  a client naming another box's drawer would put the file somewhere its own box
+  does not contain, and an id that does not check out files it in the box, which
+  is where it would have gone anyway.
+  **The Drive folder is made on demand**, like a project's and like the box's
+  own: a drawer somebody made and never filed into leaves nothing behind in
+  Drive. `ensureBoxSubfolder` carries every rule `ensureBoxFolder` learned one
+  level down — a folder trashed in Drive is replaced rather than failing the
+  move, a renamed one is renamed on the way past, and two documents filed at
+  once settle their race against whatever landed in the column first.
+  **A rename is pushed in `after()`**, the lesson renaming a project paid for:
+  the cron may only run daily, and the folder you would go looking in must not
+  keep its old name until tomorrow morning. Every document inside follows for
+  free, because a document names its folder by id and the Drive folder is being
+  renamed rather than replaced.
+  **Binning a drawer is the `deleteBox` order exactly.** The documents are freed
+  and their moves enqueued, the drain's own report is the permission, and only
+  then is the empty folder trashed — they are *inside* it until the moves run,
+  so the other order would put a year of receipts in the bin. A folder that
+  still holds something after that is left standing: a stray empty folder is
+  untidy, and the alternative is not.
+  **`reconcileBoxFolders` is the other half of the sweep.** `reconcileBoxFiles`
+  puts documents in the right drawer; this checks the drawers themselves — a
+  rename that never reached Drive, a folder dragged out of its box by hand, one
+  trashed by hand (its id is forgotten rather than the folder recreated, so a
+  folder you deleted in Drive stays deleted). Drift is found without asking
+  Google about folders that cannot have drifted: only folders that have a Drive
+  folder at all.
+  **`${boxFolders.id}` inside a correlated subquery is the bug to remember.**
+  Drizzle renders a column in a *select field* as the bare `"id"`, which inside
+  a subquery over another table resolves to **that table's** `id` — so
+  `where i.folder_id = ${boxFolders.id}` became `i.folder_id = i.id` and every
+  folder counted zero, silently and always. The two subqueries beside it are the
+  same shape and correct only by luck: `box_item_tags` and `box_item_links` have
+  no `id` column for the inner scope to capture. Write the table out.
+  **Moving an entry to another box clears its folder**, because the drawer
+  belonged to the box it has left — and the file then lands in the new box's
+  folder rather than in a drawer the new box has never heard of.
+  **`scripts/check-box-folders.mjs` is the test, and it is live.** Nothing about
+  this can be checked without asking Google: the app saying a document is in a
+  drawer while Drive shows it loose in the box is the whole failure, and it is
+  silent. So it makes a throwaway box, performs every rearrangement the app can
+  perform — into a drawer, between drawers, out again, renamed, swept, binned,
+  moved to another box, the folder deleted underneath it — reads the answer back
+  out of Drive each time rather than trusting the call it has just made, and
+  takes itself away again. Run it after touching anything here.
 - **No transactions anywhere — the `neon-http` driver has none.** Nothing else
   in the app used one, which is why this only surfaced when the classifier
   first tried to write. Ordering does the work instead: tags are rewritten

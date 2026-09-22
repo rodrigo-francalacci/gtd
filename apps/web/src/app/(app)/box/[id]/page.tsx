@@ -31,6 +31,7 @@ import { TagBrowser } from '@/components/tag-browser';
 import { TagFilter } from '@/components/tag-filter';
 import { TypeFilter } from '@/components/type-filter';
 import { DetailPane, EmptyDetail, EmptyList, ListPane } from '@/components/panes';
+import { BoxFolderMenu } from '@/components/box-folder-menu';
 import { BOX_COLUMNS } from '@/lib/columns';
 import { groupByDay } from '@/lib/days';
 import { timelinesFor } from '@/lib/actions';
@@ -41,6 +42,7 @@ import {
   getBox,
   getBoxCategories,
   getBoxDayNotes,
+  getBoxFolders,
   getBoxItem,
   getBoxItems,
   getBoxRange,
@@ -116,10 +118,27 @@ export default async function BoxPage(props: PageProps<'/box/[id]'>) {
 
   const range = { from: day(searchParams.from), to: day(searchParams.to) };
 
+  /**
+   * Which drawer is open, if any.
+   *
+   * Checked against this box's own folders for the reason a tag id is: an id
+   * from another box would return nothing and read as an empty box rather than
+   * as a filter pointing somewhere it should not.
+   */
+  const folders = await getBoxFolders(id);
+  const folderId =
+    typeof searchParams.folder === 'string' &&
+    folders.some((folder) => folder.id === searchParams.folder)
+      ? searchParams.folder
+      : null;
+
+  /** What the open drawer is called, for the headings that say where you are. */
+  const folderName = folders.find((folder) => folder.id === folderId)?.name ?? null;
+
   const viewKey = densityKeys.box(id);
   const [matched, categories, dayNotes, prefs, boxList, span, view, asked] =
     await Promise.all([
-      getBoxItems(id, tagIds, range),
+      getBoxItems(id, tagIds, range, folderId ?? undefined),
       getBoxCategories(id),
       getBoxDayNotes(),
       getPreferences(),
@@ -334,6 +353,10 @@ export default async function BoxPage(props: PageProps<'/box/[id]'>) {
    * mistake you would not notice until the facet counts stopped adding up.
    */
   const entryCategories = openEntry ? await getBoxCategories(openEntry.boxId) : [];
+  /* The target's own drawers, for the same reason it gets the target's
+     categories: offering this box's folders for an entry that lives in another
+     would file it into a folder its box has never heard of. */
+  const entryFolders = openEntry ? await getBoxFolders(openEntry.boxId) : [];
 
   /*
    * Which month the calendar was showing, when it was showing one.
@@ -433,6 +456,10 @@ export default async function BoxPage(props: PageProps<'/box/[id]'>) {
     excludedTypes.forEach((t) => params.append('nottype', t));
     if (typeof searchParams.from === 'string') params.set('from', searchParams.from);
     if (typeof searchParams.to === 'string') params.set('to', searchParams.to);
+    /* The drawer is a filter like the others and has to survive choosing a row,
+       or clicking an entry would quietly take you out of the folder you are
+       standing in — with the list under you changing at the same moment. */
+    if (folderId) params.set('folder', folderId);
     params.set('doc', docId);
     return `/box/${id}?${params}`;
   };
@@ -510,7 +537,7 @@ export default async function BoxPage(props: PageProps<'/box/[id]'>) {
      * That means one more read, without the range, which happens only on this
      * view.
      */
-    const unranged = await getBoxItems(id, tagIds, {});
+    const unranged = await getBoxItems(id, tagIds, {}, folderId ?? undefined);
 
     const monthRows = unranged
       .filter((item) => !item.tags.some((t) => excludedTags.includes(t.id)))
@@ -537,8 +564,11 @@ export default async function BoxPage(props: PageProps<'/box/[id]'>) {
     return (
       <BoxCalendar
         boxId={id}
-        boxName={box.name}
-        closeHref={`/box/${id}`}
+        /* The heading says where you are, drawer included: a month of one
+           drawer's arrivals under the box's bare name is a month that lies
+           about a quiet fortnight — the argument the chips above it win. */
+        boxName={folderName ? `${box.name} / ${folderName}` : box.name}
+        closeHref={folderId ? `/box/${id}?folder=${folderId}` : `/box/${id}`}
         viewKey={viewKey}
         chosen={chosen}
         categories={categories}
@@ -626,6 +656,7 @@ export default async function BoxPage(props: PageProps<'/box/[id]'>) {
             item={selected}
             categories={categories}
             boxes={boxList}
+            folders={folders}
             projects={projectOptions}
             linkTargets={linkTargets}
             openBase={openBase}
@@ -640,6 +671,15 @@ export default async function BoxPage(props: PageProps<'/box/[id]'>) {
     <>
       <ListPane
         title={box.name}
+        /* The heading is the way into the folders — see `BoxFolderMenu`. */
+        titleNode={
+          <BoxFolderMenu
+            boxId={id}
+            boxName={box.name}
+            folders={folders}
+            folderId={folderId}
+          />
+        }
         viewMode={viewMode}
         viewKey={viewKey}
         paneWidth={paneWidth(prefs)}
@@ -736,7 +776,11 @@ export default async function BoxPage(props: PageProps<'/box/[id]'>) {
           deleteNote="The file goes to Drive’s bin."
         />
 
-        <BoxComposer boxId={id} />
+        <BoxComposer
+          boxId={id}
+          folderId={folderId}
+          folderName={folderName}
+        />
         <EmailRequests requests={asked} />
 
         {shown.length === 0 ? (
@@ -959,6 +1003,7 @@ export default async function BoxPage(props: PageProps<'/box/[id]'>) {
               item={openEntry}
               categories={entryCategories}
               boxes={boxList}
+              folders={entryFolders}
               projects={projectOptions}
               linkTargets={linkTargets}
               openBase={openBase}
@@ -1029,6 +1074,7 @@ export default async function BoxPage(props: PageProps<'/box/[id]'>) {
               item={selected}
               categories={categories}
               boxes={boxList}
+              folders={folders}
               projects={projectOptions}
               linkTargets={linkTargets}
               openBase={openBase}

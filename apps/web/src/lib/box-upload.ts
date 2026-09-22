@@ -41,6 +41,15 @@ export type BoxUploadOptions = {
    * thing one at a time is the version nobody does.
    */
   expiresAt?: string | null;
+  /**
+   * The drawer of the box to file it in, or nothing for the box itself.
+   *
+   * Sent on *both* steps: the session step so the bytes land in the right
+   * Drive folder first time, and the complete step so the row says the same
+   * thing. The server validates it against the box either way — a folder id
+   * from a browser is not trusted to belong to the box it names.
+   */
+  folder?: string | null;
 };
 
 export async function uploadToBox(
@@ -56,6 +65,7 @@ export async function uploadToBox(
       box: boxId,
       name: file.name,
       mimeType: file.type,
+      folder: options.folder ?? undefined,
     }),
   });
 
@@ -82,6 +92,7 @@ export async function uploadToBox(
       driveFileId: uploaded.id,
       capturedAt: options.capturedAt?.toISOString(),
       expires: options.expiresAt ?? undefined,
+      folder: options.folder ?? undefined,
     }),
   });
 

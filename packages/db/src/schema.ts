@@ -1354,6 +1354,45 @@ export const boxTags = pgTable(
 );
 
 /**
+ * A folder inside a box, mirrored as a real Drive subfolder.
+ *
+ * **Tags say what a document is about; a folder says where it lives.** A
+ * document carries any number of tags and sits in exactly one folder, which is
+ * the whole difference and the reason both exist: "Receipt" and "Tesco" are
+ * facts about a scan, and "2026 tax return" is a drawer. The drawer is worth
+ * having because it is the thing Drive can show you — a tag is this app's idea
+ * and a folder is the one grouping that survives opening Drive on a phone.
+ *
+ * **One level, deliberately.** A folder is a place to put a run of documents,
+ * not a filing tree: nesting would need a path to render, a move that can
+ * create a cycle, and a Drive mirror that walks. If a box ever needs a tree,
+ * that is a second feature rather than a deeper column.
+ *
+ * `drive_folder_id` is the mirror, made on demand exactly as a box's and a
+ * project's are: an empty folder nobody has filed into yet costs nothing in
+ * Drive until the first document lands in it.
+ */
+export const boxFolders = pgTable(
+  'box_folders',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    boxId: uuid('box_id')
+      .notNull()
+      .references(() => boxes.id, { onDelete: 'cascade' }),
+    name: text('name').notNull(),
+    driveFolderId: text('drive_folder_id'),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    index('box_folders_box_idx').on(t.boxId),
+    // Case-insensitive, the rule `box_tags` follows: two folders called
+    // "Receipts" and "receipts" would be one drawer in Drive and two here.
+    uniqueIndex('box_folders_unique_idx').on(t.boxId, sql`lower(${t.name})`),
+  ],
+);
+
+/**
  * A vocabulary the model has proposed for a box, waiting to be judged.
  *
  * Everything else the model does here fills in a vocabulary somebody wrote;
@@ -1490,6 +1529,22 @@ export const boxItems = pgTable(
      * about nothing is not a thing anyone can act on or interpret.
      */
     projectId: uuid('project_id').references(() => projects.id, { onDelete: 'cascade' }),
+
+    /**
+     * Which folder of its box it sits in, or null for the box itself.
+     *
+     * **`set null`, never cascade** — the rule `section_id` and `blocked_by`
+     * both follow. Throwing a folder away is a change of mind about an
+     * arrangement and must never take a year of receipts with it: the
+     * documents fall back into the box, exactly where they were before anyone
+     * made a folder.
+     *
+     * A folder belongs to one box, so this is cleared whenever an entry moves
+     * between boxes — a document cannot sit in a drawer of a box it has left.
+     */
+    folderId: uuid('folder_id').references(() => boxFolders.id, {
+      onDelete: 'set null',
+    }),
     /** Started or concluded. Null for everything that is not an event. */
     event: boxEventKind('event'),
     /** Null for anything with no file — a note, a place. */
@@ -2215,6 +2270,8 @@ export type Box = typeof boxes.$inferSelect;
 export type NewBox = typeof boxes.$inferInsert;
 export type BoxCategory = typeof boxCategories.$inferSelect;
 export type BoxTag = typeof boxTags.$inferSelect;
+export type BoxFolder = typeof boxFolders.$inferSelect;
+export type NewBoxFolder = typeof boxFolders.$inferInsert;
 export type BoxItem = typeof boxItems.$inferSelect;
 export type BoxItemStatus = (typeof boxItemStatus.enumValues)[number];
 export type BoxItemKind = (typeof boxItemKind.enumValues)[number];

@@ -6,17 +6,25 @@ import { useState, useTransition } from 'react';
 import {
   createBox,
   createBoxCategory,
+  createBoxFolder,
   createBoxTag,
   deleteBox,
   deleteBoxCategory,
+  deleteBoxFolder,
   deleteBoxTag,
   moveBoxTag,
+  renameBoxFolder,
   renameBoxTag,
   updateBox,
   updateBoxCategory,
 } from '@/lib/actions';
 import { driveFolderUrl } from '@/lib/google/sync';
-import type { BoxCategoryRow, BoxRow, BoxTagSuggestion } from '@/lib/queries.shared';
+import type {
+  BoxCategoryRow,
+  BoxFolderRow,
+  BoxRow,
+  BoxTagSuggestion,
+} from '@/lib/queries.shared';
 import { TagSuggestions } from './tag-suggestions';
 
 /**
@@ -29,6 +37,7 @@ import { TagSuggestions } from './tag-suggestions';
 export function BoxManager({
   box,
   categories,
+  folders,
   suggestions,
   suggestionsRead,
   suggestionsTotal,
@@ -36,6 +45,8 @@ export function BoxManager({
 }: {
   box: BoxRow;
   categories: BoxCategoryRow[];
+  /** The box's drawers, maintained here and chosen from the box's heading. */
+  folders: BoxFolderRow[];
   /**
    * A vocabulary the model has proposed for this box, if it has been asked.
    *
@@ -192,6 +203,39 @@ export function BoxManager({
           asked={suggestionsAsked}
           existingCategories={categories.map((category) => category.name)}
         />
+      </section>
+
+      {/*
+        Folders, under the vocabulary and above nothing.
+
+        Made from the box's own heading, where you are when you want one —
+        this page is where one is *renamed or thrown away*, which is the same
+        split the tags have: the sidebar panel picks them, this page maintains
+        them.
+      */}
+      <section className="mt-8">
+        <h3 className="text-[11px] uppercase tracking-wider text-grey-500">Folders</h3>
+        <p className="mt-1 text-[12px] leading-relaxed text-grey-500">
+          A folder is a drawer of this box, mirrored as a real subfolder in
+          Drive. Tags say what a document is about; a folder is where it lives,
+          and a document sits in exactly one. Throwing one away keeps the
+          documents — they come back to the box.
+        </p>
+
+        {folders.length === 0 ? (
+          <p className="mt-2 text-[12px] text-grey-400">
+            No folders yet. Make one from the box&rsquo;s name at the top of its
+            list.
+          </p>
+        ) : (
+          <ul className="mt-2">
+            {folders.map((folder) => (
+              <FolderRow key={folder.id} folder={folder} />
+            ))}
+          </ul>
+        )}
+
+        <NewFolderForm boxId={box.id} />
       </section>
 
       {!box.isDefault ? (
@@ -514,6 +558,122 @@ function CategoryEditor({
         />
       </form>
     </div>
+  );
+}
+
+/**
+ * One folder: renamed in place, thrown away with what it holds said out loud.
+ *
+ * The count is on the button because it is the thing you need before deciding
+ * — "throw away" reads very differently beside 1 and beside 94, and the
+ * documents surviving is the part nobody believes until it is written down.
+ */
+function FolderRow({ folder }: { folder: BoxFolderRow }) {
+  const router = useRouter();
+  const [pending, startTransition] = useTransition();
+  const [name, setName] = useState(folder.name);
+  const [armed, setArmed] = useState(false);
+
+  const save = () => {
+    const wanted = name.trim();
+    if (!wanted || wanted === folder.name) {
+      setName(folder.name);
+      return;
+    }
+    startTransition(async () => {
+      await renameBoxFolder(folder.id, wanted);
+      router.refresh();
+    });
+  };
+
+  return (
+    <li className="flex items-center gap-2 border-b border-grey-150 py-1.5 last:border-0">
+      <input
+        value={name}
+        disabled={pending}
+        onChange={(e) => setName(e.target.value)}
+        onBlur={save}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') e.currentTarget.blur();
+          if (e.key === 'Escape') {
+            setName(folder.name);
+            e.currentTarget.blur();
+          }
+        }}
+        className="min-w-0 flex-1 rounded-sm border border-transparent bg-transparent px-1 py-0.5 text-[13px] text-grey-800 hover:border-grey-300 focus:border-grey-400 focus:outline-none"
+        aria-label={`Rename ${folder.name}`}
+      />
+
+      <span className="shrink-0 text-[11px] tabular-nums text-grey-400">
+        {folder.count}
+      </span>
+
+      {armed ? (
+        <span className="flex shrink-0 items-center gap-1.5 text-[11px]">
+          <button
+            type="button"
+            disabled={pending}
+            onClick={() =>
+              startTransition(async () => {
+                await deleteBoxFolder(folder.id);
+                setArmed(false);
+                router.refresh();
+              })
+            }
+            className="text-stale underline underline-offset-2"
+          >
+            {folder.count > 0
+              ? `Throw away — the ${folder.count} inside go back to the box`
+              : 'Throw it away'}
+          </button>
+          <button
+            type="button"
+            onClick={() => setArmed(false)}
+            className="text-grey-500 underline underline-offset-2"
+          >
+            Keep
+          </button>
+        </span>
+      ) : (
+        <button
+          type="button"
+          onClick={() => setArmed(true)}
+          className="shrink-0 text-[11px] text-grey-400 underline underline-offset-2 hover:text-stale"
+        >
+          Throw away
+        </button>
+      )}
+    </li>
+  );
+}
+
+function NewFolderForm({ boxId }: { boxId: string }) {
+  const router = useRouter();
+  const [pending, startTransition] = useTransition();
+  const [name, setName] = useState('');
+
+  return (
+    <form
+      onSubmit={(e) => {
+        e.preventDefault();
+        const wanted = name.trim();
+        if (!wanted) return;
+        startTransition(async () => {
+          await createBoxFolder(boxId, wanted);
+          setName('');
+          router.refresh();
+        });
+      }}
+      className="mt-2 flex items-center gap-2"
+    >
+      <input
+        value={name}
+        disabled={pending}
+        onChange={(e) => setName(e.target.value)}
+        placeholder="Add a folder…"
+        className="min-w-0 flex-1 rounded-sm border border-grey-300 bg-paper px-2 py-1 text-[12px] focus:border-grey-500 focus:outline-none"
+      />
+    </form>
   );
 }
 

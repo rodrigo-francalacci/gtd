@@ -1,7 +1,7 @@
 import 'server-only';
 import { purgeGalleryPictures } from './attachments';
 
-import { attachments, boxItems, boxes, db } from '@gtd/db';
+import { attachments, boxFolders, boxItems, boxes, db } from '@gtd/db';
 import { and, eq, isNotNull, isNull, lte, sql } from 'drizzle-orm';
 import { hasSyncScopes } from '@/lib/auth/google';
 import { getGrant } from '@/lib/auth/token';
@@ -42,33 +42,139 @@ async function requireDrive() {
 }
 
 /**
- * The box's Drive folder, made if it doesn't exist and renamed if the box has
- * been renamed since.
+ * The Drive folder a *folder* of a box owns, made on demand.
  *
- * Called from the ingest path rather than from the rename action, which is
- * what keeps the "never call Google inside a request" rule intact: renaming a
- * box writes one row, and the next document to arrive reconciles Drive. The
- * ingest request is already a Google call by definition — it is carrying a
- * file — so one more costs nothing there and blocks no one.
+ * `GTD/Box/<box>/<folder>` — a real subfolder of the box's own, which is the
+ * whole point of having folders at all: the grouping has to be the one you see
+ * when you open Drive rather than an idea that only exists in this app.
+ *
+ * Made lazily for the reason a project's is: a folder somebody made and never
+ * filed into should not leave an empty drawer in Drive. The first document to
+ * land in it creates it.
+ *
+ * Every rule `ensureBoxFolder` learned applies again, because they are the same
+ * problem one level down: a folder trashed in Drive is replaced rather than
+ * failing the move, a renamed folder is renamed on the way past, and two
+ * documents filed into a new folder at the same moment settle their race
+ * against whatever landed in the column first.
  */
+export async function ensureBoxSubfolder(folderId: string): Promise<string> {
+  const [folder] = await db
+    .select({
+      id: boxFolders.id,
+      name: boxFolders.name,
+      boxId: boxFolders.boxId,
+      driveFolderId: boxFolders.driveFolderId,
+    })
+    .from(boxFolders)
+    .where(eq(boxFolders.id, folderId))
+    .limit(1);
+
+  if (!folder) throw new BoxError('That folder no longer exists.');
+
+  const wanted = safeName(folder.name) || 'Folder';
+
+  if (folder.driveFolderId) {
+    const existing = await getFile(folder.driveFolderId);
+    if (existing && !existing.trashed) {
+      if (existing.name !== wanted) await renameFolder(folder.driveFolderId, wanted);
+      return folder.driveFolderId;
+    }
+  }
+
+  // The box's folder first: a folder cannot be a child of something that does
+  // not exist yet, and a box that has never been filed into has no folder.
+  const parent = await ensureBoxFolder(folder.boxId);
+  const made = await ensureFolder(wanted, parent);
+
+  const [won] = await db
+    .update(boxFolders)
+    .set({ driveFolderId: made, updatedAt: new Date() })
+    .where(
+      and(
+        eq(boxFolders.id, folderId),
+        folder.driveFolderId === null
+          ? isNull(boxFolders.driveFolderId)
+          : eq(boxFolders.driveFolderId, folder.driveFolderId),
+      ),
+    )
+    .returning({ id: boxFolders.id });
+
+  if (won) return made;
+
+  const [now] = await db
+    .select({ driveFolderId: boxFolders.driveFolderId })
+    .from(boxFolders)
+    .where(eq(boxFolders.id, folderId))
+    .limit(1);
+
+  return settleFolderRace(made, now?.driveFolderId ?? null);
+}
+
 /**
- * Put a box document's file in the folder its box now owns.
+ * Where an entry's file belongs *right now*: its folder, or its box.
  *
- * The mirror of `moveAttachmentFile`, for the other table that owns a Drive
- * file — and needed for the same reason. Filing a capture into a box hands the
- * `drive_file_id` straight to the `box_items` row and deletes the attachment,
- * so the row lands in the box while the bytes stay in `GTD/Inbox`; moving a
- * document between boxes did the same thing one folder over. Either way the
- * app said one thing and Drive said another, which is the state this app is
- * built to never be in.
- *
- * `ensureBoxFolder` is the destination, so the box's folder is created the
- * first time a document wants one — the same on-demand rule projects follow —
- * and a folder deleted in Drive is remade rather than failing the move.
- *
- * A note, a link or a place has no file at all, and neither does a document
- * whose upload never finished. Both return without a Google call.
+ * One answer, asked by every path that moves a file — the move queue, the
+ * upload session, the sweep. Two definitions of "where does this document go"
+ * is the trap `attachmentFolder` exists to avoid on the other side of the app,
+ * and it would show up here as a file that the sweep and the mover kept
+ * passing between them.
  */
+export async function boxItemDestination(
+  boxId: string,
+  folderId: string | null,
+): Promise<string> {
+  return folderId ? ensureBoxSubfolder(folderId) : ensureBoxFolder(boxId);
+}
+
+/**
+ * Rename the Drive folder to match a folder that has been renamed here.
+ *
+ * Pushed rather than swept, the rule renaming a project follows: the folder
+ * you would go looking in must not keep its old name until tomorrow morning.
+ * Quiet on failure — the name is already saved, and Drive catching up is what
+ * `reconcileBoxFolders` is for.
+ */
+export async function pushFolderName(folderId: string): Promise<boolean> {
+  const [folder] = await db
+    .select({ name: boxFolders.name, driveFolderId: boxFolders.driveFolderId })
+    .from(boxFolders)
+    .where(eq(boxFolders.id, folderId))
+    .limit(1);
+
+  // No Drive folder yet is not a failure: nothing has been filed here, so
+  // there is nothing wearing the old name.
+  if (!folder?.driveFolderId) return false;
+
+  const wanted = safeName(folder.name) || 'Folder';
+  const existing = await getFile(folder.driveFolderId);
+  if (!existing || existing.trashed || existing.name === wanted) return false;
+
+  await renameFolder(folder.driveFolderId, wanted);
+  return true;
+}
+
+/**
+ * Bin a folder's Drive folder once its documents have left it.
+ *
+ * The order `deleteBox` uses, for the same reason: the documents are *refiled*
+ * rather than deleted, and they are still inside this folder until their moves
+ * run. So the caller drains the moves first and only then calls this — and a
+ * folder that still holds something is left standing, because a stray empty
+ * folder is untidy and binning one with a year of receipts in it is not.
+ */
+export async function trashFolderIfEmpty(driveFolderId: string): Promise<boolean> {
+  try {
+    const children = await folderChildIds(driveFolderId);
+    if (children.size > 0) return false;
+    await trashFile(driveFolderId);
+    return true;
+  } catch (error) {
+    console.error('could not bin a box folder', driveFolderId, error);
+    return false;
+  }
+}
+
 /**
  * Trash a deleted box's Drive folder — the same tidy-up a deleted project gets.
  *
@@ -179,9 +285,31 @@ export async function copyBoxItemFile(
   };
 }
 
+/**
+ * Put a box document's file in the folder its box now owns.
+ *
+ * The mirror of `moveAttachmentFile`, for the other table that owns a Drive
+ * file — and needed for the same reason. Filing a capture into a box hands the
+ * `drive_file_id` straight to the `box_items` row and deletes the attachment,
+ * so the row lands in the box while the bytes stay in `GTD/Inbox`; moving a
+ * document between boxes did the same thing one folder over. Either way the
+ * app said one thing and Drive said another, which is the state this app is
+ * built to never be in.
+ *
+ * `ensureBoxFolder` is the destination, so the box's folder is created the
+ * first time a document wants one — the same on-demand rule projects follow —
+ * and a folder deleted in Drive is remade rather than failing the move.
+ *
+ * A note, a link or a place has no file at all, and neither does a document
+ * whose upload never finished. Both return without a Google call.
+ */
 export async function moveBoxItemFile(itemId: string): Promise<void> {
   const [row] = await db
-    .select({ driveFileId: boxItems.driveFileId, boxId: boxItems.boxId })
+    .select({
+      driveFileId: boxItems.driveFileId,
+      boxId: boxItems.boxId,
+      folderId: boxItems.folderId,
+    })
     .from(boxItems)
     .where(eq(boxItems.id, itemId))
     .limit(1);
@@ -193,9 +321,19 @@ export async function moveBoxItemFile(itemId: string): Promise<void> {
    * pictures with it — which is what should happen, since they are what the
    * gallery is. Nothing special to do.
    */
-  await moveFile(row.driveFileId, await ensureBoxFolder(row.boxId));
+  await moveFile(row.driveFileId, await boxItemDestination(row.boxId, row.folderId));
 }
 
+/**
+ * The box's Drive folder, made if it doesn't exist and renamed if the box has
+ * been renamed since.
+ *
+ * Called from the ingest path rather than from the rename action, which is
+ * what keeps the "never call Google inside a request" rule intact: renaming a
+ * box writes one row, and the next document to arrive reconciles Drive. The
+ * ingest request is already a Google call by definition — it is carrying a
+ * file — so one more costs nothing there and blocks no one.
+ */
 export async function ensureBoxFolder(boxId: string): Promise<string> {
   const [box] = await db
     .select({
@@ -279,10 +417,19 @@ export async function startBoxUpload(
    * exactly like a bug in the upload and was in fact this.
    */
   origin: string | null,
+  /**
+   * A drawer of the box to upload straight into, or null for the box itself.
+   *
+   * Uploaded into the folder rather than moved there afterwards: the bytes are
+   * going to Drive either way, and a file that lands in the right place never
+   * spends a tick in the wrong one — which is the window `reconcileBoxFiles`
+   * exists to close and is better not opened.
+   */
+  into?: string | null,
 ): Promise<string> {
   await requireDrive();
 
-  const folderId = await ensureBoxFolder(boxId);
+  const folderId = into ? await ensureBoxSubfolder(into) : await ensureBoxFolder(boxId);
 
   return createResumableSession(
     safeName(name) || 'Document',
@@ -370,6 +517,8 @@ export async function completeBoxUpload(
    * again" on the pane is one press if a document turns out to want them.
    */
   known?: { title?: string; description?: string },
+  /** The drawer it was uploaded into, so the row says where the file is. */
+  into?: string | null,
 ): Promise<{ id: string; name: string }> {
   const file = await getFile(driveFileId);
   if (!file) throw new BoxError('That upload could not be found in Drive.');
@@ -420,6 +569,7 @@ export async function completeBoxUpload(
     .insert(boxItems)
     .values({
       boxId,
+      folderId: into ?? null,
       kind: email ? 'email' : 'document',
       driveFileId: file.id,
       name: file.name,
@@ -513,6 +663,13 @@ export async function createBoxDocument(
   boxId: string,
   mimeType: string,
   name: string,
+  /**
+   * The drawer of the box to make it in, or nothing for the box itself.
+   *
+   * Made *in* the folder rather than moved there after: a file that lands in
+   * the right place never spends a tick in the wrong one.
+   */
+  into?: string | null,
 ): Promise<{ id: string; name: string; driveFileId: string; mimeType: string }> {
   await requireDrive();
 
@@ -523,7 +680,9 @@ export async function createBoxDocument(
   const base = safeName(name) || 'Untitled';
   const title = format ? `${base}.${format.extension}` : base;
 
-  const folderId = await ensureBoxFolder(boxId);
+  const folderId = into
+    ? await ensureBoxSubfolder(into)
+    : await ensureBoxFolder(boxId);
 
   const created = format
     ? await createTextFile(title, format.mime, folderId, format.starter)
@@ -533,6 +692,7 @@ export async function createBoxDocument(
     .insert(boxItems)
     .values({
       boxId,
+      folderId: into ?? null,
       kind: 'document',
       driveFileId: created.id,
       // `name` *is* the name Drive holds — that is the whole basis on which
@@ -688,12 +848,17 @@ export async function reconcileBoxFiles(limit = 50): Promise<number> {
       driveFileId: boxItems.driveFileId,
       boxId: boxItems.boxId,
       boxFolderId: boxes.driveFolderId,
+      /* Which drawer the row says it is in, and whether that drawer has been
+         made in Drive yet. */
+      folderId: boxItems.folderId,
+      folderDriveId: boxFolders.driveFolderId,
     })
     .from(boxItems)
     .innerJoin(boxes, eq(boxItems.boxId, boxes.id))
+    .leftJoin(boxFolders, eq(boxItems.folderId, boxFolders.id))
     .where(isNotNull(boxItems.driveFileId));
 
-  /** What each box folder actually holds, fetched once per box. */
+  /** What each destination actually holds, fetched once per destination. */
   const contents = new Map<string, Set<string>>();
   let moved = 0;
 
@@ -701,24 +866,45 @@ export async function reconcileBoxFiles(limit = 50): Promise<number> {
     if (moved >= limit) break;
     if (!row.boxFolderId || !row.driveFileId) continue;
 
-    let inFolder = contents.get(row.boxFolderId);
+    /*
+     * A row in a folder belongs in that folder's Drive folder — and if the
+     * folder has never been filed into, this is the moment it earns one.
+     * Made rather than skipped, because the alternative leaves the file in the
+     * box root while the app says it is in a drawer, which is precisely the
+     * disagreement this sweep exists to end.
+     */
+    let destination = row.boxFolderId;
+    if (row.folderId) {
+      if (row.folderDriveId) {
+        destination = row.folderDriveId;
+      } else {
+        try {
+          destination = await ensureBoxSubfolder(row.folderId);
+        } catch (error) {
+          console.error('could not make a folder for a box document', row.name, error);
+          continue;
+        }
+      }
+    }
+
+    let inFolder = contents.get(destination);
     if (!inFolder) {
       try {
-        inFolder = await folderChildIds(row.boxFolderId);
+        inFolder = await folderChildIds(destination);
       } catch (error) {
-        // A folder deleted in Drive, or a refused call. Skip the box rather
-        // than the sweep: the other five still get reconciled.
-        console.error('could not list a box folder', row.boxFolderId, error);
-        contents.set(row.boxFolderId, new Set());
+        // A folder deleted in Drive, or a refused call. Skip the destination
+        // rather than the sweep: the other five still get reconciled.
+        console.error('could not list a box folder', destination, error);
+        contents.set(destination, new Set());
         continue;
       }
-      contents.set(row.boxFolderId, inFolder);
+      contents.set(destination, inFolder);
     }
 
     if (inFolder.has(row.driveFileId)) continue;
 
     try {
-      await moveFile(row.driveFileId, row.boxFolderId);
+      await moveFile(row.driveFileId, destination);
       // Kept in step so a second document in the same box does not think this
       // one is still missing and move it again.
       inFolder.add(row.driveFileId);
@@ -732,6 +918,78 @@ export async function reconcileBoxFiles(limit = 50): Promise<number> {
   }
 
   return moved;
+}
+
+/**
+ * The other half of keeping folders honest: the folders themselves.
+ *
+ * `reconcileBoxFiles` puts documents in the right drawer. This one checks the
+ * drawers: a folder renamed here while Drive was unreachable, or a Drive
+ * folder somebody dragged out of its box, or one trashed by hand.
+ *
+ * **Drift is found without asking Google about folders that cannot have
+ * drifted.** Only folders that have a Drive folder are checked, and a box with
+ * no folder of its own is skipped entirely — there is nothing a subfolder of
+ * nothing could be wrong about.
+ *
+ * A folder that has been trashed in Drive has its id cleared rather than being
+ * recreated on the spot: the next document filed into it makes a fresh one,
+ * which is the same answer `ensureBoxFolder` gives, and it means an empty
+ * folder somebody deleted in Drive stays deleted.
+ */
+export async function reconcileBoxFolders(limit = 50): Promise<number> {
+  const rows = await db
+    .select({
+      id: boxFolders.id,
+      name: boxFolders.name,
+      driveFolderId: boxFolders.driveFolderId,
+      boxDriveId: boxes.driveFolderId,
+    })
+    .from(boxFolders)
+    .innerJoin(boxes, eq(boxFolders.boxId, boxes.id))
+    .where(isNotNull(boxFolders.driveFolderId));
+
+  let fixed = 0;
+
+  for (const row of rows) {
+    if (fixed >= limit) break;
+    if (!row.driveFolderId || !row.boxDriveId) continue;
+
+    try {
+      const existing = await getFile(row.driveFolderId);
+
+      if (!existing || existing.trashed) {
+        await db
+          .update(boxFolders)
+          .set({ driveFolderId: null, updatedAt: new Date() })
+          .where(eq(boxFolders.id, row.id));
+        fixed += 1;
+        continue;
+      }
+
+      const wanted = safeName(row.name) || 'Folder';
+      if (existing.name !== wanted) {
+        await renameFolder(row.driveFolderId, wanted);
+        fixed += 1;
+      }
+
+      /*
+       * And it has to still be *inside* its box. A folder dragged elsewhere in
+       * Drive would keep working — the id is what everything here uses — while
+       * showing the documents somewhere the app never put them.
+       */
+      if (existing.parents && !existing.parents.includes(row.boxDriveId)) {
+        await moveFile(row.driveFolderId, row.boxDriveId);
+        fixed += 1;
+      }
+    } catch (error) {
+      // Logged, never swallowed: a folder that can never be reconciled would
+      // otherwise fail silently every tick with nothing to show for it.
+      console.error('could not reconcile a box folder', row.name, error);
+    }
+  }
+
+  return fixed;
 }
 
 /**

@@ -10,6 +10,7 @@ import {
 import {
   expireBoxItems,
   reconcileBoxFiles,
+  reconcileBoxFolders,
   refreshBoxNames,
   renameBoxFiles,
 } from '@/lib/google/boxes';
@@ -69,6 +70,9 @@ export async function GET(request: Request) {
     // Where a document sits, not just what it is called — the other half of
     // what opening the Drive folder shows you, and the half nothing swept.
     reconcileBoxFiles(),
+    // And the drawers those documents sit in: renamed here while Drive was
+    // unreachable, dragged out of the box by hand, or binned in Drive.
+    reconcileBoxFolders(),
     // The same push for an attachment the user has renamed here.
     renameDriveAttachments(),
     // And the same reconciliation for the other table that owns files.

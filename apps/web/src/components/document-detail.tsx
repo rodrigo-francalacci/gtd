@@ -5,6 +5,7 @@ import { TagEditor, TagEditorButton } from './tag-editor';
 import { useSidebarSlot } from './sidebar-slot';
 import { EmojiPicker } from './emoji-picker';
 import { NoteEditor } from './note-editor';
+import type { BoxFolderRow } from '@/lib/queries.shared';
 import type { LinkTarget } from './editor-toolbar';
 import { docFromText } from '@/lib/tiptap';
 import { useRouter } from 'next/navigation';
@@ -13,6 +14,7 @@ import {
   deleteDocument,
   linkDocument,
   moveDocument,
+  setBoxItemFolder,
   setBoxItemListed,
   setDocumentArrivedAt,
   setDocumentExpiry,
@@ -81,6 +83,7 @@ export function DocumentDetail({
   item,
   categories,
   boxes,
+  folders,
   projects,
   linkTargets,
   openBase,
@@ -99,6 +102,11 @@ export function DocumentDetail({
   item: BoxItemDetail;
   categories: BoxCategoryRow[];
   boxes: BoxRow[];
+  /**
+   * The drawers of the box this entry is in — never another box's, or moving
+   * it into one would put the file in a folder its own box does not contain.
+   */
+  folders: BoxFolderRow[];
   projects: { id: string; title: string }[];
   /** Projects and actions this note can point at, offered by name. */
   linkTargets?: LinkTarget[];
@@ -768,6 +776,39 @@ export function DocumentDetail({
             cannot look for a control that isn't there, and the answer to
             "can I move this?" became "apparently not". With one box it says
             where the entry lives and how to get somewhere to move it. */}
+        {/*
+          Which drawer it is in, beside which box it is in — the two questions
+          are the same shape and belong together.
+
+          Always shown, even with no folders yet, for the reason the box picker
+          is: a control that appears only once something exists cannot tell you
+          the thing is possible, and "can I file this?" is otherwise answered by
+          its absence. With none, the only option says so.
+        */}
+        <label className="flex items-center gap-2 text-grey-500">
+          Folder
+          <select
+            value={item.folderId ?? ''}
+            disabled={pending || folders.length === 0}
+            onChange={(e) =>
+              startTransition(async () => {
+                await setBoxItemFolder(item.id, e.target.value || null);
+                router.refresh();
+              })
+            }
+            className="rounded-sm border border-grey-300 bg-paper px-1.5 py-0.5 text-[11px] focus:border-grey-500 focus:outline-none disabled:opacity-60"
+          >
+            <option value="">
+              {folders.length === 0 ? 'no folders in this box' : 'the box itself'}
+            </option>
+            {folders.map((folder) => (
+              <option key={folder.id} value={folder.id}>
+                {folder.name}
+              </option>
+            ))}
+          </select>
+        </label>
+
         {boxes.length > 1 ? (
           <label className="flex items-center gap-2 text-grey-500">
             Box
